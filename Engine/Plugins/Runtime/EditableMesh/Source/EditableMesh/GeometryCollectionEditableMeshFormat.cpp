@@ -26,7 +26,7 @@ void FGeometryCollectionEditableMeshFormat::FillMeshObjectPtr( UPrimitiveCompone
 	{
 		UGeometryCollectionComponent& GeometryCollectionComponent = *GeometryCollectionComponentPtr;
 
-		FGeometryCollectionEdit GeometryCollectionEdit = GeometryCollectionComponent.EditRestCollection(GeometryCollection::EEditUpdate::None);
+		FGeometryCollectionEdit GeometryCollectionEdit = GeometryCollectionComponent.EditRestCollection(false);
 		UGeometryCollection* GeometryCollection = GeometryCollectionEdit.GetRestCollection();
 		if( GeometryCollection != nullptr)
 		{
@@ -34,6 +34,7 @@ void FGeometryCollectionEditableMeshFormat::FillMeshObjectPtr( UPrimitiveCompone
 		}
 	}
 
+	check(SubMeshAddress.MeshObjectPtr);
 }
 
 

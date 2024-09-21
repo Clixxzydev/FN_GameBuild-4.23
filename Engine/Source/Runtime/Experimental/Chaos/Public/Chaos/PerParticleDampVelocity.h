@@ -17,13 +17,13 @@ class TPerParticleDampVelocity : public TPerParticleRule<T, d>
 	virtual ~TPerParticleDampVelocity() {}
 
 	template<class T_PARTICLES>
-	inline void UpdatePositionBasedState(const T_PARTICLES& InParticles, const TArray<int32>& InActiveIndices)
+	inline void UpdatePositionBasedState(const T_PARTICLES& InParticles, const TArray<int32>& ActiveIndices)
 	{
 		static_assert(d == 3, "Damp Velocities currently only supports 3D vectors.");
 		MXcm = TVector<T, d>(0.f, 0.f, 0.f);
 		MVcm = TVector<T, d>(0.f, 0.f, 0.f);
 		T Mcm = (T)0;
-		for (const int32 Index : InActiveIndices)
+		for (const auto Index : ActiveIndices)
 		{
 			if (!InParticles.InvM(Index))
 			{
@@ -37,7 +37,7 @@ class TPerParticleDampVelocity : public TPerParticleRule<T, d>
 		MVcm /= Mcm;
 		TVector<T, d> L = TVector<T, d>(0.f, 0.f, 0.f);
 		PMatrix<T, d, d> I(0);
-		for (const int32 Index : InActiveIndices)
+		for (const auto Index : ActiveIndices)
 		{
 			if (!InParticles.InvM(Index))
 			{
@@ -58,23 +58,11 @@ class TPerParticleDampVelocity : public TPerParticleRule<T, d>
 	template<class T_PARTICLES>
 	inline void UpdatePositionBasedState(const T_PARTICLES& InParticles)
 	{
-		if(ActiveIndices.Num() != InParticles.Size())
+		TArray<int32> ActiveIndices;
+		for (uint32 i = 0; i < InParticles.Size(); ++i)
 		{
-			if((uint32)ActiveIndices.Num() < InParticles.Size())
-			{
-				uint32 CurrNum = ActiveIndices.Num();
-				ActiveIndices.AddUninitialized(InParticles.Size() - CurrNum);
-				for (; CurrNum < InParticles.Size(); ++CurrNum)
-				{
-					ActiveIndices[CurrNum] = CurrNum;
-				}
-			}
-			else if((uint32)ActiveIndices.Num() > InParticles.Size())
-			{
-				ActiveIndices.SetNum(InParticles.Size());
-			}
+			ActiveIndices.Add(i);
 		}
-
 		UpdatePositionBasedState(InParticles, ActiveIndices);
 	}
 
@@ -105,7 +93,6 @@ class TPerParticleDampVelocity : public TPerParticleRule<T, d>
 	}
 
   private:
-	TArray<int32> ActiveIndices;
 	TVector<T, d> MXcm, MVcm, MOmega;
 	T MCoefficient;
 };

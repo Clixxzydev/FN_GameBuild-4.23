@@ -165,8 +165,6 @@ void FEmbeddedCommunication::KeepAwake(FName Requester, bool bNeedsRendering)
 		(*WakeCount)++;
 	}
 	
-	WakeGameThread();
-	
 #endif
 }
 
@@ -329,9 +327,7 @@ bool FEmbeddedCommunication::TickGameThread(float DeltaTime)
 		&& !GTickAnotherFrame) // Don't sleep if we have been asked to tick another frame
  	{
  		// wake up every 5 seconds even if nothing to do
-		UE_LOG(LogInit, VeryVerbose, TEXT("FEmbeddedCommunication Sleeping GameThread..."));
- 		bool bWasTriggered = GSleepEvent->Wait(5000);
-		UE_LOG(LogInit, VeryVerbose, TEXT("FEmbeddedCommunication Woke up. Reason=[%s]"), bWasTriggered ? TEXT("Triggered") : TEXT("TimedOut"));
+ 		GSleepEvent->Wait(5000);
  	}
 	GTickAnotherFrame = false;
 #endif

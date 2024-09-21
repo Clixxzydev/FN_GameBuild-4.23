@@ -5,13 +5,14 @@ Description: Niagara's Unreal Engine 4's visual effect editor used for creating 
 Navigation:topic
 parent:Engine
 order:4
-type:landing
-topic-image:Niagara_Topic.png
+topic-image:NiagaraBanner.png
 social-image:NiagaraSocial.png
-hero-image:NiagaraBanner.png
-related:Engine/Rendering/ParticleSystems
+related:Engine\Rendering\ParticleSystems
 tags:Niagara
-tags:Early Access
+
+[REGION:banner]
+![](NiagaraBanner.png)(convert:false)
+[/REGION]
 
 The **Niagara Editor** is one of two tools you can use to create and adjust visual effects inside Unreal Engine 4 (UE4). Before Niagara, the primary way to create and edit visual effects in UE4 was to use [**Cascade**](Engine\Rendering\ParticleSystems). While Niagara does have many of the same of particle manipulation methods that Cascade offers, the manner in which you interact and build visual effects with Niagara is vastly different.
 
@@ -23,4 +24,22 @@ On this page, you will find links to documentation regarding the different aspec
 
 ## Guides
 
-[DIR(output:"fancy" parent:"Engine/Niagara/HowTo" org:"hierarchy" end:"1")]
+[DIR(output:"fancy" parent:"Engine/Niagara/HowTo" org:"hierarchy" end:"1" )]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

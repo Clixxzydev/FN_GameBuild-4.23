@@ -292,15 +292,21 @@ public class LuminPlatform : Platform
 	private static string GetFinalBatchName(ProjectParams Params, DeploymentContext SC, bool bUninstall)
 	{
 		string Extension = ".bat";
-		if (HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Linux)
+		switch (HostPlatform.Current.HostEditorPlatform)
 		{
-			Extension = ".sh";
-		}
-		else if (HostPlatform.Current.HostEditorPlatform == UnrealTargetPlatform.Mac)
-		{
-			Extension = ".command";
-		}
+			default:
+			case UnrealTargetPlatform.Win64:
+				Extension = ".bat";
+				break;
 
+			case UnrealTargetPlatform.Linux:
+				Extension = ".sh";
+				break;
+
+			case UnrealTargetPlatform.Mac:
+				Extension = ".command";
+				break;
+		}
 		return Path.Combine(GetFinalPackageDirectory(Params), (bUninstall ? "Uninstall_" : "Install_") + Path.GetFileNameWithoutExtension(GetFinalMpkName(Params, SC)) + Extension);
 	}
 

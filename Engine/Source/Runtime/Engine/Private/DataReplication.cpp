@@ -49,8 +49,6 @@ static FAutoConsoleVariableRef CVarSupportsFastArrayDelta(
 	TEXT("Whether or not Fast Array Struct Delta Serialization is enabled.")
 );
 
-extern TAutoConsoleVariable<int32> CVarNetEnableDetailedScopeCounters;
-
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 class FNetSerializeCB : public INetSerializeCB
 {
@@ -207,18 +205,41 @@ public:
 	static bool SendCustomDeltaProperty(
 		const FRepLayout& RepLayout,
 		FNetDeltaSerializeInfo& Params,
-		uint16 CustomDeltaIndex)
+		uint16 CustomDeltaProperty)
 	{
-		return RepLayout.SendCustomDeltaProperty(Params, CustomDeltaIndex);
+		return RepLayout.SendCustomDeltaProperty(Params, CustomDeltaProperty);
 	}
 
 	static bool ReceiveCustomDeltaProperty(
 		const FRepLayout& RepLayout,
-		FReceivingRepState* ReceivingRepState,
 		FNetDeltaSerializeInfo& Params,
-		UStructProperty* ReplicatedProp)
+		UStructProperty* ReplicatedProp,
+		uint32& StaticArrayIndex,
+		int32& Offset)
 	{
-		return RepLayout.ReceiveCustomDeltaProperty(ReceivingRepState, Params, ReplicatedProp);
+		return RepLayout.ReceiveCustomDeltaProperty(Params, ReplicatedProp, StaticArrayIndex, Offset);
+	}
+
+	static void GatherGuidReferencesForCustomDeltaProperties(const FRepLayout& RepLayout, FNetDeltaSerializeInfo& Params)
+	{
+		RepLayout.GatherGuidReferencesForCustomDeltaProperties(Params);
+	}
+
+	static bool MoveMappedObjectToUnmappedForCustomDeltaProperties(
+		const FRepLayout& RepLayout,
+		FNetDeltaSerializeInfo& Params,
+		TMap<int32, UStructProperty*>& UnmappedCustomProperties)
+	{
+		return RepLayout.MoveMappedObjectToUnmappedForCustomDeltaProperties(Params, UnmappedCustomProperties);
+	}
+
+	static void UpdateUnmappedObjectsForCustomDeltaProperties(
+		const FRepLayout& RepLayout,
+		FNetDeltaSerializeInfo& Params,
+		TArray<TPair<int32, UStructProperty*>>& CompletelyMappedProperties,
+		TArray<TPair<int32, UStructProperty*>>& UpdatedProperties)
+	{
+		RepLayout.UpdateUnmappedObjectsForCustomDeltaProperties(Params, CompletelyMappedProperties, UpdatedProperties);
 	}
 
 	static void PreSendCustomDeltaProperties(
@@ -226,7 +247,7 @@ public:
 		UObject* Object,
 		UNetConnection* Connection,
 		FReplicationChangelistMgr& ChangelistMgr,
-		TArray<TSharedPtr<INetDeltaBaseState>>& CustomDeltaStates)
+		TMap<int32, TSharedPtr<INetDeltaBaseState>>& CustomDeltaStates)
 	{
 		RepLayout.PreSendCustomDeltaProperties(Object, Connection, ChangelistMgr, CustomDeltaStates);
 	}
@@ -236,36 +257,9 @@ public:
 		UObject* Object,
 		UNetConnection* Connection,
 		FReplicationChangelistMgr& ChangelistMgr,
-		TArray<TSharedPtr<INetDeltaBaseState>>& CustomDeltaStates)
+		TMap<int32, TSharedPtr<INetDeltaBaseState>>& CustomDeltaStates)
 	{
 		RepLayout.PostSendCustomDeltaProperties(Object, Connection, ChangelistMgr, CustomDeltaStates);
-	}
-
-	static uint16 GetNumLifetimeCustomDeltaProperties(const FRepLayout& RepLayout)
-	{
-		return RepLayout.GetNumLifetimeCustomDeltaProperties();
-	}
-
-	static UProperty* GetLifetimeCustomDeltaProperty(const FRepLayout& RepLayout, const uint16 CustomDeltaPropertyIndex)
-	{
-		return RepLayout.GetLifetimeCustomDeltaProperty(CustomDeltaPropertyIndex);
-	}
-
-	static void UpdateChangelistMgr(
-		const FRepLayout& RepLayout,
-		FSendingRepState* RESTRICT RepState,
-		FReplicationChangelistMgr& InChangelistMgr,
-		const UObject* InObject,
-		const uint32 ReplicationFrame,
-		const FReplicationFlags& RepFlags,
-		const bool bForceCompare)
-	{
-		RepLayout.UpdateChangelistMgr(RepState, InChangelistMgr, InObject, ReplicationFrame, RepFlags, bForceCompare);
-	}
-
-	static const ELifetimeCondition GetLifetimeCustomDeltaPropertyCondition(const FRepLayout& RepLayout, const uint16 CustomDeltaPropertyIndex)
-	{
-		return RepLayout.GetLifetimeCustomDeltaPropertyCondition(CustomDeltaPropertyIndex);
 	}
 
 private:
@@ -277,17 +271,16 @@ private:
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FObjectReplicator::FObjectReplicator()
-	: bLastUpdateEmpty(false)
-	, bOpenAckCalled(false)
-	, bForceUpdateUnmapped(false)
-	, bHasReplicatedProperties(false)
-	, bSupportsFastArrayDelta(false)
-	, ObjectClass(nullptr)
-	, ObjectPtr(nullptr)
-	, Connection(nullptr)
-	, OwningChannel(nullptr)
-	, RemoteFunctions(nullptr)
+FObjectReplicator::FObjectReplicator() :
+	ObjectClass(nullptr),
+	ObjectPtr(nullptr),
+	bLastUpdateEmpty(false),
+	bOpenAckCalled(false),
+	bForceUpdateUnmapped(false),
+	Connection(nullptr),
+	OwningChannel(nullptr),
+	RepState(nullptr),
+	RemoteFunctions(nullptr)
 {
 }
 
@@ -298,18 +291,11 @@ FObjectReplicator::~FObjectReplicator()
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-bool FObjectReplicator::SerializeCustomDeltaProperty(
-	UNetConnection* Connection,
-	void* Src,
-	UProperty* Property,
-	uint32 ArrayIndex,
-	FNetBitWriter& OutBunch,
-	TSharedPtr<INetDeltaBaseState>& NewFullState,
-	TSharedPtr<INetDeltaBaseState>& OldState)
+bool FObjectReplicator::SerializeCustomDeltaProperty( UNetConnection * Connection, void* Src, UProperty * Property, uint32 ArrayIndex, FNetBitWriter & OutBunch, TSharedPtr<INetDeltaBaseState> &NewFullState, TSharedPtr<INetDeltaBaseState> & OldState )
 {
-	check( NewFullState.IsValid() == false ); // NewState is passed in as nullptr and instantiated within this function if necessary
+	check( NewFullState.IsValid() == false ); // NewState is passed in as NULL and instantiated within this function if necessary
 
-	CONDITIONAL_SCOPE_CYCLE_COUNTER( STAT_NetSerializeItemDeltaTime, CVarNetEnableDetailedScopeCounters.GetValueOnAnyThread() > 0 );
+	SCOPE_CYCLE_COUNTER( STAT_NetSerializeItemDeltaTime );
 
 	UStructProperty * StructProperty = CastChecked< UStructProperty >( Property );
 
@@ -327,7 +313,6 @@ bool FObjectReplicator::SerializeCustomDeltaProperty(
 	Parms.Data = Property->ContainerPtrToValuePtr<void>(Src, ArrayIndex);
 	Parms.Object = reinterpret_cast<UObject*>(Src);
 	Parms.Connection = Connection;
-	Parms.bInternalAck = Connection->InternalAck;
 	Parms.Writer = &OutBunch;
 	Parms.Map = Connection->PackageMap;
 	Parms.OldState = OldState.Get();
@@ -355,12 +340,12 @@ bool FObjectReplicator::SendCustomDeltaProperty(UObject* InObject, UProperty* Pr
 	return SendCustomDeltaProperty(InObject, Property->RepIndex + ArrayIndex, OutBunch, NewFullState, OldState);
 }
 
-bool FObjectReplicator::SendCustomDeltaProperty(UObject* InObject, uint16 CustomDeltaIndex, FNetBitWriter& OutBunch, TSharedPtr<INetDeltaBaseState>& NewFullState, TSharedPtr<INetDeltaBaseState>& OldState)
+bool FObjectReplicator::SendCustomDeltaProperty(UObject* InObject, uint16 CustomDeltaProperty, FNetBitWriter& OutBunch, TSharedPtr<INetDeltaBaseState>& NewFullState, TSharedPtr<INetDeltaBaseState>& OldState)
 {
-	check(!NewFullState.IsValid()); // NewState is passed in as nullptr and instantiated within this function if necessary
+	check(!NewFullState.IsValid()); // NewState is passed in as NULL and instantiated within this function if necessary
 	check(RepLayout);
 
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_NetSerializeItemDeltaTime, CVarNetEnableDetailedScopeCounters.GetValueOnAnyThread() > 0);
+	SCOPE_CYCLE_COUNTER(STAT_NetSerializeItemDeltaTime);
 
 	UNetDriver* const ConnectionDriver = Connection->GetDriver();
 	FNetSerializeCB NetSerializeCB(ConnectionDriver);
@@ -374,12 +359,11 @@ bool FObjectReplicator::SendCustomDeltaProperty(UObject* InObject, uint16 Custom
 	Parms.NewState = &NewFullState;
 	Parms.NetSerializeCB = &NetSerializeCB;
 	Parms.bIsWritingOnClient = ConnectionDriver && ConnectionDriver->GetWorld() && ConnectionDriver->GetWorld()->IsRecordingClientReplay();
-	Parms.CustomDeltaIndex = CustomDeltaIndex;
+	Parms.PropertyRepIndex = CustomDeltaProperty;
 	Parms.bSupportsFastArrayDeltaStructSerialization = bSupportsFastArrayDelta;
 	Parms.Connection = Connection;
-	Parms.bInternalAck = Connection->InternalAck;
 
-	return FNetSerializeCB::SendCustomDeltaProperty(*RepLayout, Parms, CustomDeltaIndex);
+	return FNetSerializeCB::SendCustomDeltaProperty(*RepLayout, Parms, CustomDeltaProperty);
 }
 
 /** 
@@ -421,40 +405,27 @@ void FObjectReplicator::InitRecentProperties(uint8* Source)
 
 	bSupportsFastArrayDelta = !!GSupportsFastArrayDelta;
 
-	if (FSendingRepState* SendingRepState = RepState->GetSendingRepState())
+	// TODO: CDOCustomDeltaState, CheckpointCustomDeltaState, RecentCustomDeltaState, and Retirement could all be moved into SendingRepState.
+	//			This would allow us to skip allocating these containers for receivers completely.
+	//			This logic would also be easily moved to FRepLayout::CreateRepState.
+
+	// We should just update this method to accept an object pointer.
+	UObject* UseObject = reinterpret_cast<UObject*>(Source);
+
+	// Init custom delta property state
+	for (const uint16 CustomDeltaProperty : LocalRepLayout.GetLifetimeCustomDeltaProperties())
 	{
-		// We should just update this method to accept an object pointer.
-		UObject* UseObject = reinterpret_cast<UObject*>(Source);
+		FOutBunch DeltaState(Connection->PackageMap);
+		TSharedPtr<INetDeltaBaseState>& NewState = RecentCustomDeltaState.FindOrAdd(CustomDeltaProperty);
+		NewState.Reset();					
 
-		// Init custom delta property state
-		const uint16 NumLifetimeCustomDeltaProperties = FNetSerializeCB::GetNumLifetimeCustomDeltaProperties(LocalRepLayout);
-		SendingRepState->RecentCustomDeltaState.SetNum(NumLifetimeCustomDeltaProperties);
+		TSharedPtr<INetDeltaBaseState> OldState;
 
-		const bool bIsRecordingReplay = Connection->InternalAck;
+		SendCustomDeltaProperty(UseObject, CustomDeltaProperty, DeltaState, NewState, OldState);
 
-		if (bIsRecordingReplay)
-		{
-			SendingRepState->CDOCustomDeltaState.SetNum(NumLifetimeCustomDeltaProperties);
-			SendingRepState->CheckpointCustomDeltaState.SetNum(NumLifetimeCustomDeltaProperties);
-		}
-
-		for (uint16 CustomDeltaProperty = 0; CustomDeltaProperty < NumLifetimeCustomDeltaProperties; ++CustomDeltaProperty)
-		{
-			FOutBunch DeltaState(Connection->PackageMap);
-			TSharedPtr<INetDeltaBaseState>& NewState = SendingRepState->RecentCustomDeltaState[CustomDeltaProperty];
-			NewState.Reset();
-
-			TSharedPtr<INetDeltaBaseState> OldState;
-
-			SendCustomDeltaProperty(UseObject, CustomDeltaProperty, DeltaState, NewState, OldState);
-
-			if (bIsRecordingReplay)
-			{
-				// Store the initial delta state in case we need it for when we're asked to resend all data since channel was first opened (bResendAllDataSinceOpen)
-				SendingRepState->CDOCustomDeltaState[CustomDeltaProperty] = NewState;
-				SendingRepState->CheckpointCustomDeltaState[CustomDeltaProperty] = NewState;
-			}
-		}
+		// Store the initial delta state in case we need it for when we're asked to resend all data since channel was first opened (bResendAllDataSinceOpen)
+		CDOCustomDeltaState.Add(CustomDeltaProperty, NewState);
+		CheckpointCustomDeltaState.Add(CustomDeltaProperty, NewState);
 	}
 }
 
@@ -500,32 +471,32 @@ bool FObjectReplicator::ValidateAgainstState( const UObject* ObjectState )
 
 void FObjectReplicator::InitWithObject( UObject* InObject, UNetConnection * InConnection, bool bUseDefaultState )
 {
-	check( GetObject() == nullptr );
-	check( ObjectClass == nullptr );
+	check( GetObject() == NULL );
+	check( ObjectClass == NULL );
 	check( bLastUpdateEmpty == false );
-	check( Connection == nullptr );
-	check( OwningChannel == nullptr );
+	check( Connection == NULL );
+	check( OwningChannel == NULL );
 	check( !RepState.IsValid() );
-	check( RemoteFunctions == nullptr );
+	check( RemoteFunctions == NULL );
 	check( !RepLayout.IsValid() );
 
 	SetObject( InObject );
 
-	if ( GetObject() == nullptr )
+	if ( GetObject() == NULL )
 	{
-		// This may seem weird that we're checking for nullptr, but the SetObject above will wrap this object with TWeakObjectPtr
-		// If the object is pending kill, it will switch to nullptr, we're just making sure we handle this invalid edge case
-		UE_LOG(LogRep, Error, TEXT("InitWithObject: Object == nullptr"));
+		// This may seem weird that we're checking for NULL, but the SetObject above will wrap this object with TWeakObjectPtr
+		// If the object is pending kill, it will switch to NULL, we're just making sure we handle this invalid edge case
+		UE_LOG(LogRep, Error, TEXT("InitWithObject: Object == NULL"));
 		return;
 	}
 
 	ObjectClass					= InObject->GetClass();
 	Connection					= InConnection;
-	RemoteFunctions				= nullptr;
+	RemoteFunctions				= NULL;
 	bHasReplicatedProperties	= false;
 	bOpenAckCalled				= false;
-	RepState					= nullptr;
-	OwningChannel				= nullptr;		// Initially nullptr until StartReplicating is called
+	RepState					= NULL;
+	OwningChannel				= NULL;		// Initially NULL until StartReplicating is called
 	TrackedGuidMemoryBytes		= 0;
 
 	RepLayout = Connection->Driver->GetObjectClassRepLayout( ObjectClass );
@@ -535,12 +506,16 @@ void FObjectReplicator::InitWithObject( UObject* InObject, UNetConnection * InCo
 
 	InitRecentProperties( Source );
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	RepLayout->GetLifetimeCustomDeltaProperties( LifetimeCustomDeltaProperties, LifetimeCustomDeltaPropertyConditions );
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	Connection->Driver->AllOwnedReplicators.Add(this);
 }
 
 void FObjectReplicator::CleanUp()
 {
-	if ( OwningChannel != nullptr )
+	if ( OwningChannel != NULL )
 	{
 		StopReplicating( OwningChannel );		// We shouldn't get here, but just in case
 	}
@@ -574,13 +549,22 @@ void FObjectReplicator::CleanUp()
 	ReferencedGuids.Empty();
 	TrackedGuidMemoryBytes = 0;
 
-	SetObject( nullptr );
+	SetObject( NULL );
 
-	ObjectClass					= nullptr;
-	Connection					= nullptr;
-	RemoteFunctions				= nullptr;
+	ObjectClass					= NULL;
+	Connection					= NULL;
+	RemoteFunctions				= NULL;
 	bHasReplicatedProperties	= false;
 	bOpenAckCalled				= false;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Cleanup custom delta state
+	RecentCustomDeltaState.Empty();
+	CheckpointCustomDeltaState.Empty();
+
+	LifetimeCustomDeltaProperties.Empty();
+	LifetimeCustomDeltaPropertyConditions.Empty();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	RepState = nullptr;
 	CheckpointRepState = nullptr;
@@ -619,26 +603,13 @@ void FObjectReplicator::StartReplicating(class UActorChannel * InActorChannel)
 
 	// Cache off netGUID so if this object gets deleted we can close it
 	ObjectNetGUID = ConnectionNetDriver->GuidCache->GetOrAssignNetGUID( Object );
-
-	const bool bIsValidToReplicate = !ObjectNetGUID.IsDefault() && ObjectNetGUID.IsValid();
-	if (UNLIKELY(!bIsValidToReplicate))
-	{
-		// This has mostly been seen when doing a Seamless Travel Restart.
-		// In that case, the server can think the client is still on the same map and replicate objects before
-		// the client has finished the travel, and the client will later remove those references from the Package Map.
-		UE_LOG(LogRep, Error, TEXT("StartReplicating: Invalid Net GUID. Object may fail to replicate properties or handle RPCs. Object %s"), *Object->GetPathName());
-		return;
-	}
+	check(!ObjectNetGUID.IsDefault() && ObjectNetGUID.IsValid());
 
 	if (ConnectionNetDriver->IsServer() || ConnectionNetDriver->MaySendProperties())
 	{
-		if (FSendingRepState* SendingRepState = RepState.IsValid() ? RepState->GetSendingRepState() : nullptr)
-		{
-			// Allocate retirement list.
-			// SetNum now constructs, so this is safe
-
-			SendingRepState->Retirement.SetNum(ObjectClass->ClassReps.Num());
-		}
+		// Allocate retirement list.
+		// SetNum now constructs, so this is safe
+		Retirement.SetNum(ObjectClass->ClassReps.Num());
 
 		const UWorld* const World = ConnectionNetDriver->GetWorld();
 		UNetDriver* const WorldNetDriver = World ? World->GetNetDriver() : nullptr;
@@ -655,7 +626,7 @@ void FObjectReplicator::StartReplicating(class UActorChannel * InActorChannel)
 	}
 }
 
-void ValidateRetirementHistory(const FPropertyRetirement & Retire, const UObject* Object)
+static FORCEINLINE void ValidateRetirementHistory( const FPropertyRetirement & Retire, const UObject* Object )
 {
 #if !UE_BUILD_SHIPPING
 	checkf( Retire.SanityTag == FPropertyRetirement::ExpectedSanityTag, TEXT( "Invalid Retire.SanityTag. Object: %s" ), *GetFullNameSafe(Object) );
@@ -664,7 +635,7 @@ void ValidateRetirementHistory(const FPropertyRetirement & Retire, const UObject
 
 	FPacketIdRange LastRange;
 
-	while ( Rec != nullptr )
+	while ( Rec != NULL )
 	{
 		checkf( Rec->SanityTag == FPropertyRetirement::ExpectedSanityTag, TEXT( "Invalid Rec->SanityTag. Object: %s" ), *GetFullNameSafe(Object) );
 		checkf( Rec->OutPacketIdRange.Last >= Rec->OutPacketIdRange.First, TEXT( "Invalid packet id range (Last < First). Object: %s" ), *GetFullNameSafe(Object) );
@@ -679,43 +650,38 @@ void ValidateRetirementHistory(const FPropertyRetirement & Retire, const UObject
 
 void FObjectReplicator::StopReplicating( class UActorChannel * InActorChannel )
 {
-	check(OwningChannel != nullptr);
-	check(OwningChannel->Connection == Connection);
-	check(OwningChannel == InActorChannel);
+	check( OwningChannel != NULL );
+	check( OwningChannel->Connection == Connection );
+	check( OwningChannel == InActorChannel );
 
-	OwningChannel = nullptr;
+	OwningChannel = NULL;
 
 	const UObject* Object = GetObject();
 
-	if (FSendingRepState* SendingRepState = RepState.IsValid() ? RepState->GetSendingRepState() : nullptr)
+	// Cleanup retirement records
+	for ( int32 i = Retirement.Num() - 1; i >= 0; i-- )
 	{
-		// Cleanup retirement records
-		for (int32 i = SendingRepState->Retirement.Num() - 1; i >= 0; i--)
+		ValidateRetirementHistory( Retirement[i], Object );
+
+		FPropertyRetirement * Rec = Retirement[i].Next;
+		Retirement[i].Next = NULL;
+
+		// We dont need to explicitly delete Retirement[i], but anything in the Next chain needs to be.
+		while ( Rec != NULL )
 		{
-			FPropertyRetirement& Retirement = SendingRepState->Retirement[i];
-			ValidateRetirementHistory(Retirement, Object);
-
-			FPropertyRetirement* Rec = Retirement.Next;
-			Retirement.Next = nullptr;
-
-			// We dont need to explicitly delete Retirement, but anything in the Next chain needs to be.
-			while (Rec != nullptr)
-			{
-				FPropertyRetirement* Next = Rec->Next;
-				delete Rec;
-				Rec = Next;
-			}
+			FPropertyRetirement * Next = Rec->Next;
+			delete Rec;
+			Rec = Next;
 		}
-
-		SendingRepState->Retirement.Empty();
 	}
 
+	Retirement.Empty();
 	PendingLocalRPCs.Empty();
 
-	if (RemoteFunctions != nullptr)
+	if ( RemoteFunctions != NULL )
 	{
 		delete RemoteFunctions;
-		RemoteFunctions = nullptr;
+		RemoteFunctions = NULL;
 	}
 }
 
@@ -817,81 +783,74 @@ void FObjectReplicator::ReceivedNak( int32 NakPacketId )
 {
 	const UObject* Object = GetObject();
 
-	if (Object == nullptr)
+	if ( Object == NULL )
 	{
-		UE_LOG(LogNet, Verbose, TEXT("FObjectReplicator::ReceivedNak: Object == nullptr"));
+		UE_LOG(LogNet, Verbose, TEXT("ReceivedNak: Object == NULL"));
 		return;
 	}
-	else if (ObjectClass == nullptr)
+
+	if ( Object != NULL && ObjectClass != NULL )
 	{
-		UE_LOG(LogNet, Verbose, TEXT("FObjectReplicator::ReceivedNak: ObjectClass == nullptr"));
-	}
-	else if (ERepLayoutState::Normal == RepLayout->GetRepLayoutState())
-	{
-		if (FSendingRepState* SendingRepState = RepState.IsValid() ? RepState->GetSendingRepState() : nullptr)
+		RepLayout->ReceivedNak( RepState.Get(), NakPacketId );
+
+		for ( int32 i = Retirement.Num() - 1; i >= 0; i-- )
 		{
-			// Go over properties tracked with histories, and mark them as needing to be resent.
-			for (int32 i = SendingRepState->HistoryStart; i < SendingRepState->HistoryEnd; ++i)
+			ValidateRetirementHistory( Retirement[i], Object );
+
+			// If this is a dynamic array property, we have to look through the list of retirement records to see if we need to reset the base state
+			FPropertyRetirement * Rec = Retirement[i].Next; // Retirement[i] is head and not actually used in this case
+			while ( Rec != NULL )
 			{
-				const int32 HistoryIndex = i % FSendingRepState::MAX_CHANGE_HISTORY;
-
-				FRepChangedHistory& HistoryItem = SendingRepState->ChangeHistory[HistoryIndex];
-
-				if (!HistoryItem.Resend && HistoryItem.OutPacketIdRange.InRange(NakPacketId))
+				if ( NakPacketId > Rec->OutPacketIdRange.Last )
 				{
-					check(HistoryItem.Changed.Num() > 0);
-					HistoryItem.Resend = true;
-					++SendingRepState->NumNaks;
+					// We can assume this means this record's packet was ack'd, so we can get rid of the old state
+					check( Retirement[i].Next == Rec );
+					Retirement[i].Next = Rec->Next;
+					delete Rec;
+					Rec = Retirement[i].Next;
+					continue;
 				}
-			}
-
-			// Go over our Custom Delta Properties and update their retirements
-			for (int32 i = SendingRepState->Retirement.Num() - 1; i >= 0; i--)
-			{
-				FPropertyRetirement& Retirement = SendingRepState->Retirement[i];
-				ValidateRetirementHistory(Retirement, Object);
-
-				// If this is a dynamic array property, we have to look through the list of retirement records to see if we need to reset the base state
-				FPropertyRetirement* Rec = Retirement.Next; // Retirement[i] is head and not actually used in this case
-				while (Rec != nullptr)
+				else if ( NakPacketId >= Rec->OutPacketIdRange.First && NakPacketId <= Rec->OutPacketIdRange.Last )
 				{
-					if (NakPacketId > Rec->OutPacketIdRange.Last)
+					UE_LOG(LogNet, Verbose, TEXT("Restoring Previous Base State of dynamic property. Channel: %s, NakId: %d, First: %d, Last: %d, Address: %s)"), *OwningChannel->Describe(), NakPacketId, Rec->OutPacketIdRange.First, Rec->OutPacketIdRange.Last, *Connection->LowLevelGetRemoteAddress(true));
+
+					// The Nack'd packet did update this property, so we need to replace the buffer in RecentDynamic
+					// with the buffer we used to create this update (which was dropped), so that the update will be recreated on the next replicate actor
+					if ( Rec->DynamicState.IsValid() )
 					{
-						// We can assume this means this record's packet was ack'd, so we can get rid of the old state
-						check(Retirement.Next == Rec);
-						Retirement.Next = Rec->Next;
+						TSharedPtr<INetDeltaBaseState> & RecentState = RecentCustomDeltaState.FindChecked( i );
+						
+						RecentState.Reset();
+						RecentState = Rec->DynamicState;
+					}
+
+					// We can get rid of the rest of the saved off base states since we will be regenerating these updates on the next replicate actor
+					while ( Rec != NULL )
+					{
+						FPropertyRetirement * DeleteNext = Rec->Next;
 						delete Rec;
-						Rec = Retirement.Next;
-						continue;
+						Rec = DeleteNext;
 					}
-					else if (NakPacketId >= Rec->OutPacketIdRange.First && NakPacketId <= Rec->OutPacketIdRange.Last)
-					{
-						UE_LOG(LogNet, Verbose, TEXT("Restoring Previous Base State of dynamic property. Channel: %s, NakId: %d, First: %d, Last: %d, Address: %s)"), *OwningChannel->Describe(), NakPacketId, Rec->OutPacketIdRange.First, Rec->OutPacketIdRange.Last, *Connection->LowLevelGetRemoteAddress(true));
 
-						// The Nack'd packet did update this property, so we need to replace the buffer in RecentDynamic
-						// with the buffer we used to create this update (which was dropped), so that the update will be recreated on the next replicate actor
-						SendingRepState->RecentCustomDeltaState[i] = Rec->DynamicState;
-
-						// We can get rid of the rest of the saved off base states since we will be regenerating these updates on the next replicate actor
-						while (Rec != nullptr)
-						{
-							FPropertyRetirement * DeleteNext = Rec->Next;
-							delete Rec;
-							Rec = DeleteNext;
-						}
-
-						// Finished
-						Retirement.Next = nullptr;
-						break;
-					}
-					Rec = Rec->Next;
+					// Finished
+					Retirement[i].Next = NULL;
+					break;				
 				}
-
-				ValidateRetirementHistory(Retirement, Object);
+				Rec = Rec->Next;
 			}
+				
+			ValidateRetirementHistory( Retirement[i], Object );
 		}
 	}
 }
+
+#define HANDLE_INCOMPATIBLE_PROP		\
+	if ( bIsServer )					\
+	{									\
+		return false;					\
+	}									\
+	FieldCache->bIncompatible = true;	\
+	continue;							\
 
 bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFlags& RepFlags, const bool bHasRepLayout, bool& bOutHasUnmapped)
 {
@@ -901,7 +860,7 @@ bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFl
 
 	if (!Object)
 	{
-		UE_LOG(LogNet, Verbose, TEXT("ReceivedBunch: Object == nullptr"));
+		UE_LOG(LogNet, Verbose, TEXT("ReceivedBunch: Object == NULL"));
 		return false;
 	}
 
@@ -915,13 +874,12 @@ bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFl
 
 	if (!ClassCache)
 	{
-		UE_LOG(LogNet, Error, TEXT("ReceivedBunch: ClassCache == nullptr: %s"), *Object->GetFullName());
+		UE_LOG(LogNet, Error, TEXT("ReceivedBunch: ClassCache == NULL: %s"), *Object->GetFullName());
 		return false;
 	}
 
 	const FRepLayout& LocalRepLayout = *RepLayout;
 	bool bGuidsChanged = false;
-	FReceivingRepState* ReceivingRepState = RepState->GetReceivingRepState();
 
 	// Handle replayout properties
 	if (bHasRepLayout)
@@ -1052,23 +1010,33 @@ bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFl
 			Parms.Reader = &Reader;
 			Parms.NetSerializeCB = &NetSerializeCB;
 			Parms.Connection = Connection;
-			Parms.bInternalAck = Connection->InternalAck;
 			Parms.Object = Object;
 
-			if (!FNetSerializeCB::ReceiveCustomDeltaProperty(LocalRepLayout, ReceivingRepState, Parms, ReplicatedProp))
+			uint32 StaticArrayIndex = 0;
+			int32 Offset = 0;
+			if (!FNetSerializeCB::ReceiveCustomDeltaProperty(LocalRepLayout, Parms, ReplicatedProp, StaticArrayIndex, Offset))
 			{
-				// Should have already logged the error.
-				if (bIsServer)
-				{
-					return false;
-				}
+				// RepLayout should have already logged the error.
+				HANDLE_INCOMPATIBLE_PROP;
+			}
+			else if (UNLIKELY(Reader.IsError()))
+			{
+				UE_LOG(LogNet, Error, TEXT("ReceivedBunch: NetDeltaSerialize - Reader.IsError() == true. Property: %s, Object: %s"), *Parms.DebugName, *Object->GetFullName());
+				HANDLE_INCOMPATIBLE_PROP
+			}
 
-				FieldCache->bIncompatible = true;
-				continue;
+			else if (UNLIKELY(Reader.GetBitsLeft() != 0))
+			{
+				UE_LOG( LogNet, Error, TEXT( "ReceivedBunch: NetDeltaSerialize - Mismatch read. Property: %s, Object: %s" ), *Parms.DebugName, *Object->GetFullName() );
+				HANDLE_INCOMPATIBLE_PROP
 			}
 
 			if (Parms.bOutHasMoreUnmapped)
 			{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				UnmappedCustomProperties.Add(Offset, ReplicatedProp);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 				bOutHasUnmapped = true;
 			}
 
@@ -1079,6 +1047,10 @@ bool FObjectReplicator::ReceivedBunch(FNetBitReader& Bunch, const FReplicationFl
 
 			// Successfully received it.
 			UE_LOG(LogRepTraffic, Log, TEXT(" %s - %s"), *Object->GetName(), *Parms.DebugName);
+
+			// Notify the Object if this var is RepNotify
+			TArray<uint8> MetaData;
+			QueuePropertyRepNotify(Object, ReplicatedProp, StaticArrayIndex, MetaData);
 		}
 		// Handle function call
 		else if ( Cast< UFunction >( FieldCache->Field ) )
@@ -1294,16 +1266,20 @@ void FObjectReplicator::UpdateGuidToReplicatorMap()
 	// Gather guids on rep layout
 	if (RepState.IsValid())
 	{
+		LocalRepLayout.GatherGuidReferences(RepState->GetReceivingRepState(), LocalReferencedGuids, LocalTrackedGuidMemoryBytes);
+	}
+
+	if (UObject* Object = GetObject())
+	{
 		FNetSerializeCB NetSerializeCB(Connection->Driver);
 
 		FNetDeltaSerializeInfo Parms;
 		Parms.NetSerializeCB = &NetSerializeCB;
 		Parms.GatherGuidReferences = &LocalReferencedGuids;
 		Parms.TrackedGuidMemoryBytes = &LocalTrackedGuidMemoryBytes;
-		Parms.Object = GetObject();
-		Parms.bInternalAck = Connection->InternalAck;
+		Parms.Object = Object;
 
-		LocalRepLayout.GatherGuidReferences(RepState->GetReceivingRepState(), Parms, LocalReferencedGuids, LocalTrackedGuidMemoryBytes);
+		FNetSerializeCB::GatherGuidReferencesForCustomDeltaProperties(LocalRepLayout, Parms);
 	}
 
 	// Gather RPC guids
@@ -1355,28 +1331,38 @@ bool FObjectReplicator::MoveMappedObjectToUnmapped(const FNetworkGUID& GUID)
 	check(RepLayout);
 	const FRepLayout& LocalRepLayout = *RepLayout;
 
-	FNetSerializeCB NetSerializeCB(Connection->Driver);
-	FNetDeltaSerializeInfo Parms;
-	Parms.Connection = Connection;
-	Parms.bInternalAck = Connection->InternalAck;
-	Parms.Map = Connection->PackageMap;
-	Parms.Object = GetObject();
-	Parms.NetSerializeCB = &NetSerializeCB;
-	Parms.MoveGuidToUnmapped = &GUID;
+	bool bFound = LocalRepLayout.MoveMappedObjectToUnmapped(RepState->GetReceivingRepState(), GUID);
 
-	return LocalRepLayout.MoveMappedObjectToUnmapped(RepState->GetReceivingRepState(), Parms, GUID);
+	if (UObject* Object = GetObject())
+	{
+		FNetSerializeCB NetSerializeCB(Connection->Driver);
+
+		FNetDeltaSerializeInfo Parms;
+		Parms.Connection = Connection;
+		Parms.Map = Connection->PackageMap;
+		Parms.Object = Object;
+		Parms.NetSerializeCB = &NetSerializeCB;
+		Parms.MoveGuidToUnmapped = &GUID;
+		Parms.Object = Object;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		bFound |= FNetSerializeCB::MoveMappedObjectToUnmappedForCustomDeltaProperties(LocalRepLayout, Parms, UnmappedCustomProperties);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+	return bFound;
 }
 
 void FObjectReplicator::PostReceivedBunch()
 {
-	if ( GetObject() == nullptr )
+	if ( GetObject() == NULL )
 	{
-		UE_LOG(LogNet, Verbose, TEXT("PostReceivedBunch: Object == nullptr"));
+		UE_LOG(LogNet, Verbose, TEXT("PostReceivedBunch: Object == NULL"));
 		return;
 	}
 
 	// Call PostNetReceive
-	const bool bIsServer = (OwningChannel->Connection->Driver->ServerConnection == nullptr);
+	const bool bIsServer = (OwningChannel->Connection->Driver->ServerConnection == NULL);
 	if (!bIsServer && bHasReplicatedProperties)
 	{
 		PostNetReceive();
@@ -1387,24 +1373,21 @@ void FObjectReplicator::PostReceivedBunch()
 	CallRepNotifies(true);
 }
 
-static FORCEINLINE FPropertyRetirement** UpdateAckedRetirements(
-	FPropertyRetirement& Retire,
-	const int32 OutAckPacketId,
-	const UObject* Object)
+static FORCEINLINE FPropertyRetirement ** UpdateAckedRetirements( FPropertyRetirement &	Retire, const int32 OutAckPacketId, const UObject* Object )
 {
-	ValidateRetirementHistory(Retire, Object);
+	ValidateRetirementHistory( Retire, Object );
 
-	FPropertyRetirement** Rec = &Retire.Next; // Note the first element is 'head' that we don't actually use
+	FPropertyRetirement ** Rec = &Retire.Next;	// Note the first element is 'head' that we dont actually use
 
-	while (*Rec != nullptr)
+	while ( *Rec != NULL )
 	{
-		if (OutAckPacketId >= (*Rec)->OutPacketIdRange.Last)
+		if ( OutAckPacketId >= (*Rec)->OutPacketIdRange.Last )
 		{
 			UE_LOG(LogRepTraffic, Verbose, TEXT("Deleting Property Record (%d >= %d)"), OutAckPacketId, (*Rec)->OutPacketIdRange.Last);
 
 			// They've ack'd this packet so we can ditch this record (easier to do it here than look for these every Ack)
-			FPropertyRetirement* ToDelete = *Rec;
-			check(Retire.Next == ToDelete); // This should only be able to happen to the first record in the list
+			FPropertyRetirement * ToDelete = *Rec;
+			check( Retire.Next == ToDelete ); // This should only be able to happen to the first record in the list
 			Retire.Next = ToDelete->Next;
 			Rec = &Retire.Next;
 
@@ -1420,13 +1403,13 @@ static FORCEINLINE FPropertyRetirement** UpdateAckedRetirements(
 
 void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, FReplicationFlags RepFlags )
 {
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_NetReplicateCustomDeltaPropTime, CVarNetEnableDetailedScopeCounters.GetValueOnAnyThread() > 0);
+	SCOPE_CYCLE_COUNTER(STAT_NetReplicateCustomDeltaPropTime);
 
 	check(RepLayout);
 	const FRepLayout& LocalRepLayout = *RepLayout;
-	const int32 NumLifetimeCustomDeltaProperties = FNetSerializeCB::GetNumLifetimeCustomDeltaProperties(LocalRepLayout);
+	const TArrayView<const uint16> LocalLifetimeCustomDeltaProperties = LocalRepLayout.GetLifetimeCustomDeltaProperties();
 
-	if (NumLifetimeCustomDeltaProperties <= 0)
+	if (!LocalLifetimeCustomDeltaProperties.Num())
 	{
 		// No custom properties
 		return;
@@ -1436,16 +1419,15 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 	//			the receiving end, and make things more consistent.
 
 	UObject* Object = GetObject();
-	FSendingRepState* SendingRepState = RepState->GetSendingRepState();
 
 	check(Object);
 	check(OwningChannel);
 	check(Connection == OwningChannel->Connection);
 
-	TArray<TSharedPtr<INetDeltaBaseState>>& UsingCustomDeltaStates =
-		EResendAllDataState::None == Connection->ResendAllDataState ? SendingRepState->RecentCustomDeltaState :
-		EResendAllDataState::SinceOpen == Connection->ResendAllDataState ? SendingRepState->CDOCustomDeltaState :
-		SendingRepState->CheckpointCustomDeltaState;
+	TMap<int32, TSharedPtr<INetDeltaBaseState>>& UsingCustomDeltaStates =
+		EResendAllDataState::None == Connection->ResendAllDataState ? RecentCustomDeltaState :
+		EResendAllDataState::SinceOpen == Connection->ResendAllDataState ? CDOCustomDeltaState :
+		CheckpointCustomDeltaState;
 
 	FNetSerializeCB::PreSendCustomDeltaProperties(LocalRepLayout, Object, Connection, *ChangelistMgr, UsingCustomDeltaStates);
 
@@ -1463,9 +1445,16 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 	FNetBitWriter TempBitWriter( Connection->PackageMap, 1024 );
 
 	// Replicate those properties.
-	for (uint16 CustomDeltaProperty = 0; CustomDeltaProperty < NumLifetimeCustomDeltaProperties; ++CustomDeltaProperty)
+	for (const uint16 CustomDeltaProperty : LocalLifetimeCustomDeltaProperties)
 	{
-		const ELifetimeCondition RepCondition = FNetSerializeCB::GetLifetimeCustomDeltaPropertyCondition(LocalRepLayout, CustomDeltaProperty);
+		// Get info.
+		FPropertyRetirement& Retire = Retirement[CustomDeltaProperty];
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		UProperty* It = LocalRepLayout.GetPropertyForRepIndex(CustomDeltaProperty);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		const ELifetimeCondition RepCondition = LocalRepLayout.GetPropertyLifetimeCondition(CustomDeltaProperty);
 
 		check(RepCondition >= 0 && RepCondition < COND_Max);
 
@@ -1475,19 +1464,17 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 			continue;
 		}
 
-		UProperty* Property = FNetSerializeCB::GetLifetimeCustomDeltaProperty(LocalRepLayout, CustomDeltaProperty);
-
 		// If this is a dynamic array, we do the delta here
 		TSharedPtr<INetDeltaBaseState> NewState;
 
 		TempBitWriter.Reset();
 
-		TSharedPtr<INetDeltaBaseState>& OldState = UsingCustomDeltaStates[CustomDeltaProperty];
-
 		if (Connection->ResendAllDataState != EResendAllDataState::None)
 		{
 			if (Connection->ResendAllDataState == EResendAllDataState::SinceCheckpoint)
 			{
+				TSharedPtr<INetDeltaBaseState>& OldState = CheckpointCustomDeltaState.FindChecked(CustomDeltaProperty);
+
 				if (!SendCustomDeltaProperty(Object, CustomDeltaProperty, TempBitWriter, NewState, OldState))
 				{
 					continue;
@@ -1500,6 +1487,8 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 			{
 				// If we are resending data since open, we don't want to affect the current state of channel/replication, so just do the minimum and send the data, and return
 				// In this case, we'll send all of the properties since the CDO, so use the initial CDO delta state
+				TSharedPtr<INetDeltaBaseState>& OldState = CDOCustomDeltaState.FindChecked(CustomDeltaProperty);
+
 				if (!SendCustomDeltaProperty(Object, CustomDeltaProperty, TempBitWriter, NewState, OldState))
 				{
 					continue;
@@ -1507,13 +1496,10 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 			}
 
 			// Write property header and payload to the bunch
-			WritePropertyHeaderAndPayload(Object, Property, NetFieldExportGroup, Bunch, TempBitWriter);
+			WritePropertyHeaderAndPayload(Object, It, NetFieldExportGroup, Bunch, TempBitWriter);
 
 			continue;
 		}
-
-		// Get info.
-		FPropertyRetirement& Retire = SendingRepState->Retirement[CustomDeltaProperty];
 
 		// Update Retirement records with this new state so we can handle packet drops.
 		// LastNext will be pointer to the last "Next" pointer in the list (so pointer to a pointer)
@@ -1523,6 +1509,8 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 		check(*LastNext == nullptr);
 
 		ValidateRetirementHistory(Retire, Object);
+
+		TSharedPtr<INetDeltaBaseState>& OldState = RecentCustomDeltaState.FindOrAdd(CustomDeltaProperty);
 
 		//-----------------------------------------
 		//	Do delta serialization on dynamic properties
@@ -1543,9 +1531,9 @@ void FObjectReplicator::ReplicateCustomDeltaProperties( FNetBitWriter & Bunch, F
 		OldState = NewState; 
 
 		// Write property header and payload to the bunch
-		WritePropertyHeaderAndPayload(Object, Property, NetFieldExportGroup, Bunch, TempBitWriter);
+		WritePropertyHeaderAndPayload(Object, It, NetFieldExportGroup, Bunch, TempBitWriter);
 
-		NETWORK_PROFILER(GNetworkProfiler.TrackReplicateProperty(Property, TempBitWriter.GetNumBits(), Connection));
+		NETWORK_PROFILER(GNetworkProfiler.TrackReplicateProperty(It, TempBitWriter.GetNumBits(), Connection));
 	}
 }
 
@@ -1554,9 +1542,9 @@ bool FObjectReplicator::ReplicateProperties( FOutBunch & Bunch, FReplicationFlag
 {
 	UObject* Object = GetObject();
 
-	if ( Object == nullptr )
+	if ( Object == NULL )
 	{
-		UE_LOG(LogRep, Verbose, TEXT("ReplicateProperties: Object == nullptr"));
+		UE_LOG(LogRep, Verbose, TEXT("ReplicateProperties: Object == NULL"));
 		return false;
 	}
 
@@ -1582,7 +1570,7 @@ bool FObjectReplicator::ReplicateProperties( FOutBunch & Bunch, FReplicationFlag
 
 	// Update change list (this will re-use work done by previous connections)
 	FSendingRepState* SendingRepState = ((Connection->ResendAllDataState == EResendAllDataState::SinceCheckpoint) && CheckpointRepState.IsValid()) ? CheckpointRepState->GetSendingRepState() : RepState->GetSendingRepState();
-	FNetSerializeCB::UpdateChangelistMgr(*RepLayout, SendingRepState, *ChangelistMgr, Object, Connection->Driver->ReplicationFrame, RepFlags, OwningChannel->bForceCompareProperties);
+	RepLayout->UpdateChangelistMgr(SendingRepState, *ChangelistMgr, Object, Connection->Driver->ReplicationFrame, RepFlags, OwningChannel->bForceCompareProperties);
 
 	// Replicate properties in the layout
 	const bool bHasRepLayout = RepLayout->ReplicateProperties(SendingRepState, ChangelistMgr->GetRepChangelistState(), (uint8*)Object, ObjectClass, OwningChannel, Writer, RepFlags);
@@ -1615,7 +1603,7 @@ bool FObjectReplicator::ReplicateProperties( FOutBunch & Bunch, FReplicationFlag
 	bLastUpdateEmpty = Writer.GetNumBits() == 0;
 
 	// Replicate Queued (unreliable functions)
-	if ( RemoteFunctions != nullptr && RemoteFunctions->GetNumBits() > 0 )
+	if ( RemoteFunctions != NULL && RemoteFunctions->GetNumBits() > 0 )
 	{
 		if ( UNLIKELY(GNetRPCDebug == 1) )
 		{
@@ -1644,18 +1632,15 @@ bool FObjectReplicator::ReplicateProperties( FOutBunch & Bunch, FReplicationFlag
 
 void FObjectReplicator::ForceRefreshUnreliableProperties()
 {
-	if (GetObject() == nullptr)
+	if ( GetObject() == NULL )
 	{
-		UE_LOG(LogRep, Verbose, TEXT("ForceRefreshUnreliableProperties: Object == nullptr"));
+		UE_LOG( LogRep, Verbose, TEXT( "ForceRefreshUnreliableProperties: Object == NULL" ) );
 		return;
 	}
 
-	check(!bOpenAckCalled);
+	check( !bOpenAckCalled );
 
-	if (FSendingRepState* SendingRepState = RepState->GetSendingRepState())
-	{
-		SendingRepState->bOpenAckedCalled = true;
-	}
+	RepLayout->OpenAcked( RepState->GetSendingRepState() );
 
 	bOpenAckCalled = true;
 }
@@ -1666,7 +1651,7 @@ void FObjectReplicator::PostSendBunch( FPacketIdRange & PacketRange, uint8 bReli
 
 	if ( Object == nullptr )
 	{
-		UE_LOG(LogNet, Verbose, TEXT("PostSendBunch: Object == nullptr"));
+		UE_LOG(LogNet, Verbose, TEXT("PostSendBunch: Object == NULL"));
 		return;
 	}
 
@@ -1677,67 +1662,49 @@ void FObjectReplicator::PostSendBunch( FPacketIdRange & PacketRange, uint8 bReli
 
 	const FRepLayout& LocalRepLayout = *RepLayout;
 
-	if (FSendingRepState* SendingRepState = RepState.IsValid() ? RepState->GetSendingRepState() : nullptr)
+	if (!SkipRetirementUpdate)
 	{
-		if (!SkipRetirementUpdate)
+		// Don't call if reliable, since the bunch will be resent. We dont want this to end up in the changelist history
+		// But is that enough? How does it know to delta against this latest state?
+
+		LocalRepLayout.PostReplicate(RepState->GetSendingRepState(), PacketRange, bReliable ? true : false);
+	}
+
+	for (uint16 LifetimePropertyIndex : LocalRepLayout.GetLifetimeCustomDeltaProperties())
+	{
+		FPropertyRetirement & Retire = Retirement[LifetimePropertyIndex];
+
+		FPropertyRetirement* Next = Retire.Next;
+		FPropertyRetirement* Prev = &Retire;
+
+		while ( Next != nullptr )
 		{
-			// Don't call if reliable, since the bunch will be resent. We dont want this to end up in the changelist history
-			// But is that enough? How does it know to delta against this latest state?
-
-			for (int32 i = SendingRepState->HistoryStart; i < SendingRepState->HistoryEnd; ++i)
+			// This is updating the dynamic properties retirement record that was created above during property replication
+			// (we have to wait until we actually send the bunch to know the packetID, which is why we look for .First==INDEX_NONE)
+			if ( Next->OutPacketIdRange.First == INDEX_NONE )
 			{
-				const int32 HistoryIndex = i % FSendingRepState::MAX_CHANGE_HISTORY;
 
-				FRepChangedHistory & HistoryItem = SendingRepState->ChangeHistory[HistoryIndex];
-
-				if (HistoryItem.OutPacketIdRange.First == INDEX_NONE)
+				if (!SkipRetirementUpdate)
 				{
-					check(HistoryItem.Changed.Num() > 0);
-					check(!HistoryItem.Resend);
+					Next->OutPacketIdRange = PacketRange;
 
-					HistoryItem.OutPacketIdRange = PacketRange;
-
-					if (!bReliable && !SendingRepState->bOpenAckedCalled)
-					{
-						SendingRepState->PreOpenAckHistory.Add(HistoryItem);
-					}
+					// Mark the last time on this retirement slot that a property actually changed
+					Retire.OutPacketIdRange = PacketRange;
+				}
+				else
+				{
+					// We need to remove the retirement entry here!
+					Prev->Next = Next->Next;
+					delete Next;
+					Next = Prev;
 				}
 			}
+
+			Prev = Next;
+			Next = Next->Next;
 		}
 
-		for (FPropertyRetirement& Retirement : SendingRepState->Retirement)
-		{
-			FPropertyRetirement* Next = Retirement.Next;
-			FPropertyRetirement* Prev = &Retirement;
-
-			while (Next != nullptr)
-			{
-				// This is updating the dynamic properties retirement record that was created above during property replication
-				// (we have to wait until we actually send the bunch to know the packetID, which is why we look for .First==INDEX_NONE)
-				if (Next->OutPacketIdRange.First == INDEX_NONE)
-				{
-					if (!SkipRetirementUpdate)
-					{
-						Next->OutPacketIdRange = PacketRange;
-
-						// Mark the last time on this retirement slot that a property actually changed
-						Retirement.OutPacketIdRange = PacketRange;
-					}
-					else
-					{
-						// We need to remove the retirement entry here!
-						Prev->Next = Next->Next;
-						delete Next;
-						Next = Prev;
-					}
-				}
-
-				Prev = Next;
-				Next = Next->Next;
-			}
-
-			ValidateRetirementHistory(Retirement, Object);
-		}
+		ValidateRetirementHistory( Retire, Object );
 	}
 }
 
@@ -1759,6 +1726,48 @@ void FObjectReplicator::Serialize(FArchive& Ar)
 void FObjectReplicator::CountBytes(FArchive& Ar) const
 {
 	GRANULAR_NETWORK_MEMORY_TRACKING_INIT(Ar, "FObjectReplicator::CountBytes");
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("Retirement", Retirement.CountBytes(Ar));
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RecentCustomDeltaState",
+		RecentCustomDeltaState.CountBytes(Ar);
+		for (const auto& RecentCustomDeltaStatePair : RecentCustomDeltaState)
+		{
+			if (INetDeltaBaseState const * const BaseState = RecentCustomDeltaStatePair.Value.Get())
+			{
+				BaseState->CountBytes(Ar);
+			}
+		}
+	);
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("CDOCustomDeltaState",
+		CDOCustomDeltaState.CountBytes(Ar);
+		for (const auto& CDOCustomDeltaStatePair : CDOCustomDeltaState)
+		{
+			if (INetDeltaBaseState const * const BaseState = CDOCustomDeltaStatePair.Value.Get())
+			{
+				BaseState->CountBytes(Ar);
+			}
+		}
+	);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("LifetimeCustomDeltaProperties", LifetimeCustomDeltaProperties.CountBytes(Ar));
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("LifetimeCustomDeltaPropertyConditions", LifetimeCustomDeltaPropertyConditions.CountBytes(Ar));
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("UnmappedCustomProperties", UnmappedCustomProperties.CountBytes(Ar));
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RepNotifies", RepNotifies.CountBytes(Ar));
+
+	GRANULAR_NETWORK_MEMORY_TRACKING_TRACK("RepNotifyMetaData",
+		RepNotifyMetaData.CountBytes(Ar);
+		for (const auto& MetaDataPair : RepNotifyMetaData)
+		{
+			MetaDataPair.Value.CountBytes(Ar);
+		}
+	);
 
 	// FObjectReplicator has a shared pointer to an FRepLayout, but since it's shared with
 	// the UNetDriver, the memory isn't tracked here.
@@ -1806,8 +1815,8 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 	//
 	// Long term we want to have priorities and stronger cross channel traffic management that
 	// can handle this better
-	int32 InfoIdx = INDEX_NONE;
-	for (int32 i = 0; i < RemoteFuncInfo.Num(); ++i)
+	int32 InfoIdx=INDEX_NONE;
+	for (int32 i=0; i < RemoteFuncInfo.Num(); ++i)
 	{
 		if (RemoteFuncInfo[i].FuncName == Func->GetFName())
 		{
@@ -1815,8 +1824,7 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 			break;
 		}
 	}
-
-	if (InfoIdx == INDEX_NONE)
+	if (InfoIdx==INDEX_NONE)
 	{
 		InfoIdx = RemoteFuncInfo.AddUninitialized();
 		RemoteFuncInfo[InfoIdx].FuncName = Func->GetFName();
@@ -1829,7 +1837,7 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 			RemoteFuncInfo[InfoIdx].Calls, *Func->GetName(), *GetPathNameSafe(GetObject()), RemoteFuncInfo[InfoIdx].LastCallTime, OwningChannel->Connection->Driver->Time, OwningChannel->RelevantTime, OwningChannel->LastUpdateTime);
 
 		// The MustBeMappedGuids can just be dropped, because we aren't actually going to send a bunch. If we don't clear it, then we will get warnings when the next channel tries to replicate
-		CastChecked<UPackageMapClient>(Connection->PackageMap)->GetMustBeMappedGuidsInLastBunch().Reset();
+		CastChecked< UPackageMapClient >( Connection->PackageMap )->GetMustBeMappedGuidsInLastBunch().Reset();
 		return;
 	}
 	
@@ -1840,91 +1848,67 @@ void FObjectReplicator::QueueRemoteFunctionBunch( UFunction* Func, FOutBunch &Bu
 		RemoteFunctions = new FOutBunch(OwningChannel, 0);
 	}
 
-	RemoteFunctions->SerializeBits(Bunch.GetData(), Bunch.GetNumBits());
+	RemoteFunctions->SerializeBits( Bunch.GetData(), Bunch.GetNumBits() );
 
-	if (Connection->PackageMap != nullptr)
+	if ( Connection->PackageMap != nullptr )
 	{
-		UPackageMapClient* PackageMapClient = CastChecked<UPackageMapClient>(Connection->PackageMap);
+		UPackageMapClient * PackageMapClient = CastChecked< UPackageMapClient >( Connection->PackageMap );
 
 		// We need to copy over any info that was obtained on the package map during serialization, and remember it until we actually call SendBunch
-		if (PackageMapClient->GetMustBeMappedGuidsInLastBunch().Num())
+		if ( PackageMapClient->GetMustBeMappedGuidsInLastBunch().Num() )
 		{
-			OwningChannel->QueuedMustBeMappedGuidsInLastBunch.Append(PackageMapClient->GetMustBeMappedGuidsInLastBunch());
+			OwningChannel->QueuedMustBeMappedGuidsInLastBunch.Append( PackageMapClient->GetMustBeMappedGuidsInLastBunch() );
 			PackageMapClient->GetMustBeMappedGuidsInLastBunch().Reset();
 		}
 
 		if (!Connection->InternalAck)
 		{
 			// Copy over any exported bunches
-			PackageMapClient->AppendExportBunches(OwningChannel->QueuedExportBunches);
+			PackageMapClient->AppendExportBunches( OwningChannel->QueuedExportBunches );
 		}
 	}
 }
 
-bool FObjectReplicator::ReadyForDormancy(bool bSuppressLogs)
+bool FObjectReplicator::ReadyForDormancy(bool suppressLogs)
 {
-	if (GetObject() == nullptr)
+	if ( GetObject() == NULL )
 	{
-		UE_LOG(LogRep, Verbose, TEXT("ReadyForDormancy: Object == nullptr"));
+		UE_LOG( LogRep, Verbose, TEXT( "ReadyForDormancy: Object == NULL" ) );
 		return true;		// Technically, we don't want to hold up dormancy, but the owner needs to clean us up, so we warn
 	}
 
 	// Can't go dormant until last update produced no new property updates
-	if (!bLastUpdateEmpty)
+	if ( !bLastUpdateEmpty )
 	{
-		if (!bSuppressLogs)
+		if ( !suppressLogs )
 		{
-			UE_LOG(LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. bLastUpdateEmpty = false"), OwningChannel->ChIndex);
+			UE_LOG( LogRepTraffic, Verbose, TEXT( "    [%d] Not ready for dormancy. bLastUpdateEmpty = false" ), OwningChannel->ChIndex );
 		}
 
 		return false;
 	}
 
-	if (FSendingRepState* SendingRepState = RepState.IsValid() ? RepState->GetSendingRepState() : nullptr)
+	// Can't go dormant if there are unAckd property updates
+	for ( int32 i = 0; i < Retirement.Num(); ++i )
 	{
-		if (SendingRepState->HistoryStart != SendingRepState->HistoryEnd)
+		if ( Retirement[i].Next != NULL )
 		{
-			// We have change lists that haven't been acked
-			return false;
-		}
-
-		if (SendingRepState->NumNaks > 0)
-		{
-			return false;
-		}
-
-		if (!SendingRepState->bOpenAckedCalled)
-		{
-			return false;
-		}
-
-		if (SendingRepState->PreOpenAckHistory.Num() > 0)
-		{
-			return false;
-		}
-
-		// Can't go dormant if there are unAckd property updates
-		for (FPropertyRetirement& Retirement : SendingRepState->Retirement)
-		{
-			if (Retirement.Next != nullptr)
+			if ( !suppressLogs )
 			{
-				if (!bSuppressLogs)
-				{
-					UE_LOG(LogRepTraffic, Verbose, TEXT("    [%d] OutAckPacketId: %d First: %d Last: %d "), OwningChannel->ChIndex, OwningChannel->Connection->OutAckPacketId, Retirement.OutPacketIdRange.First, Retirement.OutPacketIdRange.Last);
-				}
-				return false;
+				UE_LOG( LogRepTraffic, Verbose, TEXT( "    [%d] OutAckPacketId: %d First: %d Last: %d " ), OwningChannel->ChIndex, OwningChannel->Connection->OutAckPacketId, Retirement[i].OutPacketIdRange.First, Retirement[i].OutPacketIdRange.Last );
 			}
+			return false;
 		}
 	}
 
-	return true;
+	return RepLayout->ReadyForDormancy( RepState.Get() );
 }
 
 void FObjectReplicator::StartBecomingDormant()
 {
-	if ( GetObject() == nullptr )
+	if ( GetObject() == NULL )
 	{
-		UE_LOG( LogRep, Verbose, TEXT( "StartBecomingDormant: Object == nullptr" ) );
+		UE_LOG( LogRep, Verbose, TEXT( "StartBecomingDormant: Object == NULL" ) );
 		return;
 	}
 
@@ -1956,6 +1940,69 @@ void FObjectReplicator::CallRepNotifies(bool bSkipIfChannelHasQueuedBunches)
 	FReceivingRepState* ReceivingRepState = RepState->GetReceivingRepState();
 	RepLayout->CallRepNotifies(ReceivingRepState, Object);
 
+	if (RepNotifies.Num() > 0)
+	{
+		for (UProperty* RepProperty : RepNotifies)
+		{
+			//UE_LOG(LogRep, Log,  TEXT("Calling Object->%s with %s"), *RepNotifies(RepNotifyIdx)->RepNotifyFunc.ToString(), *RepNotifies(RepNotifyIdx)->GetName()); 						
+			UFunction* RepNotifyFunc = Object->FindFunction(RepProperty->RepNotifyFunc);
+
+			if (RepNotifyFunc == nullptr)
+			{
+				UE_LOG(LogRep, Warning, TEXT("FObjectReplicator::CallRepNotifies: Can't find RepNotify function %s for property %s on object %s."),
+					*RepProperty->RepNotifyFunc.ToString(), *RepProperty->GetName(), *Object->GetName());
+				continue;
+			}
+
+			if (RepNotifyFunc->NumParms == 0)
+			{
+				Object->ProcessEvent(RepNotifyFunc, NULL);
+			}
+			else if (RepNotifyFunc->NumParms == 1)
+			{
+				Object->ProcessEvent(RepNotifyFunc, RepProperty->ContainerPtrToValuePtr<uint8>(ReceivingRepState->StaticBuffer.GetData()) );
+			}
+			else if (RepNotifyFunc->NumParms == 2)
+			{
+				// Fixme: this isn't as safe as it could be. Right now we have two types of parameters: MetaData (a TArray<uint8>)
+				// and the last local value (pointer into the Recent[] array).
+				//
+				// Arrays always expect MetaData. Everything else, including structs, expect last value.
+				// This is enforced with UHT only. If a ::NetSerialize function ever starts producing a MetaData array thats not in UArrayProperty,
+				// we have no static way of catching this and the replication system could pass the wrong thing into ProcessEvent here.
+				//
+				// But this is all sort of an edge case feature anyways, so its not worth tearing things up too much over.
+
+				FMemMark Mark(FMemStack::Get());
+				uint8* Parms = new(FMemStack::Get(), MEM_Zeroed, RepNotifyFunc->ParmsSize)uint8;
+
+				TFieldIterator<UProperty> Itr(RepNotifyFunc);
+				check(Itr);
+
+				Itr->CopyCompleteValue(Itr->ContainerPtrToValuePtr<void>(Parms), RepProperty->ContainerPtrToValuePtr<uint8>(ReceivingRepState->StaticBuffer.GetData()));
+				++Itr;
+				check(Itr);
+
+				TArray<uint8> *NotifyMetaData = RepNotifyMetaData.Find(RepProperty);
+				check(NotifyMetaData);
+				Itr->CopyCompleteValue(Itr->ContainerPtrToValuePtr<void>(Parms), NotifyMetaData);
+
+				Object->ProcessEvent(RepNotifyFunc, Parms);
+
+				Mark.Pop();
+			}
+
+			if (Object->IsPendingKill())
+			{
+				// script event destroyed Object
+				break;
+			}
+		}
+	}
+
+	RepNotifies.Reset();
+	RepNotifyMetaData.Empty();
+
 	if (!Object->IsPendingKill())
 	{
 		Object->PostRepNotifies();
@@ -1981,10 +2028,8 @@ void FObjectReplicator::UpdateUnmappedObjects(bool & bOutHasMoreUnmapped)
 	// Since RepNotifies aren't processed while a channel has queued bunches, don't assert in that case.
 	FReceivingRepState* ReceivingRepState = RepState->GetReceivingRepState();
 	const bool bHasQueuedBunches = OwningChannel && OwningChannel->QueuedBunches.Num() > 0;
-
-	checkf(bHasQueuedBunches || ReceivingRepState->RepNotifies.Num() == 0,
-		TEXT("Failed RepState RepNotifies check. Num=%d. Object=%s. Channel QueuedBunches=%d"),
-		ReceivingRepState->RepNotifies.Num(), *Object->GetFullName(), OwningChannel ? OwningChannel->QueuedBunches.Num() : 0);
+	checkf( bHasQueuedBunches || ReceivingRepState->RepNotifies.Num() == 0, TEXT("Failed RepState RepNotifies check. Num=%d. Object=%s. Channel QueuedBunches=%d"), ReceivingRepState->RepNotifies.Num(), *Object->GetFullName(), OwningChannel ? OwningChannel->QueuedBunches.Num() : 0 );
+	checkf( bHasQueuedBunches || RepNotifies.Num() == 0, TEXT("Failed replicator RepNotifies check. Num=%d. Object=%s. Channel QueuedBunches=%d"), RepNotifies.Num(), *Object->GetFullName(), OwningChannel ? OwningChannel->QueuedBunches.Num() : 0 );
 
 	bool bCalledPreNetReceive = false;
 	bool bSomeObjectsWereMapped = false;
@@ -1993,23 +2038,45 @@ void FObjectReplicator::UpdateUnmappedObjects(bool & bOutHasMoreUnmapped)
 
 	const FRepLayout& LocalRepLayout = *RepLayout;
 
+	// Let the rep layout update any unmapped properties
+	LocalRepLayout.UpdateUnmappedObjects(ReceivingRepState, Connection->PackageMap, Object, bCalledPreNetReceive, bSomeObjectsWereMapped, bOutHasMoreUnmapped);
+
 	FNetSerializeCB NetSerializeCB(Connection->Driver);
 
 	FNetDeltaSerializeInfo Parms;
 	Parms.Object = Object;
 	Parms.Connection = Connection;
-	Parms.bInternalAck = Connection->InternalAck;
 	Parms.Map = Connection->PackageMap;
 	Parms.NetSerializeCB = &NetSerializeCB;
 
 	Parms.bUpdateUnmappedObjects = true;
+	Parms.bCalledPreNetReceive = bCalledPreNetReceive;
+	
 
-	// Let the rep layout update any unmapped properties
-	LocalRepLayout.UpdateUnmappedObjects(ReceivingRepState, Connection->PackageMap, Object, Parms, bCalledPreNetReceive, bSomeObjectsWereMapped, bOutHasMoreUnmapped);
+	TArray<TPair<int32, UStructProperty*>> CompletelyMappedProperties;
+	TArray<TPair<int32, UStructProperty*>> UpdatedProperties;
+	FNetSerializeCB::UpdateUnmappedObjectsForCustomDeltaProperties(LocalRepLayout, Parms, CompletelyMappedProperties, UpdatedProperties);
 
 	bSomeObjectsWereMapped |= Parms.bOutSomeObjectsWereMapped;
 	bOutHasMoreUnmapped |= Parms.bOutHasMoreUnmapped;
 	bCalledPreNetReceive |= Parms.bCalledPreNetReceive;
+
+	// This should go away when UnmappedCustomProperties goes away, and when RepNotifies
+	// are merged with RepState RepNotifies.
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	for (const TPair<int32, UStructProperty*>& KVP : UpdatedProperties)
+	{
+		TArray<uint8> MetaData;
+		QueuePropertyRepNotify(Object, KVP.Value, 0, MetaData);
+	}
+
+	// This is just for the sake of keeping UnmappedCustomProperties up to date.
+	// Remove this when that property goes away.
+	for (const TPair<int32, UStructProperty*>& KVP : CompletelyMappedProperties)
+	{
+		UnmappedCustomProperties.Remove(KVP.Key);
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (bCalledPreNetReceive)
 	{
@@ -2024,18 +2091,18 @@ void FObjectReplicator::UpdateUnmappedObjects(bool & bOutHasMoreUnmapped)
 	// the RepNotifies will remain in the list and the check for 0 RepNotifies above will fail next time.
 	CallRepNotifies(false);
 
-	UPackageMapClient* PackageMapClient = Cast<UPackageMapClient>(Connection->PackageMap);
+	UPackageMapClient * PackageMapClient = Cast< UPackageMapClient >(Connection->PackageMap);
 
 	if (PackageMapClient && OwningChannel)
 	{
 		const bool bIsServer = Connection->Driver->IsServer();
-		const FClassNetCache* ClassCache = Connection->Driver->NetCache->GetClassNetCache(ObjectClass);
+		const FClassNetCache * ClassCache = Connection->Driver->NetCache->GetClassNetCache(ObjectClass);
 
 		// Handle pending RPCs, in order
 		for (int32 RPCIndex = 0; RPCIndex < PendingLocalRPCs.Num(); RPCIndex++)
 		{
 			FRPCPendingLocalCall& Pending = PendingLocalRPCs[RPCIndex];
-			const FFieldNetCache* FieldCache = ClassCache->GetFromIndex(Pending.RPCFieldIndex);
+			const FFieldNetCache * FieldCache = ClassCache->GetFromIndex(Pending.RPCFieldIndex);
 
 			FNetBitReader Reader(Connection->PackageMap, Pending.Buffer.GetData(), Pending.NumBits);
 
@@ -2107,81 +2174,72 @@ void FObjectReplicator::UpdateUnmappedObjects(bool & bOutHasMoreUnmapped)
 	}
 }
 
-void FObjectReplicator::QueuePropertyRepNotify(
-	UObject* Object,
-	UProperty * Property,
-	const int32 ElementIndex,
-	TArray<uint8>& MetaData)
+void FObjectReplicator::QueuePropertyRepNotify( UObject* Object, UProperty * Property, const int32 ElementIndex, TArray< uint8 > & MetaData )
 {
-	if (!Property->HasAnyPropertyFlags(CPF_RepNotify))
+	if ( !Property->HasAnyPropertyFlags( CPF_RepNotify ) )
 	{
 		return;
 	}
 
-	FReceivingRepState* ReceivingRepState = RepState.IsValid() ? RepState->GetReceivingRepState() : nullptr;
-	if (ensureMsgf(ReceivingRepState, TEXT("FObjectReplicator::QueuePropertyRepNotifiy: No receiving RepState. Object=%s, Property=%s"),
-		*GetPathNameSafe(Object), *Property->GetName()))
+	//@note: AddUniqueItem() here for static arrays since RepNotify() currently doesn't indicate index,
+	//			so reporting the same property multiple times is not useful and wastes CPU
+	//			were that changed, this should go back to AddItem() for efficiency
+	// @todo UE4 - not checking if replicated value is changed from old.  Either fix or document, as may get multiple repnotifies of unacked properties.
+	RepNotifies.AddUnique( Property );
+
+	UFunction * RepNotifyFunc = Object->FindFunctionChecked( Property->RepNotifyFunc );
+
+	if ( RepNotifyFunc->NumParms > 0 )
 	{
-		//@note: AddUniqueItem() here for static arrays since RepNotify() currently doesn't indicate index,
-		//			so reporting the same property multiple times is not useful and wastes CPU
-		//			were that changed, this should go back to AddItem() for efficiency
-		// @todo UE4 - not checking if replicated value is changed from old.  Either fix or document, as may get multiple repnotifies of unacked properties.
-		ReceivingRepState->RepNotifies.AddUnique(Property);
-
-		UFunction* RepNotifyFunc = Object->FindFunctionChecked(Property->RepNotifyFunc);
-
-		if (RepNotifyFunc->NumParms > 0)
+		if ( Property->ArrayDim != 1 )
 		{
-			if (Property->ArrayDim != 1)
-			{
-				// For static arrays, we build the meta data here, but adding the Element index that was just read into the PropMetaData array.
-				UE_LOG(LogRepTraffic, Verbose, TEXT("Property %s had ArrayDim: %d change"), *Property->GetName(), ElementIndex);
+			// For static arrays, we build the meta data here, but adding the Element index that was just read into the PropMetaData array.
+			UE_LOG( LogRepTraffic, Verbose, TEXT("Property %s had ArrayDim: %d change"), *Property->GetName(), ElementIndex );
 
-				// Property is multi dimensional, keep track of what elements changed
-				TArray< uint8 > & PropMetaData = ReceivingRepState->RepNotifyMetaData.FindOrAdd(Property);
-				PropMetaData.Add(ElementIndex);
-			}
-			else if (MetaData.Num() > 0)
-			{
-				// For other properties (TArrays only now) the MetaData array is build within ::NetSerialize. Just add it to the RepNotifyMetaData map here.
+			// Property is multi dimensional, keep track of what elements changed
+			TArray< uint8 > & PropMetaData = RepNotifyMetaData.FindOrAdd( Property );
+			PropMetaData.Add( ElementIndex );
+		} 
+		else if ( MetaData.Num() > 0 )
+		{
+			// For other properties (TArrays only now) the MetaData array is build within ::NetSerialize. Just add it to the RepNotifyMetaData map here.
 
-				//UE_LOG(LogRepTraffic, Verbose, TEXT("Property %s had MetaData: "), *Property->GetName() );
-				//for (auto MetaIt = MetaData.CreateIterator(); MetaIt; ++MetaIt)
-				//	UE_LOG(LogRepTraffic, Verbose, TEXT("   %d"), *MetaIt );
+			//UE_LOG(LogRepTraffic, Verbose, TEXT("Property %s had MetaData: "), *Property->GetName() );
+			//for (auto MetaIt = MetaData.CreateIterator(); MetaIt; ++MetaIt)
+			//	UE_LOG(LogRepTraffic, Verbose, TEXT("   %d"), *MetaIt );
 
-				// Property included some meta data about what was serialized. 
-				TArray< uint8 > & PropMetaData = ReceivingRepState->RepNotifyMetaData.FindOrAdd(Property);
-				PropMetaData = MetaData;
-			}
+			// Property included some meta data about what was serialized. 
+			TArray< uint8 > & PropMetaData = RepNotifyMetaData.FindOrAdd( Property );
+			PropMetaData = MetaData;
 		}
 	}
 }
 
 void FObjectReplicator::WritePropertyHeaderAndPayload(
-	UObject* Object,
-	UProperty* Property,
-	FNetFieldExportGroup* NetFieldExportGroup,
-	FNetBitWriter& Bunch,
-	FNetBitWriter& Payload) const
+	UObject*				Object,
+	UProperty*				Property,
+	FNetFieldExportGroup*	NetFieldExportGroup,
+	FNetBitWriter&			Bunch,
+	FNetBitWriter&			Payload ) const
 {
 	// Get class network info cache.
-	const FClassNetCache* ClassCache = Connection->Driver->NetCache->GetClassNetCache(ObjectClass);
+	const FClassNetCache* ClassCache = Connection->Driver->NetCache->GetClassNetCache( ObjectClass );
 
-	check(ClassCache);
+	check( ClassCache );
 
 	// Get the network friend property index to replicate
-	const FFieldNetCache * FieldCache = ClassCache->GetFromField(Property);
+	const FFieldNetCache * FieldCache = ClassCache->GetFromField( Property );
 
-	checkSlow(FieldCache);
+	checkSlow( FieldCache );
 
 	// Send property name and optional array index.
-	check(FieldCache->FieldNetIndex <= ClassCache->GetMaxIndex());
+	check( FieldCache->FieldNetIndex <= ClassCache->GetMaxIndex() );
 
 	// WriteFieldHeaderAndPayload will return the total number of bits written.
 	// So, we subtract out the Payload size to get the actual number of header bits.
-	const int32 HeaderBits = static_cast<int64>(OwningChannel->WriteFieldHeaderAndPayload(Bunch, ClassCache, FieldCache, NetFieldExportGroup, Payload)) - Payload.GetNumBits();
+	const int32 HeaderBits = static_cast<int64>(OwningChannel->WriteFieldHeaderAndPayload( Bunch, ClassCache, FieldCache, NetFieldExportGroup, Payload )) - Payload.GetNumBits();
 
-	NETWORK_PROFILER(GNetworkProfiler.TrackWritePropertyHeader(Property, HeaderBits, nullptr));
+	NETWORK_PROFILER( GNetworkProfiler.TrackWritePropertyHeader( Property, HeaderBits, nullptr ) );
 }
 
 void FObjectReplicator::UpdateCheckpoint()

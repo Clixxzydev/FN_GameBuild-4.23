@@ -3,7 +3,7 @@
 using System.IO;
 using UnrealBuildTool;
 
-[SupportedPlatforms("Win32", "Win64")]
+[SupportedPlatforms(UnrealTargetPlatform.Win32, UnrealTargetPlatform.Win64)]
 public class GameplayMediaEncoder : ModuleRules
 {
 	public GameplayMediaEncoder(ReadOnlyTargetRules Target) : base(Target)

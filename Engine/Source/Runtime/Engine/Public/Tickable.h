@@ -9,7 +9,6 @@
 
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
-#include "Misc/ScopeLock.h"
 
 /**
  * Enum used to convey whether a tickable object will always tick, conditionally tick, or never tick.
@@ -26,15 +25,11 @@ enum class ETickableTickType : uint8
 	Never        
 };
 
-struct FTickableStatics;
-
 /**
  * Base class for tickable objects
  */
-class ENGINE_API FTickableObjectBase
+class FTickableObjectBase
 {
-	friend struct FTickableStatics;
-
 protected:
 	struct FTickableObjectEntry
 	{
@@ -44,9 +39,50 @@ protected:
 		bool operator==(FTickableObjectBase* OtherObject) const { return TickableObject == OtherObject; }
 	};
 
-	static void AddTickableObject(TArray<FTickableObjectEntry>& TickableObjects, FTickableObjectBase* TickableObject);
+	static void AddTickableObject(TArray<FTickableObjectEntry>& TickableObjects, FTickableObjectBase* TickableObject)
+	{
+		check(!TickableObjects.Contains(TickableObject));
+		const ETickableTickType TickType = TickableObject->GetTickableTickType();
+		if (TickType != ETickableTickType::Never)
+		{
+			TickableObjects.Add({ TickableObject, TickType });
+		}
+	}
 
-	static void RemoveTickableObject(TArray<FTickableObjectEntry>& TickableObjects, FTickableObjectBase* TickableObject, const bool bIsTickingObjects);
+	static void RemoveTickableObject(TArray<FTickableObjectEntry>& TickableObjects, FTickableObjectBase* TickableObject, const bool bIsTickingObjects)
+	{
+		const int32 Pos = TickableObjects.IndexOfByKey(TickableObject);
+
+#if 0 // virtual from destructor doesn't work ... need to rethink how to do warning
+		// ensure that GetTickableTickType did not change over time
+		switch (TickableObject->GetTickableTickType())
+		{
+		case ETickableTickType::Always:
+			ensureMsgf(Pos != INDEX_NONE && TickableObjects[Pos].TickType == ETickableTickType::Always, TEXT("TickType has changed since object was created. Result of GetTickableTickType must be invariant for a given object."));
+			break;
+
+		case ETickableTickType::Conditional:
+			ensureMsgf(Pos != INDEX_NONE && TickableObjects[Pos].TickType == ETickableTickType::Conditional, TEXT("TickType has changed since object was created. Result of GetTickableTickType must be invariant for a given object."));
+			break;
+
+		case ETickableTickType::Never:
+			ensureMsgf(Pos == INDEX_NONE, TEXT("TickType has changed since object was created. Result of GetTickableTickType must be invariant for a given object."));
+			break;
+		}
+#endif
+
+		if (Pos != INDEX_NONE)
+		{
+			if (bIsTickingObjects)
+			{
+				TickableObjects[Pos].TickableObject = nullptr;
+			}
+			else
+			{
+				TickableObjects.RemoveAt(Pos);
+			}
+		}
+	}
 
 public:
 	/**
@@ -91,17 +127,46 @@ public:
  */
 class ENGINE_API FTickableGameObject : public FTickableObjectBase
 {
+private:
+	/** Static array of tickable objects */
+	static TArray<FTickableObjectEntry>& GetTickableObjects()
+	{
+		static TArray<FTickableObjectEntry> TickableObjects;
+		return TickableObjects;
+	}
+
+	static TArray<FTickableGameObject*>& GetPendingTickableObjects()
+	{
+		static TArray<FTickableGameObject*> PendingTickableObjects;
+		return PendingTickableObjects;
+	}
+
+	static bool bIsTickingObjects;
+
 public:
 	/**
 	 * Registers this instance with the static array of tickable objects.	
 	 *
 	 */
-	FTickableGameObject();
+	FTickableGameObject()
+	{
+		ensure(IsInGameThread() || IsInAsyncLoadingThread());
+		check(!GetPendingTickableObjects().Contains(this));
+		check(!GetTickableObjects().Contains(this));
+		GetPendingTickableObjects().Add(this);
+	}
 
 	/**
 	 * Removes this instance from the static array of tickable objects.
 	 */
-	virtual ~FTickableGameObject();
+	virtual ~FTickableGameObject()
+	{
+		ensure(IsInGameThread() || IsInAsyncLoadingThread());
+		if (GetPendingTickableObjects().Remove(this) == 0)
+		{
+			RemoveTickableObject(GetTickableObjects(), this, bIsTickingObjects);
+		}
+	}
 
 	/**
 	 * Used to determine if an object should be ticked when the game is paused.

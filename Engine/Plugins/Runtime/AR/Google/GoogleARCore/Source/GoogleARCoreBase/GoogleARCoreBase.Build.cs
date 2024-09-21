@@ -20,12 +20,12 @@ namespace UnrealBuildTool.Rules
 			PublicIncludePathModuleNames.Add("TargetPlatform");
 
 			PublicDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"HeadMountedDisplay",
-					"AugmentedReality",
-				}
-			);
+					new string[]
+					{
+						"HeadMountedDisplay",
+						"AugmentedReality",
+					}
+				);
 
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
@@ -42,7 +42,6 @@ namespace UnrealBuildTool.Rules
 					"GoogleARCoreRendering",
 					"GoogleARCoreSDK",
 					"OpenGL",
-					"ProceduralMeshComponent",
 					"UElibPNG",
 					"zlib"
 				}

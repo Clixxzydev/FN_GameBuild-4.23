@@ -7,7 +7,6 @@
 #include "UObject/UObjectThreadContext.h"
 #include "HAL/IConsoleManager.h"
 #include "Tickable.h"
-#include "Serialization/LoadTimeTrace.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogStreamableManager, Log, All);
 
@@ -200,8 +199,6 @@ bool FStreamableHandle::BindUpdateDelegate(FStreamableUpdateDelegate NewDelegate
 
 EAsyncPackageState::Type FStreamableHandle::WaitUntilComplete(float Timeout, bool bStartStalledHandles)
 {
-	TRACE_LOADTIME_WAIT_FOR_STREAMABLE_HANDLE_SCOPE(this);
-
 	if (HasLoadCompleted())
 	{
 		return EAsyncPackageState::Complete;
@@ -223,7 +220,7 @@ EAsyncPackageState::Type FStreamableHandle::WaitUntilComplete(float Timeout, boo
 			Handle->StartStalledHandle();
 		}
 
-		for (const TSharedPtr<FStreamableHandle>& ChildHandle : Handle->ChildHandles)
+		for (TSharedPtr<FStreamableHandle> ChildHandle : Handle->ChildHandles)
 		{
 			if (ChildHandle.IsValid())
 			{
@@ -268,7 +265,7 @@ void FStreamableHandle::GetRequestedAssets(TArray<FSoftObjectPath>& AssetList) c
 	AssetList = RequestedAssets;
 
 	// Check child handles
-	for (const TSharedPtr<FStreamableHandle>& ChildHandle : ChildHandles)
+	for (TSharedPtr<FStreamableHandle> ChildHandle : ChildHandles)
 	{
 		TArray<FSoftObjectPath> ChildAssetList;
 
@@ -313,7 +310,7 @@ void FStreamableHandle::GetLoadedAssets(TArray<UObject *>& LoadedAssets) const
 		}
 
 		// Check child handles
-		for (const TSharedPtr<FStreamableHandle>& ChildHandle : ChildHandles)
+		for (TSharedPtr<FStreamableHandle> ChildHandle : ChildHandles)
 		{
 			for (const FSoftObjectPath& Ref : ChildHandle->RequestedAssets)
 			{
@@ -337,7 +334,7 @@ void FStreamableHandle::GetLoadedCount(int32& LoadedCount, int32& RequestedCount
 	LoadedCount = RequestedCount - StreamablesLoading;
 	
 	// Check child handles
-	for (const TSharedPtr<FStreamableHandle>& ChildHandle : ChildHandles)
+	for (TSharedPtr<FStreamableHandle> ChildHandle : ChildHandles)
 	{
 		int32 ChildRequestedCount = 0;
 		int32 ChildLoadedCount = 0;
@@ -421,7 +418,7 @@ void FStreamableHandle::CancelHandle()
 	OwningManager->ManagedActiveHandles.Remove(SharedThis);
 
 	// Remove child handles
-	for (TSharedPtr<FStreamableHandle>& ChildHandle : ChildHandles)
+	for (TSharedPtr<FStreamableHandle> ChildHandle : ChildHandles)
 	{
 		ChildHandle->ParentHandles.Remove(SharedThis);
 	}
@@ -434,7 +431,7 @@ void FStreamableHandle::CancelHandle()
 	{
 		// Update any meta handles that are still active. Copy the array first as elements may be removed from original while iterating
 		TArray<TWeakPtr<FStreamableHandle>> ParentHandlesCopy = ParentHandles;
-		for (TWeakPtr<FStreamableHandle>& WeakHandle : ParentHandlesCopy)
+		for (TWeakPtr<FStreamableHandle> WeakHandle : ParentHandlesCopy)
 		{
 			TSharedPtr<FStreamableHandle> Handle = WeakHandle.Pin();
 
@@ -506,8 +503,7 @@ void FStreamableHandle::StartStalledHandle()
 
 FStreamableHandle::~FStreamableHandle()
 {
-	TRACE_LOADTIME_DESTROY_STREAMABLE_HANDLE(this);
-	check(IsInGameThread() || IsInGarbageCollectorThread());
+	check(IsInGameThread());
 
 	if (IsActive())
 	{
@@ -520,7 +516,6 @@ FStreamableHandle::~FStreamableHandle()
 
 void FStreamableHandle::CompleteLoad()
 {
-	TRACE_LOADTIME_END_LOAD_STREAMABLE_HANDLE(this);
 	// Only complete if it's still active
 	if (IsActive())
 	{
@@ -533,7 +528,7 @@ void FStreamableHandle::CompleteLoad()
 		{
 			// Update any meta handles that are still active. Copy the array first as elements may be removed from original while iterating
 			TArray<TWeakPtr<FStreamableHandle>> ParentHandlesCopy = ParentHandles;
-			for (TWeakPtr<FStreamableHandle>& WeakHandle : ParentHandlesCopy)
+			for (TWeakPtr<FStreamableHandle> WeakHandle : ParentHandlesCopy)
 			{
 				TSharedPtr<FStreamableHandle> Handle = WeakHandle.Pin();
 
@@ -561,15 +556,10 @@ void FStreamableHandle::UpdateCombinedHandle()
 	// Check all our children, complete if done
 	bool bAllCompleted = true;
 	bool bAllCanceled = true;
-	for (const TSharedPtr<FStreamableHandle>& ChildHandle : ChildHandles)
+	for (TSharedPtr<FStreamableHandle>& ChildHandle : ChildHandles)
 	{
 		bAllCompleted = bAllCompleted && !ChildHandle->IsLoadingInProgress();
 		bAllCanceled = bAllCanceled && ChildHandle->WasCanceled();
-
-		if (!bAllCompleted && !bAllCanceled)
-		{
-			return;
-		}
 	}
 
 	// If all our sub handles were canceled, cancel us. Otherwise complete us if at least one was completed and there are none in progress
@@ -603,7 +593,7 @@ void FStreamableHandle::CallUpdateDelegate()
 	UpdateDelegate.ExecuteIfBound(AsShared());
 
 	// Update any meta handles that are still active
-	for (TWeakPtr<FStreamableHandle>& WeakHandle : ParentHandles)
+	for (TWeakPtr<FStreamableHandle> WeakHandle : ParentHandles)
 	{
 		TSharedPtr<FStreamableHandle> Handle = WeakHandle.Pin();
 
@@ -731,7 +721,6 @@ FStreamableManager::FStreamableManager()
 {
 	FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddRaw(this, &FStreamableManager::OnPreGarbageCollect);
 	bForceSynchronousLoads = false;
-	ManagerName = TEXT("StreamableManager");
 }
 
 FStreamableManager::~FStreamableManager()
@@ -805,16 +794,6 @@ void FStreamableManager::AddReferencedObjects(FReferenceCollector& Collector)
 			Collector.AddReferencedObject(Existing.LoadedRedirector);
 		}
 	}
-}
-
-const FString& FStreamableManager::GetManagerName() const
-{
-	return ManagerName;
-}
-
-void FStreamableManager::SetManagerName(FString InName)
-{
-	ManagerName = MoveTemp(InName);
 }
 
 bool FStreamableManager::GetReferencerPropertyName(UObject* Object, FString& OutPropertyName) const
@@ -939,11 +918,20 @@ FStreamable* FStreamableManager::StreamInternal(const FSoftObjectPath& InTargetN
 
 			Existing->bAsyncLoadRequestOutstanding = true;
 			Existing->bLoadFailed = false;
-			int32 RequestId = LoadPackageAsync(Package, FLoadPackageAsyncDelegate::CreateSP(Handle, &FStreamableHandle::AsyncLoadCallbackWrapper, TargetName), Priority);
-			TRACE_LOADTIME_STREAMABLE_HANDLE_REQUEST_ASSOCIATION(&Handle.Get(), RequestId);
+			LoadPackageAsync(Package, FLoadPackageAsyncDelegate::CreateSP(Handle, &FStreamableHandle::AsyncLoadCallbackWrapper, TargetName), Priority);
 		}
 	}
 	return Existing;
+}
+
+void FStreamableManager::SimpleAsyncLoad(const FSoftObjectPath& Target, TAsyncLoadPriority Priority)
+{
+	RequestAsyncLoad(Target, FStreamableDelegate(), Priority, true);
+}
+
+UObject* FStreamableManager::SynchronousLoad(FSoftObjectPath const& Target)
+{
+	return LoadSynchronous(Target, true);
 }
 
 TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const TArray<FSoftObjectPath>& TargetsToStream, FStreamableDelegate DelegateToCall, TAsyncLoadPriority Priority, bool bManageActiveHandle, bool bStartStalled, const FString& DebugName)
@@ -957,8 +945,6 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestAsyncLoad(const TArray<
 	NewRequest->RequestedAssets = TargetsToStream;
 	NewRequest->DebugName = DebugName;
 	NewRequest->Priority = Priority;
-
-	TRACE_LOADTIME_NEW_STREAMABLE_HANDLE(&NewRequest.Get(), *DebugName, false);
 
 	// Remove null requests
 
@@ -1089,8 +1075,6 @@ TSharedPtr<FStreamableHandle> FStreamableManager::RequestSyncLoad(const FSoftObj
 
 void FStreamableManager::StartHandleRequests(TSharedRef<FStreamableHandle> Handle)
 {
-	TRACE_LOADTIME_BEGIN_LOAD_STREAMABLE_HANDLE(&Handle.Get());
-
 	TArray<FStreamable *> ExistingStreamables;
 	ExistingStreamables.Reserve(Handle->RequestedAssets.Num());
 
@@ -1220,7 +1204,7 @@ void FStreamableManager::CheckCompletedRequests(const FSoftObjectPath& Target, s
 	TArray<TSharedRef<FStreamableHandle>> HandlesToComplete;
 	TArray<TSharedRef<FStreamableHandle>> HandlesToRelease;
 
-	for (TSharedRef<FStreamableHandle>& Handle : Existing->LoadingHandles)
+	for (TSharedRef<FStreamableHandle> Handle : Existing->LoadingHandles)
 	{
 		ensure(Handle->WasCanceled() || Handle->OwningManager == this);
 
@@ -1238,12 +1222,12 @@ void FStreamableManager::CheckCompletedRequests(const FSoftObjectPath& Target, s
 	}
 	Existing->LoadingHandles.Empty();
 
-	for (TSharedRef<FStreamableHandle>& Handle : HandlesToComplete)
+	for (TSharedRef<FStreamableHandle> Handle : HandlesToComplete)
 	{
 		Handle->CompleteLoad();
 	}
 
-	for (TSharedRef<FStreamableHandle>& Handle : HandlesToRelease)
+	for (TSharedRef<FStreamableHandle> Handle : HandlesToRelease)
 	{
 		Handle->ReleaseHandle();
 	}
@@ -1334,7 +1318,6 @@ TSharedPtr<FStreamableHandle> FStreamableManager::CreateCombinedHandle(const TAr
 	NewRequest->OwningManager = this;
 	NewRequest->bIsCombinedHandle = true;
 	NewRequest->DebugName = DebugName;
-	TRACE_LOADTIME_NEW_STREAMABLE_HANDLE(&NewRequest.Get(), *DebugName, true);
 
 	for (TSharedPtr<FStreamableHandle> ChildHandle : ChildHandles)
 	{

@@ -330,7 +330,6 @@ bool FAnimNotifyDetails::CustomizeProperty(IDetailCategoryBuilder& CategoryBuild
 	{
 		FString ClassName = Notify->GetClass()->GetName();
 		FString PropertyName = Property->GetProperty()->GetName();
-		bool bIsBoneName = Property->GetBoolMetaData(TEXT("AnimNotifyBoneName"));
 
 		if(ClassName.Find(TEXT("AnimNotify_PlayParticleEffect")) != INDEX_NONE && PropertyName == TEXT("SocketName"))
 		{
@@ -359,11 +358,6 @@ bool FAnimNotifyDetails::CustomizeProperty(IDetailCategoryBuilder& CategoryBuild
 				AddCurveNameProperty(CategoryBuilder, Notify, Property);
 				return true;
 			}
-		}
-		else if (bIsBoneName)
-		{
-			AddBoneNameProperty(CategoryBuilder, Notify, Property);
-			return true;
 		}
 	}
 	return false;

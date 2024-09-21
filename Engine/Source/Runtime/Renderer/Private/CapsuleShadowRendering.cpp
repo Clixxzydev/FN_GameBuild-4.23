@@ -149,14 +149,14 @@ public:
 		FScene* Scene,
 		const FSceneView& View, 
 		int32 NumLightDirectionDataValue,
-		FRHIShaderResourceView* LightDirectionDataSRV,
+		FShaderResourceViewRHIParamRef LightDirectionDataSRV,
 		const FRWBuffer& ComputedLightDirectionDataBuffer)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		const FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
-		FRHIUnorderedAccessView* OutUAVs[1];
+		FUnorderedAccessViewRHIParamRef OutUAVs[1];
 		OutUAVs[0] = ComputedLightDirectionDataBuffer.UAV;
 		RHICmdList.TransitionResources(EResourceTransitionAccess::EWritable, EResourceTransitionPipeline::EComputeToCompute, OutUAVs, ARRAY_COUNT(OutUAVs));
 
@@ -176,7 +176,7 @@ public:
 	{
 		ComputedLightDirectionData.UnsetUAV(RHICmdList, GetComputeShader());
 
-		FRHIUnorderedAccessView* OutUAVs[1];
+		FUnorderedAccessViewRHIParamRef OutUAVs[1];
 		OutUAVs[0] = ComputedLightDirectionDataBuffer.UAV;
 		RHICmdList.TransitionResources(EResourceTransitionAccess::EReadable, EResourceTransitionPipeline::EComputeToCompute, OutUAVs, ARRAY_COUNT(OutUAVs) );
 	}
@@ -323,17 +323,17 @@ public:
 		const FIntRect& ScissorRect,
 		int32 DownsampleFactorValue,
 		int32 NumShadowCapsulesValue,
-		FRHIShaderResourceView* ShadowCapsuleShapesSRV,
+		FShaderResourceViewRHIParamRef ShadowCapsuleShapesSRV,
 		int32 NumMeshDistanceFieldCastersValue,
-		FRHIShaderResourceView* MeshDistanceFieldCasterIndicesSRV,
-		FRHIShaderResourceView* LightDirectionDataSRV,
-		FRHITexture* ReceiverBentNormalTextureValue)
+		FShaderResourceViewRHIParamRef MeshDistanceFieldCasterIndicesSRV,
+		FShaderResourceViewRHIParamRef LightDirectionDataSRV,
+		FTextureRHIParamRef ReceiverBentNormalTextureValue)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		const FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
-		FRHIUnorderedAccessView* OutUAVs[2];
+		FUnorderedAccessViewRHIParamRef OutUAVs[2];
 		OutUAVs[0] = OutputTexture.UAV;
 
 		if (TileIntersectionCountsBuffer)
@@ -424,9 +424,9 @@ public:
 		float IndirectCapsuleSelfShadowingIntensityValue = Scene->DynamicIndirectShadowsSelfShadowingIntensity;
 		SetShaderValue(RHICmdList, ShaderRHI, IndirectCapsuleSelfShadowingIntensity, IndirectCapsuleSelfShadowingIntensityValue);
 
-		if (Scene->DistanceFieldSceneData.GetCurrentObjectBuffers())
+		if (Scene->DistanceFieldSceneData.ObjectBuffers)
 		{
-			DistanceFieldObjectParameters.Set(RHICmdList, ShaderRHI, *Scene->DistanceFieldSceneData.GetCurrentObjectBuffers(), Scene->DistanceFieldSceneData.NumObjectsInBuffer);
+			DistanceFieldObjectParameters.Set(RHICmdList, ShaderRHI, *Scene->DistanceFieldSceneData.ObjectBuffers, Scene->DistanceFieldSceneData.NumObjectsInBuffer);
 		}
 		else
 		{
@@ -440,7 +440,7 @@ public:
 		BentNormalTexture.UnsetUAV(RHICmdList, GetComputeShader());
 		TileIntersectionCounts.UnsetUAV(RHICmdList, GetComputeShader());
 
-		FRHIUnorderedAccessView* OutUAVs[2];
+		FUnorderedAccessViewRHIParamRef OutUAVs[2];
 		OutUAVs[0] = OutputTexture.UAV;
 
 		if (TileIntersectionCountsBuffer)
@@ -592,7 +592,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View, FIntPoint TileDimensionsValue, const FIntRect& ScissorRect, const FRWBuffer& TileIntersectionCountsBuffer)
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
 		SetShaderValue(RHICmdList, ShaderRHI, TileDimensions, TileDimensionsValue);
@@ -659,7 +659,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View, const FIntRect& ScissorRect, TRefCountPtr<IPooledRenderTarget>& ShadowFactorsTextureValue, bool bOutputtingToLightAttenuation)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 		SceneTextureParameters.Set(RHICmdList, ShaderRHI, View.FeatureLevel, ESceneTextureSetupMode::All);
@@ -1080,7 +1080,7 @@ void FDeferredShadingSceneRenderer::SetupIndirectCapsuleShadows(
 	int32& NumCapsuleShapes, 
 	int32& NumMeshesWithCapsules, 
 	int32& NumMeshDistanceFieldCasters,
-	FRHIShaderResourceView*& IndirectShadowLightDirectionSRV) const
+	FShaderResourceViewRHIParamRef& IndirectShadowLightDirectionSRV) const
 {
 	const float CosFadeStartAngle = FMath::Cos(GCapsuleShadowFadeAngleFromVertical);
 	const FSkyLightSceneProxy* SkyLight = Scene ? Scene->SkyLight : NULL;
@@ -1293,8 +1293,8 @@ void FDeferredShadingSceneRenderer::SetupIndirectCapsuleShadows(
 
 void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(
 	FRHICommandListImmediate& RHICmdList, 
-	FRHITexture* IndirectLightingTexture,
-	FRHITexture* ExistingIndirectOcclusionTexture) const
+	FTextureRHIParamRef IndirectLightingTexture, 
+	FTextureRHIParamRef ExistingIndirectOcclusionTexture) const
 {
 	check(RHICmdList.IsOutsideRenderPass());
 
@@ -1331,7 +1331,7 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(
 			}
 
 			FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
-			TArray<FRHITexture*, TInlineAllocator<2>> RenderTargets;
+			TArray<FTextureRHIParamRef, TInlineAllocator<2>> RenderTargets;
 
 			if (IndirectLightingTexture)
 			{
@@ -1358,7 +1358,7 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(
 
 				// #todo is this transition really needed?
 				{
-					FRHITexture* Transitions[MaxSimultaneousRenderTargets + 1];
+					FTextureRHIParamRef Transitions[MaxSimultaneousRenderTargets + 1];
 					int32 TransitionIndex = 0;
 					for (int32 Index = 0; Index < RenderTargets.Num(); Index++)
 					{
@@ -1385,7 +1385,7 @@ void FDeferredShadingSceneRenderer::RenderIndirectCapsuleShadows(
 					int32 NumCapsuleShapes = 0;
 					int32 NumMeshesWithCapsules = 0;
 					int32 NumMeshDistanceFieldCasters = 0;
-					FRHIShaderResourceView* IndirectShadowLightDirectionSRV = NULL;
+					FShaderResourceViewRHIParamRef IndirectShadowLightDirectionSRV = NULL;
 					SetupIndirectCapsuleShadows(RHICmdList, View, NumCapsuleShapes, NumMeshesWithCapsules, NumMeshDistanceFieldCasters, IndirectShadowLightDirectionSRV);
 
 					if (NumCapsuleShapes > 0 || NumMeshDistanceFieldCasters > 0)
@@ -1607,7 +1607,7 @@ void FDeferredShadingSceneRenderer::RenderCapsuleShadowsForMovableSkylight(FRHIC
 					int32 NumCapsuleShapes = 0;
 					int32 NumMeshesWithCapsules = 0;
 					int32 NumMeshDistanceFieldCasters = 0;
-					FRHIShaderResourceView* IndirectShadowLightDirectionSRV = NULL;
+					FShaderResourceViewRHIParamRef IndirectShadowLightDirectionSRV = NULL;
 					SetupIndirectCapsuleShadows(RHICmdList, View, NumCapsuleShapes, NumMeshesWithCapsules, NumMeshDistanceFieldCasters, IndirectShadowLightDirectionSRV);
 
 					// Don't render indirect occlusion from mesh distance fields when operating on a movable skylight,

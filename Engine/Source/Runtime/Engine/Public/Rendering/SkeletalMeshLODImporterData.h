@@ -10,7 +10,7 @@
 #include "SkeletalMeshTypes.h"
 #include "Serialization/BulkData.h"
 #include "Components.h"
-#include "Math/GenericOctree.h"
+#include "GenericOctree.h"
 #include "Animation/MorphTarget.h"
 
 class FSkeletalMeshLODModel;
@@ -357,9 +357,6 @@ struct FReductionBaseSkeletalMeshBulkData
 	/** Internally store bulk data as bytes. */
 	FByteBulkData BulkData;
 
-	//The custom version when this was load
-	FCustomVersionContainer SerializeLoadingCustomVersionContainer;
-	bool bUseSerializeLoadingCustomVersion = false;
 public:
 	/** Default constructor. */
 	ENGINE_API FReductionBaseSkeletalMeshBulkData();

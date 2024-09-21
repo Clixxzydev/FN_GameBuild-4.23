@@ -56,9 +56,6 @@ private:
 	/** Handle pre object property changes */
 	void HandleCorePreObjectPropertyChanged(UObject* Object, const class FEditPropertyChain& EditPropertyChain);
 
-	/** Handle the project proxies changed */
-	void HandleMediaProxiesChanged();
-
 private:
 	/** Dockable tab for properties */
 	TSharedPtr<class SDockableTab> PropertiesTab;

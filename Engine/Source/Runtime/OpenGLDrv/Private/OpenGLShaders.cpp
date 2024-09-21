@@ -885,7 +885,7 @@ ShaderType* CompileOpenGLShader(const TArray<uint8>& InShaderCode, const FSHAHas
 }
 
 template <typename ShaderType>
-ShaderType* CompileOpenGLShader(FRHIShaderLibrary* Library, FSHAHash LibraryHash, FRHIShader* RHIShader = nullptr)
+ShaderType* CompileOpenGLShader(FRHIShaderLibraryParamRef Library, FSHAHash LibraryHash, FRHIShader* RHIShader = nullptr)
 {
 	FLibraryShaderCacheValue *Val = GetOpenGLCompiledLibraryShaderCache().Find(LibraryHash);
 	ShaderType* Shader = nullptr;
@@ -1498,7 +1498,7 @@ FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShaderWithStreamOutput
 }
 
 template<typename RHIType, typename TOGLProxyType>
-RHIType* CreateProxyShader(FRHIShaderLibrary* Library, FSHAHash Hash)
+RHIType* CreateProxyShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 	if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
@@ -1518,34 +1518,34 @@ RHIType* CreateProxyShader(FRHIShaderLibrary* Library, FSHAHash Hash)
 	}
 }
 
-FVertexShaderRHIRef FOpenGLDynamicRHI::RHICreateVertexShader(FRHIShaderLibrary* Library, FSHAHash Hash)
+FVertexShaderRHIRef FOpenGLDynamicRHI::RHICreateVertexShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	return CreateProxyShader<FRHIVertexShader, FOpenGLVertexShaderProxy>(Library, Hash);
 }
 
-FPixelShaderRHIRef FOpenGLDynamicRHI::RHICreatePixelShader(FRHIShaderLibrary* Library, FSHAHash Hash)
+FPixelShaderRHIRef FOpenGLDynamicRHI::RHICreatePixelShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	return CreateProxyShader<FRHIPixelShader, FOpenGLPixelShaderProxy>(Library, Hash);
 }
 
-FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShader(FRHIShaderLibrary* Library, FSHAHash Hash)
+FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	return CreateProxyShader<FRHIGeometryShader, FOpenGLGeometryShaderProxy>(Library, Hash);
 }
 
-FHullShaderRHIRef FOpenGLDynamicRHI::RHICreateHullShader(FRHIShaderLibrary* Library, FSHAHash Hash)
+FHullShaderRHIRef FOpenGLDynamicRHI::RHICreateHullShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	check(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
 	return CreateProxyShader<FRHIHullShader, FOpenGLHullShaderProxy>(Library, Hash);
 }
 
-FDomainShaderRHIRef FOpenGLDynamicRHI::RHICreateDomainShader(FRHIShaderLibrary* Library, FSHAHash Hash)
+FDomainShaderRHIRef FOpenGLDynamicRHI::RHICreateDomainShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	check(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5);
 	return CreateProxyShader<FRHIDomainShader, FOpenGLDomainShaderProxy>(Library, Hash);
 }
 
-FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShaderWithStreamOutput(const FStreamOutElementList& ElementList, uint32 NumStrides, const uint32* Strides, int32 RasterizedStream, FRHIShaderLibrary* Library, FSHAHash Hash)
+FGeometryShaderRHIRef FOpenGLDynamicRHI::RHICreateGeometryShaderWithStreamOutput(const FStreamOutElementList& ElementList, uint32 NumStrides, const uint32* Strides, int32 RasterizedStream, FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
 	UE_LOG(LogRHI, Fatal, TEXT("OpenGL Render path does not support stream output!"));
 	return NULL;
@@ -3209,11 +3209,18 @@ static FOpenGLLinkedProgram* LinkProgram( const FOpenGLLinkedProgramConfiguratio
 	return LinkedProgram;
 }
 
-static bool LinkComputeShader(FOpenGLComputeShader* ComputeShader)
+FComputeShaderRHIRef FOpenGLDynamicRHI::RHICreateComputeShader(FRHIShaderLibraryParamRef Library, FSHAHash Hash)
 {
-	check(ComputeShader);
-	check(ComputeShader->Resource != 0);
+	UE_LOG(LogRHI, Fatal, TEXT("RHICreateComputeShader on the lazy path is not supported; would be easy to add."));
+	return FComputeShaderRHIRef();
+}
 
+
+FComputeShaderRHIRef FOpenGLDynamicRHI::RHICreateComputeShader(const TArray<uint8>& Code)
+{
+	check(RHISupportsComputeShaders(GMaxRHIShaderPlatform));
+	
+	FOpenGLComputeShader* ComputeShader = CompileOpenGLShader<FOpenGLComputeShader>(Code, FSHAHash());
 	const ANSICHAR* GlslCode = NULL;
 	if (!ComputeShader->bSuccessfullyCompiled)
 	{
@@ -3222,6 +3229,8 @@ static bool LinkComputeShader(FOpenGLComputeShader* ComputeShader)
 #endif
 		ComputeShader->bSuccessfullyCompiled = VerifyCompiledShader(ComputeShader->Resource, GlslCode);
 	}
+
+	check( ComputeShader != 0);
 
 	FOpenGLLinkedProgramConfiguration Config;
 
@@ -3240,76 +3249,9 @@ static bool LinkComputeShader(FOpenGLComputeShader* ComputeShader)
 		}
 #endif //DEBUG_GL_SHADERS
 		checkf(ComputeShader->LinkedProgram, TEXT("Compute shader failed to compile & link."));
-		return false;
 	}
 
-	return true;
-}
-
-//
-// specialization for compute
-//
-template<>
-FRHIComputeShader* CreateProxyShader<FRHIComputeShader, FOpenGLComputeShaderProxy>(const TArray<uint8>& Code)
-{
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
-	{
-		return new FOpenGLComputeShaderProxy([&](FRHIComputeShader* OwnerRHI)
-		{
-			FOpenGLComputeShader* ComputeShader = CompileOpenGLShader<FOpenGLComputeShader>(Code, FSHAHash(), OwnerRHI);
-			LinkComputeShader(ComputeShader);
-			return ComputeShader;
-		});
-	}
-	else
-	{
-		// take a copy of the code for RHIT version.
-		TArray<uint8> CodeCopy = Code;
-		return new FOpenGLComputeShaderProxy([Code = MoveTemp(CodeCopy)](FRHIComputeShader* OwnerRHI)
-		{
-			FOpenGLComputeShader* ComputeShader = CompileOpenGLShader<FOpenGLComputeShader>(Code, FSHAHash(), OwnerRHI);
-			LinkComputeShader(ComputeShader);
-			return ComputeShader;
-		});
-	}
-}
-
-template<>
-FRHIComputeShader* CreateProxyShader<FRHIComputeShader, FOpenGLComputeShaderProxy>(FRHIShaderLibrary* Library, FSHAHash Hash)
-{
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	if (ShouldRunGLRenderContextOpOnThisThread(RHICmdList))
-	{
-		return new FOpenGLComputeShaderProxy([&](FRHIComputeShader* OwnerRHI)
-		{
-			FOpenGLComputeShader* ComputeShader = CompileOpenGLShader<FOpenGLComputeShader>(Library, Hash, OwnerRHI);
-			LinkComputeShader(ComputeShader);
-			return ComputeShader;
-		});
-	}
-	else
-	{
-		// take a copy of the code for RHIT version.
-		return new FOpenGLComputeShaderProxy([Library, Hash](FRHIComputeShader* OwnerRHI)
-		{
-			FOpenGLComputeShader* ComputeShader = CompileOpenGLShader<FOpenGLComputeShader>(Library, Hash, OwnerRHI);
-			LinkComputeShader(ComputeShader);
-			return ComputeShader;
-		});
-	}
-}
-
-FComputeShaderRHIRef FOpenGLDynamicRHI::RHICreateComputeShader(FRHIShaderLibrary* Library, FSHAHash Hash)
-{
-	check(RHISupportsComputeShaders(GMaxRHIShaderPlatform));
-	return CreateProxyShader<FRHIComputeShader, FOpenGLComputeShaderProxy>(Library, Hash);
-}
-
-FComputeShaderRHIRef FOpenGLDynamicRHI::RHICreateComputeShader(const TArray<uint8>& Code)
-{
-	check(RHISupportsComputeShaders(GMaxRHIShaderPlatform));
-	return CreateProxyShader<FRHIComputeShader, FOpenGLComputeShaderProxy>(Code);
+	return ComputeShader;
 }
 
 template<class TOpenGLStage>
@@ -3579,12 +3521,12 @@ static void BindShaderStage(FOpenGLLinkedProgramConfiguration& Config, CrossComp
 // ============================================================================================================================
 
 FBoundShaderStateRHIRef FOpenGLDynamicRHI::RHICreateBoundShaderState_OnThisThread(
-	FRHIVertexDeclaration* VertexDeclarationRHI,
-	FRHIVertexShader* VertexShaderRHI,
-	FRHIHullShader* HullShaderRHI,
-	FRHIDomainShader* DomainShaderRHI,
-	FRHIPixelShader* PixelShaderRHI,
-	FRHIGeometryShader* GeometryShaderRHI,
+	FVertexDeclarationRHIParamRef VertexDeclarationRHI, 
+	FVertexShaderRHIParamRef VertexShaderRHI, 
+	FHullShaderRHIParamRef HullShaderRHI,
+	FDomainShaderRHIParamRef DomainShaderRHI, 
+	FPixelShaderRHIParamRef PixelShaderRHI, 
+	FGeometryShaderRHIParamRef GeometryShaderRHI,
 	bool bFromPSOFileCache
 	)
 {
@@ -3957,7 +3899,7 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 	{
 		int32 NextUniformBufferIndex = OGL_FIRST_UNIFORM_BUFFER;
 
-		static_assert(SF_Compute == 5 && SF_NumFrequencies == 10, "Unexpected SF_ ordering");
+		static_assert(SF_Compute == 5 && SF_NumFrequencies == 9, "Unexpected SF_ ordering");
 		static_assert(SF_RayGen > SF_Compute, "SF_Compute must be at the end of the list of frequencies supported in OpenGL");
 
 		int32 NumUniformBuffers[SF_Compute];
@@ -4025,12 +3967,12 @@ void FOpenGLDynamicRHI::BindPendingShaderState( FOpenGLContextState& ContextStat
 
 FOpenGLBoundShaderState::FOpenGLBoundShaderState(
 	FOpenGLLinkedProgram* InLinkedProgram,
-	FRHIVertexDeclaration* InVertexDeclarationRHI,
-	FRHIVertexShader* InVertexShaderRHI,
-	FRHIPixelShader* InPixelShaderRHI,
-	FRHIGeometryShader* InGeometryShaderRHI,
-	FRHIHullShader* InHullShaderRHI,
-	FRHIDomainShader* InDomainShaderRHI
+	FVertexDeclarationRHIParamRef InVertexDeclarationRHI,
+	FVertexShaderRHIParamRef InVertexShaderRHI,
+	FPixelShaderRHIParamRef InPixelShaderRHI,
+	FGeometryShaderRHIParamRef InGeometryShaderRHI,
+	FHullShaderRHIParamRef InHullShaderRHI,
+	FDomainShaderRHIParamRef InDomainShaderRHI
 	)
 	:	CacheLink(InVertexDeclarationRHI, InVertexShaderRHI, InPixelShaderRHI,
 		InHullShaderRHI, InDomainShaderRHI,	InGeometryShaderRHI, this)
@@ -4150,14 +4092,15 @@ const TBitArray<>& FOpenGLComputeShader::GetTextureNeeds(int32& OutMaxTextureSta
 	return LinkedProgram->TextureStageNeeds;
 }
 
-bool FOpenGLComputeShader::NeedsUAVStage(int32 UAVStageIndex) const
+bool FOpenGLComputeShader::NeedsUAVStage(int32 UAVStageIndex)
 {
 	return LinkedProgram->UAVStageNeeds[UAVStageIndex];
 }
 
-void FOpenGLDynamicRHI::BindPendingComputeShaderState(FOpenGLContextState& ContextState, FOpenGLComputeShader* ComputeShader)
+void FOpenGLDynamicRHI::BindPendingComputeShaderState(FOpenGLContextState& ContextState, FComputeShaderRHIParamRef ComputeShaderRHI)
 {
 	VERIFY_GL_SCOPE();
+	FOpenGLComputeShader* ComputeShader = ResourceCast(ComputeShaderRHI);
 	bool ForceUniformBindingUpdate = false;
 
 	GLuint PendingProgram = ComputeShader->LinkedProgram->Program;
@@ -5298,7 +5241,7 @@ void FOpenGLProgramBinaryCache::CheckPendingGLProgramCreateRequests_internal()
 
 void FOpenGLProgramBinaryCache::CompleteLoadedGLProgramRequest_internal(FGLProgramBinaryFileCacheEntry* PendingGLCreate)
 {
-	VERIFY_GL_SCOPE();
+	VERIFY_GL_SCOPE()
 
 	check(PendingGLCreate->GLProgramState == FGLProgramBinaryFileCacheEntry::EGLProgramState::ProgramLoaded);
 

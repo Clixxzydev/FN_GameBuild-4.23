@@ -57,11 +57,6 @@ public:
 	FName FindLocalizedPackageNameForCulture(const FName InSourcePackageName, const FString& InCultureName);
 
 	/**
-	 * Update this cache, but only if it is dirty.
-	 */
-	void ConditionalUpdateCache();
-
-	/**
 	 * Singleton accessor.
 	 *
 	 * @return The singleton instance of the localization manager.

@@ -28,7 +28,6 @@
 				"TVOS",
 				"Switch",
 				"Lumin",
-				"HoloLens"
 			],
 			"BlacklistTargets" :
 			[
@@ -61,7 +60,6 @@
 				"TVOS",
 				"Switch",
 				"Lumin",
-				"HoloLens"
 			],
 			"BlacklistTargets" :
 			[

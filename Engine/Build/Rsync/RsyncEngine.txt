@@ -294,7 +294,6 @@ protect /Saved/
 + /Source/ThirdParty/**.dylib
 + /Source/ThirdParty/**.embeddedframework.zip
 + /Source/ThirdParty/libJPG/*.cpp
-+ /Source/ThirdParty/Eigen/**
 - /Source/ThirdParty/**
 
 # Source: Include everything else

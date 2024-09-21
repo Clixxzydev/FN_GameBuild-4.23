@@ -29,9 +29,6 @@
 
 //#include "PsWindowsInclude.h"
 #include <windows.h>
-// @ATG_CHANGE : BEGIN HoloLens support, pull in definitions that are missing, including HoloLens
-#include "PxPreprocessor.h"
-// @ATG_CHANGE : END HoloLens support
 
 class ModuleUpdateLoader
 {

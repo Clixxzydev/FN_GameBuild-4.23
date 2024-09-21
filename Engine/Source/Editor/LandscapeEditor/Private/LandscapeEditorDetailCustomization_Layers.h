@@ -23,8 +23,6 @@ class FDetailWidgetRow;
 class IDetailChildrenBuilder;
 class IDetailLayoutBuilder;
 class SDragAndDropVerticalBox;
-class ALandscapeBlueprintBrushBase;
-class ULandscapeLayerInfoObject;
 
 /**
  * Slate widgets customizer for the layers list in the Landscape Editor
@@ -74,8 +72,7 @@ protected:
 	void OnLayerSelectionChanged(int32 LayerIndex);
 	TSharedPtr<SWidget> OnLayerContextMenuOpening(int32 InLayerIndex);
 	void CreateLayer();
-	void ClearPaintLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo);
-	void ClearLayer(int32 InLayerIndex, ELandscapeClearMode InClearMode);
+	void ClearLayer(int32 InLayerIndex);
 	void RenameLayer(int32 InLayerIndex);
 	void DeleteLayer(int32 InLayerIndex);
 	void ShowOnlySelectedLayer(int32 InLayerIndex);
@@ -89,7 +86,6 @@ protected:
 	FText GetLayerDisplayName(int32 InLayerIndex) const;
 	bool IsLayerEditionEnabled(int32 InLayerIndex) const;
 	EVisibility GetLayerAlphaVisibility(int32 InLayerIndex) const;
-	void ForceUpdateSplines();
 
 	TOptional<float> GetLayerAlpha(int32 InLayerIndex) const;
 	void SetLayerAlpha(float InAlpha, int32 InLayerIndex, bool bCommit);
@@ -99,11 +95,6 @@ protected:
 	
 	FReply OnToggleLock(int32 InLayerIndex);
 	const FSlateBrush* GetLockBrushForLayer(int32 InLayerIndex) const;
-
-	void FillAddBrushMenu(FMenuBuilder& MenuBuilder, TArray<ALandscapeBlueprintBrushBase*> Brushes);
-	void AddBrushToCurrentLayer(ALandscapeBlueprintBrushBase* Brush);
-	void FillClearPaintLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*> InUsedLayerInfos);
-	void FillClearLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex);
 
 private:
 

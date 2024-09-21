@@ -46,11 +46,6 @@ static FAutoConsoleVariableRef CVarUseGPUMorphTargets(
 	ECVF_Default
 	);
 
-static bool UseGPUMorphTargets(const EShaderPlatform Platform)
-{
-	return GUseGPUMorphTargets != 0 && IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM5);
-}
-
 static float GMorphTargetWeightThreshold = SMALL_NUMBER;
 static FAutoConsoleVariableRef CVarMorphTargetWeightThreshold(
 	TEXT("r.MorphTarget.WeightThreshold"),
@@ -73,27 +68,27 @@ void FMorphVertexBuffer::InitDynamicRHI()
 	uint32 Size = LodData.GetNumVertices() * sizeof(FMorphGPUSkinVertex);
 	FRHIResourceCreateInfo CreateInfo;
 
-	const bool bUseGPUMorphTargets = UseGPUMorphTargets(GMaxRHIShaderPlatform);
-	bUsesComputeShader = bUseGPUMorphTargets;
+	bool bSupportsComputeShaders = RHISupportsComputeShaders(GMaxRHIShaderPlatform);
+	bUsesComputeShader = GUseGPUMorphTargets != 0 && bSupportsComputeShaders;
 
 #if PLATFORM_PS4
 	// PS4 requires non-static buffers in order to be updated on the GPU while the CPU is writing into it
-	EBufferUsageFlags Flags = bUseGPUMorphTargets ? (EBufferUsageFlags)(BUF_Dynamic | BUF_UnorderedAccess) : BUF_Dynamic;
+	EBufferUsageFlags Flags = bUsesComputeShader ? (EBufferUsageFlags)(BUF_Dynamic | BUF_UnorderedAccess) : BUF_Dynamic;
 #else
-	EBufferUsageFlags Flags = bUseGPUMorphTargets ? (EBufferUsageFlags)(BUF_Static | BUF_UnorderedAccess) : BUF_Dynamic;
+	EBufferUsageFlags Flags = bUsesComputeShader ? (EBufferUsageFlags)(BUF_Static | BUF_UnorderedAccess) : BUF_Dynamic;
 #endif
 
 	// BUF_ShaderResource is needed for Morph support of the SkinCache
 	Flags = (EBufferUsageFlags)(Flags | BUF_ShaderResource);
 
 	VertexBufferRHI = RHICreateVertexBuffer(Size, Flags, CreateInfo);
-	bool bUsesSkinCache = RHISupportsComputeShaders(GMaxRHIShaderPlatform) && IsGPUSkinCacheAvailable(GMaxRHIShaderPlatform) && GEnableGPUSkinCache;
+	bool bUsesSkinCache = bSupportsComputeShaders && IsGPUSkinCacheAvailable() && GEnableGPUSkinCache;
 	if (bUsesSkinCache)
 	{
 		SRVValue = RHICreateShaderResourceView(VertexBufferRHI, 4, PF_R32_FLOAT);
 	}
 
-	if (!bUseGPUMorphTargets)
+	if (!bUsesComputeShader)
 	{
 		// Lock the buffer.
 		void* BufferData = RHILockVertexBuffer(VertexBufferRHI, 0, sizeof(FMorphGPUSkinVertex)*LodData.GetNumVertices(), RLM_WriteOnly);
@@ -333,7 +328,6 @@ void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* G
 
 #if RHI_RAYTRACING
 	bRequireRecreatingRayTracingGeometry = (DynamicData == nullptr || // Newly created
-		RayTracingGeometry.Initializer.PositionVertexBuffer == nullptr ||
 		(DynamicData != nullptr && DynamicData->LODIndex != InDynamicData->LODIndex)); // LOD level changed
 #endif
 
@@ -363,6 +357,10 @@ void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* G
 		{
 			if (bRequireRecreatingRayTracingGeometry)
 			{
+				// #dxr: Warning: this path invalidates all the instances referencing RayTracingGeometry
+				// which is expected to be detected inside USkinnedMeshComponent::SendRenderDynamicData_Concurrent()
+				// and instance updates are sent there
+
 				FSkeletalMeshLODRenderData& LODModel = this->SkeletalMeshRenderData->LODRenderData[DynamicData->LODIndex];
 				FIndexBufferRHIRef IndexBufferRHI = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->IndexBufferRHI;
 				uint32 VertexBufferStride = LODModel.StaticVertexBuffers.PositionVertexBuffer.GetStride();
@@ -386,7 +384,7 @@ void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* G
 				Initializer.VertexBufferByteOffset = 0;
 				Initializer.TotalPrimitiveCount = TrianglesCount;
 				Initializer.VertexBufferElementType = VET_Float3;
-				Initializer.GeometryType = RTGT_Triangles;
+				Initializer.PrimitiveType = PT_TriangleList;
 				Initializer.bFastBuild = true;
 				Initializer.bAllowUpdate = true;
 
@@ -406,17 +404,9 @@ void FSkeletalMeshObjectGPUSkin::UpdateDynamicData_RenderThread(FGPUSkinCache* G
 			}
 			else
 			{
-				// If we are not using world position offset in material, handle BLAS refit here
-				if (!DynamicData->bAnySegmentUsesWorldPositionOffset)
-				{
-					// Refit BLAS with new vertex buffer data
-					FGPUSkinCache::CreateMergedPositionVertexBuffer(RHICmdList, SkinCacheEntry, RayTracingGeometry.Initializer.PositionVertexBuffer);
-					GPUSkinCache->AddRayTracingGeometryToUpdate(&RayTracingGeometry);
-				}
-				else
-				{
-					// Otherwise, we will run the dynamic ray tracing geometry path, i.e. runnning VSinCS and refit geometry there, so do nothing here
-				}
+				// Refit BLAS with new vertex buffer data
+				FGPUSkinCache::CreateMergedPositionVertexBuffer(RHICmdList, SkinCacheEntry, RayTracingGeometry.Initializer.PositionVertexBuffer);
+				GPUSkinCache->AddRayTracingGeometryToUpdate(&RayTracingGeometry);
 			}
 		}
 	}
@@ -484,11 +474,8 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(FGPUSkinCache* GPUSki
 		if(bMorphNeedsUpdate)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_FSkeletalMeshObjectGPUSkin_ProcessUpdatedDynamicData_UpdateMorphBuffer);
-			if (UseGPUMorphTargets(GMaxRHIShaderPlatform))
+			if (GUseGPUMorphTargets && RHISupportsComputeShaders(GMaxRHIShaderPlatform))
 			{
-				// sometimes this goes out of bound, we'll ensure here
-				ensureAlways(DynamicData->MorphTargetWeights.Num() == LODData.MorphTargetVertexInfoBuffers.GetNumMorphs());
-
 				// update the morph data for the lod (before SkinCache)
 				TArray<float> MorphTargetWeights;
 				MorphTargetWeights.Reserve(LODData.MorphTargetVertexInfoBuffers.GetNumMorphs());
@@ -499,6 +486,7 @@ void FSkeletalMeshObjectGPUSkin::ProcessUpdatedDynamicData(FGPUSkinCache* GPUSki
 						MorphTargetWeights.Add(DynamicData->MorphTargetWeights[i]);
 					}
 				}
+				ensureAlways(MorphTargetWeights.Num() == LODData.MorphTargetVertexInfoBuffers.GetNumMorphs());
 				LOD.UpdateMorphVertexBufferGPU(RHICmdList, MorphTargetWeights, LODData.MorphTargetVertexInfoBuffers, DynamicData->SectionIdsUseByActiveMorphTargets);
 			}
 			else
@@ -614,7 +602,7 @@ TArray<float> FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::MorphAccumulat
 
 void FGPUMorphUpdateCS::SetParameters(FRHICommandList& RHICmdList, const FVector4& LocalScale, const FMorphTargetVertexInfoBuffers& MorphTargetVertexInfoBuffers, FMorphVertexBuffer& MorphVertexBuffer)
 {
-	FRHIComputeShader* CS = GetComputeShader();
+	FComputeShaderRHIRef CS = GetComputeShader();
 	RHICmdList.SetComputeShader(CS);
 
 	SetUAVParameter(RHICmdList, CS, MorphVertexBufferParameter, MorphVertexBuffer.GetUAV());
@@ -773,13 +761,12 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 {
 	if (IsValidRef(MorphVertexBuffer.VertexBufferRHI))
 	{
-		SCOPE_CYCLE_COUNTER(STAT_MorphVertexBuffer_Update);
+	SCOPE_CYCLE_COUNTER(STAT_MorphVertexBuffer_Update);
 
 		// LOD of the skel mesh is used to find number of vertices in buffer
 		FSkeletalMeshLODRenderData& LodData = SkelMeshRenderData->LODRenderData[LODIndex];
 
-		const bool bUseGPUMorphTargets = UseGPUMorphTargets(GMaxRHIShaderPlatform);
-		MorphVertexBuffer.RecreateResourcesIfRequired(bUseGPUMorphTargets);
+		MorphVertexBuffer.RecreateResourcesIfRequired(GUseGPUMorphTargets != 0);
 
 		SCOPED_GPU_STAT(RHICmdList, MorphTargets);
 
@@ -945,9 +932,8 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 
 		// LOD of the skel mesh is used to find number of vertices in buffer
 		FSkeletalMeshLODRenderData& LodData = SkelMeshRenderData->LODRenderData[LODIndex];
-		
-		const bool bUseGPUMorphTargets = UseGPUMorphTargets(GMaxRHIShaderPlatform);
-		MorphVertexBuffer.RecreateResourcesIfRequired(bUseGPUMorphTargets);
+
+		MorphVertexBuffer.RecreateResourcesIfRequired(GUseGPUMorphTargets != 0);
 
 		uint32 Size = LodData.GetNumVertices() * sizeof(FMorphGPUSkinVertex);
 
@@ -1268,9 +1254,11 @@ static VertexFactoryType* CreateVertexFactory(TArray<TUniquePtr<VertexFactoryTyp
 			typename VertexFactoryType::FDataType Data;
 			InitGPUSkinVertexFactoryComponents<VertexFactoryType>(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 			VertexUpdateData.VertexFactory->SetData(Data);
-			VertexUpdateData.VertexFactory->InitResource();
 		}
 	);
+
+	// init rendering resource	
+	BeginInitResource(VertexFactory);
 
 	return VertexFactory;
 }
@@ -1322,9 +1310,11 @@ static void CreatePassthroughVertexFactory(ERHIFeatureLevel::Type InFeatureLevel
 		[NewPassthroughVertexFactory, SourceVertexFactory](FRHICommandList& RHICmdList)
 		{
 			SourceVertexFactory->CopyDataTypeForPassthroughFactory(NewPassthroughVertexFactory);
-			NewPassthroughVertexFactory->InitResource();
 		}
 	);
+
+	// init rendering resource	
+	BeginInitResource(NewPassthroughVertexFactory);
 }
 
 /**
@@ -1351,9 +1341,11 @@ static VertexFactoryType* CreateVertexFactoryMorph(TArray<TUniquePtr<VertexFacto
 			InitGPUSkinVertexFactoryComponents<VertexFactoryType>(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 			InitMorphVertexFactoryComponents<VertexFactoryType>(&Data, VertexUpdateData.VertexBuffers);
 			VertexUpdateData.VertexFactory->SetData(Data);
-			VertexUpdateData.VertexFactory->InitResource();
 		}
 	);
+
+	// init rendering resource	
+	BeginInitResource(VertexFactory);
 
 	return VertexFactory;
 }
@@ -1411,9 +1403,11 @@ static void CreateVertexFactoryCloth(TArray<TUniquePtr<VertexFactoryTypeBase>>& 
 			InitGPUSkinVertexFactoryComponents<VertexFactoryType>(&Data, VertexUpdateData.VertexBuffers, VertexUpdateData.VertexFactory);
 			InitAPEXClothVertexFactoryComponents<VertexFactoryType>(&Data, VertexUpdateData.VertexBuffers);
 			VertexUpdateData.VertexFactory->SetData(Data);
-			VertexUpdateData.VertexFactory->InitResource();
 		}
 	);
+
+	// init rendering resource	
+	BeginInitResource(VertexFactory);
 }
 
 template <class VertexFactoryTypeBase, class VertexFactoryType>
@@ -1727,9 +1721,6 @@ void FDynamicSkelMeshObjectDataGPUSkin::Clear()
 	NumWeightedActiveMorphTargets = 0;
 	ClothingSimData.Reset();
 	ClothBlendWeight = 0.0f;
-#if RHI_RAYTRACING
-	bAnySegmentUsesWorldPositionOffset = false;
-#endif
 }
 
 #define SKELETON_POOL_GPUSKINS 1
@@ -1883,13 +1874,6 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	}
 	// Update the clothing simulation mesh positions and normals
 	UpdateClothSimulationData(InMeshComponent);
-
-#if RHI_RAYTRACING
-	if (SkeletalMeshProxy != nullptr)
-	{
-		bAnySegmentUsesWorldPositionOffset = SkeletalMeshProxy->bAnySegmentUsesWorldPositionOffset;
-	}
-#endif
 }
 
 bool FDynamicSkelMeshObjectDataGPUSkin::ActiveMorphTargetsEqual( const TArray<FActiveMorphTarget>& CompareActiveMorphTargets, const TArray<float>& CompareMorphTargetWeights)

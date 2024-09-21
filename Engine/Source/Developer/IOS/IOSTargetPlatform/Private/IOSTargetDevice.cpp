@@ -21,7 +21,7 @@ enum
 
 FTcpDSCommander::FTcpDSCommander(const uint8* Data, int32 Count, void* WPipe)
 : bStopping(false)
-, bStopped(true)
+, bStoped(true)
 , bIsSuccess(false)
 , bIsSystemError(false)
 , DSSocket(nullptr)
@@ -54,6 +54,12 @@ FTcpDSCommander::~FTcpDSCommander()
     }
 }
 
+void FTcpDSCommander::Exit()
+{
+    // do nothing
+    bStoped = true;
+}
+
 bool FTcpDSCommander::Init()
 {
 	if (DSCommandLen < 1)
@@ -67,10 +73,9 @@ bool FTcpDSCommander::Init()
 	{
 		return false;
 	}
-	TSharedRef<FInternetAddr> Addr = SSS->CreateInternetAddr();
+	TSharedRef<FInternetAddr> Addr = SSS->CreateInternetAddr(0, DEFAULT_DS_COMMANDER_PORT);
 	bool bIsValid;
 	Addr->SetIp(TEXT("127.0.0.1"), bIsValid);
-	Addr->SetPort(DEFAULT_DS_COMMANDER_PORT);
 
 #if PLATFORM_WINDOWS
 	// using the mutex to detect if the DeploymentServer is running
@@ -128,10 +133,11 @@ uint32 FTcpDSCommander::Run()
     bool BSent = DSSocket->Send(DSCommand, DSCommandLen, NSent);
     if (NSent != DSCommandLen || !BSent)
     {
+        Stop();
         //UE_LOG(LogTemp, Log, TEXT("Socket send error."));
         return 1;
     }
-    bStopped = false;
+    bStoped = false;
     
     static const SIZE_T CommandSize = 1024;
     uint8 RecvBuffer[CommandSize];
@@ -141,6 +147,7 @@ uint32 FTcpDSCommander::Run()
         uint32 Pending = 0;
         if (DSSocket->GetConnectionState() != ESocketConnectionState::SCS_Connected)
         {
+            Stop();
             //UE_LOG(LogTemp, Log, TEXT("Socket connection error."));
             return 1;
         }
@@ -161,6 +168,7 @@ uint32 FTcpDSCommander::Run()
                     {
                         bIsSuccess = true;
                         //UE_LOG(LogTemp, Log, TEXT("Socket command completed."));
+                        Stop();
                         return 0;
                     }
                     else if (TagArray[i].StartsWith(TEXT("[DSDIR]")))
@@ -169,6 +177,7 @@ uint32 FTcpDSCommander::Run()
                     }
                     else if (TagArray[i].EndsWith(TEXT("CMDFAIL\r")))
                     {
+                        Stop();
                         //UE_LOG(LogTemp, Display, TEXT("Socket command failed."));
                         return 1;
                     }
@@ -183,6 +192,7 @@ uint32 FTcpDSCommander::Run()
         if (CurrentTime - LastActivity > 120.0)
         {
 			//UE_LOG(LogTemp, Display, TEXT("Socket command timeouted."));
+            Stop();
             return 0;
         }
         FPlatformProcess::Sleep(0.01f);
@@ -192,24 +202,16 @@ uint32 FTcpDSCommander::Run()
 }
 
 void FTcpDSCommander::Stop()
-{ 
-    bStopping = true;
-}
-
-void FTcpDSCommander::Exit()
 {
-	if (DSSocket)
-	{
+    if (DSSocket)
+    {
 		DSSocket->Shutdown(ESocketShutdownMode::ReadWrite);
-		DSSocket->Close();
-		if (ISocketSubsystem::Get())
-		{
-			ISocketSubsystem::Get()->DestroySocket(DSSocket);
-		}
-	}
-	DSSocket = nullptr;
-
-	bStopped = true;
+        DSSocket->Close();
+        ISocketSubsystem::Get()->DestroySocket(DSSocket);
+    }
+    DSSocket = NULL;
+    
+    bStopping = true;
 }
 
 bool FTcpDSCommander::IsDSRunning()

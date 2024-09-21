@@ -11,8 +11,7 @@
 @implementation FAppleARKitSessionDelegate
 {
 	FAppleARKitSystem* _AppleARKitSystem;
-	TArray<FVector2D> PassthroughCameraUVs;
-	FCriticalSection CameraUVsLock;
+	CVMetalTextureCacheRef _metalTextureCache;
 }
 
 
@@ -24,38 +23,38 @@
 	{
 		UE_LOG(LogAppleARKit, Log, TEXT("Delegate created with session: %p"), InAppleARKitSystem);
 		_AppleARKitSystem = InAppleARKitSystem;
+		_metalTextureCache = NULL;	
 	}
 	return self;
 }
 
+- (void)setMetalTextureCache:(CVMetalTextureCacheRef)InMetalTextureCache
+{
+	// Release current?
+	if ( _metalTextureCache != nullptr )
+	{
+		CFRelease( _metalTextureCache );
+	}
+	// Set new & retain
+	_metalTextureCache = InMetalTextureCache;
+	if ( _metalTextureCache != nullptr )
+	{
+		CFRetain( _metalTextureCache );
+	}
+}
 #pragma mark - ARSessionDelegate Methods
 
 - (void)session:(ARSession *)session didUpdateFrame:(ARFrame *)frame 
 {
-	// Update the camera UVs
-	TSharedPtr<IXRCamera, ESPMode::ThreadSafe> Camera = _AppleARKitSystem->GetXRCamera(0);
-	if (Camera)
+	// check if we get an update when the session is not initialized.
+	if (!_metalTextureCache)
 	{
-		ENQUEUE_RENDER_COMMAND(UpdateCameraUVsCommand)([self, Camera](FRHICommandListImmediate& RHICmdList)
-		{
-			FScopeLock ScopeLock(&CameraUVsLock);
-			Camera->GetPassthroughCameraUVs_RenderThread(PassthroughCameraUVs);
-		});
+		UE_LOG(LogAppleARKit, Log, TEXT("Delegate didUpdateFrame with no valid _metalTextureCache (ignoring)"));
+		return;
 	}
-	
-	FVector2D MinCameraUV(0.f, 0.f);
-	FVector2D MaxCameraUV(1.f, 1.f);
-	{
-		FScopeLock ScopeLock(&CameraUVsLock);
-		if (PassthroughCameraUVs.Num() == 4)
-		{
-			MinCameraUV = PassthroughCameraUVs[0];
-			MaxCameraUV = PassthroughCameraUVs[3];
-		}
-	}
-	
+
 	// Bundle results into FAppleARKitFrame
-	TSharedPtr< FAppleARKitFrame, ESPMode::ThreadSafe > AppleARKitFrame( new FAppleARKitFrame( frame, MinCameraUV, MaxCameraUV ) );
+	TSharedPtr< FAppleARKitFrame, ESPMode::ThreadSafe > AppleARKitFrame( new FAppleARKitFrame( frame, _metalTextureCache ) );
 	
 	// Pass result to session
 	_AppleARKitSystem->SessionDidUpdateFrame_DelegateThread( AppleARKitFrame );

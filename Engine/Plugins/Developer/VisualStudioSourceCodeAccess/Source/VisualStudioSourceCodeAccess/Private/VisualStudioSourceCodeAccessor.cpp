@@ -24,13 +24,29 @@
 #include "Developer/HotReload/Public/IHotReload.h"
 #endif
 
-#include "VisualStudioDTE.h"
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/AllowWindowsPlatformAtomics.h"
-	#include <unknwn.h>
-	#include "Windows/COMPointer.h"
-	#include "Setup.Configuration.h"
+#include <unknwn.h>
+#include "Windows/COMPointer.h"
+#include "Setup.Configuration.h"
+#if VSACCESSOR_HAS_DTE
+	#pragma warning(push)
+	#pragma warning(disable: 4278)
+	#pragma warning(disable: 4471)
+	#pragma warning(disable: 4146)
+	#pragma warning(disable: 4191)
+	#pragma warning(disable: 6244)
+
+	// import EnvDTE
+	#if VSACCESSOR_HAS_DTE_OLB
+		#import "NotForLicensees/dte80a.olb" version("8.0") lcid("0") raw_interfaces_only named_guids
+	#else
+		#import "libid:80cc9f66-e7d8-4ddd-85b6-d9e6cd0e93e2" version("8.0") lcid("0") raw_interfaces_only named_guids
+	#endif
+
+	#pragma warning(pop)
+#endif
 	#include <tlhelp32.h>
 	#include <wbemidl.h>
 	#pragma comment(lib, "wbemuuid.lib")
@@ -175,7 +191,7 @@ void FVisualStudioSourceCodeAccessor::Shutdown()
 #endif
 }
 
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 
 bool IsVisualStudioDTEMoniker(const FString& InName, const TArray<FVisualStudioSourceCodeAccessor::VisualStudioLocation>& InLocations)
 {
@@ -756,7 +772,7 @@ EAccessVisualStudioResult AccessVisualStudioViaProcess(::DWORD& OutProcessID, FS
 
 bool FVisualStudioSourceCodeAccessor::OpenSolution()
 {
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 	if(OpenVisualStudioSolutionViaDTE())
 	{
 		return true;
@@ -773,7 +789,7 @@ bool FVisualStudioSourceCodeAccessor::OpenSolutionAtPath(const FString& InSoluti
 		FScopeLock Lock(&CachedSolutionPathCriticalSection);
 		CachedSolutionPathOverride = InSolutionPath;
 	}
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 	if (OpenVisualStudioSolutionViaDTE())
 	{
 		bSuccess = true;
@@ -799,7 +815,7 @@ bool FVisualStudioSourceCodeAccessor::DoesSolutionExist() const
 
 bool FVisualStudioSourceCodeAccessor::OpenVisualStudioFilesInternal(const TArray<FileOpenRequest>& Requests)
 {
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 	{
 		bool bWasDeferred = false;
 		if(OpenVisualStudioFilesInternalViaDTE(Requests, bWasDeferred) || bWasDeferred)
@@ -914,7 +930,7 @@ bool FVisualStudioSourceCodeAccessor::OpenSourceFiles(const TArray<FString>& Abs
 bool FVisualStudioSourceCodeAccessor::AddSourceFiles(const TArray<FString>& AbsoluteSourcePaths, const TArray<FString>& AvailableModules)
 {
 	// This requires DTE - there is no fallback for this operation when DTE is not available
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 	bool bSuccess = true;
 
 	struct FModuleNameAndPath
@@ -1149,7 +1165,7 @@ void FVisualStudioSourceCodeAccessor::AddVisualStudioVersion(const int MajorVers
 	NewLocation.VersionNumber = MajorVersion;
 	NewLocation.bPreviewRelease = false;
 	NewLocation.ExecutablePath = BaseExecutablePath / TEXT("devenv.exe");
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 	NewLocation.ROTMoniker = FString::Printf(TEXT("!VisualStudio.DTE.%d.0"), MajorVersion);
 #endif
 
@@ -1163,7 +1179,7 @@ void FVisualStudioSourceCodeAccessor::AddVisualStudioVersion(const int MajorVers
 	if (bAllowExpress)
 	{
 		NewLocation.ExecutablePath = BaseExecutablePath / TEXT("WDExpress.exe");
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 		NewLocation.ROTMoniker = FString::Printf(TEXT("!WDExpress.DTE.%d.0"), MajorVersion);
 #endif
 
@@ -1238,7 +1254,7 @@ void FVisualStudioSourceCodeAccessor::AddVisualStudioVersionUsingVisualStudioSet
 								NewLocation.VersionNumber = VersionNumber;
 								NewLocation.bPreviewRelease = false;
 								NewLocation.ExecutablePath = FString::Printf(TEXT("%s\\%s"), InstallationPath, ProductPath);
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 								NewLocation.ROTMoniker = FString::Printf(TEXT("!VisualStudio.DTE.%d.0"), VersionNumber);
 #endif
 

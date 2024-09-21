@@ -130,9 +130,7 @@ void UUserWidget::TemplateInitInner()
 	{
 		WidgetTree->ForEachWidget([this, WidgetClass] (UWidget* Widget) {
 
-#if !UE_BUILD_SHIPPING
 			Widget->WidgetGeneratedByClass = WidgetClass;
-#endif
 
 			// TODO UMG Make this an FName
 			FString VariableName = Widget->GetName();

@@ -25,6 +25,7 @@
 #include "K2Node_CustomEvent.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_EventNodeInterface.h"
+#include "BlueprintEditor.h"
 #include "ScopedTransaction.h"
 
 #include "DetailLayoutBuilder.h"
@@ -841,12 +842,6 @@ TSharedRef<SWidget> SMyBlueprint::OnGetFunctionListMenu()
 
 void SMyBlueprint::BuildOverridableFunctionsMenu(FMenuBuilder& MenuBuilder)
 {
-	// Sort by function name so that it's easier for users to find the function they're looking for:
-    OverridableFunctionActions.Sort([](const TSharedPtr<FEdGraphSchemaAction_K2Graph> &LHS, const TSharedPtr<FEdGraphSchemaAction_K2Graph> &RHS)
-    {
-        return LHS->GetMenuDescription().CompareToCaseIgnored(RHS->GetMenuDescription()) < 0;
-    });
-	
 	MenuBuilder.BeginSection("OverrideFunction", LOCTEXT("OverrideFunction", "Override Function"));
 	{
 		for ( auto& OverrideAction : OverridableFunctionActions )
@@ -1160,12 +1155,6 @@ void SMyBlueprint::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 			}
 		}
 
-		// Default, so place in 'non' category
-		if (FunctionCategory.EqualTo(FText::FromString(BlueprintObj->GetName())) || FunctionCategory.EqualTo(UEdGraphSchema_K2::VR_DefaultCategory))
-		{
-			FunctionCategory = FText::GetEmpty();
-		}
-
 		//@TODO: Should be a bit more generic (or the AnimGraph shouldn't be stored as a FunctionGraph...)
 		const bool bIsConstructionScript = Graph->GetFName() == UEdGraphSchema_K2::FN_UserConstructionScript;
 		
@@ -1246,11 +1235,6 @@ void SMyBlueprint::CollectAllActions(FGraphActionListBuilderBase& OutAllActions)
 			if ( FunctionDesc.IsEmpty() )
 			{
 				FunctionDesc = FText::FromString(Function->GetName());
-			}
-
-			if (Function->HasMetaData(FBlueprintMetadata::MD_DeprecatedFunction))
-			{
-				FunctionDesc = FBlueprintEditorUtils::GetDeprecatedMemberMenuItemName(FunctionDesc);
 			}
 
 			FText FunctionCategory = Function->GetMetaDataText(FBlueprintMetadata::MD_FunctionCategory, TEXT("UObjectCategory"), Function->GetFullGroupName(false));
@@ -2820,37 +2804,33 @@ void SMyBlueprint::ExpandCategory(const FText& CategoryName)
 	GraphActionMenu->ExpandCategory(CategoryName);
 }
 
-bool SMyBlueprint::MoveCategoryBeforeCategory(const FText& InCategoryToMove, const FText& InTargetCategory)
+bool SMyBlueprint::MoveCategoryBeforeCategory( const FText& InCategoryToMove, const FText& InTargetCategory )
 {
 	bool bResult = false;
+	UBlueprint* BlueprintObj = BlueprintEditorPtr.Pin()->GetBlueprintObj();
 
 	FString CategoryToMoveString = InCategoryToMove.ToString();
 	FString TargetCategoryString = InTargetCategory.ToString();
-	if (UBlueprint* BlueprintObj = BlueprintEditorPtr.Pin()->GetBlueprintObj())
+	if( BlueprintObj )
 	{
-		FScopedTransaction Transaction(LOCTEXT("ReorderCategories", "Reorder Categories"));
-		BlueprintObj->Modify();
-
 		// Find root categories
-		int32 RootCategoryDelim = CategoryToMoveString.Find(TEXT("|"), ESearchCase::CaseSensitive);
-		FName CategoryToMove = RootCategoryDelim == INDEX_NONE ? *CategoryToMoveString : *CategoryToMoveString.Left(RootCategoryDelim);
-		RootCategoryDelim = TargetCategoryString.Find(TEXT("|"), ESearchCase::CaseSensitive);
-		FName TargetCategory = RootCategoryDelim == INDEX_NONE ? *TargetCategoryString : *TargetCategoryString.Left(RootCategoryDelim);
+		int32 RootCategoryDelim = CategoryToMoveString.Find( TEXT( "|" ), ESearchCase::CaseSensitive );
+		FName CategoryToMove = RootCategoryDelim == INDEX_NONE ? *CategoryToMoveString : *CategoryToMoveString.Left( RootCategoryDelim );
+		RootCategoryDelim = TargetCategoryString.Find( TEXT( "|" ), ESearchCase::CaseSensitive );
+		FName TargetCategory = RootCategoryDelim == INDEX_NONE ? *TargetCategoryString : *TargetCategoryString.Left( RootCategoryDelim );
 
 		TArray<FName>& CategorySort = BlueprintObj->CategorySorting;
-
+		const int32 RemovalIndex = CategorySort.Find( CategoryToMove );
 		// Remove existing sort index
-		const int32 RemovalIndex = CategorySort.Find(CategoryToMove);
-		if (RemovalIndex != INDEX_NONE)
+		if( RemovalIndex != INDEX_NONE )
 		{
-			CategorySort.RemoveAt(RemovalIndex);
+			CategorySort.RemoveAt( RemovalIndex );
 		}
-
 		// Update the Category sort order and refresh ( if the target category has an entry )
-		const int32 InsertIndex = CategorySort.Find(TargetCategory);
-		if (InsertIndex != INDEX_NONE)
+		const int32 InsertIndex = CategorySort.Find( TargetCategory );
+		if( InsertIndex != INDEX_NONE )
 		{
-			CategorySort.Insert(CategoryToMove, InsertIndex);
+			CategorySort.Insert( CategoryToMove, InsertIndex );
 			Refresh();
 			bResult = true;
 		}

@@ -130,17 +130,23 @@ public:
 
 	bool IsReadyToRun() const;
 
+	/** Are there any pending compile requests?*/
+	bool HasOutstandingCompilationRequests() const;
+
 	FORCEINLINE bool NeedsWarmup()const { return WarmupTickCount > 0 && WarmupTickDelta > SMALL_NUMBER; }
 	FORCEINLINE float GetWarmupTime()const { return WarmupTime; }
 	FORCEINLINE int32 GetWarmupTickCount()const { return WarmupTickCount; }
 	FORCEINLINE float GetWarmupTickDelta()const { return WarmupTickDelta; }
 
 #if WITH_EDITORONLY_DATA
-	/** Are there any pending compile requests?*/
-	bool HasOutstandingCompilationRequests() const;
+	/** Called to query whether or not this emitter is referenced as the source to any emitter handles for this System.*/
+	bool ReferencesSourceEmitter(UNiagaraEmitter& Emitter);
 
 	/** Determines if this system has the supplied emitter as an editable and simulating emitter instance. */
 	bool ReferencesInstanceEmitter(UNiagaraEmitter& Emitter);
+
+	/** Updates all handles which use this emitter as their source. */
+	void UpdateFromEmitterChanges(UNiagaraEmitter& ChangedSourceEmitter);
 
 	/** Updates the system's rapid iteration parameters from a specific emitter. */
 	void RefreshSystemParametersFromEmitter(const FNiagaraEmitterHandle& EmitterHandle);
@@ -228,10 +234,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "System", meta = (InlineEditConditionToggle))
 		uint32 bFixedBounds : 1;
 
-	TStatId GetStatID(bool bGameThread, bool bConcurrent)const;
-
 private:
 #if WITH_EDITORONLY_DATA
+	INiagaraModule::FMergeEmitterResults MergeChangesForEmitterHandle(FNiagaraEmitterHandle& EmitterHandle);
 	bool QueryCompileComplete(bool bWait, bool bDoPost, bool bDoNotApply = false);
 #endif
 
@@ -245,10 +250,8 @@ protected:
 	UPROPERTY(EditAnywhere, Category="System")
 	TArray<UNiagaraParameterCollectionInstance*> ParameterCollectionOverrides;
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)
 	TArray<FNiagaraSystemCompileRequest> ActiveCompilations;
-#endif
 
 // 	/** Category of this system. */
 // 	UPROPERTY(EditAnywhere, Category = System)
@@ -272,7 +275,8 @@ protected:
 	UPROPERTY()
 	FNiagaraUserRedirectionParameterStore ExposedParameters;
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITORONLY_DATA	
+
 	/** Data used by the editor to maintain UI state etc.. */
 	UPROPERTY()
 	UNiagaraEditorDataBase* EditorData;
@@ -309,12 +313,4 @@ protected:
 
 	UPROPERTY()
 	TArray<FName> UserDINamesReadInSystemScripts;
-
-	void GenerateStatID();
-#if STATS
-	TStatId StatID_GT;
-	TStatId StatID_GT_CNC;
-	TStatId StatID_RT;
-	TStatId StatID_RT_CNC;
-#endif
 };

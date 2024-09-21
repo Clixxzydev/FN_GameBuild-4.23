@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -128,25 +128,22 @@
 /* PSP isn't that sophisticated */
 #define LACKS_SYS_MMAN_H 1
 
-/* Enable the PSP thread support (src/thread/psp/\*.c) */
+/* Enable the stub thread support (src/thread/psp/\*.c) */
 #define SDL_THREAD_PSP  1
 
-/* Enable the PSP timer support (src/timer/psp/\*.c) */
+/* Enable the stub timer support (src/timer/psp/\*.c) */
 #define SDL_TIMERS_PSP  1
 
-/* Enable the PSP joystick driver (src/joystick/psp/\*.c) */
+/* Enable the stub joystick driver (src/joystick/psp/\*.c) */
 #define SDL_JOYSTICK_PSP        1
 
-/* Enable the dummy sensor driver */
-#define SDL_SENSOR_DUMMY  1
-
-/* Enable the PSP audio driver (src/audio/psp/\*.c) */
+/* Enable the stub audio driver (src/audio/psp/\*.c) */
 #define SDL_AUDIO_DRIVER_PSP    1
 
-/* PSP video driver */
+/* PSP video dirver */
 #define SDL_VIDEO_DRIVER_PSP   1
 
-/* PSP render driver */
+/* PSP render dirver */
 #define SDL_VIDEO_RENDER_PSP   1
 
 #define SDL_POWER_PSP          1

@@ -134,11 +134,11 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FScene* Scene, const FSceneView& View, const FMatrix& WorldToShadowValue, int32 NumPlanes, const FPlane* PlaneData, const FVector4& ShadowBoundingSphereValue)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
-		ObjectBufferParameters.Set(RHICmdList, ShaderRHI, *(Scene->DistanceFieldSceneData.GetCurrentObjectBuffers()), Scene->DistanceFieldSceneData.NumObjectsInBuffer);
+		ObjectBufferParameters.Set(RHICmdList, ShaderRHI, *(Scene->DistanceFieldSceneData.ObjectBuffers), Scene->DistanceFieldSceneData.NumObjectsInBuffer);
 
-		FRHIUnorderedAccessView* OutUAVs[4];
+		FUnorderedAccessViewRHIParamRef OutUAVs[4];
 		OutUAVs[0] = GShadowCulledObjectBuffers.Buffers.ObjectIndirectArguments.UAV;
 		OutUAVs[1] = GShadowCulledObjectBuffers.Buffers.Bounds.UAV;
 		OutUAVs[2] = GShadowCulledObjectBuffers.Buffers.Data.UAV;
@@ -164,10 +164,10 @@ public:
 
 	void UnsetParameters(FRHICommandList& RHICmdList, const FScene* Scene)
 	{
-		ObjectBufferParameters.UnsetParameters(RHICmdList, GetComputeShader(), *(Scene->DistanceFieldSceneData.GetCurrentObjectBuffers()));
+		ObjectBufferParameters.UnsetParameters(RHICmdList, GetComputeShader(), *(Scene->DistanceFieldSceneData.ObjectBuffers));
 		CulledObjectParameters.UnsetParameters(RHICmdList, GetComputeShader());
 
-		FRHIUnorderedAccessView* OutUAVs[4];
+		FUnorderedAccessViewRHIParamRef OutUAVs[4];
 		OutUAVs[0] = GShadowCulledObjectBuffers.Buffers.ObjectIndirectArguments.UAV;
 		OutUAVs[1] = GShadowCulledObjectBuffers.Buffers.Bounds.UAV;
 		OutUAVs[2] = GShadowCulledObjectBuffers.Buffers.Data.UAV;
@@ -224,7 +224,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View, FVector2D NumGroupsValue, const FMatrix& WorldToShadowMatrixValue, float ShadowRadius)
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 		
 		ObjectParameters.Set(RHICmdList, ShaderRHI, GShadowCulledObjectBuffers.Buffers);
@@ -286,14 +286,14 @@ public:
 		const FSceneView& View, 
 		FLightTileIntersectionResources* TileIntersectionResources)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
 		ObjectParameters.Set(RHICmdList, ShaderRHI, GShadowCulledObjectBuffers.Buffers);
 		LightTileIntersectionParameters.Set(RHICmdList, ShaderRHI, *TileIntersectionResources);
 	}
 
-	void GetUAVs(const FSceneView& View, FLightTileIntersectionResources* TileIntersectionResources, TArray<FRHIUnorderedAccessView*>& UAVs)
+	void GetUAVs(const FSceneView& View, FLightTileIntersectionResources* TileIntersectionResources, TArray<FUnorderedAccessViewRHIParamRef>& UAVs)
 	{
 		LightTileIntersectionParameters.GetUAVs(*TileIntersectionResources, UAVs);
 	}
@@ -378,7 +378,7 @@ public:
 		const FIntRect& ScissorRect,
 		FLightTileIntersectionResources* TileIntersectionResources)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		const FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
@@ -545,7 +545,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View, const FProjectedShadowInfo* ShadowInfo, const FIntRect& ScissorRect, TRefCountPtr<IPooledRenderTarget>& ShadowFactorsTextureValue)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 		SceneTextureParameters.Set(RHICmdList, ShaderRHI, View.FeatureLevel, ESceneTextureSetupMode::All);
@@ -637,11 +637,11 @@ public:
 	}
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View, FLightTileIntersectionResources* TileIntersectionResources)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
-		TArray<FRHIUnorderedAccessView*> UAVs;
+		TArray<FUnorderedAccessViewRHIParamRef> UAVs;
 		TileIntersectionParameters.GetUAVs(*TileIntersectionResources, UAVs);
 
 		RHICmdList.TransitionResources(EResourceTransitionAccess::EWritable, EResourceTransitionPipeline::EComputeToCompute, UAVs.GetData(), UAVs.Num());
@@ -653,7 +653,7 @@ public:
 	{
 		TileIntersectionParameters.UnsetParameters(RHICmdList, GetComputeShader());
 
-		TArray<FRHIUnorderedAccessView*> UAVs;
+		TArray<FUnorderedAccessViewRHIParamRef> UAVs;
 		TileIntersectionParameters.GetUAVs(*TileIntersectionResources, UAVs);
 
 		RHICmdList.TransitionResources(EResourceTransitionAccess::EReadable, EResourceTransitionPipeline::EComputeToCompute, UAVs.GetData(), UAVs.Num());
@@ -685,7 +685,7 @@ void ScatterObjectsToShadowTiles(
 	TShaderMapRef<FShadowObjectCullVS> VertexShader(View.ShaderMap);
 	TShaderMapRef<FShadowObjectCullPS<bCountingPass>> PixelShader(View.ShaderMap);
 
-	TArray<FRHIUnorderedAccessView*> UAVs;
+	TArray<FUnorderedAccessViewRHIParamRef> UAVs;
 	PixelShader->GetUAVs(View, TileIntersectionResources, UAVs);
 	RHICmdList.TransitionResources(EResourceTransitionAccess::ERWBarrier, EResourceTransitionPipeline::EComputeToGfx, UAVs.GetData(), UAVs.Num());
 

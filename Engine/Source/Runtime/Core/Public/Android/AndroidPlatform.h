@@ -61,8 +61,6 @@ typedef FAndroidTypes FPlatformTypes;
 
 #define PLATFORM_CODE_SECTION(Name)					__attribute__((section(Name)))
 
-#define PLATFORM_GLOBAL_LOG_CATEGORY				LogAndroid
-
 #if defined(EXPERIMENTAL_OPENGL_RHITHREAD) && EXPERIMENTAL_OPENGL_RHITHREAD
 	#define PLATFORM_RHITHREAD_DEFAULT_BYPASS			0
 #else
@@ -125,12 +123,6 @@ typedef FAndroidTypes FPlatformTypes;
 #define DISABLE_FUNCTION_OPTIMIZATION	__attribute__((optnone))
 
 #define ABSTRACT abstract
-
-// DLL export and import for types, only supported on clang
-#if (__clang_major__ > 3 || (__clang_major__ == 3 && __clang_minor__ >= 8))
-#define DLLEXPORT_VTABLE	__attribute__ ((__type_visibility__("default")))
-#define DLLIMPORT_VTABLE	__attribute__ ((__type_visibility__("default")))
-#endif
 
 // DLL export and import definitions
 #define DLLEXPORT			__attribute__((visibility("default")))

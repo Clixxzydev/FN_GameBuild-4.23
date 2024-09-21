@@ -621,7 +621,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category=Character)
 	virtual bool IsJumpProvidingForce() const;
 
-	/** Play Animation Montage on the character mesh. Returns the length of the animation montage in seconds, or 0.f if failed to play. **/
+	/** Play Animation Montage on the character mesh **/
 	UFUNCTION(BlueprintCallable, Category=Animation)
 	virtual float PlayAnimMontage(class UAnimMontage* AnimMontage, float InPlayRate = 1.f, FName StartSectionName = NAME_None);
 
@@ -732,8 +732,7 @@ public:
 	virtual void UnCrouch(bool bClientSimulation = false);
 
 	/** @return true if this character is currently able to crouch (and is not currently crouched) */
-	UFUNCTION(BlueprintCallable, Category=Character)
-	virtual bool CanCrouch() const;
+	virtual bool CanCrouch();
 
 	/** 
 	 * Called when Character stops crouching. Called on non-owned Characters through bIsCrouched replication.

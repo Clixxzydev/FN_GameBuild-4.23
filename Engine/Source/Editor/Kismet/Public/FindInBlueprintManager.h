@@ -102,31 +102,6 @@ struct KISMET_API FFindInBlueprintSearchTags
 	/** End const values for Find-in-Blueprint */
 };
 
-/** FiB data versioning */
-enum EFiBVersion
-{
-	FIB_VER_BASE = 0, // All Blueprints prior to versioning will automatically be assumed to be at 0 if they have FiB data collected
-	FIB_VER_VARIABLE_REFERENCE, // Variable references (FMemberReference) is collected in FiB
-	FIB_VER_INTERFACE_GRAPHS, // Implemented Interface Graphs is collected in FiB
-
-	// -----<new versions can be added before this line>-------------------------------------------------
-	FIB_VER_PLUS_ONE,
-	FIB_VER_LATEST = FIB_VER_PLUS_ONE - 1 // Always the last version, we want Blueprints to be at latest
-};
-
-/** Consolidated version info for a Blueprint search data entry */
-struct FSearchDataVersionInfo
-{
-	/** FiB asset registry tag data version */
-	int32 FiBDataVersion = EFiBVersion::FIB_VER_BASE;
-
-	/** Editor object version used to serialize values in the JSON string lookup table */
-	int32 EditorObjectVersion = -1;
-
-	/** Current version info */
-	static FSearchDataVersionInfo Current;
-};
-
 /** Tracks data relevant to a Blueprint for searches */
 struct FSearchData
 {
@@ -151,12 +126,13 @@ struct FSearchData
 	/** Cached ImaginaryBlueprint data for the searchable content, prevents having to re-parse every search */
 	FImaginaryFiBDataSharedPtr ImaginaryBlueprint;
 
-	/** Data versioning */
-	FSearchDataVersionInfo VersionInfo;
+	/** Version of the data */
+	int32 Version;
 
 	FSearchData()
 		: Blueprint(nullptr)
 		, bMarkedForDeletion(false)
+		, Version(0)
 	{
 	}
 };
@@ -187,6 +163,17 @@ struct FSearchTagDataPair
 
 	FText Key;
 	FText Value;
+};
+
+enum EFiBVersion
+{
+	FIB_VER_BASE = 0, // All Blueprints prior to versioning will automatically be assumed to be at 0 if they have FiB data collected
+	FIB_VER_VARIABLE_REFERENCE, // Variable references (FMemberReference) is collected in FiB
+	FIB_VER_INTERFACE_GRAPHS, // Implemented Interface Graphs is collected in FiB
+
+	// -----<new versions can be added before this line>-------------------------------------------------
+	FIB_VER_PLUS_ONE,
+	FIB_VER_LATEST = FIB_VER_PLUS_ONE - 1 // Always the last version, we want Blueprints to be at latest
 };
 
 struct KISMET_API FFiBMD
@@ -447,13 +434,13 @@ public:
 	float GetPercentComplete(const class FStreamSearch* InSearchOriginator) const;
 
 	/**
-	 * Query for a single, specific Blueprint's search block.
+	 * Query for a single, specific Blueprint's search block
 	 *
 	 * @param InBlueprint				The Blueprint to search for
 	 * @param bInRebuildSearchData		When TRUE the search data will be freshly collected
 	 * @return							The search block
 	 */
-	const FSearchData* QuerySingleBlueprint(UBlueprint* InBlueprint, bool bInRebuildSearchData);
+	FString QuerySingleBlueprint(UBlueprint* InBlueprint, bool bInRebuildSearchData = true);
 
 	/** Converts a string of hex characters, previously converted by ConvertFTextToHexString, to an FText. */
 	static FText ConvertHexStringToFText(FString InHexString);
@@ -527,7 +514,7 @@ public:
 	TWeakPtr<SFindInBlueprints> GetSourceCachingWidget() const { return SourceCachingWidget; }
 
 	/** Given a fully constructed Find-in-Blueprint FString of searchable data, will parse and construct a JsonObject */
-	static TSharedPtr< class FJsonObject > ConvertJsonStringToObject(FSearchDataVersionInfo InVersionInfo, FString InJsonString, TMap<int32, FText>& OutFTextLookupTable);
+	static TSharedPtr< class FJsonObject > ConvertJsonStringToObject(bool bInIsVersioned, FString InJsonString, TMap<int32, FText>& OutFTextLookupTable);
 
 	void EnableGatheringData(bool bInEnableGatheringData) { bEnableGatheringData = bInEnableGatheringData; }
 

@@ -37,7 +37,7 @@ namespace VivoxClientApi {
         }
         size_t len = strlen(name);
         m_name[0] = 0;
-		if (len < sizeof(m_name))
+		if (len < sizeof(m_name) - 1)
 		{
 			memcpy(m_name, name, len + 1);
 		}

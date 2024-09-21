@@ -5,7 +5,6 @@
 #include "OnlineSubsystemTypes.h"
 #include "OnlineSubsystemIOSPackage.h"
 
-class FOnlineSubsystemIOS;
 
 // from OnlineSubsystemTypes.h
 TEMP_UNIQUENETIDSTRING_SUBCLASS(FUniqueNetIdIOS, IOS_SUBSYSTEM);

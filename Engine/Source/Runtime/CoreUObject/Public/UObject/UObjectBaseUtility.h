@@ -675,9 +675,8 @@ COREUOBJECT_API UClass* GetParentNativeClass(UClass* Class);
 #if STATS
 
 /** Structure used to track time spent by a UObject */
-class FScopeCycleCounterUObject : public FCycleCounter
+struct FScopeCycleCounterUObject : public FCycleCounter
 {
-public:
 #if USE_MALLOC_PROFILER
 	/** Package path being tracked */
 	FName PackageTag;
@@ -755,9 +754,8 @@ public:
 
 #elif ENABLE_STATNAMEDEVENTS
 
-class FScopeCycleCounterUObject
+struct FScopeCycleCounterUObject
 {
-public:
 	FScopeCycleCounter ScopeCycleCounter;
 	FORCEINLINE_STATS FScopeCycleCounterUObject(const UObjectBaseUtility *Object)
 	: ScopeCycleCounter(Object ? Object->GetStatID().StatString : nullptr)
@@ -799,9 +797,8 @@ public:
 #define SCOPE_CYCLE_UOBJECT(Name, Object) \
 	FScopeCycleCounterUObject ObjCycleCount_##Name(Object);
 #else
-class FScopeCycleCounterUObject
+struct FScopeCycleCounterUObject
 {
-public:
 	FORCEINLINE_STATS FScopeCycleCounterUObject(const UObjectBaseUtility *Object)
 	{
 	}

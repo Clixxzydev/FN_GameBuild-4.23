@@ -464,7 +464,7 @@ public:
 	}
 
 	/** Returns true if the iterator has not yet reached the end of the selection set. */
-	explicit operator bool() const
+	operator bool() const
 	{
 		return IsIndexValid();
 	}

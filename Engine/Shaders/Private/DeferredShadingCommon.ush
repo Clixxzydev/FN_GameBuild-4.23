@@ -4,7 +4,8 @@
 	DeferredShadingCommon.usf: Common definitions for deferred shading.
 =============================================================================*/
 
-#pragma once
+#ifndef __DEFERRED_SHADING_COMMON__
+#define __DEFERRED_SHADING_COMMON__
 
 #include "ShadingCommon.ush"
 #include "LightAccumulator.ush"
@@ -706,3 +707,4 @@ FScreenSpaceData GetScreenSpaceData(float2 UV, bool bGetNormalizedNormal = true)
 	return Out;
 }
 
+#endif // __DEFERRED_SHADING_COMMON__

@@ -6,6 +6,7 @@
 #include "Containers/ResourceArray.h"
 #include "RHI.h"
 #include "RenderResource.h"
+#include "Atmosphere/AtmosphericFogComponent.h"
 
 // Shared by Engine class and Renderer class, need to be core?
 
@@ -167,7 +168,7 @@ public:
 						/*NumMips=*/ 1,
 						/*NumSamples=*/ 1,
 						/*Flags=*/ TexCreate_ShaderResource,
-						/*BulkData=*/ CreateInfo );
+													/*BulkData=*/ CreateInfo );
 					RHIBindDebugLabelName(TextureRHI, TEXT("E_Irradiance"));
 				}
 				break;
@@ -180,7 +181,7 @@ public:
 						SizeX, SizeY, SizeZ, PF_FloatRGBA,
 						/*NumMips=*/ 1,
 						/*Flags=*/ TexCreate_ShaderResource,
-						/*BulkData=*/ CreateInfo );
+													/*BulkData=*/ CreateInfo );
 					RHIBindDebugLabelName(TextureRHI, TEXT("E_Inscatter"));
 				}
 				break;

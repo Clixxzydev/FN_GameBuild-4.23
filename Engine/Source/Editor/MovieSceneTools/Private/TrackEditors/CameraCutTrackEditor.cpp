@@ -336,8 +336,9 @@ void FCameraCutTrackEditor::HandleAddCameraCutTrackMenuEntryExecute()
 	{
 		if (GetSequencer().IsValid())
 		{
-			GetSequencer()->OnAddTrack(CameraCutTrack, FGuid());
+			GetSequencer()->OnAddTrack(CameraCutTrack);
 		}
+		GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 	}
 }
 

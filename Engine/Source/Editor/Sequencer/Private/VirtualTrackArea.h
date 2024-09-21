@@ -6,7 +6,6 @@
 #include "Layout/Geometry.h"
 #include "SequencerSelectedKey.h"
 #include "SequencerHotspots.h"
-#include "SectionHandle.h"
 #include "CommonMovieSceneTools.h"
 
 class FSequencer;

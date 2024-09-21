@@ -47,7 +47,7 @@ const float CalculateOverlap(const FSphere& ASphere, const float AFillingFactor,
 	}
 
 	float Distance = (ASphere.Center-BSphere.Center).Size();
-	check(!FMath::IsNearlyZero(Distance));
+	check (Distance > 0.f);
 
 	float ARadius = ASphere.W;
 	float BRadius = BSphere.W;
@@ -64,12 +64,16 @@ const float CalculateOverlap(const FSphere& ASphere, const float AFillingFactor,
 
 	float OverlapRadius1 = ((ARadius + BRadius)*(ARadius + BRadius) - Distance*Distance) * (Distance*Distance - (ARadius - BRadius)*(ARadius - BRadius));
 	float OverlapRadius2 = 2 * Distance;
-	float OverlapRadius = FMath::Sqrt(OverlapRadius1) / OverlapRadius2;
-	float OverlapRadiusSq = FMath::Square(OverlapRadius);
+	float OverlapRedius = FMath::Sqrt(OverlapRadius1) / OverlapRadius2;
+	float OverlapRediusSq = OverlapRedius*OverlapRedius;
+
+	check (OverlapRadius1 >= 0.f);
 
 	float ConstPI = PI/6.0f;
-	float AVolume = ConstPI*(3*OverlapRadiusSq + ACapHeight*ACapHeight) * ACapHeight;
-	float BVolume = ConstPI*(3*OverlapRadiusSq + BCapHeight*BCapHeight) * BCapHeight;
+	float AVolume = ConstPI*(3*OverlapRediusSq + ACapHeight*ACapHeight) * ACapHeight;
+	float BVolume = ConstPI*(3*OverlapRediusSq + BCapHeight*BCapHeight) * BCapHeight;
+
+	check (AVolume > 0.f &&  BVolume > 0.f);
 
 	float TotalVolume = AFillingFactor*AVolume + BFillingFactor*BVolume;
 	return TotalVolume;

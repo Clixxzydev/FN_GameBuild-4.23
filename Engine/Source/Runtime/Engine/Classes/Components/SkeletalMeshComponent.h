@@ -282,7 +282,7 @@ class ENGINE_API USkeletalMeshComponent : public USkinnedMeshComponent, public I
 
 	friend class FSkinnedMeshComponentRecreateRenderStateContext;
 	friend class FParallelAnimationCompletionTask;
-	friend class USkeletalMesh; 
+	
 	/**
 	 * Animation 
 	 */
@@ -1251,11 +1251,6 @@ private:
 	 **/
 	TMap<FName, float>	MorphTargetCurves;
 
-	/** 
-	 * Temporary storage for Curve UIDList of evaluating Animation 
-	 */
-	TArray<uint16> CachedCurveUIDList;
-
 public:
 	const TMap<FName, float>& GetMorphTargetCurves() const { return MorphTargetCurves;  }
 	// 
@@ -1385,7 +1380,7 @@ public:
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const override;
 	virtual bool IsAnySimulatingPhysics() const override;
 	virtual void OnUpdateTransform(EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport = ETeleportType::None) override;
-	virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps=NULL, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=NULL) override;
+	virtual bool UpdateOverlapsImpl(TArray<FOverlapInfo> const* PendingOverlaps=NULL, bool bDoNotifies=true, const TArray<FOverlapInfo>* OverlapsAtEndLocation=NULL) override;
 	//~ End USceneComponent Interface.
 
 	//~ Begin UPrimitiveComponent Interface.
@@ -1478,19 +1473,7 @@ public:
 	bool K2_GetClosestPointOnPhysicsAsset(const FVector& WorldPosition, FVector& ClosestWorldPosition, FVector& Normal, FName& BoneName, float& Distance) const;
 
 	virtual bool LineTraceComponent( FHitResult& OutHit, const FVector Start, const FVector End, const FCollisionQueryParams& Params ) override;
-	
-	/** 
-	 *  Trace a shape against just this component. Will trace against each body, returning as soon as any collision is found. Note that this collision may not be the closest.
-	 *  @param  OutHit          	Information about hit against this component, if true is returned
-	 *  @param  Start           	Start location of the trace
-	 *  @param  End             	End location of the trace
-	 *  @param  ShapeWorldRotation  The rotation applied to the collision shape in world space
-	 *  @param  CollisionShape  	Collision Shape
-	 *	@param	bTraceComplex	Whether or not to trace complex
-	 *  @return true if a hit is found
-	 */
-	 virtual bool SweepComponent( FHitResult& OutHit, const FVector Start, const FVector End, const FQuat& ShapRotation, const FCollisionShape& CollisionShape, bool bTraceComplex=false) override;
-	
+    virtual bool SweepComponent( FHitResult& OutHit, const FVector Start, const FVector End, const FQuat& ShapRotation, const FCollisionShape& CollisionShape, bool bTraceComplex=false) override;
 	virtual bool OverlapComponent(const FVector& Pos, const FQuat& Rot, const FCollisionShape& CollisionShape) override;
 	virtual void SetSimulatePhysics(bool bEnabled) override;
 	virtual void AddRadialImpulse(FVector Origin, float Radius, float Strength, ERadialImpulseFalloff Falloff, bool bVelChange=false) override;
@@ -2068,7 +2051,6 @@ private:
 	 * Update MorphTargetCurves from mesh - these are not animation curves, but SetMorphTarget and similar functions that can set to this mesh component
 	 */
 	void UpdateMorphTargetOverrideCurves();
-
 	/*
 	 * Reset MorphTarget Curves - Reset all morphtarget curves
 	 */

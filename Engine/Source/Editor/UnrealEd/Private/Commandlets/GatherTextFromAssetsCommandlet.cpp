@@ -854,7 +854,7 @@ int32 UGatherTextFromAssetsCommandlet::Main(const FString& Params)
 	}
 	check(PackagesPendingGather.Num() == 0);
 
-	PackagesWithStaleGatherCache.Sort(FNameLexicalLess());
+	PackagesWithStaleGatherCache.Sort();
 
 	if (bReportStaleGatherCache)
 	{

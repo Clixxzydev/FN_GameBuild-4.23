@@ -61,14 +61,6 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// The full name of this directory
-		/// </summary>
-		public string FullName
-		{
-			get { return Location.FullName; }
-		}
-
-		/// <summary>
 		/// Whether the directory exists or not
 		/// </summary>
 		public bool Exists

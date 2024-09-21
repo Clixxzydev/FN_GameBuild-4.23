@@ -27,6 +27,5 @@ struct CORE_API FGenericPlatformOutputDevices
 	static FFeedbackContext*            GetFeedbackContext();
 
 protected:
-	static const SIZE_T AbsoluteFileNameMaxLength = 1024;
-	static TCHAR CachedAbsoluteFilename[AbsoluteFileNameMaxLength];
+	static TCHAR CachedAbsoluteFilename[1024];
 };

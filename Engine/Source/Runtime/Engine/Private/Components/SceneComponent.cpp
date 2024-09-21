@@ -75,6 +75,9 @@ USceneComponent::USceneComponent(const FObjectInitializer& ObjectInitializer /*=
 	// default behavior is visible
 	bVisible = true;
 	bAutoActivate = false;
+
+	bNetHasReceivedRelativeLocation = false;
+	bNetHasReceivedRelativeRotation = false;
 	bShouldBeAttached = AttachParent != nullptr;
 }
 
@@ -659,8 +662,6 @@ void USceneComponent::OnRegister()
 			AttachParent = nullptr;
 			AttachSocketName = NAME_None;
 			bShouldBeAttached = false;
-			bShouldSnapLocationWhenAttached = false;
-			bShouldSnapRotationWhenAttached = false;
 		}
 	}
 	
@@ -834,10 +835,9 @@ void USceneComponent::EndScopedMovementUpdate(class FScopedMovementUpdate& Compl
 				if (PrimitiveThis)
 				{
 					// NOTE: UpdateOverlaps filters events to only consider overlaps where bGenerateOverlapEvents is true for both components, so it's ok if we queued up other overlaps.
-					TInlineOverlapInfoArray EndOverlaps;
-					const TOverlapArrayView PendingOverlaps(CurrentScopedUpdate->GetPendingOverlaps());
-					const TOptional<TOverlapArrayView> EndOverlapsOptional = CurrentScopedUpdate->GetOverlapsAtEnd(*PrimitiveThis, EndOverlaps, bTransformChanged);
-					UpdateOverlaps(&PendingOverlaps, true, EndOverlapsOptional.IsSet() ? &(EndOverlapsOptional.GetValue()) : nullptr);
+					TArray<FOverlapInfo> EndOverlaps;
+					const TArray<FOverlapInfo>* EndOverlapsPtr = CurrentScopedUpdate->GetOverlapsAtEnd(*PrimitiveThis, EndOverlaps, bTransformChanged);
+					UpdateOverlaps(&CurrentScopedUpdate->GetPendingOverlaps(), true, EndOverlapsPtr);
 				}
 				else
 				{
@@ -1710,9 +1710,10 @@ void USceneComponent::SetupAttachment(class USceneComponent* InParent, FName InS
 	{
 		if (ensureMsgf(InParent != this, TEXT("Cannot attach a component to itself.")))
 		{
-			if (ensureMsgf(InParent == nullptr || !InParent->IsAttachedTo(this), TEXT("Setting up attachment would create a cycle.")))
+			// Paragon hack
+			if (/*ensureMsgf*/(InParent == nullptr || !InParent->IsAttachedTo(this))) //, TEXT("Setting up attachment would create a cycle.")))
 			{
-				if (ensureMsgf(AttachParent == nullptr || !AttachParent->AttachChildren.Contains(this), TEXT("SetupAttachment cannot be used once a component has already had AttachTo used to connect it to a parent.")))
+				if (/*ensureMsgf*/(AttachParent == nullptr || !AttachParent->AttachChildren.Contains(this)))// , TEXT("SetupAttachment cannot be used once a component has already had AttachTo used to connect it to a parent.")))
 				{
 					AttachParent = InParent;
 					AttachSocketName = InSocketName;
@@ -1784,9 +1785,6 @@ bool USceneComponent::AttachToComponent(USceneComponent* Parent, const FAttachme
 		ensureMsgf(!AttachmentRules.bWeldSimulatedBodies, TEXT("AttachToComponent when called from a constructor cannot weld simulated bodies. Consider calling SetupAttachment directly instead."));
 		ensureMsgf(AttachmentRules.LocationRule == EAttachmentRule::KeepRelative && AttachmentRules.RotationRule == EAttachmentRule::KeepRelative && AttachmentRules.ScaleRule == EAttachmentRule::KeepRelative, TEXT("AttachToComponent when called from a constructor is only setting up attachment and will always be treated as KeepRelative. Consider calling SetupAttachment directly instead."));
 		SetupAttachment(Parent, SocketName);
-		bShouldSnapLocationWhenAttached = false;
-		bShouldSnapRotationWhenAttached = false;
-
 		return true;
 	}
 
@@ -1950,9 +1948,6 @@ bool USceneComponent::AttachToComponent(USceneComponent* Parent, const FAttachme
 		AttachParent = Parent;
 		AttachSocketName = SocketName;
 		bShouldBeAttached = AttachParent != nullptr;
-
-		bShouldSnapLocationWhenAttached = AttachmentRules.LocationRule == EAttachmentRule::SnapToTarget;
-		bShouldSnapRotationWhenAttached = AttachmentRules.RotationRule == EAttachmentRule::SnapToTarget;
 
 		OnAttachmentChanged();
 
@@ -2154,9 +2149,6 @@ void USceneComponent::DetachFromComponent(const FDetachmentTransformRules& Detac
 		AttachParent = nullptr;
 		AttachSocketName = NAME_None;
 		bShouldBeAttached = 0;
-
-		bShouldSnapLocationWhenAttached = false;
-		bShouldSnapRotationWhenAttached = false;
 
 		OnAttachmentChanged();
 
@@ -2768,7 +2760,7 @@ bool USceneComponent::InternalSetWorldLocationAndRotation(FVector NewLocation, c
 	return false;
 }
 
-bool USceneComponent::UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps, bool bDoNotifies, const TOverlapArrayView* OverlapsAtEndLocation)
+bool USceneComponent::UpdateOverlapsImpl(TArray<FOverlapInfo> const* PendingOverlaps, bool bDoNotifies, const TArray<FOverlapInfo>* OverlapsAtEndLocation)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdateOverlaps); 
 
@@ -3129,6 +3121,18 @@ void USceneComponent::OnRep_Transform()
 	bNetUpdateTransform = true;
 }
 
+void USceneComponent::OnRep_RelativeLocation()
+{
+	bNetHasReceivedRelativeLocation = true;
+	OnRep_Transform();
+}
+
+void USceneComponent::OnRep_RelativeRotation()
+{
+	bNetHasReceivedRelativeRotation = true;
+	OnRep_Transform();
+}
+
 void USceneComponent::OnRep_AttachParent()
 {
 	bNetUpdateAttachment = true;
@@ -3222,14 +3226,16 @@ void USceneComponent::PostRepNotifies()
 		Exchange(NetOldAttachParent, AttachParent);
 		Exchange(NetOldAttachSocketName, AttachSocketName);
 		
-		// Note: This is a local fix for JIRA UE-43355.
-		if (bShouldSnapLocationWhenAttached)
+		// Note: This is a local fix for JIRA UE-43355. If we receive bNetUpdateAttachment without having received a updated transform, assume that we intend to snap and that the relative location/rotation should defaulted
+		if (!bNetHasReceivedRelativeLocation)
 		{
 			RelativeLocation = FVector::ZeroVector;
+			bNetHasReceivedRelativeLocation = true;
 		}
-		if (bShouldSnapRotationWhenAttached)
+		if (!bNetHasReceivedRelativeRotation)
 		{
 			RelativeRotation = FRotator::ZeroRotator;
+			bNetHasReceivedRelativeRotation = true;
 		}
 
 		// Check if this is a detach
@@ -3241,15 +3247,11 @@ void USceneComponent::PostRepNotifies()
 		else
 		{
 			const uint8 bOldShouldBeAttached = bShouldBeAttached;
-			const uint8 bOldShouldSnapLocationWhenAttached = bShouldSnapLocationWhenAttached;
-			const uint8 bOldShouldSnapRotationWhenAttached = bShouldSnapRotationWhenAttached;
 
 			AttachToComponent(NetOldAttachParent, FAttachmentTransformRules::KeepRelativeTransform, NetOldAttachSocketName);
 
-			// restore to what we have received from the server
+			// restore bShouldBeAttached to what we have received
 			bShouldBeAttached = bOldShouldBeAttached;
-			bShouldSnapLocationWhenAttached = bOldShouldSnapLocationWhenAttached;
-			bShouldSnapRotationWhenAttached = bOldShouldSnapRotationWhenAttached;
 		}
 
 		bNetUpdateAttachment = false;
@@ -3271,8 +3273,6 @@ void USceneComponent::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & O
 	DOREPLIFETIME(USceneComponent, bAbsoluteScale);
 	DOREPLIFETIME(USceneComponent, bVisible);
 	DOREPLIFETIME(USceneComponent, bShouldBeAttached);
-	DOREPLIFETIME(USceneComponent, bShouldSnapLocationWhenAttached);
-	DOREPLIFETIME(USceneComponent, bShouldSnapRotationWhenAttached);
 	DOREPLIFETIME(USceneComponent, AttachParent);
 	DOREPLIFETIME(USceneComponent, AttachChildren);
 	DOREPLIFETIME(USceneComponent, AttachSocketName);
@@ -3464,7 +3464,7 @@ void FScopedMovementUpdate::RevertMove()
 	TeleportType = ETeleportType::None;
 }
 
-void FScopedMovementUpdate::AppendOverlapsAfterMove(const TOverlapArrayView& NewPendingOverlaps, bool bSweep, bool bIncludesOverlapsAtEnd)
+void FScopedMovementUpdate::AppendOverlapsAfterMove(const TArray<FOverlapInfo>& NewPendingOverlaps, bool bSweep, bool bIncludesOverlapsAtEnd)
 {
 	bHasMoved = true;
 	const bool bWasForcing = (CurrentOverlapState == EOverlapState::eForceUpdate);
@@ -3475,7 +3475,7 @@ void FScopedMovementUpdate::AppendOverlapsAfterMove(const TOverlapArrayView& New
 		if (NewPendingOverlaps.Num())
 		{
 			FinalOverlapCandidatesIndex = PendingOverlaps.Num();
-			PendingOverlaps.Append(NewPendingOverlaps.GetData(), NewPendingOverlaps.Num());
+			PendingOverlaps.Append(NewPendingOverlaps);
 		}
 		else
 		{
@@ -3488,7 +3488,7 @@ void FScopedMovementUpdate::AppendOverlapsAfterMove(const TOverlapArrayView& New
 		// We don't know about the final overlaps in the case of a teleport.
 		CurrentOverlapState = EOverlapState::eUnknown;
 		FinalOverlapCandidatesIndex = INDEX_NONE;
-		PendingOverlaps.Append(NewPendingOverlaps.GetData(), NewPendingOverlaps.Num());
+		PendingOverlaps.Append(NewPendingOverlaps);
 	}
 
 	if (bWasForcing)
@@ -3547,10 +3547,9 @@ void FScopedMovementUpdate::OnInnerScopeComplete(const FScopedMovementUpdate& In
 	}	
 }
 
-template<typename AllocatorType>
-TOptional<TOverlapArrayView> FScopedMovementUpdate::GetOverlapsAtEnd(class UPrimitiveComponent& PrimComponent, TArray<FOverlapInfo, AllocatorType>& OutEndOverlaps, bool bTransformChanged) const
+const TArray<FOverlapInfo>* FScopedMovementUpdate::GetOverlapsAtEnd(class UPrimitiveComponent& PrimComponent, TArray<FOverlapInfo>& EndOverlaps, bool bTransformChanged) const
 {
-	TOptional<TOverlapArrayView> Result;
+	const TArray<FOverlapInfo>* EndOverlapsPtr = nullptr;
 	switch (CurrentOverlapState)
 	{
 		case FScopedMovementUpdate::EOverlapState::eUseParent:
@@ -3558,21 +3557,19 @@ TOptional<TOverlapArrayView> FScopedMovementUpdate::GetOverlapsAtEnd(class UPrim
 			// Only rotation could have possibly changed
 			if (bTransformChanged && PrimComponent.AreSymmetricRotations(InitialTransform.GetRotation(), PrimComponent.GetComponentQuat(), PrimComponent.GetComponentScale()))
 			{
-				if (PrimComponent.ConvertRotationOverlapsToCurrentOverlaps(OutEndOverlaps, PrimComponent.GetOverlapInfos()))
-				{
-					Result = OutEndOverlaps;
-				}
+				EndOverlapsPtr = PrimComponent.ConvertRotationOverlapsToCurrentOverlaps(EndOverlaps, PrimComponent.GetOverlapInfos());
 			}
 			else
 			{
 				// Use current overlaps (unchanged)
-				Result = PrimComponent.GetOverlapInfos();
+				EndOverlapsPtr = &PrimComponent.GetOverlapInfos();
 			}
 			break;
 		}
 		case FScopedMovementUpdate::EOverlapState::eUnknown:
 		case FScopedMovementUpdate::EOverlapState::eForceUpdate:
 		{
+			EndOverlapsPtr = nullptr;
 			break;
 		}
 		case FScopedMovementUpdate::EOverlapState::eIncludesOverlaps:
@@ -3580,7 +3577,7 @@ TOptional<TOverlapArrayView> FScopedMovementUpdate::GetOverlapsAtEnd(class UPrim
 			if (FinalOverlapCandidatesIndex == INDEX_NONE)
 			{
 				// Overlapping nothing
-				Result = OutEndOverlaps;
+				EndOverlapsPtr = &EndOverlaps;
 			}
 			else
 			{
@@ -3588,14 +3585,9 @@ TOptional<TOverlapArrayView> FScopedMovementUpdate::GetOverlapsAtEnd(class UPrim
 				const bool bMatchingScale = FTransform::AreScale3DsEqual(InitialTransform, PrimComponent.GetComponentTransform());
 				if (bMatchingScale)
 				{
-					const bool bHasEndOverlaps = PrimComponent.ConvertSweptOverlapsToCurrentOverlaps(
-						OutEndOverlaps, PendingOverlaps, FinalOverlapCandidatesIndex,
+					EndOverlapsPtr = PrimComponent.ConvertSweptOverlapsToCurrentOverlaps(
+						EndOverlaps, GetPendingOverlaps(), FinalOverlapCandidatesIndex,
 						PrimComponent.GetComponentLocation(), PrimComponent.GetComponentQuat());
-					
-					if (bHasEndOverlaps)
-					{
-						Result = OutEndOverlaps;
-					}
 				}
 			}
 			break;
@@ -3607,7 +3599,7 @@ TOptional<TOverlapArrayView> FScopedMovementUpdate::GetOverlapsAtEnd(class UPrim
 		}
 	}
 
-	return Result;
+	return EndOverlapsPtr;
 }
 
 

@@ -1,13 +1,11 @@
-INTSourceChangelist:6078243
-Availability:Docs
+﻿INTSourceChangelist:3782314
+Availability:Public
 Title: 2. 스포너에 스폰시킬 것 알려주기
 Crumbs:
 Description:폴리지를 스폰하도록 프로시저럴 폴리지 스포너를 구성합니다.
 Navigation:topic
 SkillLevel:Intermediate
 Version: 4.8
-
-## Set to Docs as the pages have been combined into one. 
 
 [VAR:Steps]
 [OBJECT:Navigation]
@@ -17,7 +15,7 @@ Version: 4.8
 	[PARAM:current]
 	[/PARAM]
 	[PARAM:home]
-		[하우투 홈](Engine\OpenWorldTools\ProceduralFoliage\QuickStart "Engine\OpenWorldTools\ProceduralFoliage\QuickStart:Title%")
+		[비법 홈](Engine\OpenWorldTools\ProceduralFoliage\QuickStart "Engine\OpenWorldTools\ProceduralFoliage\QuickStart:Title%")
 	[/PARAM]
 	[PARAM:next]
 	[다음 단계](Engine\OpenWorldTools\ProceduralFoliage\QuickStart\3 "%Engine\OpenWorldTools\ProceduralFoliage\QuickStart\3:title%") 

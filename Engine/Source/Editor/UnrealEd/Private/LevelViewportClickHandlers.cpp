@@ -140,7 +140,7 @@ namespace ClickHandlers
 
 				GEditor->GetSelectedActors()->Modify();
 
-				if( bAllowSelectionChange && GEditor->CanSelectActor(Actor, true, true) )
+				if( bAllowSelectionChange )
 				{
 					// If the actor the user clicked on was already selected, then we won't bother clearing the selection
 					if( !Actor->IsSelected() )
@@ -173,7 +173,7 @@ namespace ClickHandlers
 
 				GEditor->GetSelectedActors()->Modify();
 
-				if( bAllowSelectionChange && GEditor->CanSelectActor(Actor, true, true) )
+				if( bAllowSelectionChange )
 				{
 					// Clear the selection
 					GEditor->SelectNone( false, true );
@@ -229,7 +229,7 @@ namespace ClickHandlers
 			}
 			else if ( Actor )
 			{
-				if( bAllowSelectionChange  && GEditor->CanSelectActor(Actor, true, true, true) )
+				if( bAllowSelectionChange )
 				{
 					const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "ClickingOnActors", "Clicking on Actors") );
 					GEditor->GetSelectedActors()->Modify();

@@ -11,16 +11,14 @@ IMPLEMENT_MODULE(FDefaultModuleImpl, ShaderPreprocessor);
 
 /**
  * Append defines to an MCPP command line.
- * @param OutOptions - Upon return contains MCPP command line parameters as an array of strings.
+ * @param OutOptions - Upon return contains MCPP command line parameters as a string appended to the current string.
  * @param Definitions - Definitions to add.
  */
-static void AddMcppDefines(TArray<TArray<ANSICHAR>>& OutOptions, const TMap<FString, FString>& Definitions)
+static void AddMcppDefines(FString& OutOptions, const TMap<FString,FString>& Definitions)
 {
-	for (TMap<FString, FString>::TConstIterator It(Definitions); It; ++It)
+	for (TMap<FString,FString>::TConstIterator It(Definitions); It; ++It)
 	{
-		FString Argument(FString::Printf(TEXT("-D%s=%s"), *(It.Key()), *(It.Value())));
-		FTCHARToUTF8 Converter(Argument.GetCharArray().GetData());
-		OutOptions.Emplace(Converter.Get(), Converter.Length() + 1);
+		OutOptions += FString::Printf(TEXT(" \"-D%s=%s\""), *(It.Key()), *(It.Value()));
 	}
 }
 
@@ -36,7 +34,7 @@ public:
 		, ShaderOutput(InShaderOutput)
 	{
 		FString InputShaderSource;
-		if (LoadShaderSourceFile(*InShaderInput.VirtualSourceFilePath, &InputShaderSource, nullptr))
+		if (LoadShaderSourceFile(*InShaderInput.VirtualSourceFilePath, InputShaderSource, nullptr))
 		{
 			InputShaderSource = FString::Printf(TEXT("%s\n#line 1\n%s"), *ShaderInput.SourceFilePrefix, *InputShaderSource);
 			CachedFileContents.Add(InShaderInput.VirtualSourceFilePath, StringToArray<ANSICHAR>(*InputShaderSource, InputShaderSource.Len() + 1));
@@ -55,14 +53,13 @@ public:
 private:
 	/** Holder for shader contents (string + size). */
 	typedef TArray<ANSICHAR> FShaderContents;
-	
+
 	/** MCPP callback for retrieving file contents. */
 	static int GetFileContents(void* InUserData, const ANSICHAR* InVirtualFilePath, const ANSICHAR** OutContents, size_t* OutContentSize)
 	{
 		FMcppFileLoader* This = (FMcppFileLoader*)InUserData;
 
-		FUTF8ToTCHAR UTF8Converter(InVirtualFilePath);
-		FString VirtualFilePath = UTF8Converter.Get();
+		FString VirtualFilePath = (ANSI_TO_TCHAR(InVirtualFilePath));
 		
 		// Collapse any relative directories to allow #include "../MyFile.ush"
 		FPaths::CollapseRelativeDirectories(VirtualFilePath);
@@ -84,7 +81,7 @@ private:
 			{
 				CheckShaderHashCacheInclude(VirtualFilePath, This->ShaderInput.Target.GetPlatform());
 
-				LoadShaderSourceFile(*VirtualFilePath, &FileContents, &This->ShaderOutput.Errors);
+				LoadShaderSourceFile(*VirtualFilePath, FileContents, &This->ShaderOutput.Errors);
 			}
 
 			if (FileContents.Len() > 0)
@@ -215,9 +212,10 @@ bool PreprocessShader(
 	{
 		FMcppFileLoader FileLoader(ShaderInput, ShaderOutput);
 
-		TArray<TArray<ANSICHAR>> McppOptions;
+		FString McppOptions;
 		AddMcppDefines(McppOptions, ShaderInput.Environment.GetDefinitions());
 		AddMcppDefines(McppOptions, AdditionalDefines.GetDefinitionMap());
+		McppOptions += TEXT(" -V199901L");
 
 		// MCPP is not threadsafe.
 
@@ -231,22 +229,11 @@ bool PreprocessShader(
 		mcpp_setmalloc(spp_malloc, spp_realloc, spp_free);
 #endif
 
-		// Convert MCPP options to array of ANSI-C strings
-		TArray<const ANSICHAR*> McppOptionsANSI;
-		for (const TArray<ANSICHAR>& Option : McppOptions)
-		{
-			McppOptionsANSI.Add(Option.GetData());
-		}
-
-		// Append additional options as C-string literal
-		McppOptionsANSI.Add("-V199901L");
-
 		ANSICHAR* McppOutAnsi = NULL;
 		ANSICHAR* McppErrAnsi = NULL;
 
 		int32 Result = mcpp_run(
-			McppOptionsANSI.GetData(),
-			McppOptionsANSI.Num(),
+			TCHAR_TO_ANSI(*McppOptions),
 			TCHAR_TO_ANSI(*ShaderInput.VirtualSourceFilePath),
 			&McppOutAnsi,
 			&McppErrAnsi,

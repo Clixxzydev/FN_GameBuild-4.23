@@ -296,7 +296,6 @@ public:
 	TRefCountPtr<FMetalRasterizerState> RasterizerState;
 	
 	inline EPrimitiveType GetPrimitiveType() { return Initializer.PrimitiveType; }
-	inline bool GetDepthBounds() const { return Initializer.bDepthBounds; }
 	
 	friend class FMetalDynamicRHI;
 	
@@ -516,6 +515,7 @@ public:
 	// iOS A9+ where depth resolve is available
 	// iOS < A9 where depth resolve is unavailable.
 	FMetalTexture MSAAResolveTexture;
+	FMetalTexture StencilTexture;
 	uint32 SizeX, SizeY, SizeZ;
 	bool bIsCubemap;
 	int32 volatile Written;
@@ -585,7 +585,7 @@ public:
 
 	// Constructor, just calls base and Surface constructor
 	FMetalTexture2DArray(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 Flags, FResourceBulkDataInterface* BulkData, const FClearValueBinding& InClearValue)
-		: FRHITexture2DArray(SizeX, SizeY, ArraySize, NumMips, 1, Format, Flags, InClearValue)
+		: FRHITexture2DArray(SizeX, SizeY, ArraySize, NumMips, Format, Flags, InClearValue)
 		, Surface(RRT_Texture2DArray, Format, SizeX, SizeY, 1, /*NumSamples=*/1, /*bArray=*/ true, ArraySize, NumMips, Flags, BulkData)
 	{
 	}
@@ -863,7 +863,7 @@ public:
 	/** Resource table containing RHI references. */
 	TArray<TRefCountPtr<FRHIResource> > ResourceTable;
 	
-	TSet<FRHITextureReference*> TextureReferences;
+	TSet<FTextureReferenceRHIParamRef> TextureReferences;
 
 	struct Argument
 	{

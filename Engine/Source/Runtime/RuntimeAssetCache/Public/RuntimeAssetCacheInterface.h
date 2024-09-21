@@ -43,7 +43,7 @@ struct FVoidPtrParam
 		return (!Data || DataSize <= 0);
 	}
 
-	FORCEINLINE explicit operator bool() const
+	FORCEINLINE operator bool() const
 	{
 		return (Data && DataSize > 0);
 	}

@@ -21,7 +21,6 @@ class UActorComponent;
 class UEdGraph;
 class UInheritableComponentHandler;
 class FBlueprintActionDatabaseRegistrar;
-struct FDiffResults;
 
 /**
  * Enumerates states a blueprint can be in.
@@ -822,9 +821,6 @@ public:
 	virtual void BeginDestroy() override;
 	//~ End UObject Interface
 
-	/** Removes any child redirectors from the root set and marks them as transient */
-	void RemoveChildRedirectors();
-
 	/** Consigns the GeneratedClass and the SkeletonGeneratedClass to oblivion, and nulls their references */
 	void RemoveGeneratedClasses();
 
@@ -852,16 +848,6 @@ public:
 
 	/** Returns Valid if this object has data validation rules set up for it and the data for this object is valid. Returns Invalid if it does not pass the rules. Returns NotValidated if no rules are set for this object. */
 	virtual EDataValidationResult IsDataValid(TArray<FText>& ValidationErrors) override;
-
-	/** 
-	 * Fills in a list of differences between this blueprint and another blueprint.
-	 * Default blueprints are handled by SBlueprintDiff, this should be overridden for specific blueprint types.
-	 *
-	 * @param OtherBlueprint	Other blueprint to compare this to, should be the same type
-	 * @param Results			List of diff results to fill in with type-specific differences
-	 * @return					True if these blueprints were checked for specific differences, false if they are not comparable
-	 */
-	virtual bool FindDiffs(const UBlueprint* OtherBlueprint, FDiffResults& Results) const;
 
 #endif	//#if WITH_EDITOR
 

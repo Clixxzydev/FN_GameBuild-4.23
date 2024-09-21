@@ -100,7 +100,7 @@ void FActorSequenceComponentCustomization::CustomizeDetails(IDetailLayoutBuilder
 
 	bool bIsExternalTabAlreadyOpened = false;
 
-	if (HostTabManager.IsValid() && HostTabManager->HasTabSpawner(SequenceTabId))
+	if (HostTabManager.IsValid() && HostTabManager->CanSpawnTab(SequenceTabId))
 	{
 		WeakTabManager = HostTabManager;
 
@@ -151,7 +151,7 @@ void FActorSequenceComponentCustomization::CustomizeDetails(IDetailLayoutBuilder
 FReply FActorSequenceComponentCustomization::InvokeSequencer()
 {
 	TSharedPtr<FTabManager> TabManager = WeakTabManager.Pin();
-	if (TabManager.IsValid() && TabManager->HasTabSpawner(SequenceTabId))
+	if (TabManager.IsValid() && TabManager->CanSpawnTab(SequenceTabId))
 	{
 		TSharedRef<SDockTab> Tab = TabManager->InvokeTab(SequenceTabId);
 

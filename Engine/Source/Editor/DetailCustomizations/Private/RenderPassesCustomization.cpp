@@ -100,15 +100,10 @@ public:
 			}
 			else
 			{
-				TSharedRef<SWidget> RemoveButton = PropertyCustomizationHelpers::MakeRemoveButton(
-					FSimpleDelegate::CreateLambda([this, PropertyIndex] 
-					{
-						if (PropertyIndex < Property->Value.Num()) 
-						{
-							Property->Value.RemoveAt(PropertyIndex);
-							Update();
-						}
-					}));
+				TSharedRef<SWidget> RemoveButton = PropertyCustomizationHelpers::MakeRemoveButton(FSimpleDelegate::CreateLambda([=]{
+					Property->Value.RemoveAt(PropertyIndex);
+					Update();
+				}));
 
 				EnabledPassesContainer->AddSlot()
 				.AutoHeight()
@@ -138,8 +133,6 @@ public:
 		ComboEntries.Sort([](const TSharedPtr<FRenderPassInfo>& A, const TSharedPtr<FRenderPassInfo>& B){
 			return A->Text.CompareToCaseIgnored(B->Text) < 0;
 		});
-
-		ComboBox->ClearSelection();
 		ComboBox->SetVisibility(ComboEntries.Num() == 0 ? EVisibility::Collapsed : EVisibility::Visible);
 	}
 	

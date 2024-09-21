@@ -15,7 +15,7 @@ const FTouchKeySet FTouchKeySet::EmptySet(EKeys::Invalid);
 
 FGeometry FInputEvent::FindGeometry(const TSharedRef<SWidget>& WidgetToFind) const
 {
-	return EventPath->FindArrangedWidget(WidgetToFind).Get(FArrangedWidget::GetNullWidget()).Geometry;
+	return EventPath->FindArrangedWidget(WidgetToFind).Get(FArrangedWidget::NullWidget).Geometry;
 }
 
 TSharedRef<SWindow> FInputEvent::GetWindow() const

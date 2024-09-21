@@ -5,32 +5,28 @@
 #include "Sound/ReverbEffect.h"
 #include "Audio.h"
 #include "AudioMixer.h"
-#include "ProfilingDebugging/CsvProfiler.h"
 
-// Link to "Audio" profiling category
-CSV_DECLARE_CATEGORY_MODULE_EXTERN(AUDIOMIXER_API, Audio);
-
-static int32 DisableSubmixReverbLegacyCVar = 0;
-static FAutoConsoleVariableRef CVarDisableSubmixReverbLegacy(
+static int32 DisableSubmixReverbCVar = 0;
+static FAutoConsoleVariableRef CVarDisableSubmixReverb(
 	TEXT("au.DisableReverbSubmixLegacy"),
-	DisableSubmixReverbLegacyCVar,
+	DisableSubmixReverbCVar,
 	TEXT("Disables the reverb submix.\n")
 	TEXT("0: Not Disabled, 1: Disabled"),
 	ECVF_Default);
 
-static int32 EnableReverbStereoFlipForQuadLegacyCVar = 0;
-static FAutoConsoleVariableRef CVarReverbStereoFlipForQuadLegacy(
+static int32 EnableReverbStereoFlipForQuadCVar = 0;
+static FAutoConsoleVariableRef CVarReverbStereoFlipForQuad(
 	TEXT("au.EnableReverbStereoFlipForQuadLegacy"),
-	EnableReverbStereoFlipForQuadLegacyCVar,
+	EnableReverbStereoFlipForQuadCVar,
 	TEXT("Enables doing a stereo flip for quad reverb when in surround.\n")
 	TEXT("0: Not Enabled, 1: Enabled"),
 	ECVF_Default);
 
 
-static int32 DisableQuadReverbLegacyCVar = 0;
-static FAutoConsoleVariableRef CVarDisableQuadReverbLegacy(
+static int32 DisableQuadReverbCVar = 0;
+static FAutoConsoleVariableRef CVarDisableQuadReverbCVar(
 	TEXT("au.DisableQuadReverbLegacy"),
-	DisableQuadReverbLegacyCVar,
+	DisableQuadReverbCVar,
 	TEXT("Disables quad reverb in surround.\n")
 	TEXT("0: Not Disabled, 1: Disabled"),
 	ECVF_Default);
@@ -106,13 +102,13 @@ void FSubmixEffectReverb::OnProcessAudio(const FSoundEffectSubmixInputData& InDa
 	LLM_SCOPE(ELLMTag::AudioMixer);
 
 	check(InData.NumChannels == 2);
- 	if (OutData.NumChannels < 2 || !bIsEnabled || DisableSubmixReverbLegacyCVar == 1) 
+ 	if (OutData.NumChannels < 2 || !bIsEnabled || DisableSubmixReverbCVar == 1) 
 	{
 		// Not supported
 		return;
 	}
 
-	CSV_SCOPED_TIMING_STAT(Audio, SubmixReverb);
+	SCOPE_CYCLE_COUNTER(STAT_AudioMixerMasterReverb);
 
 	UpdateParameters();
 
@@ -130,14 +126,14 @@ void FSubmixEffectReverb::OnProcessAudio(const FSoundEffectSubmixInputData& InDa
 	// 5.1 or higher surround sound. Map stereo output to quad output
 	else if(OutData.NumChannels > 5)
 	{
-		if (DisableQuadReverbLegacyCVar == 1)
+		if (DisableQuadReverbCVar == 1)
 		{
 			for (int32 InSampleIndex = 0, OutSampleIndex = 0; InSampleIndex < InData.AudioBuffer->Num(); InSampleIndex += InData.NumChannels, OutSampleIndex += OutData.NumChannels)
 			{
 				PlateReverb.ProcessAudioFrame(&AudioData[InSampleIndex], InData.NumChannels, &OutAudioData[OutSampleIndex], InData.NumChannels);
 			}
 		}
-		else if (EnableReverbStereoFlipForQuadLegacyCVar == 1)
+		else if (EnableReverbStereoFlipForQuadCVar == 1)
 		{
 			for (int32 InSampleIndex = 0, OutSampleIndex = 0; InSampleIndex < InData.AudioBuffer->Num(); InSampleIndex += InData.NumChannels, OutSampleIndex += OutData.NumChannels)
 			{

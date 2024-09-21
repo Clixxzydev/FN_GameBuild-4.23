@@ -72,7 +72,7 @@ void UNiagaraNodeInput::PostLoad()
 	}
 }
 
-void UNiagaraNodeInput::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive /*= true*/, bool bFilterForCompilation /*= true*/) const
+void UNiagaraNodeInput::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive)
 {
 	if (!IsNodeEnabled() && OutHistory.GetIgnoreDisabled())
 	{

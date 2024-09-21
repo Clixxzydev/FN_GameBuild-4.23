@@ -74,7 +74,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View)
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
 		SetShaderValue(RHICmdList, ShaderRHI, VisualizationRadiusScale, GVolumetricLightmapVisualizationRadiusScale);
@@ -120,7 +120,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FSceneView& View)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
@@ -162,10 +162,10 @@ void FDeferredShadingSceneRenderer::VisualizeVolumetricLightmap(FRHICommandListI
 
 		int32 NumRenderTargets = 1;
 
-		FRHITexture* RenderTargets[2] =
+		FTextureRHIParamRef RenderTargets[2] =
 		{
 			SceneContext.GetSceneColorSurface(),
-			nullptr,
+			NULL,
 		};
 
 		if (SceneContext.GBufferB)

@@ -1,5 +1,5 @@
 Availability:Public
-Title: Forward Shading Renderer
+Title: Forward Shading Renderer for VR
 Crumbs:
 Description:Describes the advantages of using the Forward Shading Renderer for increased VR performance.
 type: overview
@@ -8,13 +8,21 @@ parent:Engine/Performance
 tags:Performance and Profiling
 tags: Rendering
 tags: VR
-tags: Experimental
 topic-image: ForwardRenderingTopic.png
 social-image: ForwardRenderingSocial.png
 related: Engine/Performance
 related: Engine/Performance/GPU
 related: Engine/Rendering
-hero-image: ForwardRenderingBanner.png
+
+[REGION:warning]
+This feature is currently considered experimental and some aspects may not work as expected or may be altered in future updates. 
+[/REGION]
+
+[REGION:banner]
+![](ForwardRenderingBanner.png)
+[/REGION]
+
+[TOC(start:2 end:2)]
 
 [EXCERPT:intro]
 By default, Unreal Engine 4 uses a Deferred Renderer as it provides the most versatility and grants access to more rendering features. 

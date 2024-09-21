@@ -5,35 +5,33 @@
 #include "Misc/CoreDefines.h"
 #include "UObject/NameTypes.h"
 #include "UObject/GCObject.h"
-#include "IConcertClientSequencerManager.h"
 #include "ConcertSequencerMessages.h"
 
 struct FConcertSessionContext;
-class IConcertSyncClient;
 class IConcertClientSession;
 class ULevelSequencePlayer;
 
 #if WITH_EDITOR
 
 class ISequencer;
-struct FSequencerInitParams;
 
 /**
- * Sequencer manager that is held by the client sync module that keeps track of open sequencer UIs, regardless of whether a session is open or not
+ * Event manager that is held by the client sync module that keeps track of open sequencer UIs, regardless of whether a session is open or not
  * Events are registered to client sessions that will then operate on any tracked sequencer UIs
  */
-class FConcertClientSequencerManager : public FGCObject, public IConcertClientSequencerManager
+struct FSequencerEventClient : public FGCObject
 {
-public:
 	/**
 	 * Constructor - registers OnSequencerCreated handler with the sequencer module
 	 */
-	explicit FConcertClientSequencerManager(IConcertSyncClient* InOwnerSyncClient);
+	FSequencerEventClient();
+
 
 	/**
 	 * Destructor - unregisters OnSequencerCreated handler from the sequencer module
 	 */
-	virtual ~FConcertClientSequencerManager();
+	~FSequencerEventClient();
+
 
 	/**
 	 * Register all custom sequencer events for the specified client session
@@ -50,32 +48,8 @@ public:
 	 */
 	void Unregister(TSharedRef<IConcertClientSession> InSession);
 
-	/**
-	 * @return true if playback syncing across opened sequencer is enabled
-	 */
-	virtual bool IsSequencerPlaybackSyncEnabled() const override;
-
-	/**
-	 * Set the playback syncing option in Multi-User which syncs playback across user for opened sequencer.
-	 * 
-	 * @param bEnable The value to set for playback syncing of opened sequencer
-	 */
-	virtual void SetSequencerPlaybackSync(bool bEnable) override;
-
-	/**
-	 * @return true if the remote open option is enabled.
-	 */
-	virtual bool IsSequencerRemoteOpenEnabled() const override;
-
-	/**
-	 * Set the remote open option in Multi-User
-	 * which open sequencer for other user when this option is enabled on both user machines.
-	 * 
-	 * @param bEnable The value to set for the remote open option
-	 */
-	virtual void SetSequencerRemoteOpen(bool bEnable) override;
-
 private:
+
 	/** Enum signifying how a sequencer UI is currently playing. Necessary to prevent transport event contention. */
 	enum class EPlaybackMode
 	{
@@ -104,6 +78,7 @@ private:
 	};
 
 private:
+
 	/**
 	 * Called when a sequencer closes.
 	 *
@@ -205,17 +180,10 @@ private:
 	 */
 	TArray<FOpenSequencerData*, TInlineAllocator<1>> GatherRootSequencersByAssetPath(const FString& InSequenceObjectPath);
 
-	/**
-	 * Get the amount of latency compensation to apply to time-synchronization sensitive interactions
-	 */
-	float GetLatencyCompensationMs() const;
 
 	/** FGCObject interface*/
 	virtual void AddReferencedObjects(FReferenceCollector& Collector);
-
 private:
-	/** Pointer to the sync client that owns us. */
-	IConcertSyncClient* OwnerSyncClient;
 
 	/** List of pending sequencer events to apply at end of frame. */
 	TArray<FConcertSequencerState> PendingSequencerEvents;
@@ -237,7 +205,10 @@ private:
 
 	/** Delegate handle for the global sequencer created event registered with the sequencer module */
 	FDelegateHandle OnSequencerCreatedHandle;
-	
+
+	/** Delegate handle for the global sequencer created event registered with the sequencer module */
+	FDelegateHandle OnEndFrameHandle;
+
 	/** Weak pointer to the client session with which to send events. May be null or stale. */
 	TWeakPtr<IConcertClientSession> WeakSession;
 };

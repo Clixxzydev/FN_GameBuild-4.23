@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 #include "RemoteSessionRole.h"
+#include "Channels/RemoteSessionChannel.h"
 
 #define REMOTE_SESSION_VERSION_STRING TEXT("1.0.5")
 

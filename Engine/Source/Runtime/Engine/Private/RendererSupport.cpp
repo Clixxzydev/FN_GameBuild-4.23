@@ -58,7 +58,7 @@ static void ClearReferencesToRendererModuleClasses(
 				Level->ReleaseRenderingResources();
 			}
 
-			if (World->FXSystem)
+			if (World->FXSystem != NULL)
 			{
 				FFXSystemInterface::Destroy(World->FXSystem);
 				World->FXSystem = NULL;

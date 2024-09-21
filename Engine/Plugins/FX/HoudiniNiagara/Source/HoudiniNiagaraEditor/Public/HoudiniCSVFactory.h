@@ -21,8 +21,6 @@
 *
 */
 
-#pragma once
-
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"

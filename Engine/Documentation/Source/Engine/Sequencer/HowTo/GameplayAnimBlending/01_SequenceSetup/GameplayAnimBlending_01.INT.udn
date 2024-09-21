@@ -1,4 +1,4 @@
-Availability: Docs
+Availability: Public
 Title:1. Sequence Setup
 Crumbs: %ROOT%, Engine, Engine/Sequencer, Engine/Sequencer/HowTo
 Description:In this step we create our Level Sequence and add the animation in Sequencer we want to blend to. 
@@ -9,7 +9,7 @@ order:1
 checkpoint: editorqs
 tags:Sequencer
 tags:Animation
-type:multi-step
+type:how-to
 
 
 [VAR:Steps]

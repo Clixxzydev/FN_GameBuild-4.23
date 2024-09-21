@@ -129,9 +129,4 @@ private:
 	FOnlineMessageTaskManagerOculusPtr MessageTaskManager;
 };
 
-namespace FNetworkProtocolTypes
-{
-	ONLINESUBSYSTEMOCULUS_API extern const FName Oculus;
-}
-
 typedef TSharedPtr<FOnlineSubsystemOculus, ESPMode::ThreadSafe> FOnlineSubsystemOculusPtr;

@@ -493,12 +493,6 @@ FText UK2Node_MultiGate::GetNodeTitle(ENodeTitleType::Type TitleType) const
 	return NSLOCTEXT("K2Node", "MultiGate", "MultiGate");
 }
 
-bool UK2Node_MultiGate::CanAddPin() const
-{
-	// Since an int32 is used to track which gates have been used, we can only have 32 outputs
-	return GetNumOutPins() < 32;
-}
-
 void UK2Node_MultiGate::AllocateDefaultPins()
 {
 	Super::AllocateDefaultPins();
@@ -553,30 +547,16 @@ UEdGraphPin* UK2Node_MultiGate::GetStartIndexPin() const
 
 void UK2Node_MultiGate::GetOutPins(TArray<UEdGraphPin*>& OutPins) const
 {
-	OutPins.Reset(Pins.Num());
+	OutPins.Reset();
 
+	const TCHAR* OutStr(TEXT("Out"));
 	for (UEdGraphPin* Pin : Pins)
 	{
-		if (Pin->Direction == EGPD_Output)
+		if (Pin->PinName.ToString().StartsWith(OutStr))
 		{
 			OutPins.Add(Pin);
 		}
 	}
-}
-
-int32 UK2Node_MultiGate::GetNumOutPins() const
-{
-	int32 NumOutPins = 0;
-
-	for (UEdGraphPin* Pin : Pins)
-	{
-		if (Pin->Direction == EGPD_Output)
-		{
-			++NumOutPins;
-		}
-	}
-
-	return NumOutPins;
 }
 
 void UK2Node_MultiGate::GetMarkBitFunction(FName& FunctionName, UClass** FunctionClass)

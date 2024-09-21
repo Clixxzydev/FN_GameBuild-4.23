@@ -3,7 +3,6 @@
 #include "MovieSceneTimeController.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
-#include "Engine/TimecodeProvider.h"
 #include "AudioDevice.h"
 #include "Misc/App.h"
 
@@ -105,22 +104,15 @@ double FMovieSceneTimeController_PlatformClock::GetCurrentTime() const
 double FMovieSceneTimeController_AudioClock::GetCurrentTime() const
 {
 	FAudioDevice* AudioDevice = GEngine ? GEngine->GetMainAudioDevice() : nullptr;
-	return AudioDevice ? AudioDevice->GetAudioClock() : FPlatformTime::Seconds();
+	return AudioDevice ? AudioDevice->GetAudioClock() : 0.0;
 }
 
 double FMovieSceneTimeController_TimecodeClock::GetCurrentTime() const
 {
-	if (GEngine && GEngine->GetTimecodeProvider() && GEngine->GetTimecodeProvider()->GetSynchronizationState() == ETimecodeProviderSynchronizationState::Synchronized)
-	{
-		FTimecode Timecode = FApp::GetTimecode();
-		FFrameRate FrameRate = FApp::GetTimecodeFrameRate();
-		FFrameNumber FrameNumber = Timecode.ToFrameNumber(FrameRate);
-		return FrameRate.AsSeconds(FrameNumber);
-	}
-	else
-	{
-		return FPlatformTime::Seconds();
-	}
+	FTimecode Timecode = FApp::GetTimecode();
+	FFrameRate FrameRate = FApp::GetTimecodeFrameRate();
+	FFrameNumber FrameNumber = Timecode.ToFrameNumber(FrameRate);
+	return FrameRate.AsSeconds(FrameNumber);
 }
 
 void FMovieSceneTimeController_Tick::OnStartPlaying(const FQualifiedFrameTime& InStartTime)

@@ -109,11 +109,11 @@ void UNiagaraNodeReadDataSet::Compile(class FHlslNiagaraTranslator* Translator, 
 	Translator->ReadDataSet(DataSet, Variables, ENiagaraDataSetAccessMode::AppendConsume, Inputs[0], Outputs);
 }
 
-void UNiagaraNodeReadDataSet::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive /*= true*/, bool bFilterForCompilation /*= true*/) const
+void UNiagaraNodeReadDataSet::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive)
 {
 	if (bRecursive)
 	{
-		OutHistory.VisitInputPins(this, bFilterForCompilation);
+		OutHistory.VisitInputPins(this);
 	}
 
 	if (!IsNodeEnabled() && OutHistory.GetIgnoreDisabled())

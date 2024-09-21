@@ -35,7 +35,7 @@ SObjectWidget::~SObjectWidget(void)
 #if SLATE_VERBOSE_NAMED_EVENTS
 	// This can happen during blueprint compiling, so just ignore it if it happens then, this is really only a concern
 	// in a running game.
-	if (!GCompilingBlueprint && !GIsGCingAfterBlueprintCompile)
+	if (!GCompilingBlueprint)
 	{
 		// This is only a concern during a running game - design-time instances can be destroyed from GC quite often when recompiling
 		if (!WidgetObject || !WidgetObject->IsDesignTime())
@@ -513,13 +513,13 @@ FReply SObjectWidget::OnTouchForceChanged(const FGeometry& MyGeometry, const FPo
 
 FNavigationReply SObjectWidget::OnNavigation(const FGeometry& MyGeometry, const FNavigationEvent& InNavigationEvent)
 {
-	if (WidgetObject && WidgetObject->NativeSupportsCustomNavigation())
+	if (WidgetObject->NativeSupportsCustomNavigation())
 	{
 		return WidgetObject->NativeOnNavigation(MyGeometry, InNavigationEvent);
 	}
 	FNavigationReply Reply = SCompoundWidget::OnNavigation(MyGeometry, InNavigationEvent);
 
-	if (WidgetObject && CanRouteEvent() )
+	if ( CanRouteEvent() )
 	{
 		return WidgetObject->NativeOnNavigation(MyGeometry, InNavigationEvent, Reply);
 	}

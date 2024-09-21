@@ -120,11 +120,6 @@ TMap<uint8, TArray<FGuid>> FUdpMessageProcessor::GetRecipientsPerProtocolVersion
 
 bool FUdpMessageProcessor::EnqueueInboundSegment(const TSharedPtr<FArrayReader, ESPMode::ThreadSafe>& Data, const FIPv4Endpoint& InSender)
 {
-	if (Stopping)
-	{
-		return false;
-	}
-
 	if (!InboundSegments.Enqueue(FInboundSegment(Data, InSender)))
 	{
 		return false;
@@ -137,11 +132,6 @@ bool FUdpMessageProcessor::EnqueueInboundSegment(const TSharedPtr<FArrayReader, 
 
 bool FUdpMessageProcessor::EnqueueOutboundMessage(const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& MessageContext, const TArray<FGuid>& Recipients)
 {
-	if (Stopping)
-	{
-		return false;
-	}
-	
 	TMap<uint8, TArray<FGuid>> RecipientPerVersions = GetRecipientsPerProtocolVersion(Recipients);
 	for (const auto& RecipientVersion : RecipientPerVersions)
 	{
@@ -202,7 +192,7 @@ uint32 FUdpMessageProcessor::Run()
 		UpdateKnownNodes();
 		UpdateStaticNodes();
 	}
-
+	
 	delete Beacon;
 	Beacon = nullptr;
 
@@ -219,44 +209,6 @@ void FUdpMessageProcessor::Stop()
 	WorkEvent->Trigger();
 }
 
-
-void FUdpMessageProcessor::WaitAsyncTaskCompletion()
-{
-	// Check if processor has in-flight serialization task(s).
-	auto HasIncompleteSerializationTasks = [this]()
-	{
-		for (const TPair<FGuid, FNodeInfo>& GuidNodeInfoPair : KnownNodes)
-		{
-			for (const TPair<int32, TSharedPtr<FUdpMessageSegmenter>>& SegmenterPair: GuidNodeInfoPair.Value.Segmenters)
-			{
-				if (!SegmenterPair.Value->IsMessageSerializationDone())
-				{
-					return true;
-				}
-			}
-		}
-
-		for (const TPair<FIPv4Endpoint, FNodeInfo>& Ipv4NodeInfoPair : StaticNodes)
-		{
-			for (const TPair<int32, TSharedPtr<FUdpMessageSegmenter>>& SegmenterPair: Ipv4NodeInfoPair.Value.Segmenters)
-			{
-				if (!SegmenterPair.Value->IsMessageSerializationDone())
-				{
-					return true;
-				}
-			}
-		}
-
-		return false;
-	};
-
-	// Ensures the task graph doesn't contain any pending/running serialization tasks after the processor exit. If the engine is shutting down, the serialization (UStruct) might
-	// not be available anymore when the task is run (The task graph shuts down after the UStruct stuff).
-	while (HasIncompleteSerializationTasks())
-	{
-		FPlatformProcess::Sleep(0); // Yield.
-	}
-}
 
 /* FSingleThreadRunnable interface
 *****************************************************************************/
@@ -480,64 +432,19 @@ void FUdpMessageProcessor::ProcessDataSegment(FInboundSegment& Segment, FNodeInf
 	FUdpMessageSegment::FDataChunk DataChunk;
 	DataChunk.Serialize(*Segment.Data, NodeInfo.ProtocolVersion);
 	
-	if (Segment.Data->IsError())
-	{
-		UE_LOG(LogUdpMessaging, Warning, TEXT("FUdpMessageProcessor::ProcessDataSegment: Failed to serialize DataChunk. Sender=%s"),
-			*(Segment.Sender.ToString()));
-		return;
-	}
-
 	// Discard late segments for sequenced messages
 	if ((DataChunk.Sequence != 0) && (DataChunk.Sequence < NodeInfo.Resequencer.GetNextSequence()))
 	{
 		return;
 	}
+
 	TSharedPtr<FUdpReassembledMessage, ESPMode::ThreadSafe>& ReassembledMessage = NodeInfo.ReassembledMessages.FindOrAdd(DataChunk.MessageId);
 
 	// Reassemble message
 	if (!ReassembledMessage.IsValid())
 	{
 		ReassembledMessage = MakeShared<FUdpReassembledMessage, ESPMode::ThreadSafe>(NodeInfo.ProtocolVersion, DataChunk.MessageFlags, DataChunk.MessageSize, DataChunk.TotalSegments, DataChunk.Sequence, Segment.Sender);
-
-		if (ReassembledMessage->IsMalformed())
-		{
-			// Go ahead and throw away the message.
-			// The sender should see the NAK and resend, so we'll attempt to recreate it later.
-			UE_LOG(LogUdpMessaging, Warning, TEXT("FUdpMessageProcessor::ProcessDataSegment: Ignoring malformed Message %s"), *(ReassembledMessage->Describe()));
-			NodeInfo.ReassembledMessages.Remove(DataChunk.MessageId);
-			ReassembledMessage.Reset();
-			return;
-		}
 	}
-
-	/**
-	// TODO: In a future release uncomment these checks.
-	//		Don't do this for 4.23, because there could be existing third party tools / producers that
-	//		just send dummy data (they shouldn't!), and this could break them unexpectedly.
-	//		These should probably also be moved into a shared location (like into FUdpReassembledMessage).
-
-	if (ReassembledMessage->GetTotalSegmentsCount() != DataChunk.TotalSegments)
-	{
-		UE_LOG(LogUdpMessaging, Warning, TEXT("FUdpMessageProcessor::ProcessDataSegment: Ignoring segment with invalid TotalSegment count. Message=%s, ExpectedTotalSegments=%lu, InTotalSegments=%lu"),
-			*ReassembledMessage->Describe(), ReassembledMessage->GetTotalSegmentCount(), DataChunk.TotalSegments);
-		return;
-	}
-	if (ReassembledMessage->GetData().Num() != DataChunk.MessageSize)
-	{
-		UE_LOG(LogUdpMessaging, Warning, TEXT("FUdpMessageProcessor::ProcessDataSegment: Ignoring segment with invalid MessageSize. Message=%s, ExpectedMessageSize=%d, InMessageSize=%d"),
-			*ReassembledMessage->Describe(), ReassembledMessage->GetData().Num(), DataChunk.MessageSize);
-		return;
-	}
-	if (ReassembledMessage->GetSequence() != DataChunk.Sequence)
-	{
-		UE_LOG(LogUdpMessaging, Warning, TEXT("FUdpMessageProcessor::ProcessDataSegment: Ignoring segment with invalid Sequence. Message=%s, ExpectedSequence=%llu, InSequence=%llu"),
-			*ReassembledMessage->Describe(), ReassembledMessaged->GetSequence(), DataChunk.Sequence);
-		return;
-	}
-
-	// TODO: Check MessageFlags.
-	// TODO: Check Sender.
-	*/
 
 	ReassembledMessage->Reassemble(DataChunk.SegmentNumber, DataChunk.SegmentOffset, DataChunk.Data, CurrentTime);
 

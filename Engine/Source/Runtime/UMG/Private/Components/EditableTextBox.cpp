@@ -11,8 +11,6 @@
 /////////////////////////////////////////////////////
 // UEditableTextBox
 
-static FEditableTextBoxStyle* DefaultEditableTextBoxStyle = nullptr;
-
 UEditableTextBox::UEditableTextBox(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -38,21 +36,9 @@ UEditableTextBox::UEditableTextBox(const FObjectInitializer& ObjectInitializer)
 	AllowContextMenu = true;
 	VirtualKeyboardDismissAction = EVirtualKeyboardDismissAction::TextChangeOnDismiss;
 
-	if (DefaultEditableTextBoxStyle == nullptr)
-	{
-		// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BE DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
-		DefaultEditableTextBoxStyle = new FEditableTextBoxStyle(FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox"));
-
-		// Unlink UMG default colors from the editor settings colors.
-		DefaultEditableTextBoxStyle->UnlinkColors();
-	}
-
-	WidgetStyle = *DefaultEditableTextBoxStyle;
-
-#if WITH_EDITORONLY_DATA
-	AccessibleBehavior = ESlateAccessibleBehavior::Auto;
-	bCanChildrenBeAccessible = false;
-#endif
+	// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BY DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
+	static const FEditableTextBoxStyle StaticNormalEditableTextBox = FCoreStyle::Get().GetWidgetStyle< FEditableTextBoxStyle >("NormalEditableTextBox");
+	WidgetStyle = StaticNormalEditableTextBox;
 }
 
 void UEditableTextBox::ReleaseSlateResources(bool bReleaseChildren)
@@ -241,18 +227,11 @@ void UEditableTextBox::PostLoad()
 	}
 }
 
-#if WITH_ACCESSIBILITY
-TSharedPtr<SWidget> UEditableTextBox::GetAccessibleWidget() const
-{
-	return MyEditableTextBlock;
-}
-#endif
-
 #if WITH_EDITOR
 
 const FText UEditableTextBox::GetPaletteCategory()
 {
-	return LOCTEXT("Input", "Input");
+	return LOCTEXT("Common", "Common");
 }
 
 #endif

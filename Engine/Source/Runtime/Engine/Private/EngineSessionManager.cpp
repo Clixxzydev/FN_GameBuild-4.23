@@ -56,7 +56,6 @@ namespace SessionManagerDefs
 	static const FString DeactivatedStoreKey(TEXT("IsDeactivated"));
 	static const FString BackgroundStoreKey(TEXT("IsInBackground"));
 	static const FString TerminatingKey(TEXT("Terminating"));
-	static const FString PlatformProcessIDKey(TEXT("PlatformProcessID"));
 	static const FString EngineVersionStoreKey(TEXT("EngineVersion"));
 	static const FString TimestampStoreKey(TEXT("Timestamp"));
 	static const FString StartupTimeStoreKey(TEXT("StartupTimestamp"));
@@ -243,8 +242,6 @@ void FEngineSessionManager::Shutdown()
 	FCoreDelegates::ApplicationWillTerminateDelegate.RemoveAll(this);
 	FCoreDelegates::IsVanillaProductChanged.RemoveAll(this);
 
-	FUserActivityTracking::OnActivityChanged.RemoveAll(this);
-
 	if (!CurrentSession.bIsTerminating) // Skip Slate if terminating, since we can't guarantee which thread called us.
 	{
 		FSlateApplication::Get().GetOnModalLoopTickEvent().RemoveAll(this);
@@ -255,7 +252,19 @@ void FEngineSessionManager::Shutdown()
 	{
 		if (!CurrentSession.bCrashed)
 		{
-			DeleteStoredRecordValues(CurrentSessionSectionName);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::ModeStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::ProjectNameStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::CrashStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::GPUCrashStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::EngineVersionStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::TimestampStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::DebuggerStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::WasDebuggerStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::DeactivatedStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::BackgroundStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::UserActivityStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::VanillaStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::TerminatingKey);
 
 #if PLATFORM_SUPPORTS_WATCHDOG
 			if (!WatchdogSectionName.IsEmpty())
@@ -298,29 +307,12 @@ bool FEngineSessionManager::BeginReadWriteRecords()
 		FString TimestampString;
 		FString IsDebuggerString;
 
-		// Read mandatory values
+		// Read manditory values
 		if (FPlatformMisc::GetStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::CrashStoreKey, IsCrashString) &&
 			FPlatformMisc::GetStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::EngineVersionStoreKey, EngineVersionString) &&
 			FPlatformMisc::GetStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::TimestampStoreKey, TimestampString) &&
 			FPlatformMisc::GetStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::DebuggerStoreKey, IsDebuggerString))
 		{
-			// If the process is still running we don't need to report it.
-			FString PlatformProcessIDString;
-			if (FPlatformMisc::GetStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::PlatformProcessIDKey, PlatformProcessIDString))
-			{
-				const uint32 ProcId = (uint32)FCString::Atoi(*PlatformProcessIDString);
-				FProcHandle Handle = FPlatformProcess::OpenProcess(ProcId);
-				if (Handle.IsValid())
-				{
-					const bool bIsRunning = FPlatformProcess::IsProcRunning(Handle);
-					FPlatformProcess::CloseProc(Handle);
-					if (bIsRunning)
-					{
-						continue;
-					}
-				}
-			}
-
 			// Read optional values
 			FString WasDebuggerString = IsDebuggerString;
 			FPlatformMisc::GetStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::WasDebuggerStoreKey, WasDebuggerString);
@@ -363,7 +355,19 @@ bool FEngineSessionManager::BeginReadWriteRecords()
 		else
 		{
 			// Clean up orphaned values, if there are any
-			DeleteStoredRecordValues(SectionName);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::ModeStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::ProjectNameStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::CrashStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::GPUCrashStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::EngineVersionStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::TimestampStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::DebuggerStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::WasDebuggerStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::DeactivatedStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::BackgroundStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::UserActivityStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::VanillaStoreKey);
+			FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::TerminatingKey);
 		}
 	}
 
@@ -397,14 +401,6 @@ void FEngineSessionManager::DeleteStoredRecord(const FSessionRecord& Record)
 	FString SessionId = Record.SessionId;
 	FString SectionName = GetStoreSectionString(SessionId);
 
-	DeleteStoredRecordValues(SectionName);
-
-	// Remove the session record from SessionRecords list
-	SessionRecords.RemoveAll([&SessionId](const FSessionRecord& X){ return X.SessionId == SessionId; });
-}
-
-void FEngineSessionManager::DeleteStoredRecordValues(const FString& SectionName) const
-{
 	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::ModeStoreKey);
 	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::ProjectNameStoreKey);
 	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::CrashStoreKey);
@@ -418,7 +414,9 @@ void FEngineSessionManager::DeleteStoredRecordValues(const FString& SectionName)
 	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::UserActivityStoreKey);
 	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::VanillaStoreKey);
 	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::TerminatingKey);
-	FPlatformMisc::DeleteStoredValue(SessionManagerDefs::StoreId, SectionName, SessionManagerDefs::PlatformProcessIDKey);
+
+	// Remove the session record from SessionRecords list
+	SessionRecords.RemoveAll([&SessionId](const FSessionRecord& X){ return X.SessionId == SessionId; });
 }
 
 /**
@@ -533,9 +531,6 @@ void FEngineSessionManager::CreateAndWriteRecordForSession()
 		CurrentSession.SessionId = FEngineAnalytics::GetProvider().GetSessionID();
 	}
 
-	const uint32 ProcId = FPlatformProcess::GetCurrentProcessId();
-	FString CurrentProcessIDString = FString::FromInt(ProcId);
-
 	const UGeneralProjectSettings& ProjectSettings = *GetDefault<UGeneralProjectSettings>();
 
 	CurrentSession.Mode = Mode;
@@ -567,7 +562,6 @@ void FEngineSessionManager::CreateAndWriteRecordForSession()
 	FPlatformMisc::SetStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::UserActivityStoreKey, CurrentSession.CurrentUserActivity);
 	FPlatformMisc::SetStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::VanillaStoreKey, IsVanillaString);
 	FPlatformMisc::SetStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::TerminatingKey, IsTerminatingString);
-	FPlatformMisc::SetStoredValue(SessionManagerDefs::StoreId, CurrentSessionSectionName, SessionManagerDefs::PlatformProcessIDKey, CurrentProcessIDString);
 
 	SessionRecords.Add(CurrentSession);
 

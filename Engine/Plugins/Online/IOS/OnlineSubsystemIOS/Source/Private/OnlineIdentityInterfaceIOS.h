@@ -3,11 +3,11 @@
 
 #pragma once
 
-#import <GameKit/GameKit.h>
 
 #include "OnlineSubsystemIOSTypes.h"
 #include "Interfaces/OnlineIdentityInterface.h"
 #include "OnlineSubsystemIOSPackage.h"
+
 
 class FOnlineIdentityIOS :
 	public IOnlineIdentity

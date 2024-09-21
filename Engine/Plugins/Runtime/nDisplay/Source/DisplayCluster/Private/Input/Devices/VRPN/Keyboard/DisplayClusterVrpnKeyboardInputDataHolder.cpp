@@ -1,7 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterVrpnKeyboardInputDataHolder.h"
-#include "DisplayClusterLog.h"
+#include "Misc/DisplayClusterLog.h"
 
 
 FDisplayClusterVrpnKeyboardInputDataHolder::FDisplayClusterVrpnKeyboardInputDataHolder(const FDisplayClusterConfigInput& config) :

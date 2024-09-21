@@ -32,7 +32,7 @@ public:
 };
 
 
-#if USE_ANDROID_JNI
+#if PLATFORM_ANDROID
 JNI_METHOD void Java_com_epicgames_ue4_GameActivity_nativeAppOpenedWithLocalNotification(JNIEnv* jenv, jobject thiz, jstring jactivationEvent, int32 jFireDate)
 {
 	auto ActivationEvent = FJavaHelper::FStringFromParam(jenv, jactivationEvent);
@@ -77,34 +77,31 @@ FAndroidLocalNotificationService::FAndroidLocalNotificationService(){
 
 void FAndroidLocalNotificationService::ClearAllLocalNotifications()
 {
-#if USE_ANDROID_JNI
-	extern void AndroidThunkCpp_ClearAllLocalNotifications();
-	AndroidThunkCpp_ClearAllLocalNotifications();
-#endif
+	#if PLATFORM_ANDROID
+		extern void AndroidThunkCpp_ClearAllLocalNotifications();
+		AndroidThunkCpp_ClearAllLocalNotifications();
+	#endif
 }
 
-int32 FAndroidLocalNotificationService::ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool LocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
+void FAndroidLocalNotificationService::ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool LocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
 {
-#if USE_ANDROID_JNI
-	extern int32 AndroidThunkCpp_ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool LocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent);
-	return AndroidThunkCpp_ScheduleLocalNotificationAtTime(FireDateTime , LocalTime, Title, Body, Action, ActivationEvent);
-#else
-	return -1;
-#endif
+	#if PLATFORM_ANDROID
+		extern void AndroidThunkCpp_ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool LocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent);
+		AndroidThunkCpp_ScheduleLocalNotificationAtTime(FireDateTime , LocalTime, Title, Body, Action, ActivationEvent);
+	#endif
 }
 
-int32 FAndroidLocalNotificationService::ScheduleLocalNotificationBadgeAtTime(const FDateTime& FireDateTime, bool LocalTime, const FString& ActivationEvent)
+void FAndroidLocalNotificationService::ScheduleLocalNotificationBadgeAtTime(const FDateTime& FireDateTime, bool LocalTime, const FString& ActivationEvent)
 {
 	// Do nothing...
-	return -1;
 }
 
 void FAndroidLocalNotificationService::GetLaunchNotification(bool& NotificationLaunchedApp, FString& ActivationEvent, int32& FireDate)
 {
-#if USE_ANDROID_JNI
-	extern void AndroidThunkCpp_GetLaunchNotification(bool& NotificationLaunchedApp, FString& ActivationEvent, int32& FireDate);
-	AndroidThunkCpp_GetLaunchNotification(NotificationLaunchedApp, ActivationEvent, FireDate);
-#endif
+	#if PLATFORM_ANDROID
+		extern void AndroidThunkCpp_GetLaunchNotification(bool& NotificationLaunchedApp, FString& ActivationEvent, int32& FireDate);
+		AndroidThunkCpp_GetLaunchNotification(NotificationLaunchedApp, ActivationEvent, FireDate);
+	#endif
 }
 
 void FAndroidLocalNotificationService::SetLaunchNotification(FString const& ActivationEvent, int32 FireDate)
@@ -115,17 +112,4 @@ void FAndroidLocalNotificationService::SetLaunchNotification(FString const& Acti
 void FAndroidLocalNotificationService::CancelLocalNotification(const FString& ActivationEvent)
 {
 	// TODO
-}
-
-void FAndroidLocalNotificationService::CancelLocalNotification(int32 NotificationId)
-{
-	if (NotificationId < 0)
-	{
-		return;
-	}
-	
-#if USE_ANDROID_JNI
-	extern bool AndroidThunkCpp_DestroyScheduledNotificationIfExists(int32 NotificationId);
-	bool AndroidThunkCpp_DestroyScheduledNotificationIfExists(int32 NotificationId);
-#endif
 }

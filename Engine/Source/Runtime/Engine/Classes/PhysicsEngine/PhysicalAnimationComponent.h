@@ -139,7 +139,6 @@ private:
 	FDelegateHandle OnTeleportDelegateHandle;
 
 	void UpdatePhysicsEngine();
-	void UpdatePhysicsEngineImp();
 	void ReleasePhysicsEngine();
 	void InitComponent();
 
@@ -147,6 +146,4 @@ private:
 	void UpdateTargetActors(ETeleportType TeleportType);
 
 	static const FConstraintProfileProperties PhysicalAnimationProfile;
-
-	bool bPhysicsEngineNeedsUpdating;
 };

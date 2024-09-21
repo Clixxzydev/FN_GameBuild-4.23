@@ -18,7 +18,6 @@ class UNiagaraStackObject;
 class UNiagaraScript;
 class UEdGraphPin;
 class UNiagaraDataInterface;
-enum class EStackParameterBehavior;
 
 /** Represents a single module input in the module stack view model. */
 UCLASS()
@@ -60,7 +59,6 @@ public:
 	 * @param InInputFunctionCallNode The function call which this entry is an input to. NOTE: This node can be a module function call node or a dynamic input node.
 	 * @param InInputParameterHandle The input parameter handle for the function call.
 	 * @param InInputType The type of this input.
-	 * @param InParameterBehavior Determines how the parameter should behave in the stack
 	 * @param InOwnerStackItemEditorDataKey The editor data key of the item that owns this input.
 	 */
 	void Initialize(
@@ -69,7 +67,6 @@ public:
 		UNiagaraNodeFunctionCall& InInputFunctionCallNode,
 		FName InInputParameterHandle,
 		FNiagaraTypeDefinition InInputType,
-		EStackParameterBehavior InParameterBehavior,
 		FString InOwnerStackItemEditorDataKey);
 
 	/** Gets the function call node which owns this input. */
@@ -112,7 +109,7 @@ public:
 	UNiagaraNodeCustomHlsl* GetExpressionNode() const;
 
 	/** Gets the dynamic inputs available for this input. */
-	void GetAvailableDynamicInputs(TArray<UNiagaraScript*>& AvailableDynamicInputs, bool bIncludeNonLibraryInputs = false);
+	void GetAvailableDynamicInputs(TArray<UNiagaraScript*>& AvailableDynamicInputs);
 
 	/** Sets the dynamic input script for this input. */
 	void SetDynamicInput(UNiagaraScript* DynamicInput);
@@ -146,12 +143,6 @@ public:
 
 	/** Determine if this field is editable */
 	bool IsEditable() const;
-
-	/** If true the parameter can only be set to local constant values */
-	bool IsStaticParameter() const;
-
-	/** Whether or not this input has a base value.  This is true for emitter instances in systems. */
-	bool EmitterHasBase() const;
 
 	/** Whether or not this input can be reset to a base value. */
 	bool CanResetToBase() const;
@@ -219,9 +210,6 @@ public:
 public:
 	//~ UNiagaraStackEntry interface
 	virtual void GetSearchItems(TArray<FStackSearchItem>& SearchItems) const override;
-
-	/** If false then the stack parameter is not visible */
-	bool bIsVisible = true;
 
 protected:
 	//~ UNiagaraStackEntry interface
@@ -381,7 +369,7 @@ private:
 	FNiagaraTypeDefinition InputType;
 
 	/** The meta data for this input, defined in the owning function's script. */
-	TOptional<FNiagaraVariableMetaData> InputMetaData;
+	FNiagaraVariableMetaData* InputMetaData;
 
 	/** A unique key for this input for looking up editor only UI data. */
 	FString StackEditorDataKey;
@@ -391,9 +379,6 @@ private:
 
 	/** The parameter handle which defined this input in the module graph. */
 	FNiagaraParameterHandle InputParameterHandle;
-
-	/** Defines the type of the stack parameter (e.g. 'static' if it should only allow constant compile-time values). */
-	EStackParameterBehavior ParameterBehavior;
 
 	/** The parameter handle which defined this input in the module graph, aliased for use in the current emitter
 	  * graph.  This only affects parameter handles which are local module handles. */

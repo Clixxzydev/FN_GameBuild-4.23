@@ -118,13 +118,8 @@ void FMeshPaintGeometryAdapterForStaticMeshes::PostEdit()
 		// only need to detach our mesh component
 		FComponentReregisterContext ComponentReregisterContext(StaticMeshComponent);
 
-		// If LOD is 0, post-edit all LODs. There's currently no way to tell from here
-		// if VertexPaintSettings.bPaintOnSpecificLOD is set to true or not.
-		const int32 MaxLOD = (MeshLODIndex == 0) ? StaticMeshComponent->LODData.Num() : (MeshLODIndex + 1);
-		for (int32 Index = MeshLODIndex; Index < MaxLOD; ++Index)
-		{
-			BeginInitResource(StaticMeshComponent->LODData[Index].OverrideVertexColors);
-		}
+		FStaticMeshComponentLODInfo* InstanceMeshLODInfo = &StaticMeshComponent->LODData[MeshLODIndex];
+		BeginInitResource(InstanceMeshLODInfo->OverrideVertexColors);
 	}
 	else
 	{
@@ -369,6 +364,7 @@ void FMeshPaintGeometryAdapterForStaticMeshes::PreEdit()
 {
 	const bool bUsingInstancedVertexColors = true; // Currently we are only painting to instances 
 	UStaticMesh* StaticMesh = ReferencedStaticMesh;
+	FStaticMeshComponentLODInfo* InstanceMeshLODInfo = NULL;
 	if (bUsingInstancedVertexColors)
 	{
 		// Mark the mesh component as modified
@@ -379,45 +375,38 @@ void FMeshPaintGeometryAdapterForStaticMeshes::PreEdit()
 		// Ensure LODData has enough entries in it, free not required.
 		StaticMeshComponent->SetLODDataCount(MeshLODIndex + 1, StaticMeshComponent->LODData.Num());
 
-		// If LOD is 0, pre-edit all LODs. There's currently no way to tell from here
-		// if VertexPaintSettings.bPaintOnSpecificLOD is set to true or not.
-		const int32 MaxLOD = (MeshLODIndex == 0) ? StaticMeshComponent->LODData.Num() : (MeshLODIndex + 1);
-		for (int32 Index = MeshLODIndex; Index < MaxLOD; ++Index)
+		InstanceMeshLODInfo = &StaticMeshComponent->LODData[MeshLODIndex];
+
+		// Destroy the instance vertex  color array if it doesn't fit
+		if (InstanceMeshLODInfo->OverrideVertexColors
+			&& InstanceMeshLODInfo->OverrideVertexColors->GetNumVertices() != LODModel->GetNumVertices())
 		{
-			FStaticMeshComponentLODInfo& InstanceMeshLODInfo = StaticMeshComponent->LODData[Index];
-			FStaticMeshLODResources& LODResource = StaticMesh->RenderData->LODResources[Index];
+			InstanceMeshLODInfo->ReleaseOverrideVertexColorsAndBlock();
+		}
 
-			// Destroy the instance vertex  color array if it doesn't fit
-			if (InstanceMeshLODInfo.OverrideVertexColors
-				&& InstanceMeshLODInfo.OverrideVertexColors->GetNumVertices() != LODResource.GetNumVertices())
-			{
-				InstanceMeshLODInfo.ReleaseOverrideVertexColorsAndBlock();
-			}
+		if (InstanceMeshLODInfo->OverrideVertexColors)
+		{
+			// Destroy the cached paint data every paint. Painting redefines the source data.
+			InstanceMeshLODInfo->PaintedVertices.Empty();
+			InstanceMeshLODInfo->BeginReleaseOverrideVertexColors();
+			FlushRenderingCommands();
+		}
+		else
+		{
+			// Setup the instance vertex color array if we don't have one yet
+			InstanceMeshLODInfo->OverrideVertexColors = new FColorVertexBuffer;
 
-			if (InstanceMeshLODInfo.OverrideVertexColors)
+			if ((int32)LODModel->VertexBuffers.ColorVertexBuffer.GetNumVertices() >= LODModel->GetNumVertices())
 			{
-				// Destroy the cached paint data every paint. Painting redefines the source data.
-				InstanceMeshLODInfo.PaintedVertices.Empty();
-				InstanceMeshLODInfo.BeginReleaseOverrideVertexColors();
-				FlushRenderingCommands();
+				// copy mesh vertex colors to the instance ones
+				InstanceMeshLODInfo->OverrideVertexColors->InitFromColorArray(&LODModel->VertexBuffers.ColorVertexBuffer.VertexColor(0), LODModel->GetNumVertices());
 			}
 			else
 			{
-				// Setup the instance vertex color array if we don't have one yet
-				InstanceMeshLODInfo.OverrideVertexColors = new FColorVertexBuffer;
-
-				if ((int32)LODResource.VertexBuffers.ColorVertexBuffer.GetNumVertices() >= LODResource.GetNumVertices())
-				{
-					// copy mesh vertex colors to the instance ones
-					InstanceMeshLODInfo.OverrideVertexColors->InitFromColorArray(&LODResource.VertexBuffers.ColorVertexBuffer.VertexColor(0), LODResource.GetNumVertices());
-				}
-				else
-				{
-					// Original mesh didn't have any colors, so just use a default color
-					InstanceMeshLODInfo.OverrideVertexColors->InitFromSingleColor(FColor::White, LODResource.GetNumVertices());
-				}
-
+				// Original mesh didn't have any colors, so just use a default color
+				InstanceMeshLODInfo->OverrideVertexColors->InitFromSingleColor(FColor::White, LODModel->GetNumVertices());
 			}
+
 		}
 		// See if the component has to cache its mesh vertex positions associated with override colors
 		StaticMeshComponent->CachePaintedDataIfNecessary();

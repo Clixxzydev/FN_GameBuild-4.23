@@ -21,16 +21,6 @@ public:
 	virtual ~INiagaraStackItemGroupAddAction() { }
 };
 
-/** Defines options for adding items to groups in the stack. */
-struct FNiagaraStackItemGroupAddOptions
-{
-	/** Whether or not to include deprecated items. */
-	bool bIncludeDeprecated		= false;
-
-	/** Whether or not to include non-library items. */
-	bool bIncludeNonLibrary		= false;
-};
-
 /** Defines utilities for generically handling adding items to groups in the stack. */
 class INiagaraStackItemGroupAddUtilities
 {
@@ -58,7 +48,7 @@ public:
 	virtual void AddItemDirectly() = 0;
 
 	/** Populates an array with the valid add actions. */
-	virtual void GenerateAddActions(TArray<TSharedRef<INiagaraStackItemGroupAddAction>>& OutAddActions, const FNiagaraStackItemGroupAddOptions& AddProperties = FNiagaraStackItemGroupAddOptions()) const = 0;
+	virtual void GenerateAddActions(TArray<TSharedRef<INiagaraStackItemGroupAddAction>>& OutAddActions) const = 0;
 
 	/** Executes the specified add action. */
 	virtual void ExecuteAddAction(TSharedRef<INiagaraStackItemGroupAddAction> AddAction, int32 TargetIndex) = 0;

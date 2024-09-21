@@ -174,16 +174,6 @@ public:
 
 	bool AcquirePoolSetAndDescriptorsIfNeeded(const class FVulkanDescriptorSetsLayout& Layout, bool bNeedDescriptors, VkDescriptorSet* OutDescriptors);
 
-
-	struct PendingQuery
-	{
-		uint64 Index;
-		uint64 Count;
-		VkBuffer BufferHandle;
-		VkQueryPool PoolHandle;
-	};
-	void AddPendingTimestampQuery(uint64 Index, uint64 Count, VkQueryPool PoolHandle, VkBuffer BufferHandle);
-
 private:
 	FVulkanDevice* Device;
 	VkCommandBuffer CommandBufferHandle;
@@ -192,7 +182,6 @@ private:
 	TArray<VkPipelineStageFlags> WaitFlags;
 	TArray<VulkanRHI::FSemaphore*> WaitSemaphores;
 	TArray<VulkanRHI::FSemaphore*> SubmittedWaitSemaphores;
-	TArray<PendingQuery> PendingQueries;
 
 	void MarkSemaphoresAsSubmitted()
 	{
@@ -290,12 +279,6 @@ public:
 		return ActiveCmdBuffer;
 	}
 
-	inline FVulkanCmdBuffer* GetActiveCmdBufferDirect()
-	{
-		return ActiveCmdBuffer;
-	}
-
-
 	inline bool HasPendingUploadCmdBuffer() const
 	{
 		return UploadCmdBuffer != nullptr;
@@ -312,11 +295,7 @@ public:
 
 	void SubmitActiveCmdBuffer(VulkanRHI::FSemaphore* SignalSemaphore = nullptr);
 
-	void WaitForCmdBuffer(FVulkanCmdBuffer* CmdBuffer, float TimeInSecondsToWait = 10.0f);
-
-
-	void AddQueryPoolForReset(VkQueryPool Pool, uint32 Size);
-	void FlushResetQueryPools();
+	void WaitForCmdBuffer(FVulkanCmdBuffer* CmdBuffer, float TimeInSecondsToWait = 1.0f);
 
 	// Update the fences of all cmd buffers except SkipCmdBuffer
 	void RefreshFenceStatus(FVulkanCmdBuffer* SkipCmdBuffer = nullptr)
@@ -336,16 +315,9 @@ public:
 	void FreeUnusedCmdBuffers();
 
 private:
-	struct FQueryPoolReset
-	{
-		VkQueryPool Pool; 
-		uint32 Size;
-	};
-	
 	FVulkanDevice* Device;
 	FVulkanCommandBufferPool Pool;
 	FVulkanQueue* Queue;
 	FVulkanCmdBuffer* ActiveCmdBuffer;
 	FVulkanCmdBuffer* UploadCmdBuffer;
-	TArray<FQueryPoolReset> PoolResets;
 };

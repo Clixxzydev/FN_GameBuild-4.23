@@ -327,8 +327,8 @@ void FNetworkObjectList::ForceActorRelevantNextUpdate(AActor* const Actor, UNetD
 	}
 
 	FNetworkObjectInfo* NetworkObjectInfo = NetworkObjectInfoPtr->Get();
-
-	NetworkObjectInfo->ForceRelevantFrame = NetDriver->ReplicationFrame + 1;
+	
+	NetworkObjectInfo->bForceRelevantNextUpdate = true;
 }
 
 void FNetworkObjectList::Reset()

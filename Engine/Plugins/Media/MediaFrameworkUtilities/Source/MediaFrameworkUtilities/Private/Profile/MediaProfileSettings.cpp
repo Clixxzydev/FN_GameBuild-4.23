@@ -10,30 +10,27 @@
 
 TArray<UProxyMediaSource*> UMediaProfileSettings::GetAllMediaSourceProxy() const
 {
-	if (MediaSourceProxyPtr.Num() != MediaSourceProxy.Num())
+	TArray<UProxyMediaSource*> Result;
+	Result.Reset(MediaSourceProxy.Num());
+
+	for (auto& Proxy : MediaSourceProxy)
 	{
-		MediaSourceProxyPtr.Reset(MediaSourceProxy.Num());
-		for (const TSoftObjectPtr<UProxyMediaSource>& Proxy : MediaSourceProxy)
-		{
-			MediaSourceProxyPtr.Add(Proxy.LoadSynchronous());
-		}
+		Result.Add(Proxy.LoadSynchronous());
 	}
-	return MediaSourceProxyPtr;
+	return Result;
 }
 
 
 TArray<UProxyMediaOutput*> UMediaProfileSettings::GetAllMediaOutputProxy() const
 {
-	if (MediaOutputProxyPtr.Num() != MediaOutputProxy.Num())
-	{
-		MediaOutputProxyPtr.Reset(MediaOutputProxy.Num());
+	TArray<UProxyMediaOutput*> Result;
+	Result.Reset(MediaOutputProxy.Num());
 
-		for (const TSoftObjectPtr<UProxyMediaOutput>& Proxy : MediaOutputProxy)
-		{
-			MediaOutputProxyPtr.Add(Proxy.LoadSynchronous());
-		}
+	for (auto& Proxy : MediaOutputProxy)
+	{
+		Result.Add(Proxy.LoadSynchronous());
 	}
-	return MediaOutputProxyPtr;
+	return Result;
 }
 
 
@@ -43,74 +40,22 @@ UMediaProfile* UMediaProfileSettings::GetStartupMediaProfile() const
 }
 
 
-#if WITH_EDITOR
-void UMediaProfileSettings::SetMediaSourceProxy(const TArray<UProxyMediaSource*>& InProxies)
-{
-	MediaSourceProxy.Reset();
-	MediaSourceProxyPtr = InProxies;
-	for (UProxyMediaSource* Proxy : InProxies)
-	{
-		MediaSourceProxy.Add(Proxy);
-	}
-	OnMediaProxiesChanged.Broadcast();
-}
-
-
-void UMediaProfileSettings::SetMediaOutputProxy(const TArray<UProxyMediaOutput*>& InProxies)
-{
-	MediaOutputProxy.Reset();
-	MediaOutputProxyPtr = InProxies;
-	for (UProxyMediaOutput* Proxy : InProxies)
-	{
-		MediaOutputProxy.Add(Proxy);
-	}
-	OnMediaProxiesChanged.Broadcast();
-}
-
-
-void UMediaProfileSettings::PostEditChangeProperty(struct FPropertyChangedEvent& InPropertyChangedEvent)
-{
-	if (GET_MEMBER_NAME_CHECKED(ThisClass, MediaOutputProxy) == InPropertyChangedEvent.GetPropertyName()
-		|| GET_MEMBER_NAME_CHECKED(ThisClass, MediaSourceProxy) == InPropertyChangedEvent.GetPropertyName())
-	{
-		// Recache the proxies ptr
-		MediaSourceProxyPtr.Reset(MediaSourceProxy.Num());
-		MediaOutputProxyPtr.Reset(MediaOutputProxy.Num());
-		GetAllMediaSourceProxy();
-		GetAllMediaOutputProxy();
-
-		OnMediaProxiesChanged.Broadcast();
-	}
-
-	Super::PostEditChangeProperty(InPropertyChangedEvent);
-}
-#endif // WITH_EDITOR
-
-
 UMediaProfileEditorSettings::UMediaProfileEditorSettings()
-#if WITH_EDITOR
-	: bDisplayInToolbar(true)
-	, bDisplayInMainEditor(false)
-#endif
+	:bDisplayInToolbar(true)
 {
 }
 
 
 UMediaProfile* UMediaProfileEditorSettings::GetUserMediaProfile() const
 {
-#if WITH_EDITOR
 	return UserMediaProfile.LoadSynchronous();
-#else
-	return nullptr;
-#endif
-	
 }
 
 
 void UMediaProfileEditorSettings::SetUserMediaProfile(UMediaProfile* InMediaProfile)
 {
-#if WITH_EDITOR
 	UserMediaProfile = InMediaProfile;
+#if WITH_EDITOR
 	SaveConfig();
 #endif
 }

@@ -9,8 +9,6 @@
 #include "Modules/ModuleManager.h"
 #include "USDImporterProjectSettings.h"
 
-#include "USDMemory.h"
-
 #define LOCTEXT_NAMESPACE "USDImportPlugin"
 
 class FUSDImporterModule : public IUSDImporterModule, public FGCObject
@@ -19,7 +17,7 @@ public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override
 	{
-#if USE_USD_SDK
+
 		// Ensure base usd plugins are found and loaded
 		FString BasePluginPath = FPaths::ConvertRelativePathToFull(FPaths::EnginePluginsDir() + FString(TEXT("Importers/USDImporter")));
 
@@ -43,11 +41,9 @@ public:
 			}
 		}
 
-		IUnrealUSDWrapperModule& UnrealUSDWrapperModule = FModuleManager::Get().LoadModuleChecked< IUnrealUSDWrapperModule >( TEXT("UnrealUSDWrapper") );
-		UnrealUSDWrapperModule.Initialize(PluginPaths);
+		UnrealUSDWrapper::Initialize(PluginPaths);
 
 		USDImporter = NewObject<UUSDImporter>();
-#endif // #if USE_USD_SDK
 	}
 
 	virtual void ShutdownModule() override
@@ -71,4 +67,5 @@ private:
 
 #undef LOCTEXT_NAMESPACE
 
-IMPLEMENT_MODULE_USD(FUSDImporterModule, USDImporter)
+IMPLEMENT_MODULE(FUSDImporterModule, USDImporter)
+

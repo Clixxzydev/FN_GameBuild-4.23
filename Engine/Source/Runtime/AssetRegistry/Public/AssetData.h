@@ -153,12 +153,12 @@ public:
 
 	bool operator>(const FAssetData& Other) const
 	{
-		return  Other.ObjectPath.LexicalLess(ObjectPath);
+		return ObjectPath > Other.ObjectPath;
 	}
 
 	bool operator<(const FAssetData& Other) const
 	{
-		return ObjectPath.LexicalLess(Other.ObjectPath);
+		return ObjectPath < Other.ObjectPath;
 	}
 
 	/** Checks to see if this AssetData refers to an asset or is NULL */

@@ -146,7 +146,7 @@ struct FSortableDependencySort
 
 		if ((AClass != BClass) && bIsAClassGrouped && bIsBClassGrouped)
 		{
-			return BClass.LexicalLess(AClass);
+			return AClass > BClass;
 		}
 
 		if (A.DepSet != B.DepSet)
@@ -430,10 +430,10 @@ int32 UAssetRegUtilCommandlet::Main(const FString& CmdLineParams)
 	AssetRegistry->SearchAllAssets(true);
 	
 	FString ReorderFile;
-	if (FParse::Value(*CmdLineParams, TEXT("ReorderFile="), ReorderFile, false))
+	if (FParse::Value(*CmdLineParams, TEXT("ReorderFile="), ReorderFile))
 	{
 		FString ReorderOutput;
-		if (!FParse::Value(*CmdLineParams, TEXT("ReorderOutput="), ReorderOutput, false))
+		if (!FParse::Value(*CmdLineParams, TEXT("ReorderOutput="), ReorderOutput))
 		{
 			//if nothing specified, base it on the input name
 			ReorderOutput = FPaths::SetExtension(FPaths::SetExtension(ReorderFile, TEXT("")) + TEXT("Reordered"), FPaths::GetExtension(ReorderFile));

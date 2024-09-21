@@ -70,11 +70,7 @@ void* PhysXCpuIndicator::createIndicatorBlock(AgMMFile &mmfile, bool &alreadyExi
 	char configName[128];
 
     // Get the windows version (we can only create Global\\ namespace objects in XP)
-// @ATG_CHANGE : BEGIN HoloLens support (API doesn't exist, but always Vista or greater)
-#if PX_HOLOLENS
-	BOOL bIsVistaOrGreater = TRUE;
-#elif _MSC_VER >= 1800
-// @ATG_CHANGE : END
+#if _MSC_VER >= 1800
 	// Windows 8.1 SDK, which comes with VS2013, deprecated the GetVersionEx function
 	// Windows 8.1 SDK added the IsWindowsVistaOrGreater helper function which we use instead
 	BOOL bIsVistaOrGreater = IsWindowsVistaOrGreater();

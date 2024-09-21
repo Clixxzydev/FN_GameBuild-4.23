@@ -12,6 +12,9 @@ class USphereComponent;
 class UDisplayClusterSceneComponent;
 class UDisplayClusterSceneComponentSyncParent;
 
+class IPDisplayClusterGameManager;
+
+
 /**
  * VR root. This pawn represents VR hierarchy in the game.
  */
@@ -19,11 +22,9 @@ UCLASS()
 class DISPLAYCLUSTER_API ADisplayClusterPawn
 	: public APawn
 {
-	GENERATED_BODY()
+	GENERATED_UCLASS_BODY()
 
 public:
-	ADisplayClusterPawn(const FObjectInitializer& ObjectInitializer);
-
 	inline USphereComponent* GetCollisionComponent() const
 	{ return CollisionComponent; }
 
@@ -52,7 +53,7 @@ public:
 
 protected:
 	/** Camera component */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DisplayCluster")
+	UPROPERTY(VisibleAnywhere, Category = "DisplayCluster")
 	UCameraComponent* CameraComponent;
 
 	/** Collision component */
@@ -69,6 +70,8 @@ private:
 	
 	UPROPERTY()
 	UDisplayClusterSceneComponentSyncParent* DisplayClusterSyncCollisionOffset;
+
+	IPDisplayClusterGameManager* GameMgr = nullptr;
 
 	bool bIsCluster;
 };

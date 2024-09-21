@@ -53,7 +53,6 @@
 #include "BlueprintEditorSettings.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "SPinTypeSelector.h"
-#include "GraphEditorSettings.h"
 
 #define LOCTEXT_NAMESPACE "BlueprintPalette"
 
@@ -251,29 +250,25 @@ static void GetSubGraphIcon(FEdGraphSchemaAction_K2Graph const* const ActionIn, 
 		break;
 	case EEdGraphSchemaAction_K2Graph::Function:
 		{
-			if (ActionIn->EdGraph == nullptr)
+			if ( ActionIn->EdGraph == nullptr )
 			{
 				IconOut = FEditorStyle::GetBrush(TEXT("GraphEditor.PotentialOverrideFunction_16x"));
 				ToolTipOut = LOCTEXT("PotentialOverride_Tooltip", "Potential Override");	
 			}
 			else
 			{
-				if (ActionIn->EdGraph->IsA(UAnimationGraph::StaticClass()))
+				if ( ActionIn->EdGraph->IsA(UAnimationGraph::StaticClass()) )
 				{
 					IconOut = FEditorStyle::GetBrush(TEXT("GraphEditor.Animation_16x"));
 				}
 				else if (UFunction* OverrideFunc = FindField<UFunction>(BlueprintIn->ParentClass, ActionIn->FuncName))
 				{
-					const bool bIsPureFunction = OverrideFunc && OverrideFunc->HasAnyFunctionFlags(FUNC_BlueprintPure);
-					IconOut = FEditorStyle::GetBrush(bIsPureFunction ? TEXT("GraphEditor.OverridePureFunction_16x") : TEXT("GraphEditor.OverrideFunction_16x"));
+					IconOut = FEditorStyle::GetBrush(TEXT("GraphEditor.OverrideFunction_16x"));
 					ToolTipOut = LOCTEXT("Override_Tooltip", "Override");
 				}
 				else
 				{
-					UFunction* Function = FindField<UFunction>(BlueprintIn->SkeletonGeneratedClass, ActionIn->FuncName);
-					const bool bIsPureFunction = Function && Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
-
-					IconOut = FEditorStyle::GetBrush(bIsPureFunction ? TEXT("GraphEditor.PureFunction_16x") : TEXT("GraphEditor.Function_16x"));
+					IconOut = FEditorStyle::GetBrush(TEXT("GraphEditor.Function_16x"));
 					if (ActionIn->EdGraph->IsA(UAnimationGraph::StaticClass()))
 					{
 						ToolTipOut = LOCTEXT("AnimationGraph_Tooltip", "Animation Graph");
@@ -708,18 +703,18 @@ public:
 			.TargetPinType(this, &SPinTypeSelectorHelper::OnGetVarType)
 			.OnPinTypeChanged(this, &SPinTypeSelectorHelper::OnVarTypeChanged)
 			.TypeTreeFilter(ETypeTreeFilter::None)
-			.SelectorType(BlueprintEditorPtr.IsValid() ? SPinTypeSelector::ESelectorType::Compact : SPinTypeSelector::ESelectorType::None)
+			.bCompactSelector(true)
 		];
 	}
 
 private:
 	FEdGraphPinType OnGetVarType() const
 	{
-		if (UProperty* VarProp = VariableProperty.Get())
+		if (VariableProperty)
 		{
 			const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 			FEdGraphPinType Type;
-			K2Schema->ConvertPropertyToPinType(VarProp, Type);
+			K2Schema->ConvertPropertyToPinType(VariableProperty, Type);
 			return Type;
 		}
 		return FEdGraphPinType();
@@ -729,16 +724,16 @@ private:
 	{
 		if (FBlueprintEditorUtils::IsPinTypeValid(InNewPinType))
 		{
-			if (UProperty* VarProp = VariableProperty.Get())
+			if (VariableProperty)
 			{
-				FName VarName = VarProp->GetFName();
+				FName VarName = VariableProperty->GetFName();
 
 				if (VarName != NAME_None)
 				{
 					// Set the MyBP tab's last pin type used as this, for adding lots of variables of the same type
 					BlueprintEditorPtr.Pin()->GetMyBlueprintWidget()->GetLastPinTypeUsed() = InNewPinType;
 
-					if (UFunction* LocalVariableScope = Cast<UFunction>(VarProp->GetOuter()))
+					if (UFunction* LocalVariableScope = Cast<UFunction>(VariableProperty->GetOuter()))
 					{
 						FBlueprintEditorUtils::ChangeLocalVariableType(BlueprintObj, LocalVariableScope, VarName, InNewPinType);
 					}
@@ -762,7 +757,7 @@ private:
 	TWeakPtr<FBlueprintEditor>     BlueprintEditorPtr;
 
 	/** Variable Property to change the type of */
-	TWeakObjectPtr<UProperty> VariableProperty;
+	UProperty* VariableProperty;
 };
 
 /*******************************************************************************
@@ -939,7 +934,18 @@ private:
 		}
 		else
 		{
-			ToolTipText = LOCTEXT("VariablePrivacy_is_public_Tooltip", "Variable is public and is editable on each instance of this Blueprint.");
+			TSharedPtr<FEdGraphSchemaAction_K2Var> VarAction = StaticCastSharedPtr<FEdGraphSchemaAction_K2Var>(ActionPtr.Pin());
+
+			FString Result;
+			FBlueprintEditorUtils::GetBlueprintVariableMetaData(BlueprintObj, VarAction->GetVariableName(), nullptr, TEXT("tooltip"), Result);
+			if ( !Result.IsEmpty() )
+			{
+				ToolTipText = LOCTEXT("VariablePrivacy_is_public_Tooltip", "Variable is public and is editable on each instance of this Blueprint.");
+			}
+			else
+			{
+				ToolTipText = LOCTEXT("VariablePrivacy_is_public_no_tooltip_Tooltip", "Variable is public but MISSING TOOLTIP.");
+			}
 		}
 		return ToolTipText;
 	}

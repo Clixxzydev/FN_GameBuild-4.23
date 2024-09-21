@@ -359,8 +359,6 @@ typedef TOpenGLResourceProxy<FRHIPixelShader, FOpenGLPixelShader> FOpenGLPixelSh
 typedef TOpenGLResourceProxy<FRHIGeometryShader, FOpenGLGeometryShader> FOpenGLGeometryShaderProxy;
 typedef TOpenGLResourceProxy<FRHIHullShader, FOpenGLHullShader> FOpenGLHullShaderProxy;
 typedef TOpenGLResourceProxy<FRHIDomainShader, FOpenGLDomainShader> FOpenGLDomainShaderProxy;
-typedef TOpenGLResourceProxy<FRHIComputeShader, FOpenGLComputeShader> FOpenGLComputeShaderProxy;
-
 
 template <typename T>
 struct TIsGLProxyObject
@@ -618,7 +616,7 @@ public:
 
 		if ( bUseMapBuffer)
 		{
-			FOpenGL::EResourceLockMode LockMode = bReadOnly ? FOpenGL::EResourceLockMode::RLM_ReadOnly : FOpenGL::EResourceLockMode::RLM_WriteOnly;
+			FOpenGL::EResourceLockMode LockMode = bReadOnly ? FOpenGL::RLM_ReadOnly : FOpenGL::RLM_WriteOnly;
 			Data = static_cast<uint8*>( FOpenGL::MapBufferRange( Type, InOffset, InSize, LockMode ) );
 //			checkf(Data != NULL, TEXT("FOpenGL::MapBufferRange Failed, glError %d (0x%x)"), glGetError(), glGetError());
 
@@ -685,7 +683,7 @@ public:
 
 		if ( bUseMapBuffer)
 		{
-			FOpenGL::EResourceLockMode LockMode = bDiscard ? FOpenGL::EResourceLockMode::RLM_WriteOnly : FOpenGL::EResourceLockMode::RLM_WriteOnlyUnsynchronized;
+			FOpenGL::EResourceLockMode LockMode = bDiscard ? FOpenGL::RLM_WriteOnly : FOpenGL::RLM_WriteOnlyUnsynchronized;
 			Data = static_cast<uint8*>( FOpenGL::MapBufferRange( Type, InOffset, InSize, LockMode ) );
 			LockOffset = InOffset;
 			LockSize = InSize;
@@ -1168,12 +1166,12 @@ public:
 	/** Initialization constructor. */
 	FOpenGLBoundShaderState(
 		FOpenGLLinkedProgram* InLinkedProgram,
-		FRHIVertexDeclaration* InVertexDeclarationRHI,
-		FRHIVertexShader* InVertexShaderRHI,
-		FRHIPixelShader* InPixelShaderRHI,
-		FRHIGeometryShader* InGeometryShaderRHI,
-		FRHIHullShader* InHullShaderRHI,
-		FRHIDomainShader* InDomainShaderRHI
+		FVertexDeclarationRHIParamRef InVertexDeclarationRHI,
+		FVertexShaderRHIParamRef InVertexShaderRHI,
+		FPixelShaderRHIParamRef InPixelShaderRHI,
+		FGeometryShaderRHIParamRef InGeometryShaderRHI,
+		FHullShaderRHIParamRef InHullShaderRHI,
+		FDomainShaderRHIParamRef InDomainShaderRHI
 		);
 
 	const TBitArray<>& GetTextureNeeds(int32& OutMaxTextureStageUsed);
@@ -1590,7 +1588,7 @@ class FOpenGLBaseTexture2DArray : public FRHITexture2DArray
 {
 public:
 	FOpenGLBaseTexture2DArray(uint32 InSizeX, uint32 InSizeY, uint32 InSizeZ, uint32 InNumMips, uint32 InNumSamples, uint32 InNumSamplesTileMem, uint32 InArraySize, EPixelFormat InFormat, uint32 InFlags, const FClearValueBinding& InClearValue)
-	: FRHITexture2DArray(InSizeX,InSizeY,InSizeZ,InNumMips,InNumSamples,InFormat,InFlags, InClearValue)
+	: FRHITexture2DArray(InSizeX,InSizeY,InSizeZ,InNumMips,InFormat,InFlags, InClearValue)
 	{
 		check(InNumSamples == 1);	// OpenGL supports multisampled texture arrays, but they're currently not implemented in OpenGLDrv.
 		check(InNumSamplesTileMem == 1);
@@ -1818,7 +1816,7 @@ class FOpenGLTextureUnorderedAccessView : public FOpenGLUnorderedAccessView
 {
 public:
 
-	FOpenGLTextureUnorderedAccessView(FRHITexture* InTexture);
+	FOpenGLTextureUnorderedAccessView(FTextureRHIParamRef InTexture);
 
 	FTextureRHIRef TextureRHI; // to keep the texture alive
 };
@@ -1830,27 +1828,11 @@ public:
 
 	FOpenGLVertexBufferUnorderedAccessView();
 
-	FOpenGLVertexBufferUnorderedAccessView(	FOpenGLDynamicRHI* InOpenGLRHI, FRHIVertexBuffer* InVertexBuffer, uint8 Format);
+	FOpenGLVertexBufferUnorderedAccessView(	FOpenGLDynamicRHI* InOpenGLRHI, FVertexBufferRHIParamRef InVertexBuffer, uint8 Format);
 
 	virtual ~FOpenGLVertexBufferUnorderedAccessView();
 
 	FVertexBufferRHIRef VertexBufferRHI; // to keep the vertex buffer alive
-
-	FOpenGLDynamicRHI* OpenGLRHI;
-
-	virtual uint32 GetBufferSize() override;
-};
-
-class FOpenGLStructuredBufferUnorderedAccessView : public FOpenGLUnorderedAccessView
-{
-public:
-	FOpenGLStructuredBufferUnorderedAccessView();
-
-	FOpenGLStructuredBufferUnorderedAccessView(	FOpenGLDynamicRHI* InOpenGLRHI, FRHIStructuredBuffer* InBuffer, uint8 Format);
-
-	virtual ~FOpenGLStructuredBufferUnorderedAccessView();
-
-	FStructuredBufferRHIRef StructuredBufferRHI; // to keep the stuctured buffer alive
 
 	FOpenGLDynamicRHI* OpenGLRHI;
 
@@ -1888,7 +1870,7 @@ public:
 	,	OwnsResource(true)
 	{}
 
-	FOpenGLShaderResourceView( FOpenGLDynamicRHI* InOpenGLRHI, GLuint InResource, GLenum InTarget, FRHIVertexBuffer* InVertexBuffer, uint8 InFormat )
+	FOpenGLShaderResourceView( FOpenGLDynamicRHI* InOpenGLRHI, GLuint InResource, GLenum InTarget, FVertexBufferRHIParamRef InVertexBuffer, uint8 InFormat )
 	:	Resource(InResource)
 	,	Target(InTarget)
 	,	LimitMip(-1)
@@ -1932,7 +1914,7 @@ protected:
 class FOpenGLShaderResourceViewProxy : public TOpenGLResourceProxy<FRHIShaderResourceView, FOpenGLShaderResourceView>
 {
 public:
-	FOpenGLShaderResourceViewProxy(TFunction<FOpenGLShaderResourceView*(FRHIShaderResourceView*)> CreateFunc)
+	FOpenGLShaderResourceViewProxy(TFunction<FOpenGLShaderResourceView*(FShaderResourceViewRHIParamRef)> CreateFunc)
 		: TOpenGLResourceProxy<FRHIShaderResourceView, FOpenGLShaderResourceView>(CreateFunc)
 	{}
 
@@ -1951,7 +1933,7 @@ struct TIsGLProxyObject<FOpenGLShaderResourceViewProxy>
 void OPENGLDRV_API OpenGLTextureDeleted(FRHITexture* Texture);
 void OPENGLDRV_API OpenGLTextureAllocated( FRHITexture* Texture , uint32 Flags);
 
-void OPENGLDRV_API ReleaseOpenGLFramebuffers(FOpenGLDynamicRHI* Device, FRHITexture* TextureRHI);
+void OPENGLDRV_API ReleaseOpenGLFramebuffers(FOpenGLDynamicRHI* Device, FTextureRHIParamRef TextureRHI);
 
 /** A OpenGL event query resource. */
 class FOpenGLEventQuery : public FRenderResource
@@ -2123,7 +2105,7 @@ struct TOpenGLResourceTraits<FRHIPixelShader>
 template<>
 struct TOpenGLResourceTraits<FRHIComputeShader>
 {
-	typedef FOpenGLComputeShaderProxy TConcreteType;
+	typedef FOpenGLComputeShader TConcreteType;
 };
 template<>
 struct TOpenGLResourceTraits<FRHIBoundShaderState>

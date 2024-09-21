@@ -7,10 +7,6 @@
 #include "MessageHandler/RecordingMessageHandler.h"
 
 
-namespace RemoteSessionVars
-{
-	static FAutoConsoleVariable BlockLocalInput(TEXT("Remote.BlockLocalInput"), 0, TEXT("Don't accept local input when a host is connected"));
-};
 
 FRemoteSessionInputChannel::FRemoteSessionInputChannel(ERemoteSessionChannelMode InRole, TSharedPtr<FBackChannelOSCConnection, ESPMode::ThreadSafe> InConnection)
 	: IRemoteSessionChannel(InRole, InConnection)
@@ -23,25 +19,22 @@ FRemoteSessionInputChannel::FRemoteSessionInputChannel(ERemoteSessionChannelMode
 	// handler for that data 
 	if (Role == ERemoteSessionChannelMode::Write)
 	{
-		// when we're recording (writing) we create a recording handler that receives platform-level input
-		// and passes it through to the default UE handler
 		DefaultHandler = FSlateApplication::Get().GetPlatformApplication()->GetMessageHandler();
 
-		RecordingHandler = MakeShareable(new FRecordingMessageHandler(DefaultHandler));
+		RecordingHandler = MakeShareable(new FRecordingMessageHandler(DefaultHandler.Pin()));
+
 		RecordingHandler->SetRecordingHandler(this);
 
 		FSlateApplication::Get().GetPlatformApplication()->SetMessageHandler(RecordingHandler.ToSharedRef());
 	}
 	else
 	{
-		DefaultHandler = FSlateApplication::Get().GetPlatformApplication()->GetMessageHandler();
+		TSharedRef<FGenericApplicationMessageHandler> DestinationHandler = FSlateApplication::Get().GetPlatformApplication()->GetMessageHandler();
 
-		PlaybackHandler = MakeShareable(new FRecordingMessageHandler(DefaultHandler));
+		PlaybackHandler = MakeShareable(new FRecordingMessageHandler(DestinationHandler));
 		
 		auto Delegate = FBackChannelDispatchDelegate::FDelegate::CreateRaw(this, &FRemoteSessionInputChannel::OnRemoteMessage);
 		MessageCallbackHandle = Connection->AddMessageHandler(TEXT("/MessageHandler/"), Delegate);
-
-		FSlateApplication::Get().GetPlatformApplication()->SetMessageHandler(PlaybackHandler.ToSharedRef());
 	}
 }
 
@@ -57,7 +50,7 @@ FRemoteSessionInputChannel::~FRemoteSessionInputChannel()
 	// todo - is this ok? Might other things have changed the handler like we do?
 	if (DefaultHandler.IsValid())
 	{
-		FSlateApplication::Get().GetPlatformApplication()->SetMessageHandler(DefaultHandler.ToSharedRef());
+		FSlateApplication::Get().GetPlatformApplication()->SetMessageHandler(DefaultHandler.Pin().ToSharedRef());
 	}
 
 	// should restore handler? What if something else changed it...
@@ -83,20 +76,7 @@ void FRemoteSessionInputChannel::SetInputRect(const FVector2D& TopLeft, const FV
 
 void FRemoteSessionInputChannel::Tick(const float InDeltaTime)
 {
-	// everything else happens via messaging.
-	if (Role == ERemoteSessionChannelMode::Read)
-	{
-		bool bBlockInput = RemoteSessionVars::BlockLocalInput->GetInt() > 0;
-
-		if (bBlockInput && !PlaybackHandler->IsConsumingInput())
-		{
-			PlaybackHandler->SetConsumeInput(true);
-		}
-		else if (!bBlockInput && PlaybackHandler->IsConsumingInput())
-		{
-			PlaybackHandler->SetConsumeInput(false);
-		}
-	}
+	// everything happens via messaging.
 }
 
 void FRemoteSessionInputChannel::RecordMessage(const TCHAR* MsgName, const TArray<uint8>& Data)
@@ -120,6 +100,6 @@ void FRemoteSessionInputChannel::OnRemoteMessage(FBackChannelOSCMessage& Message
 
 	TArray<uint8> MsgData;
 	Message << MsgData;
-	
+
 	PlaybackHandler->PlayMessage(*MessageName, MsgData);
 }

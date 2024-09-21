@@ -34,7 +34,7 @@ FIndexBufferRHIRef FOpenGLDynamicRHI::CreateIndexBuffer_RenderThread(class FRHIC
 	return this->RHICreateIndexBuffer(Stride, Size, InUsage, CreateInfo);
 }
 
-void* FOpenGLDynamicRHI::RHILockIndexBuffer(FRHIIndexBuffer* IndexBufferRHI,uint32 Offset,uint32 Size,EResourceLockMode LockMode)
+void* FOpenGLDynamicRHI::RHILockIndexBuffer(FIndexBufferRHIParamRef IndexBufferRHI,uint32 Offset,uint32 Size,EResourceLockMode LockMode)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 	RHITHREAD_GLCOMMAND_PROLOGUE();
@@ -44,7 +44,7 @@ void* FOpenGLDynamicRHI::RHILockIndexBuffer(FRHIIndexBuffer* IndexBufferRHI,uint
 	RHITHREAD_GLCOMMAND_EPILOGUE_RETURN(void*);
 }
 
-void FOpenGLDynamicRHI::RHIUnlockIndexBuffer(FRHIIndexBuffer* IndexBufferRHI)
+void FOpenGLDynamicRHI::RHIUnlockIndexBuffer(FIndexBufferRHIParamRef IndexBufferRHI)
 {
 	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 	RHITHREAD_GLCOMMAND_PROLOGUE();

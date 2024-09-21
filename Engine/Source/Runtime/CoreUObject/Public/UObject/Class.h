@@ -7,24 +7,22 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-#include "Concepts/GetTypeHashable.h"
-#include "Math/RandomStream.h"
-#include "Misc/EnumClassFlags.h"
+#include "UObject/Script.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/UObjectGlobals.h"
+#include "UObject/Object.h"
 #include "Misc/FallbackStruct.h"
 #include "Misc/Guid.h"
-#include "Misc/Optional.h"
-#include "Misc/ScopeRWLock.h"
+#include "Math/RandomStream.h"
+#include "UObject/GarbageCollection.h"
+#include "UObject/CoreNative.h"
+#include "UObject/ReflectedTypeAccessors.h"
+#include "Templates/HasGetTypeHash.h"
 #include "Templates/IsAbstract.h"
 #include "Templates/IsEnum.h"
-#include "Templates/Models.h"
-#include "UObject/CoreNative.h"
-#include "UObject/GarbageCollection.h"
-#include "UObject/Object.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/ReflectedTypeAccessors.h"
-#include "UObject/Script.h"
-#include "UObject/UObjectGlobals.h"
+#include "Misc/Optional.h"
+#include "Misc/EnumClassFlags.h"
+#include "Misc/ScopeRWLock.h"
 
 struct FCustomPropertyListNode;
 struct FFrame;
@@ -83,13 +81,6 @@ class COREUOBJECT_API UField : public UObject
 
 	/** Goes up the outer chain to look for a UStruct */
 	UStruct* GetOwnerStruct() const;
-
-	/** 
-	 * Returns a human readable string that was assigned to this field at creation. 
-	 * By default this is the same as GetName() but it can be overridden if that is an internal-only name.
-	 * This name is consistent in editor/cooked builds, is not localized, and is useful for data import/export.
-	 */
-	FString GetAuthoredName() const;
 
 #if WITH_EDITOR || HACK_HEADER_GENERATOR
 	/**
@@ -293,7 +284,7 @@ public:
 
 public:
 	// Constructors.
-	UStruct( EStaticConstructor, int32 InSize, int32 InAlignment, EObjectFlags InFlags );
+	UStruct( EStaticConstructor, int32 InSize, EObjectFlags InFlags );
 	explicit UStruct(UStruct* InSuperStruct, SIZE_T ParamsSize = 0, SIZE_T Alignment = 0);
 	explicit UStruct(const FObjectInitializer& ObjectInitializer, UStruct* InSuperStruct, SIZE_T ParamsSize = 0, SIZE_T Alignment = 0 );
 
@@ -332,14 +323,9 @@ public:
 	/** Creates the field/property links and gets structure ready for use at runtime */
 	virtual void Link(FArchive& Ar, bool bRelinkExistingProperties);
 
-	/** Serializes struct properties, does not handle defaults*/
-	virtual void SerializeBin(FArchive& Ar, void* Data) const final 
-	{
-		SerializeBin(FStructuredArchiveFromArchive(Ar).GetSlot(), Data);
-	}
-
 	/** Serializes struct properties, does not handle defaults */
 	virtual void SerializeBin(FStructuredArchive::FSlot Slot, void* Data) const;
+	virtual void SerializeBin(FArchive& Ar, void* Data) const;
 
 	/**
 	 * Serializes the class properties that reside in Data if they differ from the corresponding values in DefaultData
@@ -352,13 +338,8 @@ public:
 	void SerializeBinEx( FStructuredArchive::FSlot Slot, void* Data, void const* DefaultData, UStruct* DefaultStruct ) const;
 
 	/** Serializes list of properties, using property tags to handle mismatches */
-	virtual void SerializeTaggedProperties(FArchive& Ar, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad = nullptr) const final 
-	{
-		SerializeTaggedProperties(FStructuredArchiveFromArchive(Ar).GetSlot(), Data, DefaultsStruct, Defaults, BreakRecursionIfFullyLoad);
-	}
-
-	/** Serializes list of properties, using property tags to handle mismatches */
-	virtual void SerializeTaggedProperties(FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad = nullptr) const;
+	virtual void SerializeTaggedProperties( FArchive& Ar, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad=nullptr) const;
+	virtual void SerializeTaggedProperties( FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, uint8* Defaults, const UObject* BreakRecursionIfFullyLoad = nullptr) const;
 
 	/**
 	 * Initialize a struct over uninitialized memory. This may be done by calling the native constructor or individually initializing properties
@@ -379,8 +360,10 @@ public:
 	virtual void DestroyStruct(void* Dest, int32 ArrayDim = 1) const;
 
 public:
-	/** Look up a property by an alternate name if it was not found in the first search, this is overridden for user structs */
+#if WITH_EDITOR
+	/** Used to search for properties in user defined structs */
 	virtual UProperty* CustomFindProperty(const FName InName) const { return nullptr; };
+#endif // WITH_EDITOR
 
 	/** Serialize an expression to an archive. Returns expression token */
 	virtual EExprToken SerializeExpr(int32& iCode, FArchive& Ar);
@@ -445,11 +428,11 @@ public:
 	 */
 	virtual void SetSuperStruct(UStruct* NewSuperStruct);
 
-	UE_DEPRECATED(4.23, "Replace with GetAuthoredNameForField or UField::GetAuthoredName")
-	virtual FString PropertyNameToDisplayName(FName InName) const;
-
-	/** Returns a human readable string for a given field, overridden for user defined structs */
-	virtual FString GetAuthoredNameForField(const UField* Field) const;
+	/** Returns the a human readable string for a property, overridden for user defined structs */
+	virtual FString PropertyNameToDisplayName(FName InName) const 
+	{ 
+		return InName.ToString();
+	}
 
 #if WITH_EDITOR || HACK_HEADER_GENERATOR
 	/** Try and find boolean metadata with the given key. If not found on this class, work up hierarchy looking for it. */
@@ -559,11 +542,14 @@ enum EStructFlags
 	/** If set, this struct can share net serialization state across connections */
 	STRUCT_NetSharedSerialization = 0x00400000,
 
+	/**  */
+	STRUCT_SerializeNativeStructured = 0x00800000,
+
 	/** Struct flags that are automatically inherited */
 	STRUCT_Inherit				= STRUCT_HasInstancedReference|STRUCT_Atomic,
 
 	/** Flags that are always computed, never loaded or done with code generation */
-	STRUCT_ComputedFlags		= STRUCT_NetDeltaSerializeNative | STRUCT_NetSerializeNative | STRUCT_SerializeNative | STRUCT_PostSerializeNative | STRUCT_CopyNative | STRUCT_IsPlainOldData | STRUCT_NoDestructor | STRUCT_ZeroConstructor | STRUCT_IdenticalNative | STRUCT_AddStructReferencedObjects | STRUCT_ExportTextItemNative | STRUCT_ImportTextItemNative | STRUCT_SerializeFromMismatchedTag | STRUCT_PostScriptConstruct | STRUCT_NetSharedSerialization
+	STRUCT_ComputedFlags		= STRUCT_NetDeltaSerializeNative | STRUCT_NetSerializeNative | STRUCT_SerializeNative | STRUCT_SerializeNativeStructured | STRUCT_PostSerializeNative | STRUCT_CopyNative | STRUCT_IsPlainOldData | STRUCT_NoDestructor | STRUCT_ZeroConstructor | STRUCT_IdenticalNative | STRUCT_AddStructReferencedObjects | STRUCT_ExportTextItemNative | STRUCT_ImportTextItemNative | STRUCT_SerializeFromMismatchedTag | STRUCT_PostScriptConstruct | STRUCT_NetSharedSerialization
 };
 
 
@@ -840,13 +826,13 @@ FORCEINLINE typename TEnableIf<TStructOpsTypeTraits<CPPSTRUCT>::WithStructuredSe
  * Selection of GetTypeHash call.
  */
 template<class CPPSTRUCT>
-FORCEINLINE typename TEnableIf<!TModels<CGetTypeHashable, CPPSTRUCT>::Value, uint32>::Type GetTypeHashOrNot(const CPPSTRUCT *Data)
+FORCEINLINE typename TEnableIf<!THasGetTypeHash<CPPSTRUCT>::Value, uint32>::Type GetTypeHashOrNot(const CPPSTRUCT *Data)
 {
 	return 0;
 }
 
 template<class CPPSTRUCT>
-FORCEINLINE typename TEnableIf<TModels<CGetTypeHashable, CPPSTRUCT>::Value, uint32>::Type GetTypeHashOrNot(const CPPSTRUCT *Data)
+FORCEINLINE typename TEnableIf<THasGetTypeHash<CPPSTRUCT>::Value, uint32>::Type GetTypeHashOrNot(const CPPSTRUCT *Data)
 {
 	return GetTypeHash(*Data);
 }
@@ -855,7 +841,7 @@ FORCEINLINE typename TEnableIf<TModels<CGetTypeHashable, CPPSTRUCT>::Value, uint
 /**
  * Reflection data for a standalone structure declared in a header or as a user defined struct
  */
-class COREUOBJECT_VTABLE UScriptStruct : public UStruct
+class UScriptStruct : public UStruct
 {
 public:
 	/** Interface to template to manage dynamic access to C++ struct construction and destruction **/
@@ -1168,7 +1154,7 @@ public:
 
 		virtual bool HasGetTypeHash() override
 		{
-			return TModels<CGetTypeHashable, CPPSTRUCT>::Value;
+			return THasGetTypeHash<CPPSTRUCT>::Value;
 		}
 		uint32 GetTypeHash(const void* Src) override
 		{
@@ -1181,7 +1167,7 @@ public:
 				  (TIsPODType<CPPSTRUCT>::Value ? CPF_IsPlainOldData : CPF_None)
 				| (TIsTriviallyDestructible<CPPSTRUCT>::Value ? CPF_NoDestructor : CPF_None)
 				| (TIsZeroConstructType<CPPSTRUCT>::Value ? CPF_ZeroConstructor : CPF_None)
-				| (TModels<CGetTypeHashable, CPPSTRUCT>::Value ? CPF_HasGetValueTypeHash : CPF_None);
+				| (THasGetTypeHash<CPPSTRUCT>::Value ? CPF_HasGetValueTypeHash : CPF_None);
 		}
 		bool IsAbstract() const override
 		{
@@ -1203,7 +1189,7 @@ public:
 
 	DECLARE_CASTED_CLASS_INTRINSIC_NO_CTOR(UScriptStruct, UStruct, CLASS_MatchedSerializers, TEXT("/Script/CoreUObject"), CASTCLASS_UScriptStruct, COREUOBJECT_API)
 
-	COREUOBJECT_API UScriptStruct( EStaticConstructor, int32 InSize, int32 InAlignment, EObjectFlags InFlags );
+	COREUOBJECT_API UScriptStruct( EStaticConstructor, int32 InSize, EObjectFlags InFlags );
 	COREUOBJECT_API explicit UScriptStruct(const FObjectInitializer& ObjectInitializer, UScriptStruct* InSuperStruct, ICppStructOps* InCppStructOps = nullptr, EStructFlags InStructFlags = STRUCT_NoFlags, SIZE_T ExplicitSize = 0, SIZE_T ExplicitAlignment = 0);
 	COREUOBJECT_API explicit UScriptStruct(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
@@ -1288,7 +1274,7 @@ public:
 	/** Returns true if this struct has a native serialize function */
 	bool UseNativeSerialization() const
 	{
-		if ((StructFlags&(STRUCT_SerializeNative)) != 0)
+		if ((StructFlags&(STRUCT_SerializeNative | STRUCT_SerializeNativeStructured)) != 0)
 		{
 			return true;
 		}
@@ -1592,19 +1578,13 @@ public:
 
 typedef FText(*FEnumDisplayNameFn)(int32);
 
-/** Optional flags for the UEnum::Get*ByName() functions. */
+// Optional flags for the UEnum::Get*ByName() functions.
 enum class EGetByNameFlags
 {
 	None = 0,
 
-	/** Outputs an warning if the enum lookup fails */
-	ErrorIfNotFound		= 0x01,
-
-	/** Does a case sensitive match */
-	CaseSensitive		= 0x02,
-
-	/** Checks the GetAuthoredNameStringByIndex value as well as normal names */
-	CheckAuthoredName	= 0x04,
+	ErrorIfNotFound = 0x01,
+	CaseSensitive   = 0x02
 };
 
 ENUM_CLASS_FLAGS(EGetByNameFlags)
@@ -1690,20 +1670,6 @@ public:
 
 	/** Version of GetDisplayNameTextByIndex that takes a value instead */
 	FText GetDisplayNameTextByValue(int64 InValue) const;
-
-	/**
-	 * Returns the unlocalized logical name originally assigned to the enum at creation.
-	 * By default this is the same as the short name but it is overridden in child classes with different internal name storage.
-	 * This name is consistent in cooked and editor builds and is useful for things like external data import/export.
-	 *
-	 * @param InIndex Index of the enum value to get Display Name for
-	 *
-	 * @return The author-specified name, or an empty string if Index is invalid
-	 */
-	virtual FString GetAuthoredNameStringByIndex(int32 InIndex) const;
-
-	/** Version of GetAuthoredNameByIndex that takes a value instead */
-	FString GetAuthoredNameStringByValue(int64 InValue) const;
 
 	/** Gets max value of Enum. Defaults to zero if there are no entries. */
 	int64 GetMaxEnumValue() const;
@@ -2357,7 +2323,7 @@ public:
 	// Constructors
 	UClass(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	explicit UClass(const FObjectInitializer& ObjectInitializer, UClass* InSuperClass);
-	UClass( EStaticConstructor, FName InName, uint32 InSize, uint32 InAlignment, EClassFlags InClassFlags, EClassCastFlags InClassCastFlags,
+	UClass( EStaticConstructor, FName InName, uint32 InSize, EClassFlags InClassFlags, EClassCastFlags InClassCastFlags,
 		const TCHAR* InClassConfigName, EObjectFlags InFlags, ClassConstructorType InClassConstructor,
 		ClassVTableHelperCtorCallerType InClassVTableHelperCtorCaller,
 		ClassAddReferencedObjectsType InClassAddReferencedObjects);
@@ -2720,18 +2686,10 @@ public:
 
 	/** serializes the passed in object as this class's default object using the given archive
 	 * @param Object the object to serialize as default
-	 * @param Slot the structured archive slot to serialize from
-	 */
-	virtual void SerializeDefaultObject(UObject* Object, FStructuredArchive::FSlot Slot);
-
-	/** serializes the passed in object as this class's default object using the given archive
-	 * @param Object the object to serialize as default
 	 * @param Ar the archive to serialize from
 	 */
-	virtual void SerializeDefaultObject(UObject* Object, FArchive& Ar) final
-	{
-		SerializeDefaultObject(Object, FStructuredArchiveFromArchive(Ar).GetSlot());
-	}
+	virtual void SerializeDefaultObject(UObject* Object, FStructuredArchive::FSlot Slot);
+	virtual void SerializeDefaultObject(UObject* Object, FArchive& Ar);
 
 	/** Wraps the PostLoad() call for the class default object.
 	 * @param Object the default object to call PostLoad() on
@@ -2767,10 +2725,7 @@ public:
 	 * @param InFunctionName	The name of the function to test
 	 * @return					True if the specified function exists and is implemented in a blueprint generated class
 	 */
-	virtual bool IsFunctionImplementedInScript(FName InFunctionName) const;
-
-	UE_DEPRECATED(4.23, "IsFunctionImplementedInBlueprint is deprecated, call IsFunctionImplementedInScript instead")
-	bool IsFunctionImplementedInBlueprint(FName InFunctionName) const { return IsFunctionImplementedInScript(InFunctionName); }
+	virtual bool IsFunctionImplementedInBlueprint(FName InFunctionName) const;
 
 	/**
 	 * Checks if the property exists on this class or a parent class.
@@ -2865,7 +2820,7 @@ public:
 
 	UDynamicClass(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	explicit UDynamicClass(const FObjectInitializer& ObjectInitializer, UClass* InSuperClass);
-	UDynamicClass(EStaticConstructor, FName InName, uint32 InSize, uint32 InAlignment, EClassFlags InClassFlags, EClassCastFlags InClassCastFlags,
+	UDynamicClass(EStaticConstructor, FName InName, uint32 InSize, EClassFlags InClassFlags, EClassCastFlags InClassCastFlags,
 		const TCHAR* InClassConfigName, EObjectFlags InFlags, ClassConstructorType InClassConstructor,
 		ClassVTableHelperCtorCallerType InClassVTableHelperCtorCaller,
 		ClassAddReferencedObjectsType InClassAddReferencedObjects);
@@ -2934,7 +2889,6 @@ COREUOBJECT_API void InitializePrivateStaticClass(
  * @param ReturnClass reference to pointer to result. This must be PrivateStaticClass.
  * @param RegisterNativeFunc Native function registration function pointer.
  * @param InSize Size of the class
- * @param InAlignment Alignment of the class
  * @param InClassFlags Class flags
  * @param InClassCastFlags Class cast flags
  * @param InConfigName Class config name
@@ -2951,7 +2905,6 @@ COREUOBJECT_API void GetPrivateStaticClassBody(
 	UClass*& ReturnClass,
 	void(*RegisterNativeFunc)(),
 	uint32 InSize,
-	uint32 InAlignment,
 	EClassFlags InClassFlags,
 	EClassCastFlags InClassCastFlags,
 	const TCHAR* InConfigName,

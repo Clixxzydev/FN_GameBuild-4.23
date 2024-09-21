@@ -16,8 +16,6 @@ namespace nDisplayLauncher.Cluster.Config.Conversion
 		{
 			switch (Ver)
 			{
-				case ConfigurationVersion.Ver23:
-					return new ConfigConverter_23();
 				case ConfigurationVersion.Ver22:
 					return new ConfigConverter_22();
 

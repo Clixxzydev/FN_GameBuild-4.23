@@ -3,7 +3,7 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-[SupportedPlatforms("Mac")]
+[SupportedPlatforms(UnrealTargetPlatform.Mac)]
 public class UnrealAtoSTarget : TargetRules
 {
 	public UnrealAtoSTarget( TargetInfo Target ) : base(Target)

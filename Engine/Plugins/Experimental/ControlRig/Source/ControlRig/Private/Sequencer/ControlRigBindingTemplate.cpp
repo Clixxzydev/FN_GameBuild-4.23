@@ -83,8 +83,7 @@ struct FBindControlRigObjectToken : IMovieSceneExecutionToken
 		check(ControlRig);
 		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(ControlRig->GetObjectBinding()->GetBoundObject()))
 		{
-			bool bWasCreated = false;
-			if (UControlRigSequencerAnimInstance* AnimInstance = UAnimCustomInstance::BindToSkeletalMeshComponent<UControlRigSequencerAnimInstance>(SkeletalMeshComponent,bWasCreated))
+			if (UControlRigSequencerAnimInstance* AnimInstance = UAnimCustomInstance::BindToSkeletalMeshComponent<UControlRigSequencerAnimInstance>(SkeletalMeshComponent))
 			{
 				AnimInstance->RecalcRequiredBones();
 			}

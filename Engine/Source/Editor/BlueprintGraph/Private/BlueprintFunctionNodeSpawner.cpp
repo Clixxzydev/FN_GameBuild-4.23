@@ -17,7 +17,6 @@
 #include "ObjectEditorUtils.h"
 #include "BlueprintNodeSpawnerUtils.h"
 #include "BlueprintEditorSettings.h"
-#include "Kismet2/BlueprintEditorUtils.h"
 
 #define LOCTEXT_NAMESPACE "BlueprintFunctionNodeSpawner"
 
@@ -262,11 +261,6 @@ UBlueprintFunctionNodeSpawner* UBlueprintFunctionNodeSpawner::Create(TSubclassOf
 	if (MenuSignature.Tooltip.IsEmpty())
 	{
 		MenuSignature.Tooltip = MenuSignature.MenuName;
-	}
-
-	if (Function->HasMetaData(FBlueprintMetadata::MD_DeprecatedFunction))
-	{
-		MenuSignature.MenuName = FBlueprintEditorUtils::GetDeprecatedMemberMenuItemName(MenuSignature.MenuName);
 	}
 
 	//--------------------------------------

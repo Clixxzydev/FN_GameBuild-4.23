@@ -54,7 +54,7 @@ void UBaseMediaSource::Serialize(FArchive& Ar)
 #if WITH_EDITORONLY_DATA
 		if (Ar.IsFilterEditorOnly())
 		{
-			if (Ar.IsSaving() && (Ar.CookingTarget() != nullptr))
+			if (Ar.IsSaving())
 			{
 				const FName* PlatformPlayerName = PlatformPlayerNames.Find(Ar.CookingTarget()->IniPlatformName());
 				PlayerName = (PlatformPlayerName != nullptr) ? *PlatformPlayerName : NAME_None;

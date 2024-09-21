@@ -21,20 +21,12 @@
 #include "ScopedTransaction.h"
 #include "MeshMergeModule.h"
 
-#define LOCTEXT_NAMESPACE "MeshInstancingTool"
 
-bool UMeshInstancingSettingsObject::bInitialized = false;
-UMeshInstancingSettingsObject* UMeshInstancingSettingsObject::DefaultSettings = nullptr;
+#define LOCTEXT_NAMESPACE "MeshInstancingTool"
 
 FMeshInstancingTool::FMeshInstancingTool()
 {
 	SettingsObject = UMeshInstancingSettingsObject::Get();
-}
-
-FMeshInstancingTool::~FMeshInstancingTool()
-{
-	UMeshInstancingSettingsObject::Destroy();
-	SettingsObject = nullptr;
 }
 
 TSharedRef<SWidget> FMeshInstancingTool::GetWidget()
@@ -163,4 +155,5 @@ bool FMeshInstancingTool::CanMerge() const
 {	
 	return InstancingDialog->GetNumSelectedMeshComponents() >= 1;
 }
+
 #undef LOCTEXT_NAMESPACE

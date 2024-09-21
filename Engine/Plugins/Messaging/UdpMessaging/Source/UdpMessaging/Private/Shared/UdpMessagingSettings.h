@@ -19,10 +19,7 @@ class UUdpMessagingSettings
 
 public:
 
-	/**
-	 * Whether the UDP transport channel is enabled.
-	 * Can be specified on the command line with `-UDPMESSAGING_TRANSPORT_ENABLE=`
-	 */
+	/** Whether the UDP transport channel is enabled. */
 	UPROPERTY(config, EditAnywhere, Category=Transport)
 	bool EnableTransport;
 
@@ -32,7 +29,6 @@ public:
 	 * The format is IP_ADDRESS:PORT_NUMBER.
 	 * 0.0.0.0:0 will bind to the default network adapter on Windows,
 	 * and all available network adapters on other operating systems.
-	 * Can be specified on the command line with `-UDPMESSAGING_TRANSPORT_UNICAST=`
 	 */
 	UPROPERTY(config, EditAnywhere, Category=Transport)
 	FString UnicastEndpoint;
@@ -42,7 +38,6 @@ public:
 	 *
 	 * The format is IP_ADDRESS:PORT_NUMBER.
 	 * The multicast IP address must be in the range 224.0.0.0 to 239.255.255.255.
-	 * Can be specified on the command line with `-UDPMESSAGING_TRANSPORT_MULTICAST=`
 	 */
 	UPROPERTY(config, EditAnywhere, Category=Transport)
 	FString MulticastEndpoint;

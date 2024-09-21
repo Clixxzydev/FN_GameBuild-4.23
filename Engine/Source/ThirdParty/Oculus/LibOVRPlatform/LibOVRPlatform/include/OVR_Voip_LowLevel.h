@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+
 OVRP_PUBLIC_FUNCTION(ovrVoipEncoderHandle) ovr_Voip_CreateEncoder();
 OVRP_PUBLIC_FUNCTION(void) ovr_Voip_DestroyEncoder(ovrVoipEncoderHandle encoder);
 
@@ -22,7 +23,7 @@ OVRP_PUBLIC_FUNCTION(ovrMicrophoneHandle) ovr_Microphone_Create();
 OVRP_PUBLIC_FUNCTION(void) ovr_Microphone_Destroy(ovrMicrophoneHandle obj);
 
 #ifdef __cplusplus
-} // extern "C"
+}  // extern "C"
 #endif
 
 #endif // OVR_VOIP_LOWLEVEL_H

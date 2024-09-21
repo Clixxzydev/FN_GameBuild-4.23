@@ -25,7 +25,7 @@ struct FCustomPrimitiveData
 {
 	GENERATED_USTRUCT_BODY()
 
-	static constexpr int32 NumCustomPrimitiveDataFloat4s = 8; // Must match NUM_CUSTOM_PRIMITIVE_DATA in SceneData.ush
+	static constexpr int32 NumCustomPrimitiveDataFloat4s = 4; // Must match NUM_CUSTOM_PRIMITIVE_DATA in SceneData.ush
 	static constexpr int32 NumCustomPrimitiveDataFloats = NumCustomPrimitiveDataFloat4s * 4;
 
 	UPROPERTY(EditAnywhere, Category=Rendering)
@@ -65,7 +65,7 @@ public:
  * Class used to reference an FSceneViewStateInterface that allows destruction and recreation of all FSceneViewStateInterface's when needed. 
  * This is used to support reloading the renderer module on the fly.
  */
-class ENGINE_VTABLE FSceneViewStateReference
+class FSceneViewStateReference
 {
 public:
 	FSceneViewStateReference() :
@@ -196,7 +196,6 @@ enum ESimpleElementBlendMode
 	SE_BLEND_TranslucentDistanceField,
 	SE_BLEND_TranslucentDistanceFieldShadowed,
 	SE_BLEND_AlphaComposite,
-	SE_BLEND_AlphaHoldout,
 	// Like SE_BLEND_Translucent, but modifies destination alpha
 	SE_BLEND_AlphaBlend,
 	// Like SE_BLEND_Translucent, but reads from an alpha-only texture

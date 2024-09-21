@@ -68,14 +68,15 @@ void UMeshEditorGeometryCollectionAdapter::OnRebuildRenderMesh(const UEditableMe
 
 	if (UGeometryCollection* GeometryCollectionObject = Cast<UGeometryCollection>(static_cast<UObject*>(EditableMesh->GetSubMeshAddress().MeshObjectPtr)))
 	{
-		TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
+		TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
 		if (FGeometryCollection* GeometryCollection = GeometryCollectionPtr.Get())
 		{
-			TManagedArray<int32>& BoneMap = GeometryCollection->BoneMap;
+			TSharedRef<TManagedArray<int32> >  BoneMapArray = GeometryCollection->GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+			TManagedArray<int32>& BoneMap = *BoneMapArray;
 
 			TArray<FTransform> BoneTransforms;
-			GeometryCollectionAlgo::GlobalMatrices(GeometryCollection->Transform, GeometryCollection->Parent, BoneTransforms);
-			checkSlow(GeometryCollection->Transform.Num() == BoneTransforms.Num());
+			GeometryCollectionAlgo::GlobalMatrices(GeometryCollection, BoneTransforms);
+			checkSlow(GeometryCollection->Transform->Num() == BoneTransforms.Num());
 
 			for (const FVertexID VertexID : MeshDescription->Vertices().GetElementIDs())
 			{
@@ -98,9 +99,10 @@ void UMeshEditorGeometryCollectionAdapter::OnRebuildRenderMesh(const UEditableMe
 				WireframeMesh->SetEdgeColor(EdgeID, GeometryCollectionAdapter::GetEdgeColor(EdgeHardnesses[EdgeID], EdgeUVSeams[EdgeID]));
 			}
 
-			for (int Element = 0; Element < GeometryCollection->NumElements(FGeometryCollection::TransformGroup); Element++)
+			TManagedArray<FGeometryCollectionBoneNode>& Hierarchy = *GeometryCollection->BoneHierarchy;
+			for (int Element = 0; Element < Hierarchy.Num(); Element++)
 			{
-				if (GeometryCollection->IsGeometry(Element))
+				if (Hierarchy[Element].IsGeometry())
 				{
 					AddPolygonGroupToWireframe(MeshDescription, Element, EditableMesh);
 				}
@@ -120,10 +122,13 @@ void UMeshEditorGeometryCollectionAdapter::AddPolygonGroupToWireframe(const FMes
 
 	if (UGeometryCollection* GeometryCollectionObject = Cast<UGeometryCollection>(static_cast<UObject*>(EditableMesh->GetSubMeshAddress().MeshObjectPtr)))
 	{
-		TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
+		TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
 		if (FGeometryCollection* GeometryCollection = GeometryCollectionPtr.Get())
 		{
 			check(GeometryCollection);
+			TSharedRef<TManagedArray<FGeometryCollectionBoneNode> > HierarchyArray = GeometryCollection->GetAttribute<FGeometryCollectionBoneNode>("BoneHierarchy", FGeometryCollection::TransformGroup);
+			TManagedArray<FGeometryCollectionBoneNode>& Hierarchy = *HierarchyArray;
+
 			FColor PolygonGroupColour = FColor::Blue;
 
 			const TArray<FPolygonID>& PolygonGroupIDs = MeshDescription->GetPolygonGroupPolygons(FPolygonGroupID(SelectedPolygonGroup));

@@ -89,14 +89,14 @@ struct COMPOSURE_API FCompositingMaterial : public FCompositingParamPayload
 public:
 	FCompositingMaterial();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CompositingMaterial")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "CompositingMaterial", meta = (EditCondition = "bEnabled"))
 	UMaterialInterface* Material;
 
 	/** Maps material texture param names to prior passes/elements. Overrides the element's param mapping list above. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CompositingMaterial", meta = (ReadOnlyKeys))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "CompositingMaterial", meta = (ReadOnlyKeys, EditCondition = "bEnabled"))
 	TMap<FName, FName> ParamPassMappings;
 
-	UPROPERTY(EditDefaultsOnly, Category = "CompositingMaterial", meta = (DisplayName="Expected Param Mappings"))
+	UPROPERTY(EditDefaultsOnly, Category = "CompositingMaterial", meta = (DisplayName="Expected Param Mappings", EditCondition = "bEnabled"))
 	TMap<FName, FNamedCompMaterialParam> RequiredMaterialParams;
 
 public:

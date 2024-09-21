@@ -20,7 +20,6 @@
 #include "Widgets/Colors/SColorPicker.h"
 #include "SequencerSectionPainter.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
-#include "Framework/SlateDelegates.h"
 
 #define LOCTEXT_NAMESPACE "AnimationOutliner"
 
@@ -69,8 +68,7 @@ void SAnimationOutlinerTreeNode::Construct( const FArguments& InArgs, TSharedRef
 		.OnTextCommitted(this, &SAnimationOutlinerTreeNode::HandleNodeLabelTextCommitted)
 		.Text(this, &SAnimationOutlinerTreeNode::GetDisplayName)
 		.ToolTipText(this, &SAnimationOutlinerTreeNode::GetDisplayNameToolTipText)
-		.Clipping(EWidgetClipping::ClipToBounds)
-		.IsSelected(FIsSelected::CreateSP(InTableRow, &SSequencerTreeViewRow::IsSelectedExclusively));
+		.Clipping(EWidgetClipping::ClipToBounds);
 
 
 	Node->OnRenameRequested().AddRaw(this, &SAnimationOutlinerTreeNode::EnterRenameMode);

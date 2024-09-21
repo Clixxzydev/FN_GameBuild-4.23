@@ -62,11 +62,6 @@ public:
 	void GetLocalToWorld(FVectorVMContext& Context);
 	void GetLocalToWorldInverseTransposed(FVectorVMContext& Context);
 
-	virtual int32 PerInstanceDataPassedToRenderThreadSize() const override
-	{
-		return 0;
-	}
-
 protected:
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 

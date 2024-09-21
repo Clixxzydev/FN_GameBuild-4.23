@@ -270,23 +270,23 @@ namespace UE4Function_Private
 		return true;
 	}
 
-	template <typename FunctorType, bool bUnique, bool bOnHeap>
+	template <typename FunctorType, bool bUnique, bool bInline>
 	struct TStorageOwnerType;
 
-	template <typename FunctorType, bool bOnHeap>
-	struct TStorageOwnerType<FunctorType, true, bOnHeap>
+	template <typename FunctorType, bool bInline>
+	struct TStorageOwnerType<FunctorType, true, bInline>
 	{
-		using Type = TFunction_UniqueOwnedObject<typename TDecay<FunctorType>::Type, bOnHeap>;
+		using Type = TFunction_UniqueOwnedObject<typename TDecay<FunctorType>::Type, bInline>;
 	};
 
-	template <typename FunctorType, bool bOnHeap>
-	struct TStorageOwnerType<FunctorType, false, bOnHeap>
+	template <typename FunctorType, bool bInline>
+	struct TStorageOwnerType<FunctorType, false, bInline>
 	{
-		using Type = TFunction_CopyableOwnedObject<typename TDecay<FunctorType>::Type, bOnHeap>;
+		using Type = TFunction_CopyableOwnedObject<typename TDecay<FunctorType>::Type, bInline>;
 	};
 
-	template <typename FunctorType, bool bUnique, bool bOnHeap>
-	using TStorageOwnerTypeT = typename TStorageOwnerType<FunctorType, bUnique, bOnHeap>::Type;
+	template <typename FunctorType, bool bUnique, bool bInline>
+	using TStorageOwnerTypeT = typename TStorageOwnerType<FunctorType, bUnique, bInline>::Type;
 
 	struct FFunctionStorage
 	{

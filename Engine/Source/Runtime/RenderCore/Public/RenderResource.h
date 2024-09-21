@@ -106,12 +106,12 @@ protected:
 	ERHIFeatureLevel::Type FeatureLevel;
 
 private:
-	/** True if the resource has been initialized. */
-	bool bInitialized;
-
 	#if PLATFORM_NEEDS_RHIRESOURCELIST
 	TLinkedList<FRenderResource*> ResourceLink;
 	#endif
+
+	/** True if the resource has been initialized. */
+	bool bInitialized;
 };
 
 /**
@@ -389,22 +389,6 @@ public:
 		DeferredPassSamplerStateRHI.SafeRelease();
 	}
 	virtual FString GetFriendlyName() const override { return TEXT("FTexture"); }
-};
-
-/** A textures resource that includes an SRV. */
-class FTextureWithSRV : public FTexture
-{
-public:
-	/** SRV that views the entire texture */
-	FShaderResourceViewRHIRef ShaderResourceViewRHI;
-
-	virtual ~FTextureWithSRV() {}
-
-	virtual void ReleaseRHI() override
-	{
-		ShaderResourceViewRHI.SafeRelease();
-		FTexture::ReleaseRHI();
-	}
 };
 
 /** A texture reference resource. */
@@ -768,7 +752,7 @@ public:
 	{}
 
 	/** Adds a bound shader state to the history. */
-	FORCEINLINE void Add(FRHIBoundShaderState* BoundShaderState)
+	FORCEINLINE void Add(FBoundShaderStateRHIParamRef BoundShaderState)
 	{
 		if (TThreadSafe && GRHISupportsParallelRHIExecute)
 		{
@@ -782,7 +766,7 @@ public:
 		}
 	}
 
-	FRHIBoundShaderState* GetLast()
+	FBoundShaderStateRHIParamRef GetLast()
 	{
 		check(!GRHISupportsParallelRHIExecute);
 		// % doesn't work as we want on negative numbers, so handle the wraparound manually

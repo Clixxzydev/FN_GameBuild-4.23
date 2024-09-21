@@ -22,11 +22,8 @@ class FPrimitiveDrawInterface;
 class FPrimitiveSceneInfo;
 class FStaticPrimitiveDrawInterface;
 class UPrimitiveComponent;
-class URuntimeVirtualTexture;
 class UTexture2D;
-enum class ERuntimeVirtualTextureMaterialType;
 struct FMeshBatch;
-class FColorVertexBuffer;
 
 /** Data for a simple dynamic light. */
 class FSimpleLightEntry
@@ -109,11 +106,9 @@ public:
 
 	int32 NumSubsections = 0;
 	FVector4 SubsectionScaleAndBias = FVector4(ForceInit);
-	int32 VisibilityChannel;
 
 	FHeightfieldComponentDescription(const FMatrix& InLocalToWorld) :
-		LocalToWorld(InLocalToWorld), 
-		VisibilityChannel(-1)
+		LocalToWorld(InLocalToWorld)
 	{}
 };
 
@@ -179,15 +174,6 @@ public:
 	 */
 	ENGINE_API virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component,TArray<TRefCountPtr<HHitProxy> >& OutHitProxies);
 
-#if WITH_EDITOR
-	/** 
-	 * Allows a scene proxy to override hit proxy ids and generate more than one hit proxy id per draw call
-	 * Useful for sub-section selection (faces, vertices, bones, etc)
-	 * 
-	 * @return The vertex buffer  to be use for custom hit proxy ids or null if not used.  Each color represents an id in a HHitProxy
-	 */
-	virtual const FColorVertexBuffer* GetCustomHitProxyIdBuffer() const { return nullptr; }
-#endif
 	/**
 	 * Draws the primitive's static elements.  This is called from the rendering thread once when the scene proxy is created.
 	 * The static elements will only be rendered if GetViewRelevance declares static relevance.
@@ -208,14 +194,14 @@ public:
 	/** Gathers dynamic ray tracing instances from this proxy. */
 	virtual void GetDynamicRayTracingInstances(struct FRayTracingMaterialGatheringContext& Context, TArray<struct FRayTracingInstance>& OutRayTracingInstances) {}
 
-	TArray<FRayTracingGeometry*>&& MoveRayTracingGeometries()
+	TArray<FRayTracingGeometryRHIRef>&& MoveRayTracingGeometries()
 	{
-		return static_cast<TArray<FRayTracingGeometry*>&&>(RayTracingGeometries);
+		return static_cast<TArray<FRayTracingGeometryRHIRef>&&>(RayTracingGeometries);
 	}
 #endif // RHI_RAYTRACING
 
 	/** Collects occluder geometry for software occlusion culling */
-	virtual int32 CollectOccluderElements(class FOccluderElementsCollector& Collector) const { return 0; }
+	virtual bool CollectOccluderElements(class FOccluderElementsCollector& Collector) const { return false; }
 
 	/** 
 	 * Gathers the primitive's dynamic mesh elements.  This will only be called if GetViewRelevance declares dynamic relevance.
@@ -276,7 +262,7 @@ public:
 		bShadowMapped = false;
 	}
 
-	virtual void GetDistancefieldAtlasData(FBox& LocalVolumeBounds, FVector2D& OutDistanceMinMax, FIntVector& OutBlockMin, FIntVector& OutBlockSize, bool& bOutBuiltAsIfTwoSided, bool& bMeshWasPlane, float& SelfShadowBias, TArray<FMatrix>& ObjectLocalToWorldTransforms, bool& bOutThrottled) const
+	virtual void GetDistancefieldAtlasData(FBox& LocalVolumeBounds, FVector2D& OutDistanceMinMax, FIntVector& OutBlockMin, FIntVector& OutBlockSize, bool& bOutBuiltAsIfTwoSided, bool& bMeshWasPlane, float& SelfShadowBias, TArray<FMatrix>& ObjectLocalToWorldTransforms) const 
 	{
 		LocalVolumeBounds = FBox(ForceInit);
 		OutDistanceMinMax = FVector2D(0, 0);
@@ -285,7 +271,6 @@ public:
 		bOutBuiltAsIfTwoSided = false;
 		bMeshWasPlane = false;
 		SelfShadowBias = 0;
-		bOutThrottled = false;
 	}
 
 	virtual void GetDistanceFieldInstanceInfo(int32& NumInstances, float& BoundsSurfaceArea) const
@@ -296,11 +281,9 @@ public:
 
 	virtual bool HeightfieldHasPendingStreaming() const { return false; }
 
-	virtual void GetHeightfieldRepresentation(UTexture2D*& OutHeightmapTexture, UTexture2D*& OutDiffuseColorTexture, UTexture2D*& OutVisibilityTexture, FHeightfieldComponentDescription& OutDescription)
+	virtual void GetHeightfieldRepresentation(UTexture2D*& OutHeightmapTexture, UTexture2D*& OutDiffuseColorTexture, FHeightfieldComponentDescription& OutDescription)
 	{
-		OutHeightmapTexture = nullptr;
-		OutDiffuseColorTexture = nullptr;
-		OutVisibilityTexture = nullptr;
+		OutHeightmapTexture = NULL;
 	}
 
 	/**
@@ -456,10 +439,6 @@ public:
 	inline int16 GetTranslucencySortPriority() const { return TranslucencySortPriority; }
 	inline bool HasMotionBlurVelocityMeshes() const { return bHasMotionBlurVelocityMeshes; }
 
-	inline int32 GetVirtualTextureLodBias() const { return VirtualTextureLodBias; }
-	inline int32 GetVirtualTextureCullMips() const { return VirtualTextureCullMips; }
-	inline int32 GetVirtualTextureMinCoverage() const {	return VirtualTextureMinCoverage; }
-
 	inline bool IsMovable() const 
 	{ 
 		// Note: primitives with EComponentMobility::Stationary can still move (as opposed to lights with EComponentMobility::Stationary)
@@ -500,7 +479,6 @@ public:
 	inline bool NeedsUnbuiltPreviewLighting() const { return bNeedsUnbuiltPreviewLighting; }
 	inline bool CastsStaticShadow() const { return bCastStaticShadow; }
 	inline bool CastsDynamicShadow() const { return bCastDynamicShadow; }
-	inline bool WritesVirtualTexture() const{ return RuntimeVirtualTextures.Num() > 0; }
 	inline bool AffectsDynamicIndirectLighting() const { return bAffectDynamicIndirectLighting; }
 	inline bool AffectsDistanceFieldLighting() const { return bAffectDistanceFieldLighting; }
 	inline float GetLpvBiasMultiplier() const { return LpvBiasMultiplier; }
@@ -521,7 +499,7 @@ public:
 	inline bool DoesVFRequirePrimitiveUniformBuffer() const { return bVFRequiresPrimitiveUniformBuffer; }
 	inline bool ShouldUseAsOccluder() const { return bUseAsOccluder; }
 	inline bool AllowApproximateOcclusion() const { return bAllowApproximateOcclusion; }
-	inline FRHIUniformBuffer* GetUniformBuffer() const
+	inline FUniformBufferRHIParamRef GetUniformBuffer() const 
 	{
 		return UniformBuffer.GetReference(); 
 	}
@@ -532,6 +510,7 @@ public:
 	inline bool WillEverBeLit() const { return bWillEverBeLit; }
 	inline bool HasValidSettingsForStaticLighting() const { return bHasValidSettingsForStaticLighting; }
 	inline bool AlwaysHasVelocity() const { return bAlwaysHasVelocity; }
+	inline bool UseEditorDepthTest() const { return bUseEditorDepthTest; }
 	inline bool SupportsDistanceFieldRepresentation() const { return bSupportsDistanceFieldRepresentation; }
 	inline bool SupportsHeightfieldRepresentation() const { return bSupportsHeightfieldRepresentation; }
 	inline bool TreatAsBackgroundForOcclusion() const { return bTreatAsBackgroundForOcclusion; }
@@ -539,11 +518,6 @@ public:
 	inline bool IsComponentLevelVisible() const { return bIsComponentLevelVisible; }
 	inline bool IsStaticPathAvailable() const { return !bHasMobileMovablePointLightInteraction; }
 	inline bool ShouldReceiveMobileCSMShadows() const { return bReceiveMobileCSMShadows; }
-
-	/** Returns whether draws velocity in base pass. */
-	inline bool DrawsVelocity() const {
-		return IsMovable();
-	}
 
 #if WITH_EDITOR
 	inline int32 GetNumUncachedStaticLightingInteractions() { return NumUncachedStaticLightingInteractions; }
@@ -710,6 +684,15 @@ public:
    	 * @param InMeshScreenSizeSquared - Computed mesh batch screen size, passed to prevent recalculation
 	 */
 	ENGINE_API virtual void* InitViewCustomData(const FSceneView& InView, float InViewLODScale, FMemStackBase& InCustomDataMemStack, bool InIsStaticRelevant, bool InIsShadowOnly, const struct FLODMask* InVisiblePrimitiveLODMask = nullptr, float InMeshScreenSizeSquared = -1.0f) { return nullptr; }
+	
+	/**
+	 * Called during post visibility and shadow setup, just before the frame is rendered. It can be used to update custom data that had a dependency between them.
+	 * Keep in mind this can be called in multihread.
+	 * This will only be called on primitive that added view custom data during the InitViewCustomData.
+	 * @param InView - Current View
+ 	 * @param InViewCustomData - Custom data to update
+	 */	
+	ENGINE_API virtual void PostInitViewCustomData(const FSceneView& InView, void* InViewCustomData) const { }
 
 	/** Tell us if this proxy is drawn in game.*/
 	ENGINE_API virtual bool IsDrawnInGame() const { return DrawInGame; }
@@ -760,7 +743,7 @@ protected:
 	}
 
 #if RHI_RAYTRACING
-	TArray<FRayTracingGeometry*> RayTracingGeometries;
+	TArray<FRayTracingGeometryRHIRef> RayTracingGeometries;
 #endif
 
 private:
@@ -928,6 +911,9 @@ protected:
 	/** Whether the primitive should always be considered to have velocities, even if it hasn't moved. */
 	uint8 bAlwaysHasVelocity : 1;
 
+	/** Whether editor compositing depth testing should be used for this primitive.  Only matters for primitives with bUseEditorCompositing. */
+	uint8 bUseEditorDepthTest : 1;
+
 	/** Whether the primitive type supports a distance field representation.  Does not mean the primitive has a valid representation. */
 	uint8 bSupportsDistanceFieldRepresentation : 1;
 
@@ -985,18 +971,6 @@ protected:
 	float DynamicIndirectShadowMinVisibility;
 
 	float DistanceFieldSelfShadowBias;
-
-	/** Array of runtime virtual textures that this proxy should render to. */
-	TArray<URuntimeVirtualTexture*> RuntimeVirtualTextures;
-	/** Set of unique runtime virtual texture material types referenced by RuntimeVirtualTextures. */
-	TSet<ERuntimeVirtualTextureMaterialType> RuntimeVirtualTextureMaterialTypes;
-
-	/** Geometry Lod bias when rendering to runtime virtual texture. */
-	int8 VirtualTextureLodBias;
-	/** Number of low mips to skip when rendering to runtime virtual texture. */
-	int8 VirtualTextureCullMips;
-	/** Log2 of minimum estimated pixel coverage before culling from runtime virtual texture. */
-	int8 VirtualTextureMinCoverage;
 
 private:
 	/** The hierarchy of owners of this primitive.  These must not be dereferenced on the rendering thread, but the pointer values can be used for identification.  */
@@ -1096,10 +1070,10 @@ protected:
 /**
  * Returns if specified mesh command can be cached, or needs to be recreated every frame.
  */
-ENGINE_API extern bool SupportsCachingMeshDrawCommands(const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const FMeshBatch& MeshBatch);
+ENGINE_API extern bool SupportsCachingMeshDrawCommands(const FVertexFactory* RESTRICT VertexFactory, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy);
 
 /**
  * Returns if specified mesh command can be cached, or needs to be recreated every frame; this is a slightly slower version
  * used for materials with external textures that need invalidating their PSOs.
  */
-ENGINE_API extern bool SupportsCachingMeshDrawCommands(const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const FMeshBatch& MeshBatch, ERHIFeatureLevel::Type FeatureLevel);
+ENGINE_API extern bool SupportsCachingMeshDrawCommands(const FVertexFactory* RESTRICT VertexFactory, const FPrimitiveSceneProxy* RESTRICT PrimitiveSceneProxy, const class FMaterialRenderProxy* MaterialRenderProxy, ERHIFeatureLevel::Type FeatureLevel);

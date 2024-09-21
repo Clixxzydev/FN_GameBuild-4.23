@@ -10,7 +10,6 @@ using System.Text.RegularExpressions;
 using System.Drawing;
 using System.Linq;
 using System.Reflection;
-using Tools.DotNETCommon;
 
 namespace Gauntlet
 {
@@ -46,16 +45,10 @@ namespace Gauntlet
 		public Params Params { get; protected set; }
 
 		/// <summary>
-		/// Name or path to this this project. This will be normalized to the project name
-		/// and the path to the project file available via the ProjectPath argument,
+		/// Name of this project
 		/// </summary>
 		[AutoParam]
 		public string Project = "";
-
-		/// <summary>
-		/// Returns the path to the project file. Created based on the Project argument
-		/// </summary>
-		public FileReference ProjectPath { get; protected set; }
 
 		/// <summary>
 		/// Reference to the build that is being tested
@@ -224,27 +217,6 @@ namespace Gauntlet
 				Globals.LogDir = LogDir;
 			}
 
-
-			// normalize the project name and get the path
-			if (File.Exists(Project))
-			{
-				ProjectPath = new FileReference(Project);
-				Project = ProjectPath.GetFileNameWithoutExtension();
-			}
-			else
-			{
-				if (!string.IsNullOrEmpty(Project))
-				{
-					ProjectPath = ProjectUtils.FindProjectFileFromName(Project);
-
-					if (ProjectPath == null)
-					{
-						throw new AutomationException("Could not find project file for {0}", Project);
-					}
-					Project = ProjectPath.GetFileNameWithoutExtension();
-				}
-			}
-
 			if (string.IsNullOrEmpty(Sandbox))
 			{
 				Sandbox = Project;
@@ -256,7 +228,7 @@ namespace Gauntlet
 			List<string> PlatformArgStrings = Params.ParseValues("Platform=");
 
 			// check for convenience flags of -Win64(params) (TODO - need to think about this..)
-			/*foreach (UnrealTargetPlatform Plat in UnrealTargetPlatform.GetValidPlatforms())
+			/*foreach (UnrealTargetPlatform Plat in Enum.GetValues(typeof(UnrealTargetPlatform)))
 			{
 				IEnumerable<string> RawPlatformArgs = InParams.Where(P => P.ToLower().StartsWith(Plat.ToString().ToLower()));
 

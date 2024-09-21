@@ -15,7 +15,7 @@ class IBlutilityModule : public IModuleInterface
 {
 public:
 
-	/** Returns if the blueprint is an editor utility blueprint or widget */
+	/** Returns if the blueprint is blutility based */
 	virtual bool IsEditorUtilityBlueprint( const UBlueprint* Blueprint ) const = 0;
 
 	/** Global Find Results workspace menu item */

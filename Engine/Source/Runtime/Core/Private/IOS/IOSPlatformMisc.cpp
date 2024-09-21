@@ -70,7 +70,7 @@ void (* GMemoryWarningHandler)(const FGenericMemoryWarningContext& Context) = NU
 
 /** global for showing the splash screen */
 bool GShowSplashScreen = true;
-float GOriginalBrightness = -1.0f;
+float GOriginalBrightness = 1.0f;
 
 static int32 GetFreeMemoryMB()
 {
@@ -262,10 +262,7 @@ void FIOSPlatformMisc::SetBrightness(float Brightness)
 
 void FIOSPlatformMisc::ResetBrightness()
 {
-	if (GOriginalBrightness >= 0.f)
-	{
-		SetBrightness(GOriginalBrightness);
-	}
+    SetBrightness(GOriginalBrightness);
 }
 
 bool FIOSPlatformMisc::IsRunningOnBattery()
@@ -396,13 +393,9 @@ FIOSPlatformMisc::EIOSDevice FIOSPlatformMisc::GetIOSDeviceType()
 		{
 			DeviceType = IOS_IPodTouch5;
 		}
-		else if (Major == 7)
+		else if (Major >= 7)
 		{
 			DeviceType = IOS_IPodTouch6;
-		}
-		else if (Major >= 9)
-		{
-			DeviceType = IOS_IPodTouch7;
 		}
 	}
 	// iPads
@@ -1696,13 +1689,7 @@ void FIOSPlatformMisc::SetCrashHandler(void (* CrashHandler)(const FGenericCrash
 
 bool FIOSPlatformMisc::HasSeparateChannelForDebugOutput()
 {
-#if UE_BUILD_SHIPPING
-    return false;
-#else
-    // We should not just check if we are being debugged because you can use the Xcode log even for
-    // apps launched outside the debugger.
-    return true;
-#endif
+    return FPlatformMisc::IsDebuggerPresent();
 }
 
 void FIOSPlatformMisc::GPUAssert()

@@ -592,12 +592,12 @@ void CreateTranslucentBasePassUniformBuffer(
 			if (View.PrevViewInfo.CustomSSRInput.IsValid())
 			{
 				PrevSceneColorRT = &View.PrevViewInfo.CustomSSRInput;
-				PrevSceneColorPreExposureInvValue = 1.0f / View.PrevViewInfo.SceneColorPreExposure;
+				PrevSceneColorPreExposureInvValue = 1.0f / View.PrevViewInfo.TemporalAAHistory.SceneColorPreExposure;
 			}
 			else if (View.PrevViewInfo.TemporalAAHistory.IsValid())
 			{
 				PrevSceneColorRT = &View.PrevViewInfo.TemporalAAHistory.RT[0];
-				PrevSceneColorPreExposureInvValue = 1.0f / View.PrevViewInfo.SceneColorPreExposure;
+				PrevSceneColorPreExposureInvValue = 1.0f / View.PrevViewInfo.TemporalAAHistory.SceneColorPreExposure;
 			}
 
 			BasePassParameters.PrevSceneColor = (*PrevSceneColorRT)->GetRenderTargetItem().ShaderResourceTexture;
@@ -733,7 +733,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FViewInfo& View)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
 		FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
@@ -910,7 +910,7 @@ void FDeferredShadingSceneRenderer::RenderTranslucency(FRHICommandListImmediate&
 			{
 				FViewUniformShaderParameters DownsampledTranslucencyViewParameters;
 				SetupDownsampledTranslucencyViewParameters(RHICmdList, View, DownsampledTranslucencyViewParameters);
-				Scene->UniformBuffers.UpdateViewUniformBufferImmediate(DownsampledTranslucencyViewParameters);
+				Scene->UniformBuffers.ViewUniformBuffer.UpdateUniformBufferImmediate(DownsampledTranslucencyViewParameters);
 				DrawRenderState.SetViewUniformBuffer(Scene->UniformBuffers.ViewUniformBuffer);
 
 				if ((View.IsInstancedStereoPass() || View.bIsMobileMultiViewEnabled) && View.Family->Views.Num() > 0)

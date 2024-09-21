@@ -346,9 +346,6 @@ namespace Audio
 	void FMixerPlatformXAudio2::OnDeviceAdded(const FString& DeviceId) {}
 	void FMixerPlatformXAudio2::OnDeviceRemoved(const FString& DeviceId) {}
 	void FMixerPlatformXAudio2::OnDeviceStateChanged(const FString& DeviceId, const EAudioDeviceState InState){}
-	FString FMixerPlatformXAudio2::GetDeviceId() const
-	{
-		return AudioStreamInfo.DeviceInfo.DeviceId;
-	}
+	FString FMixerPlatformXAudio2::GetDeviceId() const { return TEXT("XboxOneAudioDevice"); }
 }
 #endif

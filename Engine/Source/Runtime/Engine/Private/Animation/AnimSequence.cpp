@@ -1581,14 +1581,14 @@ void UAnimSequence::GetBonePose(FCompactPose& OutPose, FBlendedCurve& OutCurve, 
 		for (int32 TrackIndex = 0; TrackIndex < NumTracks; TrackIndex++)
 		{
 			const FRawAnimSequenceTrack& TrackToExtract = AnimationData[TrackIndex];
-
+			
 			// Bail out (with rather wacky data) if data is empty for some reason.
 			if (TrackToExtract.PosKeys.Num() == 0 || TrackToExtract.RotKeys.Num() == 0)
 			{
 				UE_LOG(LogAnimation, Warning, TEXT("UAnimSequence::GetBoneTransform : No anim data in AnimSequence '%s' Track '%s'"), *GetPathName(), *AnimationTrackNames[TrackIndex].ToString());
 			}
 		}
-
+		
 		BuildPoseFromRawData(AnimationData, TrackToSkeletonMapTable, OutPose, ExtractionContext.CurrentTime, Interpolation, NumFrames, SequenceLength, RetargetSource);
 
 		if ((ExtractionContext.bExtractRootMotion && RootMotionReset.bEnableRootMotion) || RootMotionReset.bForceRootLock)
@@ -1598,7 +1598,7 @@ void UAnimSequence::GetBonePose(FCompactPose& OutPose, FBlendedCurve& OutCurve, 
 		return;
 	}
 #endif // WITH_EDITOR
-
+	
 	DecompressPose(OutPose, CompressedData, ExtractionContext, GetSkeleton(), SequenceLength, Interpolation, bIsBakedAdditive, RetargetSource, GetFName(), RootMotionReset);
 }
 
@@ -2200,33 +2200,33 @@ void UAnimSequence::RequestAnimCompression(FRequestAnimCompressionParams Params)
 		{
 			bool bNeedToCleanUpAnimCompressor = true;
 			FDerivedDataAnimationCompression* AnimCompressor = new FDerivedDataAnimationCompression(TEXT("AnimSeq"), AssetDDCKey, Params.CompressContext, PreviousCompressionSize);
-
-			const FString FinalDDCKey = FDerivedDataCacheInterface::BuildCacheKey(AnimCompressor->GetPluginName(), AnimCompressor->GetVersionString(), *AnimCompressor->GetPluginSpecificCacheKeySuffix());
-
-			// For debugging DDC/Compression issues		
-			const bool bSkipDDC = false;
-
-			if (bSkipDDC || !GetDerivedDataCacheRef().GetSynchronous(*FinalDDCKey, OutData))
-			{
-				// Data does not exist, need to build it.
-				// Filter RAW data to get rid of mismatched tracks (translation/rotation data with a different number of keys than there are frames)
-				// No trivial key removal is done at this point (impossible error metrics of -1), since all of the techniques will perform it themselves
-				CompressRawAnimData(-1.0f, -1.0f);
-
-				TSharedRef<FCompressibleAnimData> CompressibleData = MakeShared<FCompressibleAnimData>(this, bPerformStripping);
-				AnimCompressor->SetCompressibleData(CompressibleData);
-
-				if (bSkipDDC || (CompressCommandletVersion == INDEX_NONE))
-				{
-					AnimCompressor->Build(OutData);
-				}
-				else if (AnimCompressor->CanBuild())
-				{
-					bNeedToCleanUpAnimCompressor = false; // GetSynchronous will handle this
-					GetDerivedDataCacheRef().GetSynchronous(AnimCompressor, OutData);
-				}
-			}
 			
+		const FString FinalDDCKey = FDerivedDataCacheInterface::BuildCacheKey(AnimCompressor->GetPluginName(), AnimCompressor->GetVersionString(), *AnimCompressor->GetPluginSpecificCacheKeySuffix());
+
+		// For debugging DDC/Compression issues		
+		const bool bSkipDDC = false;
+
+		if (bSkipDDC || !GetDerivedDataCacheRef().GetSynchronous(*FinalDDCKey, OutData))
+			{
+			// Data does not exist, need to build it.
+			// Filter RAW data to get rid of mismatched tracks (translation/rotation data with a different number of keys than there are frames)
+			// No trivial key removal is done at this point (impossible error metrics of -1), since all of the techniques will perform it themselves
+			CompressRawAnimData(-1.0f, -1.0f);
+
+			TSharedRef<FCompressibleAnimData> CompressibleData = MakeShared<FCompressibleAnimData>(this, bPerformStripping);
+			AnimCompressor->SetCompressibleData(CompressibleData);
+
+			if (bSkipDDC || (CompressCommandletVersion == INDEX_NONE))
+			{
+				AnimCompressor->Build(OutData);
+			}
+			else if (AnimCompressor->CanBuild())
+			{
+				bNeedToCleanUpAnimCompressor = false; // GetSynchronous will handle this
+				GetDerivedDataCacheRef().GetSynchronous(AnimCompressor, OutData);
+			}
+			}
+
 			if(bNeedToCleanUpAnimCompressor)
 			{
 				delete AnimCompressor; // Would really like to do auto mem management but GetDerivedDataCacheRef().GetSynchronous expects a point it can delete, every
@@ -2282,7 +2282,7 @@ bool UAnimSequence::DoesSequenceContainZeroScale()
 FGuid UAnimSequence::GenerateGuidFromRawData() const
 {
 	return GenerateGuidFromRawAnimData(RawAnimationData, RawCurveData);
-
+	
 }
 
 void CopyTransformToRawAnimationData(const FTransform& BoneTransform, FRawAnimSequenceTrack& Track, int32 Frame)

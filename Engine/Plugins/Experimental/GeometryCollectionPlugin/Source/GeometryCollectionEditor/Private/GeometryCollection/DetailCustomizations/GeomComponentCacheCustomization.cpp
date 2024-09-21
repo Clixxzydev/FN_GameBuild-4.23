@@ -13,8 +13,6 @@
 #include "GeometryCollection/GeometryCollectionObject.h"
 #include "GeometryCollection/GeometryCollectionEditorPlugin.h"
 #include "EditorFontGlyphs.h"
-#include "Widgets/Layout/SBorder.h"
-#include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "GeomCollectionCacheParamsCustomization"
 
@@ -59,7 +57,7 @@ void FGeomComponentCacheParametersCustomization::CustomizeChildren(TSharedRef<IP
 			UObject* CacheObject = nullptr;
 			TargetCacheHandle->GetValue(CacheObject);
 
-			const UGeometryCollection* Collection = GetCollection();
+			UGeometryCollection* Collection = GetCollection();
 			UGeometryCollectionCache* TypedCacheObject = Cast<UGeometryCollectionCache>(CacheObject);
 
 			if(CacheObject && Collection)
@@ -88,7 +86,7 @@ void FGeomComponentCacheParametersCustomization::CustomizeChildren(TSharedRef<IP
 			UObject* CacheObject = nullptr;
 			TargetCacheHandle->GetValue(CacheObject);
 
-			const UGeometryCollection* Collection = GetCollection();
+			UGeometryCollection* Collection = GetCollection();
 			UGeometryCollectionCache* TypedCacheObject = Cast<UGeometryCollectionCache>(CacheObject);
 
 			if(CacheObject && Collection)
@@ -112,7 +110,7 @@ void FGeomComponentCacheParametersCustomization::CustomizeChildren(TSharedRef<IP
 			UObject* CacheObject = nullptr;
 			TargetCacheHandle->GetValue(CacheObject);
 
-			const UGeometryCollection* Collection = GetCollection();
+			UGeometryCollection* Collection = GetCollection();
 			UGeometryCollectionCache* TypedCacheObject = Cast<UGeometryCollectionCache>(CacheObject);
 
 			if(CacheObject && Collection)
@@ -212,14 +210,14 @@ void FGeomComponentCacheParametersCustomization::CustomizeChildren(TSharedRef<IP
 
 void FGeomComponentCacheParametersCustomization::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	const UGeometryCollection* Collection = GetCollection();
+	UGeometryCollection* Collection = GetCollection();
 	if(Collection)
 	{
 		Collector.AddReferencedObject(Collection);
 	}
 }
 
-const UGeometryCollection* FGeomComponentCacheParametersCustomization::GetCollection() const
+UGeometryCollection* FGeomComponentCacheParametersCustomization::GetCollection() const
 {
 	if(!TargetCacheHandle.IsValid())
 	{
@@ -251,7 +249,7 @@ bool FGeomComponentCacheParametersCustomization::ShouldFilterAsset(const FAssetD
 	InData.GetTagValue(UGeometryCollectionCache::TagName_IdGuid, IdTagValue);
 	InData.GetTagValue(UGeometryCollectionCache::TagName_StateGuid, StateTagValue);
 
-	const UGeometryCollection* Collection = GetCollection();
+	UGeometryCollection* Collection = GetCollection();
 
 	if(Collection && !IdTagValue.IsEmpty() && !StateTagValue.IsEmpty())
 	{
@@ -278,7 +276,7 @@ void FGeomComponentCacheParametersCustomization::CheckTagsMatch(const UGeometryC
 	FAssetData CacheAssetData(InCache);
 	FString IdGuidString;
 
-	ensure(CacheAssetData.GetTagValue(UGeometryCollectionCache::TagName_IdGuid, IdGuidString));
+	check(CacheAssetData.GetTagValue(UGeometryCollectionCache::TagName_IdGuid, IdGuidString));
 
 	FGuid EmbeddedIdGuid;
 

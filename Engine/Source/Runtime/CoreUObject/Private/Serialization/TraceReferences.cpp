@@ -3,8 +3,6 @@
 #include "Serialization/TraceReferences.h"
 #include "UObject/UnrealType.h"
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-
 // This traces referenced/referencer of an object using FArchiveObjectGraph 
 FTraceReferences::FTraceReferences( bool bIncludeTransients, EObjectFlags KeepFlags )
 : ArchiveObjectGraph ( bIncludeTransients, KeepFlags )
@@ -187,4 +185,3 @@ void FTraceReferences::GetReferencedInternal( UObject* CurrentObject, TArray<FOb
 	}
 }
 
-PRAGMA_ENABLE_DEPRECATION_WARNINGS

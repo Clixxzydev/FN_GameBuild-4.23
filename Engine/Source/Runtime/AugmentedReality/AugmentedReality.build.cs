@@ -18,7 +18,7 @@ namespace UnrealBuildTool.Rules
                     "EngineSettings",
                     "RenderCore",
 					"RHI",
-					"MRMesh"
+                    //"HeadMountedDisplay"
 				}
 			);
 

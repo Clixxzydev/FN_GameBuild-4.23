@@ -21,7 +21,7 @@ public:
 		, Widget(InWidget)
 	{ }
 
-	SLATECORE_API static const FArrangedWidget& GetNullWidget();
+	SLATECORE_API static FArrangedWidget NullWidget;
 
 public:
 

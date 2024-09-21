@@ -8,7 +8,6 @@
 #include "DefaultLevelSequenceInstanceData.h"
 #include "Engine/ActorChannel.h"
 #include "Net/UnrealNetwork.h"
-#include "LevelSequenceModule.h"
 
 #if WITH_EDITOR
 	#include "PropertyCustomizationHelpers.h"
@@ -18,7 +17,6 @@
 
 ALevelSequenceActor::ALevelSequenceActor(const FObjectInitializer& Init)
 	: Super(Init)
-	, bShowBurnin(true)
 {
 	USceneComponent* SceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SceneComp"));
 	RootComponent = SceneComponent;
@@ -57,9 +55,7 @@ ALevelSequenceActor::ALevelSequenceActor(const FObjectInitializer& Init)
 
 	bOverrideInstanceData = false;
 
-	// The level sequence actor defaults to never ticking by the tick manager because it is ticked separately in LevelTick
-	//PrimaryActorTick.bCanEverTick = false;
-
+	PrimaryActorTick.bCanEverTick = true;
 	bAutoPlay_DEPRECATED = false;
 
 	bReplicates = true;
@@ -116,18 +112,12 @@ void ALevelSequenceActor::PostInitializeComponents()
 {
 	Super::PostInitializeComponents();
 
-	if (HasAuthority())
-	{
-		SetReplicates(bReplicatePlayback);
-	}
-	
+	SetReplicates(bReplicatePlayback);
 	InitializePlayer();
 }
 
 void ALevelSequenceActor::BeginPlay()
 {
-	GetWorld()->LevelSequenceActors.Add(this);
-
 	Super::BeginPlay();
 
 	RefreshBurnIn();
@@ -136,13 +126,6 @@ void ALevelSequenceActor::BeginPlay()
 	{
 		SequencePlayer->Play();
 	}
-}
-
-void ALevelSequenceActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	GetWorld()->LevelSequenceActors.Remove(this);
-
-	Super::EndPlay(EndPlayReason);
 }
 
 void ALevelSequenceActor::Tick(float DeltaSeconds)
@@ -257,28 +240,6 @@ void ALevelSequenceActor::OnSequenceLoaded(const FName& PackageName, UPackage* P
 	}
 }
 
-void ALevelSequenceActor::HideBurnin()
-{
-	bShowBurnin = false;
-	RefreshBurnIn();
-
-	if (!BurnInOptions)
-	{
-		UE_LOG(LogLevelSequence, Warning, TEXT("Burnin is not enabled"));
-	}
-}
-
-void ALevelSequenceActor::ShowBurnin()
-{
-	bShowBurnin = true;
-	RefreshBurnIn();
-
-	if (!BurnInOptions || !BurnInOptions->bUseBurnIn)
-	{
-		UE_LOG(LogLevelSequence, Warning, TEXT("Burnin will not be visible because it is not enabled"));
-	}
-}
-
 void ALevelSequenceActor::RefreshBurnIn()
 {
 	if (BurnInInstance)
@@ -287,7 +248,7 @@ void ALevelSequenceActor::RefreshBurnIn()
 		BurnInInstance = nullptr;
 	}
 	
-	if (BurnInOptions && BurnInOptions->bUseBurnIn && bShowBurnin)
+	if (BurnInOptions && BurnInOptions->bUseBurnIn)
 	{
 		// Create the burn-in if necessary
 		UClass* Class = BurnInOptions->BurnInClass.TryLoadClass<ULevelSequenceBurnIn>();

@@ -217,7 +217,6 @@ private:
 	bool bLooping;
 	bool bIsPlayingBackwards;
 	float PlaybackSpeed;
-	uint32 UpdatedFrameNum;
 
 	/** Array of Track Proxies */
 	TArray<FGeomCacheTrackProxy*> Tracks;

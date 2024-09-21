@@ -22,18 +22,6 @@ FDetailLayoutBuilderImpl::FDetailLayoutBuilderImpl(TSharedPtr<FComplexPropertyNo
 	bLayoutForExternalRoot = bIsExternal;
 }
 
-
-FDetailLayoutBuilderImpl::~FDetailLayoutBuilderImpl()
-{
-	if (GetDetailsView())
-	{
-		for (TSharedPtr<FComplexPropertyNode> ExternalRootPropertyNode : ExternalRootPropertyNodes)
-		{
-			GetDetailsView()->SaveExpandedItems(ExternalRootPropertyNode.ToSharedRef());
-		}
-	}
-}
-
 IDetailCategoryBuilder& FDetailLayoutBuilderImpl::EditCategory( FName CategoryName, const FText& NewLocalizedDisplayName, ECategoryPriority::Type CategoryType )
 {
 	FText LocalizedDisplayName = NewLocalizedDisplayName;
@@ -459,8 +447,7 @@ TSharedPtr<FPropertyNode> FDetailLayoutBuilderImpl::GetPropertyNodeInternal( con
 	TArray<FString> PathList;
 	PropertyPath.ToString().ParseIntoArray( PathList, TEXT("."), true );
 
-	int32 ArrayFoundIndex = 0;
-	if( PathList.Num() == 1 && !PathList[0].FindChar(TEXT('['), ArrayFoundIndex))
+	if( PathList.Num() == 1 )
 	{
 		PropertyName = FName( *PathList[0] );
 	}
@@ -523,11 +510,6 @@ TSharedPtr<FPropertyNode> FDetailLayoutBuilderImpl::GetPropertyNodeInternal( con
 					{
 						if( Index != INDEX_NONE )
 						{
-							if (Index >= PropertyNode->GetNumChildNodes())
-							{
-								return nullptr;
-							}
-
 							// The parent is the actual array, its children are array elements
 							PropertyNode = PropertyNode->GetChildNode( Index );
 						}
@@ -581,15 +563,10 @@ void FDetailLayoutBuilderImpl::AddExternalRootPropertyNode(TSharedRef<FComplexPr
 
 void FDetailLayoutBuilderImpl::RemoveExternalRootPropertyNode(TSharedRef<FComplexPropertyNode> InExternalRootNode)
 {
-	int32 NumRemoved = ExternalRootPropertyNodes.RemoveAll([InExternalRootNode](TSharedPtr<FComplexPropertyNode> ExternalRootPropertyNode)
+	ExternalRootPropertyNodes.RemoveAll([InExternalRootNode](TSharedPtr<FComplexPropertyNode> ExternalRootPropertyNode)
 	{
 		return ExternalRootPropertyNode == InExternalRootNode;
 	});
-
-	if (NumRemoved > 0 && GetDetailsView())
-	{
-		GetDetailsView()->SaveExpandedItems(InExternalRootNode);
-	}
 }
 
 FDelegateHandle FDetailLayoutBuilderImpl::AddNodeVisibilityChangedHandler(FSimpleMulticastDelegate::FDelegate InOnNodeVisibilityChanged)

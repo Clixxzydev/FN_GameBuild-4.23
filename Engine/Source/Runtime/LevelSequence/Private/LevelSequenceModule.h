@@ -4,8 +4,6 @@
 
 #include "ILevelSequenceModule.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogLevelSequence, Log, All);
-
 /**
  * Implements the LevelSequence module.
  */

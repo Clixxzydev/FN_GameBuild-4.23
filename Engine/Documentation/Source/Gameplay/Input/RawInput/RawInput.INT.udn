@@ -1,9 +1,11 @@
-Availability:Public
+Availability:Docs
 Title:RawInput Plugin
+Crumbs:%ROOT%
 Description: The RawInput plugin can read specific devices that don't conform to XInput standards.
 version: 4.16
 skilllevel:Intermediate
-Parent:Gameplay/HowTo/CharacterMovement/Blueprints/Input
+Parent:Engine/Gameplay/Input
+Order: 
 type:overview
 tags:Input
 

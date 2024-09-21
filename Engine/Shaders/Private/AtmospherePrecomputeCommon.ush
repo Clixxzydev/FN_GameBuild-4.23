@@ -20,7 +20,8 @@
 
 =============================================================================*/
 
-#pragma once
+#ifndef __ATMOSPHERE_PRECOMPUTE_COMMON__
+#define __ATMOSPHERE_PRECOMPUTE_COMMON__
 
 /** Integration Parameters */
 const static int TransmittanceIntegralSamples = 500;
@@ -42,3 +43,5 @@ Texture3D AtmosphereDeltaSMTexture;
 SamplerState AtmosphereDeltaSMTextureSampler;
 Texture3D AtmosphereDeltaJTexture;
 SamplerState AtmosphereDeltaJTextureSampler;
+
+#endif

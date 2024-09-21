@@ -627,11 +627,11 @@ public:
 	uint8 bHiddenEd:1;
 
 	/** True if this actor is the preview actor dragged out of the content browser */
-	UPROPERTY(Transient)
+	UPROPERTY()
 	uint8 bIsEditorPreviewActor:1;
 
 	/** Whether this actor is hidden by the layer browser. */
-	UPROPERTY(Transient)
+	UPROPERTY()
 	uint8 bHiddenEdLayer:1;
 
 	/** Whether this actor is hidden by the level browser. */
@@ -1286,7 +1286,7 @@ public:
 
 	/** The number of seconds (in game time) since this Actor was created, relative to Get Game Time In Seconds. */
 	UFUNCTION(BlueprintPure, Category=Actor)
-	float GetGameTimeSinceCreation() const;
+	float GetGameTimeSinceCreation();
 
 protected:
 	/** Event when play begins for this actor. */
@@ -1496,7 +1496,7 @@ public:
 	virtual void PostInitProperties() override;
 	virtual bool Modify( bool bAlwaysMarkDirty=true ) override;
 	virtual void ProcessEvent( UFunction* Function, void* Parameters ) override;
-	virtual int32 GetFunctionCallspace( UFunction* Function, FFrame* Stack ) override;
+	virtual int32 GetFunctionCallspace( UFunction* Function, void* Parameters, FFrame* Stack ) override;
 	virtual bool CallRemoteFunction( UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack ) override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
@@ -2321,7 +2321,7 @@ public:
 	 * @param  Params          Additional parameters used for the trace
 	 * @return TRUE if a blocking hit is found
 	 */
-	bool ActorLineTraceSingle(struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params) const;
+	bool ActorLineTraceSingle(struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params);
 
 	/** 
 	 * returns Distance to closest Body Instance surface. 
@@ -2452,9 +2452,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Utilities")
 	FName GetAttachParentSocketName() const;
 
-	/** Call a functor for Actors which are attached directly to a component in this actor. Functor should return true to carry on, false to abort. */
-	void ForEachAttachedActors(TFunctionRef<bool(class AActor*)> Functor) const;
-	
 	/** Find all Actors which are attached directly to a component in this actor */
 	UFUNCTION(BlueprintPure, Category = "Utilities")
 	void GetAttachedActors(TArray<AActor*>& OutActors) const;

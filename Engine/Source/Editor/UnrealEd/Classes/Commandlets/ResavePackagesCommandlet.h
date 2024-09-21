@@ -95,9 +95,6 @@ protected:
 	/** Only save packages with a changelist of zero **/
 	bool bOnlyUnversioned;
 
-	/** Only save packages that been saved by a licensee **/
-	bool bOnlyLicenseed;
-
 	/** Ignore package version changelist **/
 	bool bIgnoreChangelist;
 
@@ -206,8 +203,6 @@ protected:
 	bool RevertFile(const FString& Filename);
 
 	bool CanCheckoutFile(const FString& Filename, FString& CheckedOutUser);
-
-	void CheckoutAndSavePackage(UPackage* Package, TArray<FString>& SublevelFilenames);
 
 	// Print out a message only if running in very verbose mode
 	void VerboseMessage(const FString& Message);

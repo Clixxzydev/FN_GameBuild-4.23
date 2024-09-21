@@ -9,6 +9,10 @@ namespace UnrealBuildTool.Rules
 		public UnrealUSDWrapper(ReadOnlyTargetRules Target) : base(Target)
 		{
 			bEnableExceptions = true;
+
+			PCHUsage = ModuleRules.PCHUsageMode.NoSharedPCHs;
+			PrivatePCHHeaderFile = "Public/UnrealUSDWrapper.h";
+
 			bUseRTTI = true;
 
 			PublicDependencyModuleNames.AddRange(
@@ -19,8 +23,7 @@ namespace UnrealBuildTool.Rules
 			var EngineDir = Path.GetFullPath(Target.RelativeEnginePath);
 			var PythonSourceTPSDir = Path.Combine(EngineDir, "Source", "ThirdParty", "Python");
 
-			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && Target.WindowsPlatform.StaticAnalyzer == WindowsStaticAnalyzer.None &&
-				Target.LinkType != TargetLinkType.Monolithic) // If you want to use USD in a monolithic target, you'll have to use the ANSI allocator and remove this condition
+			if (Target.WindowsPlatform.Compiler != WindowsCompiler.Clang && Target.WindowsPlatform.StaticAnalyzer == WindowsStaticAnalyzer.None)
 			{
 				PublicDefinitions.Add("USE_USD_SDK=1");
 
@@ -43,7 +46,7 @@ namespace UnrealBuildTool.Rules
 					"usdLux"
 				};
 
-				PublicIncludePaths.AddRange(
+				PrivateIncludePaths.AddRange(
 					new string[] {
 					ModuleDirectory + "/../ThirdParty/USD/include",
 					PythonSourceTPSDir + "/Win64/include",
@@ -61,13 +64,15 @@ namespace UnrealBuildTool.Rules
 				}
 				else
 				{
-					System.Console.WriteLine("UnrealUSDWrapper does not support this platform");
+					System.Console.WriteLine("UnrealUSDWrapper does not supported this platform");
 				}
 			}
 			else
 			{
 				PublicDefinitions.Add("USE_USD_SDK=0");
 			}
+
+			PrivateIncludePaths.Add("UnrealUSDWrapper/Private");
         }
 	}
 }

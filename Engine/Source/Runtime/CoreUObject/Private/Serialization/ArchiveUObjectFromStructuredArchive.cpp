@@ -2,8 +2,6 @@
 
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 
-#if WITH_TEXT_ARCHIVE_SUPPORT
-
 FArchiveUObjectFromStructuredArchive::FArchiveUObjectFromStructuredArchive(FStructuredArchive::FSlot Slot)
 	: FArchiveFromStructuredArchive(Slot)
 	, bPendingSerialize(true)
@@ -185,5 +183,3 @@ void FArchiveUObjectFromStructuredArchive::SerializeInternal(FStructuredArchive:
 		bPendingSerialize = true;
 	}
 }
-
-#endif

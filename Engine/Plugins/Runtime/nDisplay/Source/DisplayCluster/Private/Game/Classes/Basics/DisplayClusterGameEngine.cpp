@@ -10,14 +10,11 @@
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/DisplayClusterAppExit.h"
-#include "Misc/Parse.h"
-
 #include "Misc/DisplayClusterHelpers.h"
-
+#include "Misc/DisplayClusterLog.h"
+#include "Misc/Parse.h"
 #include "DisplayClusterBuildConfig.h"
 #include "DisplayClusterGlobals.h"
-#include "DisplayClusterLog.h"
-#include "DisplayClusterStrings.h"
 
 
 void UDisplayClusterGameEngine::Init(class IEngineLoop* InEngineLoop)
@@ -68,8 +65,8 @@ void UDisplayClusterGameEngine::Init(class IEngineLoop* InEngineLoop)
 	if (OperationMode == EDisplayClusterOperationMode::Cluster ||
 		OperationMode == EDisplayClusterOperationMode::Standalone)
 	{
-		DisplayClusterHelpers::str::TrimStringValue(cfgPath);
-		DisplayClusterHelpers::str::TrimStringValue(nodeId);
+		DisplayClusterHelpers::str::DustCommandLineValue(cfgPath);
+		DisplayClusterHelpers::str::DustCommandLineValue(nodeId);
 
 		// Start game session
 		if (!GDisplayCluster->StartSession(cfgPath, nodeId))
@@ -163,27 +160,6 @@ bool UDisplayClusterGameEngine::LoadMap(FWorldContext& WorldContext, FURL URL, c
 	return true;
 }
 
-void UDisplayClusterGameEngine::RegisterSyncObject(IDisplayClusterClusterSyncObject* SyncObj)
-{
-	if (ClusterMgr)
-	{
-		ClusterMgr->RegisterSyncObject(SyncObj);
-	}
-}
-
-void UDisplayClusterGameEngine::UnregisterSyncObject(IDisplayClusterClusterSyncObject* SyncObj)
-{
-	if (ClusterMgr)
-	{
-		ClusterMgr->UnregisterSyncObject(SyncObj);
-	}
-}
-
-bool UDisplayClusterGameEngine::IsMaster() const
-{
-	return NodeController && NodeController->IsMaster();
-}
-
 void UDisplayClusterGameEngine::Tick(float DeltaSeconds, bool bIdleMode)
 {
 	DISPLAY_CLUSTER_FUNC_TRACE(LogDisplayClusterEngine);
@@ -200,12 +176,13 @@ void UDisplayClusterGameEngine::Tick(float DeltaSeconds, bool bIdleMode)
 		// Update delta time. Cluster slaves will get this value from the master few steps later
 		ClusterMgr->SetDeltaTime(DeltaSeconds);
 
+		// Sync cluster objects
+		ClusterMgr->SyncObjects();
 
 		//////////////////////////////////////////////////////////////////////////////////////////////
 		// Frame start barrier
 		NodeController->WaitForFrameStart();
 		UE_LOG(LogDisplayClusterEngine, Verbose, TEXT("Sync frame start"));
-
 
 		// Get DisplayCluster time delta
 		NodeController->GetDeltaTime(DeltaSeconds);
@@ -223,9 +200,6 @@ void UDisplayClusterGameEngine::Tick(float DeltaSeconds, bool bIdleMode)
 		// Perform PreTick for DisplayCluster module
 		UE_LOG(LogDisplayClusterEngine, Verbose, TEXT("Perform PreTick()"));
 		GDisplayCluster->PreTick(DeltaSeconds);
-
-		// Sync cluster objects
-		ClusterMgr->SyncObjects();
 
 		// Sync cluster events
 		ClusterMgr->SyncEvents();
@@ -254,8 +228,6 @@ void UDisplayClusterGameEngine::Tick(float DeltaSeconds, bool bIdleMode)
 		//////////////////////////////////////////////////////////////////////////////////////////////
 		// Frame end barrier
 		NodeController->WaitForFrameEnd();
-		ClusterMgr->ClearSyncObjects();
-
 		UE_LOG(LogDisplayClusterEngine, Verbose, TEXT("Sync frame end"));
 	}
 	else

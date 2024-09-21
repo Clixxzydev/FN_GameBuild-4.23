@@ -8,45 +8,37 @@
 
 #define LOCTEXT_NAMESPACE "CurveEditorContextMenu"
 
-void FCurveEditorContextMenu::BuildMenu(FMenuBuilder& MenuBuilder, TSharedRef<FCurveEditor> CurveEditor, TOptional<FCurvePointHandle> ClickedPoint, TOptional<FCurveModelID> HoveredCurveID)
+void FCurveEditorContextMenu::BuildMenu(FMenuBuilder& MenuBuilder, TWeakPtr<FCurveEditor> WeakCurveEditor, TOptional<FCurvePointHandle> ClickedPoint, TOptional<FCurveModelID> HoveredCurveID)
 {
-	int32 NumSelectedKeys = CurveEditor->GetSelection().Count();
+	TSharedPtr<FCurveEditor> CurveEditor = WeakCurveEditor.Pin();
+	if (!CurveEditor.IsValid())
+	{
+		return;
+	}
 
-	TSharedPtr<FCurveEditor> LocalCurveEditor = CurveEditor->AsShared();
-
-	// We change the name to reflect the current number of curves selected.
-	TAttribute<FText> ApplyBufferedCurvesText = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateLambda([LocalCurveEditor] {
-		return FText::Format(LOCTEXT("ApplyStoredCurvesContextMenu", "Apply {0} Stored Curves"), LocalCurveEditor->GetNumBufferedCurves());
-	}));
-
-	// We prioritize key selections over curve selections to reduce the pixel-perfectness needed
-	// to edit the keys (which is more common than curves). Right clicking on a key or an empty space
-	// should show the key menu, otherwise we show the curve menu (ie: right clicking on a curve, not 
-	// directly over a key).
-	if (NumSelectedKeys > 0 && (!HoveredCurveID.IsSet() || ClickedPoint.IsSet()))
+	int32 NumSelectedKeys = CurveEditor->Selection.Count();
+	if (NumSelectedKeys > 0)
 	{
 		MenuBuilder.BeginSection("CurveEditorKeySection", FText::Format(LOCTEXT("CurveEditorKeySection", "{0} Selected {0}|plural(one=Key,other=Keys)"), NumSelectedKeys));
 		{
-			// Modify Data
 			MenuBuilder.AddMenuEntry(FGenericCommands::Get().Delete);
-			
+
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().FlattenTangents);
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().StraightenTangents);
+			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().ReduceCurve);
+			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().BakeCurve);
 
 			MenuBuilder.AddMenuSeparator();
 
-			// Tangent Types
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationCubicAuto);
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationCubicUser);
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationCubicBreak);
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationLinear);
 			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationConstant);
-			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationToggleWeighted);
 
 			MenuBuilder.AddMenuSeparator();
 
-			// Filters
-			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().OpenUserImplementableFilterWindow);
+			MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().InterpolationToggleWeighted);
 		}
 		MenuBuilder.EndSection();
 	}
@@ -55,15 +47,12 @@ void FCurveEditorContextMenu::BuildMenu(FMenuBuilder& MenuBuilder, TSharedRef<FC
 		const FCurveModel* HoveredCurve = HoveredCurveID.IsSet() ? CurveEditor->FindCurve(HoveredCurveID.GetValue()) : nullptr;
 		if (HoveredCurve)
 		{
-			MenuBuilder.BeginSection("CurveEditorCurveSection", FText::Format(LOCTEXT("CurveNameFormat", "Curve '{0}'"), HoveredCurve->GetLongDisplayName()));
+			MenuBuilder.BeginSection("CurveEditorCurveSection", FText::Format(LOCTEXT("CurveNameFormat", "Curve '{0}'"), HoveredCurve->GetDisplayName()));
 			{
-				// Buffer Curves
-				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().BufferVisibleCurves);
-				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().ApplyBufferedCurves, NAME_None, ApplyBufferedCurvesText);
-				MenuBuilder.AddMenuSeparator();
-
-				// Modify Curve
 				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().AddKeyHovered);
+
+				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().ReduceCurve);
+				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().BakeCurve);
 
 				MenuBuilder.AddSubMenu(LOCTEXT("PreExtrapText", "Pre-Extrap"), FText(), FNewMenuDelegate::CreateLambda(
 					[](FMenuBuilder& SubMenu)
@@ -86,12 +75,6 @@ void FCurveEditorContextMenu::BuildMenu(FMenuBuilder& MenuBuilder, TSharedRef<FC
 						SubMenu.AddMenuEntry(FCurveEditorCommands::Get().SetPostInfinityExtrapConstant);
 					})
 				);
-
-				MenuBuilder.AddMenuSeparator();
-
-				// Filters
-				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().OpenUserImplementableFilterWindow);
-
 			}
 			MenuBuilder.EndSection();
 		}
@@ -99,17 +82,8 @@ void FCurveEditorContextMenu::BuildMenu(FMenuBuilder& MenuBuilder, TSharedRef<FC
 		{
 			MenuBuilder.BeginSection("CurveEditorAllCurveSections", LOCTEXT("CurveEditorAllCurveSections", "All Curves"));
 			{
-				// Buffer Curves
-				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().BufferVisibleCurves);
-				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().ApplyBufferedCurves, NAME_None, ApplyBufferedCurvesText);
-				MenuBuilder.AddMenuSeparator();
-				
-				// Modify Curves
 				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().AddKeyToAllCurves);
-				MenuBuilder.AddMenuSeparator();
-
-				// Filters
-				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().OpenUserImplementableFilterWindow);
+				MenuBuilder.AddMenuEntry(FCurveEditorCommands::Get().AddKeyToAllCurvesHere);
 			}
 			MenuBuilder.EndSection();
 		}

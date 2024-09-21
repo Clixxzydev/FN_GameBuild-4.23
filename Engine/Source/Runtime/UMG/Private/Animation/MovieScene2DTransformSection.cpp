@@ -293,7 +293,7 @@ void UMovieScene2DTransformSection::SetMask(FMovieScene2DTransformMask NewMask)
 
 FMovieScene2DTransformMask UMovieScene2DTransformSection::GetMaskByName(const FName& InName) const
 {
-	if (InName.ToString() == NSLOCTEXT("MovieScene2DTransformSection", "Translation", "Translation").ToString())
+	if (InName == TEXT("Translation"))
 	{
 		return EMovieScene2DTransformChannel::Translation;
 	}
@@ -305,12 +305,11 @@ FMovieScene2DTransformMask UMovieScene2DTransformSection::GetMaskByName(const FN
 	{
 		return EMovieScene2DTransformChannel::TranslationY;
 	}
-	else if (InName.ToString() == NSLOCTEXT("MovieScene2DTransformSection", "Angle", "Angle").ToString() ||
-			InName.ToString() == NSLOCTEXT("MovieScene2DTransformSection", "Rotation", "Rotation").ToString())
+	else if (InName == TEXT("Angle") || InName == TEXT("Rotation"))
 	{
 		return EMovieScene2DTransformChannel::Rotation;
 	}
-	else if (InName.ToString() == NSLOCTEXT("MovieScene2DTransformSection", "Scale", "Scale").ToString())
+	else if (InName == TEXT("Scale"))
 	{
 		return EMovieScene2DTransformChannel::Scale;
 	}
@@ -322,7 +321,7 @@ FMovieScene2DTransformMask UMovieScene2DTransformSection::GetMaskByName(const FN
 	{
 		return EMovieScene2DTransformChannel::ScaleY;
 	}
-	else if (InName.ToString() == NSLOCTEXT("MovieScene2DTransformSection", "Shear", "Shear").ToString())
+	else if (InName == TEXT("Shear"))
 	{
 		return EMovieScene2DTransformChannel::Shear;
 	}

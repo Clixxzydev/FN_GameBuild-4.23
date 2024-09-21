@@ -2,12 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/Paths.h"
-#include "HAL/FileManager.h"
 #include "ConcertClientLiveTransactionAuthors.h"
 #include "IConcertSession.h"
-#include "ConcertSyncClientLiveSession.h"
-#include "ConcertSyncSessionDatabase.h"
 #include "Scratchpad/ConcertScratchpad.h"
 
 /** Flags used for the tests. */
@@ -23,40 +19,32 @@ template<typename T> T NotMocked()      { check(false); return T(); }
 class FConcertClientSessionMock : public IConcertClientSession
 {
 public:
-	FConcertClientSessionMock(FConcertSyncEndpointIdAndData InLocalClientInfo)
-		: Id(FGuid::NewGuid())
-		, Name("FConcertClientSessionMock")
-		, LocalClientInfo(MoveTemp(InLocalClientInfo))
-	{ }
+	FConcertClientSessionMock(FConcertClientInfo InLocalClientInfo) : Name("FConcertClientSessionMock"), LocalClientInfo(MoveTemp(InLocalClientInfo)){ }
 
 	// IConcertSession Begin.
-	virtual const FGuid& GetId() const override																								{ return Id; }
-	virtual const FString& GetName() const override																							{ return NotMocked<const FString&>(Name); }
-	virtual const FConcertSessionInfo& GetSessionInfo() const override																		{ return NotMocked<const FConcertSessionInfo&>(SessionInfo); }
-	virtual FString GetSessionWorkingDirectory() const override																				{ return FPaths::ProjectIntermediateDir() / TEXT("ConcertClientLiveTransactionAuthorsTest") / Id.ToString(); }
-	virtual TArray<FGuid> GetSessionClientEndpointIds() const override																		{ return NotMocked<TArray<FGuid>>(); }
-	virtual TArray<FConcertSessionClientInfo> GetSessionClients() const override															{ return NotMocked<TArray<FConcertSessionClientInfo>>(); }
-	virtual bool FindSessionClient(const FGuid& InGuid, FConcertSessionClientInfo& OutInfo) const override									{ return GetClient(InGuid, OutInfo); }
-	virtual void Startup() override																											{ return NotMocked<void>(); }
-	virtual void Shutdown() override																										{ return NotMocked<void>(); };
-	virtual FConcertScratchpadRef GetScratchpad() const override																			{ return NotMocked<FConcertScratchpadRef>(); }
-	virtual FConcertScratchpadPtr GetClientScratchpad(const FGuid&) const override															{ return NotMocked<FConcertScratchpadRef>(); }
-	virtual FDelegateHandle InternalRegisterCustomEventHandler(const FName&, const TSharedRef<IConcertSessionCustomEventHandler>&) override { return NotMocked<FDelegateHandle>(); }
-	virtual void InternalUnregisterCustomEventHandler(const FName& EventMessageType, const FDelegateHandle EventHandle) override			{ return NotMocked<void>(); }
-	virtual void InternalUnregisterCustomEventHandler(const FName& EventMessageType, const void* EventHandler) override						{ return NotMocked<void>(); }
-	virtual void InternalClearCustomEventHandler(const FName& EventMessageType) override													{ return NotMocked<void>(); }
-	virtual void InternalSendCustomEvent(const UScriptStruct*, const void*, const TArray<FGuid>&, EConcertMessageFlags) override			{ return NotMocked<void>(); }
-	virtual void InternalRegisterCustomRequestHandler(const FName&, const TSharedRef<IConcertSessionCustomRequestHandler>&) override		{ return NotMocked<void>(); }
-	virtual void InternalUnregisterCustomRequestHandler(const FName&) override																{ return NotMocked<void>(); }
+	virtual const FString& GetName() const override                                                                                  { return NotMocked<const FString&>(Name); }
+	virtual const FConcertSessionInfo& GetSessionInfo() const override                                                               { return NotMocked<const FConcertSessionInfo&>(SessionInfo); }
+	virtual FString GetSessionWorkingDirectory() const override                                                                      { return NotMocked<FString>(); }
+	virtual TArray<FGuid> GetSessionClientEndpointIds() const override                                                               { return NotMocked<TArray<FGuid>>(); }
+	virtual TArray<FConcertSessionClientInfo> GetSessionClients() const override                                                     { return OtherClientsInfo; }
+	virtual bool FindSessionClient(const FGuid&, FConcertSessionClientInfo&) const override                                          { return NotMocked<bool>(); }
+	virtual void Startup() override                                                                                                  { return NotMocked<void>(); }
+	virtual void Shutdown() override                                                                                                 { return NotMocked<void>(); };
+	virtual FConcertScratchpadRef GetScratchpad() const override                                                                     { return NotMocked<FConcertScratchpadRef>(); }
+	virtual FConcertScratchpadPtr GetClientScratchpad(const FGuid&) const override                                                   { return NotMocked<FConcertScratchpadRef>(); }
+	virtual void InternalRegisterCustomEventHandler(const FName&, const TSharedRef<IConcertSessionCustomEventHandler>&) override     { return NotMocked<void>(); }
+	virtual void InternalUnregisterCustomEventHandler(const FName&) override                                                         { return NotMocked<void>(); }
+	virtual void InternalSendCustomEvent(const UScriptStruct*, const void*, const TArray<FGuid>&, EConcertMessageFlags) override     { return NotMocked<void>(); }
+	virtual void InternalRegisterCustomRequestHandler(const FName&, const TSharedRef<IConcertSessionCustomRequestHandler>&) override { return NotMocked<void>(); }
+	virtual void InternalUnregisterCustomRequestHandler(const FName&) override                                                       { return NotMocked<void>(); }
 	virtual void InternalSendCustomRequest(const UScriptStruct*, const void*, const FGuid&, const TSharedRef<IConcertSessionCustomResponseHandler>&) override { NotMocked<void>(); }
 	// IConcertSession End.
 
 	// IConcertClientSession Begin
 	virtual EConcertConnectionStatus GetConnectionStatus() const override            { return NotMocked<EConcertConnectionStatus>(EConcertConnectionStatus::Connected); }
-	virtual FGuid GetSessionClientEndpointId() const override                        { return LocalClientInfo.EndpointId; }
+	virtual FGuid GetSessionClientEndpointId() const override                        { return NotMocked<FGuid>(); }
 	virtual FGuid GetSessionServerEndpointId() const override                        { return NotMocked<FGuid>(); }
-	virtual const FConcertClientInfo& GetLocalClientInfo() const override            { return LocalClientInfo.EndpointData.ClientInfo; }
-	virtual void UpdateLocalClientInfo(const FConcertClientInfoUpdate&) override     { return NotMocked<void>(); }
+	virtual const FConcertClientInfo& GetLocalClientInfo() const override            { return LocalClientInfo; }
 	virtual void Connect() override                                                  { return NotMocked<void>(); }
 	virtual void Disconnect() override                                               { return NotMocked<void>(); }
 	virtual void Resume() override                                                   { return NotMocked<void>(); }
@@ -65,112 +53,53 @@ public:
 	virtual FOnConcertClientSessionTick& OnTick() override                           { return NotMocked<FOnConcertClientSessionTick&>(Tick); }
 	virtual FOnConcertClientSessionConnectionChanged& OnConnectionChanged() override { return NotMocked<FOnConcertClientSessionConnectionChanged&>(ConnectionChanged); }
 	virtual FOnConcertClientSessionClientChanged& OnSessionClientChanged() override  { return NotMocked<FOnConcertClientSessionClientChanged&>(ClientChanged); }
-	virtual FOnConcertSessionRenamed& OnSessionRenamed() override                    { return NotMocked<FOnConcertSessionRenamed&>(SessionRenamed); }
 	// IConcertClientSession End
 
-	void AddClient(FConcertSessionClientInfo Client) { OtherClientsInfo.Add(Client.ClientEndpointId, MoveTemp(Client)); }
-
-	bool GetClient(const FGuid& InGuid, FConcertSessionClientInfo& OutInfo) const
-	{
-		if (const FConcertSessionClientInfo* ClientInfo = OtherClientsInfo.Find(InGuid))
-		{
-			OutInfo = *ClientInfo;
-			return true;
-		}
-		return false;
-	}
+	void AddClient(FConcertSessionClientInfo Client) { OtherClientsInfo.Add(MoveTemp(Client)); }
 
 protected:
-	FGuid Id;
-
 	// Those below are unused mocked data member, but required to get the code compiling.
 	FString Name;
 	FConcertSessionInfo SessionInfo;
 	FOnConcertClientSessionTick Tick;
 	FOnConcertClientSessionConnectionChanged ConnectionChanged;
 	FOnConcertClientSessionClientChanged ClientChanged;
-	FOnConcertSessionRenamed SessionRenamed;
-	FConcertSyncEndpointIdAndData LocalClientInfo;
-	TMap<FGuid, FConcertSessionClientInfo> OtherClientsInfo;
+	FConcertClientInfo LocalClientInfo;
+	TArray<FConcertSessionClientInfo> OtherClientsInfo;
 };
-
-void AddTransactionActivity(FConcertSyncClientLiveSession& InLiveSession, FConcertClientLiveTransactionAuthors& InLiveTransactionAuthors, const FName InPackageName, const FConcertSyncEndpointIdAndData& InSourceClient)
-{
-	InLiveSession.GetSessionDatabase().SetEndpoint(InSourceClient.EndpointId, InSourceClient.EndpointData);
-
-	FConcertSyncTransactionActivity TransactionActivity;
-	TransactionActivity.EndpointId = InSourceClient.EndpointId;
-	TransactionActivity.EventData.Transaction.ModifiedPackages.Add(InPackageName);
-
-	int64 ActivityId = 0;
-	int64 EventId = 0;
-	if (InLiveSession.GetSessionDatabase().AddTransactionActivity(TransactionActivity, ActivityId, EventId))
-	{
-		// Need to get back the resolved transaction activity
-		InLiveSession.GetSessionDatabase().GetTransactionActivity(ActivityId, TransactionActivity);
-		InLiveTransactionAuthors.AddLiveTransactionActivity(TransactionActivity.EndpointId, TransactionActivity.EventData.Transaction.ModifiedPackages);
-	}
-}
-
-void FenceTransactions(FConcertSyncClientLiveSession& InLiveSession, FConcertClientLiveTransactionAuthors& InLiveTransactionAuthors, const FName InPackageName, const FConcertSyncEndpointIdAndData& InSourceClient, int64* InTransactionIdOverride = nullptr)
-{
-	InLiveSession.GetSessionDatabase().SetEndpoint(InSourceClient.EndpointId, InSourceClient.EndpointData);
-
-	FConcertSyncPackageActivity PackageActivity;
-	PackageActivity.EndpointId = InSourceClient.EndpointId;
-	PackageActivity.EventData.Package.Info.PackageName = InPackageName;
-	PackageActivity.EventData.Package.Info.PackageUpdateType = EConcertPackageUpdateType::Dummy;
-	if (InTransactionIdOverride)
-	{
-		PackageActivity.EventData.Package.Info.TransactionEventIdAtSave = *InTransactionIdOverride;
-	}
-	else
-	{
-		InLiveSession.GetSessionDatabase().GetTransactionMaxEventId(PackageActivity.EventData.Package.Info.TransactionEventIdAtSave);
-	}
-
-	int64 ActivityId = 0;
-	int64 EventId = 0;
-	InLiveSession.GetSessionDatabase().AddPackageActivity(PackageActivity, ActivityId, EventId);
-
-	InLiveTransactionAuthors.ResolveLiveTransactionAuthorsForPackage(PackageActivity.EventData.Package.Info.PackageName);
-}
 
 /** Ensures the live transaction authors works correctly when there is no other clients connected. */
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertLiveTransactionAuthorsSingleClient, "Concert.LiveTransactionAuthors.SingleClient", ConcertClientLiveTransactionAuthorsTestFlags)
 
 bool FConcertLiveTransactionAuthorsSingleClient::RunTest(const FString& Parameters)
 {
-	FConcertSyncEndpointIdAndData ThisClient;
-	ThisClient.EndpointId = FGuid::NewGuid();
-	ThisClient.EndpointData.ClientInfo.Initialize();
+	FConcertClientInfo ThisClient;
+	ThisClient.Initialize();
 
 	TSharedRef<IConcertClientSession> Session = MakeShared<FConcertClientSessionMock>(ThisClient);
-	TSharedRef<FConcertSyncClientLiveSession> LiveSession = MakeShared<FConcertSyncClientLiveSession>(Session, EConcertSyncSessionFlags::None);
-	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(LiveSession);
+	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(Session);
 
 	// Test without any transaction.
 	FName PackageName(TEXT("MyLevel"));
+	uint64 TransactionIndex = 1;
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
 	// Add a live transaction from this client. Ensure it doesn't affect the authored by others.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, ThisClient);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, ThisClient, TransactionIndex++);
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
 	// Add a live transaction on another package.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, FName(TEXT("OtherPackage")), ThisClient);
+	LiveTransactionAuthors.AddLiveTransaction(FName(TEXT("OtherPackage")), ThisClient, TransactionIndex++);
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
 	// Trim all transactions. Ensure it doesn't affect the package authored by others.
-	FenceTransactions(*LiveSession, LiveTransactionAuthors, PackageName, ThisClient);
+	LiveTransactionAuthors.TrimLiveTransactions(PackageName, TransactionIndex);
 
-	int32 OtherClientCount = 0;
+	int OtherClientCount = 0;
 	TArray<FConcertClientInfo> OtherClients;
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount, &OtherClients, 10));
 	TestTrueExpr(OtherClientCount == 0);
 	TestTrueExpr(OtherClients.Num() == 0);
-
-	IFileManager::Get().DeleteDirectory(*Session->GetSessionWorkingDirectory(), false, true);
 
 	return true;
 }
@@ -181,36 +110,32 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertLiveTransactionAuthorsManyClients, "Con
 bool FConcertLiveTransactionAuthorsManyClients::RunTest(const FString& Parameters)
 {
 	// Represents the local client.
-	FConcertSyncEndpointIdAndData ThisClient;
-	ThisClient.EndpointId = FGuid::NewGuid();
-	ThisClient.EndpointData.ClientInfo.Initialize();
+	FConcertClientInfo ThisClient;
+	ThisClient.Initialize();
 
 	// Represents the other clients.
-	FConcertSyncEndpointIdAndData OtherClient1;
-	OtherClient1.EndpointId = FGuid::NewGuid();
-	OtherClient1.EndpointData.ClientInfo.Initialize();
-	OtherClient1.EndpointData.ClientInfo.InstanceInfo.InstanceId.A += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
+	FConcertClientInfo OtherClient1;
+	OtherClient1.Initialize();
+	OtherClient1.InstanceInfo.InstanceId.A += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
 
-	FConcertSyncEndpointIdAndData OtherClient2;
-	OtherClient2.EndpointId = FGuid::NewGuid();
-	OtherClient2.EndpointData.ClientInfo.Initialize();
-	OtherClient2.EndpointData.ClientInfo.InstanceInfo.InstanceId.B += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
+	FConcertClientInfo OtherClient2;
+	OtherClient2.Initialize();
+	OtherClient2.InstanceInfo.InstanceId.B += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
 
 	// Ensure each client has a unique instance Id. The value is not important, but they must be different for the tests to work.
-	TestTrueExpr(ThisClient.EndpointData.ClientInfo.InstanceInfo.InstanceId != OtherClient1.EndpointData.ClientInfo.InstanceInfo.InstanceId);
-	TestTrueExpr(ThisClient.EndpointData.ClientInfo.InstanceInfo.InstanceId != OtherClient2.EndpointData.ClientInfo.InstanceInfo.InstanceId);
-	TestTrueExpr(OtherClient1.EndpointData.ClientInfo.InstanceInfo.InstanceId != OtherClient2.EndpointData.ClientInfo.InstanceInfo.InstanceId);
+	TestTrueExpr(ThisClient.InstanceInfo.InstanceId != OtherClient1.InstanceInfo.InstanceId);
+	TestTrueExpr(ThisClient.InstanceInfo.InstanceId != OtherClient2.InstanceInfo.InstanceId);
+	TestTrueExpr(OtherClient1.InstanceInfo.InstanceId != OtherClient2.InstanceInfo.InstanceId);
 
 	// Create the session.
 	TSharedRef<FConcertClientSessionMock> Session = MakeShared<FConcertClientSessionMock>(ThisClient);
-	TSharedRef<FConcertSyncClientLiveSession> LiveSession = MakeShared<FConcertSyncClientLiveSession>(Session, EConcertSyncSessionFlags::None);
 
-	// Add other clients to the session.
-	Session->AddClient(FConcertSessionClientInfo{ OtherClient1.EndpointId, OtherClient1.EndpointData.ClientInfo });
-	Session->AddClient(FConcertSessionClientInfo{ OtherClient2.EndpointId, OtherClient2.EndpointData.ClientInfo });
+	// Add other clients to the session. Note that we don't care about the end point GUID, they are not used by FConcertClientLiveTransactionAuthors implementation.
+	Session->AddClient(FConcertSessionClientInfo{FGuid(), OtherClient1});
+	Session->AddClient(FConcertSessionClientInfo{FGuid(), OtherClient2});
 
 	// Create the live transaction author tracker.
-	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(LiveSession);
+	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(Session);
 
 	// An hypothetical package.
 	FName PackageName(TEXT("MyLevel"));
@@ -219,24 +144,25 @@ bool FConcertLiveTransactionAuthorsManyClients::RunTest(const FString& Parameter
 	// Test without any transaction.
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
-	int32 OtherClientCount = 0;
+	int OtherClientCount = 0;
 	TArray<FConcertClientInfo> OtherClients;
+	uint64 TransactionIndex = 1;
 
 	// Add a live transaction from client 1. Ensure it is tracked.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient1);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient1, TransactionIndex++);
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount, &OtherClients, 10));
 	TestTrueExpr(OtherClientCount == 1);
-	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId == OtherClient1.EndpointData.ClientInfo.InstanceInfo.InstanceId);
+	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId == OtherClient1.InstanceInfo.InstanceId);
 	OtherClients.Empty();
 
 	// Add a live transaction from client 2. Ensure it is tracked.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient2);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient2, TransactionIndex++);
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount, &OtherClients, 10));
 	TestTrueExpr(OtherClientCount == 2);
-	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId == OtherClient1.EndpointData.ClientInfo.InstanceInfo.InstanceId || OtherClients[0].InstanceInfo.InstanceId == OtherClient1.EndpointData.ClientInfo.InstanceInfo.InstanceId);
-	TestTrueExpr(OtherClients[1].InstanceInfo.InstanceId == OtherClient2.EndpointData.ClientInfo.InstanceInfo.InstanceId || OtherClients[1].InstanceInfo.InstanceId == OtherClient2.EndpointData.ClientInfo.InstanceInfo.InstanceId);
+	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId == OtherClient1.InstanceInfo.InstanceId || OtherClients[0].InstanceInfo.InstanceId == OtherClient1.InstanceInfo.InstanceId);
+	TestTrueExpr(OtherClients[1].InstanceInfo.InstanceId == OtherClient2.InstanceInfo.InstanceId || OtherClients[1].InstanceInfo.InstanceId == OtherClient2.InstanceInfo.InstanceId);
 	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId != OtherClients[1].InstanceInfo.InstanceId);
 	OtherClients.Empty();
 
@@ -246,45 +172,41 @@ bool FConcertLiveTransactionAuthorsManyClients::RunTest(const FString& Parameter
 	OtherClients.Empty();
 
 	// Trim all transactions.
-	FenceTransactions(*LiveSession, LiveTransactionAuthors, PackageName, ThisClient);
+	LiveTransactionAuthors.TrimLiveTransactions(PackageName, TransactionIndex);
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
 	// Add a live transaction on another package just to make noise.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, OtherPackageName, ThisClient);
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, OtherPackageName, OtherClient2);
+	LiveTransactionAuthors.AddLiveTransaction(OtherPackageName, ThisClient, TransactionIndex++);
+	LiveTransactionAuthors.AddLiveTransaction(OtherPackageName, OtherClient2, TransactionIndex++);
 
 	// Add more transactions from client 1.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient1);
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient1);
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient1);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient1, TransactionIndex++);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient1, TransactionIndex++);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient1, TransactionIndex++);
+	uint64 TrimClient1TransactionIndex = TransactionIndex;
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount));
 	TestTrueExpr(OtherClientCount == 1);
 
-	int64 TransactionEventIdAtClient1Save = 0;
-	LiveSession->GetSessionDatabase().GetTransactionMaxEventId(TransactionEventIdAtClient1Save);
-
 	// Add more transactions from client 2.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient2);
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, OtherClient2);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient2, TransactionIndex++);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, OtherClient2, TransactionIndex++);
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount));
 	TestTrueExpr(OtherClientCount == 2);
 
 	// Trim the transaction from client 1 only.
-	FenceTransactions(*LiveSession, LiveTransactionAuthors, PackageName, ThisClient, &TransactionEventIdAtClient1Save);
+	LiveTransactionAuthors.TrimLiveTransactions(PackageName, TrimClient1TransactionIndex);
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount, &OtherClients, 1));
 	TestTrueExpr(OtherClientCount == 1);
-	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId == OtherClient2.EndpointData.ClientInfo.InstanceInfo.InstanceId);
+	TestTrueExpr(OtherClients[0].InstanceInfo.InstanceId == OtherClient2.InstanceInfo.InstanceId);
 
 	// Trim all remaining transactions.
-	FenceTransactions(*LiveSession, LiveTransactionAuthors, PackageName, ThisClient);
+	LiveTransactionAuthors.TrimLiveTransactions(PackageName, TransactionIndex);
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName, &OtherClientCount));
 	TestTrueExpr(OtherClientCount == 0);
 
 	// Ensure trim only trimmed for "PackageName", not "OtherPackageName". Client2 has a transaction on OtherPackageName.
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(OtherPackageName, &OtherClientCount));
 	TestTrueExpr(OtherClientCount == 1);
-
-	IFileManager::Get().DeleteDirectory(*Session->GetSessionWorkingDirectory(), false, true);
 
 	return true;
 }
@@ -295,40 +217,37 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertLiveTransactionAuthorsDisconnectedClien
 bool FConcertLiveTransactionAuthorsDisconnectedClient::RunTest(const FString& Parameters)
 {
 	// Represents the current local client. Let say it represents a person named 'Joe Smith' currently connected.
-	FConcertSyncEndpointIdAndData CurrentInstanceOfJoeSmith;
-	CurrentInstanceOfJoeSmith.EndpointId = FGuid::NewGuid();
-	CurrentInstanceOfJoeSmith.EndpointData.ClientInfo.Initialize();
+	FConcertClientInfo CurrentInstanceOfJoeSmith;
+	CurrentInstanceOfJoeSmith.Initialize();
 
 	// Represents a previous editor instance used by 'Joe Smith'. In that previous instance, Joe had another InstanceId, but he
 	// closed (or crashed) the editor without saving. So the previous instance of Joe has live transaction pending. He now has
 	// launched a new editor and rejoined the session from the same computer. Below, we simulate its previous instance id.
-	FConcertSyncEndpointIdAndData PreviousInstanceOfJoeSmith;
-	PreviousInstanceOfJoeSmith.EndpointId = FGuid::NewGuid();
-	PreviousInstanceOfJoeSmith.EndpointData.ClientInfo.Initialize();
-	PreviousInstanceOfJoeSmith.EndpointData.ClientInfo.InstanceInfo.InstanceId.A += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
+	FConcertClientInfo PreviousInstanceOfJoeSmith;
+	PreviousInstanceOfJoeSmith.Initialize();
+	PreviousInstanceOfJoeSmith.InstanceInfo.InstanceId.A += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
 
 	// Represents a disconnected user name Jane Doe who left the session without saving her modifications.
-	FConcertSyncEndpointIdAndData DisconnectedInstanceOfJaneDoe;
-	DisconnectedInstanceOfJaneDoe.EndpointId = FGuid::NewGuid();
-	DisconnectedInstanceOfJaneDoe.EndpointData.ClientInfo.Initialize();
-	DisconnectedInstanceOfJaneDoe.EndpointData.ClientInfo.InstanceInfo.InstanceId.B += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
-	DisconnectedInstanceOfJaneDoe.EndpointData.ClientInfo.DeviceName = TEXT("ThisIsJaneDoeComputer");
-	DisconnectedInstanceOfJaneDoe.EndpointData.ClientInfo.UserName = TEXT("jane.doe");
-	DisconnectedInstanceOfJaneDoe.EndpointData.ClientInfo.DisplayName = TEXT("Jane Doe");
+	FConcertClientInfo DisconnectedInstanceOfJaneDoe;
+	DisconnectedInstanceOfJaneDoe.Initialize();
+	DisconnectedInstanceOfJaneDoe.InstanceInfo.InstanceId.B += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
+	DisconnectedInstanceOfJaneDoe.DeviceName = TEXT("ThisIsJaneDoeComputer");
+	DisconnectedInstanceOfJaneDoe.UserName = TEXT("jane.doe");
+	DisconnectedInstanceOfJaneDoe.DisplayName = TEXT("Jane Doe");
 
 	// Create the session and transaction author tracker. Don't add the disconnected client to the session.
 	TSharedRef<FConcertClientSessionMock> Session = MakeShared<FConcertClientSessionMock>(CurrentInstanceOfJoeSmith);
-	TSharedRef<FConcertSyncClientLiveSession> LiveSession = MakeShared<FConcertSyncClientLiveSession>(Session, EConcertSyncSessionFlags::None);
-	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(LiveSession);
+	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(Session);
 
 	// An hypothetical package.
 	FName PackageName(TEXT("MyLevel"));
+	uint64 TransactionIndex = 1;
 
 	// Add live transactions from the disconnected client, just like when a client connects, it gets all live transactions from the transaction ledger,
 	// resolve their author using the activity ledger, then populate the live transaction author tracker. During that process, some live transactions may be
 	// resolved to author that are now disconnected. The code below simulate that.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, PreviousInstanceOfJoeSmith);
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, PreviousInstanceOfJoeSmith);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, PreviousInstanceOfJoeSmith, TransactionIndex++);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, PreviousInstanceOfJoeSmith, TransactionIndex++);
 
 	// We expect the LiveTransactionAuthors to map the previous instance of Joe Smith to the actual instance of Joe Smith because the instance are not
 	// run simultaneously, but rather run one after the other (When the same person runs 2 editors in parallel, the person is recognized as 2 different clients).
@@ -336,10 +255,8 @@ bool FConcertLiveTransactionAuthorsDisconnectedClient::RunTest(const FString& Pa
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
 	// Jane Doe is not connected anymore and she doesn't match Joe Smith identity signature (user name, display name, device name, etc). She should be recognize as a different user.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, DisconnectedInstanceOfJaneDoe);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, DisconnectedInstanceOfJaneDoe, TransactionIndex++);
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
-
-	IFileManager::Get().DeleteDirectory(*Session->GetSessionWorkingDirectory(), false, true);
 
 	return true;
 }
@@ -350,37 +267,33 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FConcertLiveTransactionAuthorsClientUsingTwoEdi
 bool FConcertLiveTransactionAuthorsClientUsingTwoEditors::RunTest(const FString& Parameters)
 {
 	// Represents the current local client. Let say it represents a person named 'Joe Smith' currently connected.
-	FConcertSyncEndpointIdAndData ThisJoeSmithInstance;
-	ThisJoeSmithInstance.EndpointId = FGuid::NewGuid();
-	ThisJoeSmithInstance.EndpointData.ClientInfo.Initialize();
+	FConcertClientInfo ThisJoeSmithInstance;
+	ThisJoeSmithInstance.Initialize();
 
 	// Represents also the person 'Joe Smith' but from another editor instance, on the same machine, running concurrently with 'ThisJoeSmithInstance'.
 	// Both editors used by Joe are connected to the same session.
-	FConcertSyncEndpointIdAndData AnotherInstanceOfJoeSmith;
-	AnotherInstanceOfJoeSmith.EndpointId = FGuid::NewGuid();
-	AnotherInstanceOfJoeSmith.EndpointData.ClientInfo.Initialize();
-	AnotherInstanceOfJoeSmith.EndpointData.ClientInfo.InstanceInfo.InstanceId.A += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
+	FConcertClientInfo AnotherInstanceOfJoeSmith;
+	AnotherInstanceOfJoeSmith.Initialize();
+	AnotherInstanceOfJoeSmith.InstanceInfo.InstanceId.A += 1; // Make the InstanceId unique, Initialize() uses the AppId which is the same across the app.
 
 	// Create the session and transaction author tracker.
 	TSharedRef<FConcertClientSessionMock> Session = MakeShared<FConcertClientSessionMock>(ThisJoeSmithInstance);
-	TSharedRef<FConcertSyncClientLiveSession> LiveSession = MakeShared<FConcertSyncClientLiveSession>(Session, EConcertSyncSessionFlags::None);
-	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(LiveSession);
+	FConcertClientLiveTransactionAuthors LiveTransactionAuthors(Session);
 
-	// Add the other Joe instance to the session.
-	Session->AddClient(FConcertSessionClientInfo{ AnotherInstanceOfJoeSmith.EndpointId, AnotherInstanceOfJoeSmith.EndpointData.ClientInfo });
+	// Add the other Joe instance to the session. Note that we don't care about the end point GUID, they are not used by FConcertClientLiveTransactionAuthors implementation.
+	Session->AddClient(FConcertSessionClientInfo{FGuid(), AnotherInstanceOfJoeSmith});
 
 	// An hypothetical package.
 	FName PackageName(TEXT("MyLevel"));
+	uint64 TransactionIndex = 1;
 
 	// Add transaction from the local instance of JoeSmith. He should be recognized as himself.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, ThisJoeSmithInstance);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, ThisJoeSmithInstance, TransactionIndex++);
 	TestTrueExpr(!LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
 
 	// Add transaction from the other instance of JoeSmith. He should be recognized as a different client.
-	AddTransactionActivity(*LiveSession, LiveTransactionAuthors, PackageName, AnotherInstanceOfJoeSmith);
+	LiveTransactionAuthors.AddLiveTransaction(PackageName, AnotherInstanceOfJoeSmith, TransactionIndex++);
 	TestTrueExpr(LiveTransactionAuthors.IsPackageAuthoredByOtherClients(PackageName));
-
-	IFileManager::Get().DeleteDirectory(*Session->GetSessionWorkingDirectory(), false, true);
 
 	return true;
 }

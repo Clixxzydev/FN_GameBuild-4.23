@@ -99,20 +99,11 @@ private:
 	void OnCompiledFile(const symbols::ObjPath& objPath, symbols::Compiland* compiland, const CompileResult& compileResult, double compileTime, bool forceAmalgamationPartsLinkage);
 
 	// actions
-	struct actions
+	struct LoadPatchInfoAction
 	{
-		#define DECLARE_ACTION(_name)																													\
-			struct _name																																\
-			{																																			\
-				typedef ::commands::_name CommandType;																									\
-				static bool Execute(const CommandType* command, const DuplexPipe* pipe, void* context, const void* payload, size_t payloadSize);		\
-			}
-
-		DECLARE_ACTION(LoadPatchInfo);
-
-		#undef DECLARE_ACTION
+		typedef commands::LoadPatchInfo CommandType;
+		static bool Execute(CommandType* command, const DuplexPipe* pipe, void* context);
 	};
-
 
 	std::wstring m_moduleName;
 	executable::Header m_imageHeader;

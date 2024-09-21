@@ -386,9 +386,10 @@ UNavigationSystemV1::UNavigationSystemV1(const FObjectInitializer& ObjectInitial
 	};
 	static FDelegatesInitializer DelegatesInitializer;
 	
-	// Set to the ai module's crowd manager, this module may not exist at spawn time but then it will just fail to load
-	CrowdManagerClass = FSoftObjectPath(TEXT("/Script/AIModule.CrowdManager"));
-
+	// @hack, trying to load AIModule's CrowdManager
+	UClass* Class = StaticLoadClass(UCrowdManagerBase::StaticClass(), nullptr, TEXT("/Script/AIModule.CrowdManager"));
+	CrowdManagerClass = Class ? Class : UCrowdManagerBase::StaticClass();
+	
 	// active tiles
 	NextInvokersUpdateTime = 0.f;
 	ActiveTilesUpdateInterval = 1.f;
@@ -645,9 +646,17 @@ bool UNavigationSystemV1::ConditionalPopulateNavOctree()
 			for (int32 LevelIndex = 0; LevelIndex < World->GetNumLevels(); ++LevelIndex)
 			{
 				ULevel* Level = World->GetLevel(LevelIndex);
-				if (ensure(Level))
+				AddLevelCollisionToOctree(Level);
+
+				for (int32 ActorIndex = 0; ActorIndex < Level->Actors.Num(); ActorIndex++)
 				{
-					AddLevelToOctree(*Level);
+					AActor* Actor = Level->Actors[ActorIndex];
+
+					const bool bLegalActor = Actor && !Actor->IsPendingKill();
+					if (bLegalActor)
+					{
+						ConditionalPopulateNavOctreeActor(*Actor);
+					}
 				}
 			}
 		}
@@ -991,8 +1000,17 @@ void UNavigationSystemV1::Tick(float DeltaSeconds)
 
 			if (DirtyAreas.Num() > 0 && bCanRebuildNow)
 			{
-				RebuildDirtyAreas();
+				for (int32 NavDataIndex = 0; NavDataIndex < NavDataSet.Num(); ++NavDataIndex)
+				{
+					ANavigationData* NavData = NavDataSet[NavDataIndex];
+					if (NavData)
+					{
+						NavData->RebuildDirtyAreas(DirtyAreas);
+					}
+				}
+
 				DirtyAreasUpdateTime = 0;
+				DirtyAreas.Reset();
 			}
 		}
 
@@ -2592,7 +2610,7 @@ const FNavigationRelevantData* UNavigationSystemV1::GetDataForObject(const UObje
 
 	const FOctreeElementId* OctreeID = GetObjectsNavOctreeId(Object);
 
-	if (OctreeID != nullptr && NavOctree->IsValidElementId(*OctreeID))
+	if (OctreeID != nullptr && OctreeID->IsValidId() == true)
 	{
 		return NavOctree->GetDataForID(*OctreeID);
 	}
@@ -3010,6 +3028,11 @@ void UNavigationSystemV1::OnActorUnregistered(AActor* Actor)
 			NavSys->UnregisterNavOctreeElement(Actor, NavInterface, OctreeUpdate_Default);
 		}
 	}
+}
+
+void UNavigationSystemV1::ConditionalPopulateNavOctreeActor(AActor& Actor)
+{
+	UpdateActorAndComponentsInNavOctree(Actor);
 }
 
 void UNavigationSystemV1::FindElementsInNavOctree(const FBox& QueryBox, const FNavigationOctreeFilter& Filter, TArray<FNavigationOctreeElement>& Elements)
@@ -3581,20 +3604,6 @@ void UNavigationSystemV1::RebuildAll(bool bIsLoadTime)
 	}
 }
 
-void UNavigationSystemV1::RebuildDirtyAreas()
-{
-	for (int32 NavDataIndex = 0; NavDataIndex < NavDataSet.Num(); ++NavDataIndex)
-	{
-		ANavigationData* NavData = NavDataSet[NavDataIndex];
-		if (NavData)
-		{
-			NavData->RebuildDirtyAreas(DirtyAreas);
-		}
-	}
-
-	DirtyAreas.Reset();
-}
-
 bool UNavigationSystemV1::IsNavigationBuildInProgress(bool bCheckDirtyToo)
 {
 	bool bRet = false;
@@ -3701,22 +3710,6 @@ void UNavigationSystemV1::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWor
 	}
 }
 
-void UNavigationSystemV1::AddLevelToOctree(ULevel& Level)
-{
-	AddLevelCollisionToOctree(&Level);
-
-	for (int32 ActorIndex = 0; ActorIndex < Level.Actors.Num(); ActorIndex++)
-	{
-		AActor* Actor = Level.Actors[ActorIndex];
-
-		const bool bLegalActor = Actor && !Actor->IsPendingKill();
-		if (bLegalActor)
-		{
-			UpdateActorAndComponentsInNavOctree(*Actor);
-		}
-	}
-}
-
 void UNavigationSystemV1::AddLevelCollisionToOctree(ULevel* Level)
 {
 #if WITH_RECAST
@@ -3784,13 +3777,9 @@ void UNavigationSystemV1::OnPostLoadMap(UWorld*)
 #if WITH_EDITOR
 void UNavigationSystemV1::OnActorMoved(AActor* Actor)
 {
-	if (Cast<ANavMeshBoundsVolume>(Actor))
+	if (Cast<ANavMeshBoundsVolume>(Actor) != NULL)
 	{
 		OnNavigationBoundsUpdated((ANavMeshBoundsVolume*)Actor);
-	}
-	else if (Actor)
-	{
-		UpdateActorAndComponentsInNavOctree(*Actor, /*bUpdateAttachedActors=*/true);
 	}
 }
 #endif // WITH_EDITOR

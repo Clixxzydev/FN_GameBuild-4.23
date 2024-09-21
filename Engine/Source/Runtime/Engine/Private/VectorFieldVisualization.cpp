@@ -43,7 +43,7 @@ public:
 		const FSceneInterface* Scene,
 		const FSceneView* View,
 		const FMeshMaterialShader* Shader,
-		const EVertexInputStreamType InputStreamType,
+		bool bShaderRequiresPositionOnlyStream,
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FVertexFactory* VertexFactory,
 		const FMeshBatchElement& BatchElement,
@@ -131,7 +131,7 @@ void FVectorFieldVisualizationVertexFactory::InitRHI()
 void FVectorFieldVisualizationVertexFactory::ReleaseRHI()
 {
 	UniformBuffer.SafeRelease();
-	VectorFieldTextureRHI = nullptr;
+	VectorFieldTextureRHI = FTexture3DRHIParamRef();
 	FVertexFactory::ReleaseRHI();
 }
 
@@ -165,7 +165,7 @@ FVertexFactoryShaderParameters* FVectorFieldVisualizationVertexFactory::Construc
  */
 void FVectorFieldVisualizationVertexFactory::SetParameters(
 	const FVectorFieldVisualizationParameters& InUniformParameters,
-	FRHITexture3D* InVectorFieldTextureRHI )
+	FTexture3DRHIParamRef InVectorFieldTextureRHI )
 {
 	UniformBuffer = FVectorFieldVisualizationBufferRef::CreateUniformBufferImmediate(InUniformParameters, UniformBuffer_SingleFrame);
 	VectorFieldTextureRHI = InVectorFieldTextureRHI;
@@ -175,7 +175,7 @@ void FVectorFieldVisualizationVertexFactoryShaderParameters::GetElementShaderBin
 	const FSceneInterface* Scene,
 	const FSceneView* View,
 	const FMeshMaterialShader* Shader,
-	const EVertexInputStreamType InputStreamType,
+	bool bShaderRequiresPositionOnlyStream,
 	ERHIFeatureLevel::Type FeatureLevel,
 	const FVertexFactory* InVertexFactory,
 	const FMeshBatchElement& BatchElement,
@@ -183,7 +183,7 @@ void FVectorFieldVisualizationVertexFactoryShaderParameters::GetElementShaderBin
 	FVertexInputStreamArray& VertexStreams) const
 {
 	FVectorFieldVisualizationVertexFactory* VertexFactory = (FVectorFieldVisualizationVertexFactory*)InVertexFactory;
-	FRHISamplerState* SamplerStatePoint = TStaticSamplerState<SF_Point>::GetRHI();
+	FSamplerStateRHIParamRef SamplerStatePoint = TStaticSamplerState<SF_Point>::GetRHI();
 	ShaderBindings.Add(Shader->GetUniformBufferParameter<FVectorFieldVisualizationParameters>(), VertexFactory->UniformBuffer);
 	ShaderBindings.AddTexture(VectorFieldTexture, VectorFieldTextureSampler, SamplerStatePoint, VertexFactory->VectorFieldTextureRHI);
 }

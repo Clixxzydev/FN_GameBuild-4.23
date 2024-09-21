@@ -224,11 +224,11 @@ private:
 	/** Cached audio clock time for when devices are removed/swapped. */
 	double CachedAudioClockStartTime;
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 	// We need to keep track whether com was successfully initialized so we can clean 
 	// it up during shutdown
 	bool bComInitialized;
-#endif // PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#endif // PLATFORM_WINDOWS
 };
 
 class FXMPHelper

@@ -8,7 +8,6 @@ public class UnixCommonStartup : ModuleRules
 	public UnixCommonStartup(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.Add("Core");
-		PrivateDependencyModuleNames.Add("ApplicationCore");
 		PrivateDependencyModuleNames.Add("Projects");
 
 		PrivateDependencyModuleNames.Add("Slate");

@@ -6,13 +6,7 @@
 namespace GeometryCollectionExample
 {	
 	template<class T>
-	bool GEOMETRYCOLLECTIONEXAMPLECORE_API CheckIncrementMask(ExampleResponse&& R);
-
-	template<class T>
 	bool GEOMETRYCOLLECTIONEXAMPLECORE_API Creation(ExampleResponse&& R);
-
-	template<class T>
-	bool GEOMETRYCOLLECTIONEXAMPLECORE_API AppendTransformHierarchy(ExampleResponse&& R);
 
 	template<class T>
 	bool GEOMETRYCOLLECTIONEXAMPLECORE_API ContiguousElementsTest(ExampleResponse&& R);
@@ -40,11 +34,4 @@ namespace GeometryCollectionExample
 
 	template<class T>
 	bool GEOMETRYCOLLECTIONEXAMPLECORE_API ReindexMaterialsTest(ExampleResponse&& R);
-
-	template<class T>
-	bool GEOMETRYCOLLECTIONEXAMPLECORE_API AttributeTransferTest(ExampleResponse&& R);
-
-	template<class T>
-	bool GEOMETRYCOLLECTIONEXAMPLECORE_API AttributeDependencyTest(ExampleResponse&& R);
-
 }

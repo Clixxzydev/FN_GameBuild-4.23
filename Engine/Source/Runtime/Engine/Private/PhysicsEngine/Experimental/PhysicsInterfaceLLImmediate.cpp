@@ -290,7 +290,7 @@ FSQAccelerator* FPhysInterface_LLImmediate::GetSQAccelerator() const
 	return nullptr;
 }
 
-void FPhysInterface_LLImmediate::CreateActor(const FActorCreationParams & Params, FPhysicsActorHandle& Handle)
+FPhysicsActorHandle FPhysInterface_LLImmediate::CreateActor(const FActorCreationParams & Params)
 {
 	FPhysScene* InScene = Params.Scene;
 
@@ -304,7 +304,7 @@ void FPhysInterface_LLImmediate::CreateActor(const FActorCreationParams & Params
 	NewHandle.OwningScene = InScene;
 	InScene->QueueNewActor(Params, NewHandle);
 
-	Handle = NewHandle;
+	return NewHandle;
 }
 
 void FPhysInterface_LLImmediate::ReleaseActor(FPhysicsActorHandle_LLImmediate& InActorReference, FPhysScene* InScene /*= nullptr*/, bool bNeverDeferRelease /*= false*/)

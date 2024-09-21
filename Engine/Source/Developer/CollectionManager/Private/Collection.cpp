@@ -122,13 +122,13 @@ bool FCollection::Load(FText& OutError)
 	if (StorageMode == ECollectionStorageMode::Static)
 	{
 		// Static collection, a flat list of asset paths
-		for (FString& Line : FileContents)
+		for (FString Line : FileContents)
 		{
 			Line.TrimStartAndEndInline();
 
-			if ( int32 Len = Line.Len() )
+			if ( Line.Len() )
 			{
-				AddObjectToCollection(FName(Len, *Line));
+				AddObjectToCollection(FName(*Line));
 			}
 		}
 	}
@@ -194,7 +194,7 @@ bool FCollection::Save(const TArray<FText>& AdditionalChangelistText, FText& Out
 	{
 		// Write out the set as a sorted array to keep things in a known order for diffing
 		TArray<FName> ObjectList = ObjectSet.Array();
-		ObjectList.Sort(FNameLexicalLess());
+		ObjectList.Sort();
 
 		// Static collection. Save a flat list of all objects in the collection.
 		for (const FName& ObjectName : ObjectList)
@@ -398,11 +398,10 @@ void FCollection::Empty()
 
 bool FCollection::AddObjectToCollection(FName ObjectPath)
 {
-	if (StorageMode == ECollectionStorageMode::Static)
+	if (StorageMode == ECollectionStorageMode::Static && !ObjectSet.Contains(ObjectPath))
 	{
-		bool bAlreadyInSet = false;
-		ObjectSet.Add(ObjectPath, &bAlreadyInSet);
-		return !bAlreadyInSet;
+		ObjectSet.Add(ObjectPath);
+		return true;
 	}
 
 	return false;
@@ -581,7 +580,7 @@ void FCollection::PrintCollection() const
 
 		// Print the set as a sorted array to keep things in a sane order
 		TArray<FName> ObjectList = ObjectSet.Array();
-		ObjectList.Sort(FNameLexicalLess());
+		ObjectList.Sort();
 
 		for (const FName& ObjectName : ObjectList)
 		{
@@ -903,8 +902,8 @@ bool FCollection::CheckinCollection(const TArray<FText>& AdditionalChangelistTex
 			TArray<FName> ObjectsRemoved;
 			GetObjectDifferencesFromDisk(ObjectsAdded, ObjectsRemoved);
 
-			ObjectsAdded.Sort(FNameLexicalLess());
-			ObjectsRemoved.Sort(FNameLexicalLess());
+			ObjectsAdded.Sort();
+			ObjectsRemoved.Sort();
 
 			// Report added files
 			FFormatNamedArguments Args;

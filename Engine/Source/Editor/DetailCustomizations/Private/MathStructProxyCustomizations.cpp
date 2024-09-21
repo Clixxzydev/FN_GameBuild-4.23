@@ -29,7 +29,6 @@ TSharedRef<SWidget> FMathStructProxyCustomization::MakeNumericProxyWidget(TShare
 
 	return 
 		SNew( SNumericEntryBox<NumericType> )
-		.IsEnabled( this, &FMathStructProxyCustomization::IsValueEnabled, WeakHandlePtr )
 		.Value( this, &FMathStructProxyCustomization::OnGetValue<ProxyType, NumericType>, WeakHandlePtr, ProxyValue )
 		.Font( IDetailLayoutBuilder::GetDetailFont() )
 		.UndeterminedString( NSLOCTEXT("PropertyEditor", "MultipleValues", "Multiple Values") )

@@ -6,8 +6,6 @@
 #include "Misc/CoreDelegates.h"
 #include "Logging/LogMacros.h"
 
-#include "IConcertClient.h"
-#include "IConcertSyncClient.h"
 #include "IConcertSession.h"
 #include "ConcertSettings.h"
 
@@ -25,29 +23,23 @@ DEFINE_LOG_CATEGORY_STATIC(LogConcertSequencerSync, Warning, Log)
 
 #if WITH_EDITOR
 
-// Enable Sequence Playback Syncing
-static TAutoConsoleVariable<int32> CVarEnablePlaybackSync(TEXT("Concert.EnableSequencerPlaybackSync"), 1, TEXT("Enable Concert Sequencer Playback Syncing of opened Sequencer."));
-
 // Enable Sequence Playing on game client
-static TAutoConsoleVariable<int32> CVarEnableSequencePlayer(TEXT("Concert.EnableSequencePlayer"), 0, TEXT("Enable Concert Sequence Players on `-game` client."));
+static TAutoConsoleVariable<int32> CVarEnableSequencePlayer(TEXT("concert.EnableSequencePlayer"), 0, TEXT("Enable Concert Sequence Players on `-game` client."));
 
 // Enable opening Sequencer on remote machine whenever a sequencer is opened, if both instance have this option on.
-static TAutoConsoleVariable<int32> CVarEnableRemoteSequencerOpen(TEXT("Concert.EnableOpenRemoteSequencer"), 0, TEXT("Enable Concert remote Sequencer opening."));
+static TAutoConsoleVariable<int32> CVarEnableRemoteSequencerOpen(TEXT("concert.EnableOpenRemoteSequencer"), 0, TEXT("Enable Concert remote Sequencer opening."));
 
 
-FConcertClientSequencerManager::FConcertClientSequencerManager(IConcertSyncClient* InOwnerSyncClient)
-	: OwnerSyncClient(InOwnerSyncClient)
+FSequencerEventClient::FSequencerEventClient()
 {
-	check(OwnerSyncClient);
-
 	bRespondingToTransportEvent = false;
 
 	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
-	OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate::CreateRaw(this, &FConcertClientSequencerManager::OnSequencerCreated));
-	FCoreDelegates::OnEndFrame.AddRaw(this, &FConcertClientSequencerManager::OnEndFrame);
+	OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate::CreateRaw(this, &FSequencerEventClient::OnSequencerCreated));
+	OnEndFrameHandle = FCoreDelegates::OnEndFrame.AddRaw(this, &FSequencerEventClient::OnEndFrame);
 }
 
-FConcertClientSequencerManager::~FConcertClientSequencerManager()
+FSequencerEventClient::~FSequencerEventClient()
 {
 	ISequencerModule* SequencerModulePtr = FModuleManager::Get().GetModulePtr<ISequencerModule>("Sequencer");
 	if (SequencerModulePtr)
@@ -55,7 +47,11 @@ FConcertClientSequencerManager::~FConcertClientSequencerManager()
 		SequencerModulePtr->UnregisterOnSequencerCreated(OnSequencerCreatedHandle);
 	}
 
-	FCoreDelegates::OnEndFrame.RemoveAll(this);
+	if (OnEndFrameHandle.IsValid())
+	{
+		FCoreDelegates::OnEndFrame.Remove(OnEndFrameHandle);
+		OnEndFrameHandle.Reset();
+	}
 	
 	for (FOpenSequencerData& OpenSequencer : OpenSequencers)
 	{
@@ -68,7 +64,7 @@ FConcertClientSequencerManager::~FConcertClientSequencerManager()
 	}
 }
 
-void FConcertClientSequencerManager::OnSequencerCreated(TSharedRef<ISequencer> InSequencer)
+void FSequencerEventClient::OnSequencerCreated(TSharedRef<ISequencer> InSequencer)
 {
 	// Find a Sequencer state for a newly opened sequencer if we have one.
 	UMovieSceneSequence* Sequence = InSequencer->GetRootMovieSceneSequence();
@@ -79,8 +75,8 @@ void FConcertClientSequencerManager::OnSequencerCreated(TSharedRef<ISequencer> I
 	FOpenSequencerData OpenSequencer;
 	OpenSequencer.WeakSequencer = TWeakPtr<ISequencer>(InSequencer);
 	OpenSequencer.PlaybackMode = EPlaybackMode::Undefined;
-	OpenSequencer.OnGlobalTimeChangedHandle = InSequencer->OnGlobalTimeChanged().AddRaw(this, &FConcertClientSequencerManager::OnSequencerTimeChanged, OpenSequencer.WeakSequencer);
-	OpenSequencer.OnCloseEventHandle = InSequencer->OnCloseEvent().AddRaw(this, &FConcertClientSequencerManager::OnSequencerClosed);
+	OpenSequencer.OnGlobalTimeChangedHandle = InSequencer->OnGlobalTimeChanged().AddRaw(this, &FSequencerEventClient::OnSequencerTimeChanged, OpenSequencer.WeakSequencer);
+	OpenSequencer.OnCloseEventHandle = InSequencer->OnCloseEvent().AddRaw(this, &FSequencerEventClient::OnSequencerClosed);
 	int OpenIndex = OpenSequencers.Add(OpenSequencer);
 
 	// Setup stored state
@@ -92,9 +88,10 @@ void FConcertClientSequencerManager::OnSequencerCreated(TSharedRef<ISequencer> I
 	OpenSequencers[OpenIndex].PlaybackMode = EPlaybackMode::Undefined;
 
 	// if we allow for Sequencer remote opening send an event, if we aren't currently responding to one
-	if (!bRespondingToTransportEvent && IsSequencerRemoteOpenEnabled())
+	if (!bRespondingToTransportEvent && CVarEnableRemoteSequencerOpen.GetValueOnAnyThread() > 0)
 	{
-		if (TSharedPtr<IConcertClientSession> Session = WeakSession.Pin())
+		TSharedPtr<IConcertClientSession> Session = WeakSession.Pin();
+		if (Session.IsValid())
 		{
 			FConcertSequencerOpenEvent OpenEvent;
 			OpenEvent.SequenceObjectPath = Sequence->GetPathName();
@@ -105,7 +102,7 @@ void FConcertClientSequencerManager::OnSequencerCreated(TSharedRef<ISequencer> I
 	}
 }
 
-TArray<FConcertClientSequencerManager::FOpenSequencerData*, TInlineAllocator<1>> FConcertClientSequencerManager::GatherRootSequencersByAssetPath(const FString& InSequenceObjectPath)
+TArray<FSequencerEventClient::FOpenSequencerData*, TInlineAllocator<1>> FSequencerEventClient::GatherRootSequencersByAssetPath(const FString& InSequenceObjectPath)
 {
 	TArray<FOpenSequencerData*, TInlineAllocator<1>> OutSequencers;
 	for (FOpenSequencerData& Entry : OpenSequencers)
@@ -121,61 +118,33 @@ TArray<FConcertClientSequencerManager::FOpenSequencerData*, TInlineAllocator<1>>
 	return OutSequencers;
 }
 
-float FConcertClientSequencerManager::GetLatencyCompensationMs() const
-{
-	IConcertClientRef ConcertClient = OwnerSyncClient->GetConcertClient();
-	return ConcertClient->IsConfigured()
-		? ConcertClient->GetConfiguration()->ClientSettings.LatencyCompensationMs
-		: 0.0f;
-}
-
-void FConcertClientSequencerManager::Register(TSharedRef<IConcertClientSession> InSession)
+void FSequencerEventClient::Register(TSharedRef<IConcertClientSession> InSession)
 {
 	// Hold onto the session so we can trigger events
 	WeakSession = InSession;
 
 	// Register our events
-	InSession->RegisterCustomEventHandler<FConcertSequencerStateEvent>(this, &FConcertClientSequencerManager::OnTransportEvent);
-	InSession->RegisterCustomEventHandler<FConcertSequencerCloseEvent>(this, &FConcertClientSequencerManager::OnCloseEvent);
-	InSession->RegisterCustomEventHandler<FConcertSequencerOpenEvent>(this, &FConcertClientSequencerManager::OnOpenEvent);
-	InSession->RegisterCustomEventHandler<FConcertSequencerStateSyncEvent>(this, &FConcertClientSequencerManager::OnSyncEvent);
+	InSession->RegisterCustomEventHandler<FConcertSequencerStateEvent>(this, &FSequencerEventClient::OnTransportEvent);
+	InSession->RegisterCustomEventHandler<FConcertSequencerCloseEvent>(this, &FSequencerEventClient::OnCloseEvent);
+	InSession->RegisterCustomEventHandler<FConcertSequencerOpenEvent>(this, &FSequencerEventClient::OnOpenEvent);
+	InSession->RegisterCustomEventHandler<FConcertSequencerStateSyncEvent>(this, &FSequencerEventClient::OnSyncEvent);
 }
 
-void FConcertClientSequencerManager::Unregister(TSharedRef<IConcertClientSession> InSession)
+void FSequencerEventClient::Unregister(TSharedRef<IConcertClientSession> InSession)
 {
 	// Unregister our events and explicitly reset the session ptr
-	if (TSharedPtr<IConcertClientSession> Session = WeakSession.Pin())
+	TSharedPtr<IConcertClientSession> Session = WeakSession.Pin();
+	if (Session.IsValid())
 	{
-		check(Session == InSession);
-		Session->UnregisterCustomEventHandler<FConcertSequencerStateEvent>(this);
-		Session->UnregisterCustomEventHandler<FConcertSequencerCloseEvent>(this);
-		Session->UnregisterCustomEventHandler<FConcertSequencerOpenEvent>(this);
-		Session->UnregisterCustomEventHandler<FConcertSequencerStateSyncEvent>(this);
+		Session->UnregisterCustomEventHandler<FConcertSequencerStateEvent>();
+		Session->UnregisterCustomEventHandler<FConcertSequencerCloseEvent>();
+		Session->UnregisterCustomEventHandler<FConcertSequencerOpenEvent>();
+		Session->UnregisterCustomEventHandler<FConcertSequencerStateSyncEvent>();
 	}
-	WeakSession.Reset();
+	WeakSession = nullptr;
 }
 
-bool FConcertClientSequencerManager::IsSequencerPlaybackSyncEnabled() const
-{
-	return CVarEnablePlaybackSync.GetValueOnAnyThread() > 0;
-}
-
-void FConcertClientSequencerManager::SetSequencerPlaybackSync(bool bEnable)
-{
-	CVarEnablePlaybackSync->AsVariable()->Set(bEnable ? 1 : 0);
-}
-
-bool FConcertClientSequencerManager::IsSequencerRemoteOpenEnabled() const
-{
-	return CVarEnableRemoteSequencerOpen.GetValueOnAnyThread() > 0;
-}
-
-void FConcertClientSequencerManager::SetSequencerRemoteOpen(bool bEnable)
-{
-	CVarEnableRemoteSequencerOpen->AsVariable()->Set(bEnable ? 1 : 0);
-}
-
-void FConcertClientSequencerManager::OnSequencerClosed(TSharedRef<ISequencer> InSequencer)
+void FSequencerEventClient::OnSequencerClosed(TSharedRef<ISequencer> InSequencer)
 {
 	// Find the associated open sequencer index
 	int Index = 0;
@@ -212,7 +181,7 @@ void FConcertClientSequencerManager::OnSequencerClosed(TSharedRef<ISequencer> In
 	OpenSequencers.RemoveAtSwap(Index);
 }
 
-void FConcertClientSequencerManager::OnSyncEvent(const FConcertSessionContext& InEventContext, const FConcertSequencerStateSyncEvent& InEvent)
+void FSequencerEventClient::OnSyncEvent(const FConcertSessionContext& InEventContext, const FConcertSequencerStateSyncEvent& InEvent)
 {
 	for (const auto& State : InEvent.SequencerStates)
 	{
@@ -221,7 +190,7 @@ void FConcertClientSequencerManager::OnSyncEvent(const FConcertSessionContext& I
 		for (FOpenSequencerData* OpenSequencer : GatherRootSequencersByAssetPath(State.SequenceObjectPath))
 		{
 			TSharedPtr<ISequencer> Sequencer = OpenSequencer->WeakSequencer.Pin();
-			if (Sequencer.IsValid() && IsSequencerPlaybackSyncEnabled())
+			if (Sequencer.IsValid())
 			{
 				Sequencer->SetGlobalTime(SequencerState.Time.ConvertTo(Sequencer->GetRootTickResolution()));
 				Sequencer->SetPlaybackStatus((EMovieScenePlayerStatus::Type)SequencerState.PlayerStatus);
@@ -231,7 +200,7 @@ void FConcertClientSequencerManager::OnSyncEvent(const FConcertSessionContext& I
 	}
 }
 
-void FConcertClientSequencerManager::OnSequencerTimeChanged(TWeakPtr<ISequencer> InSequencer)
+void FSequencerEventClient::OnSequencerTimeChanged(TWeakPtr<ISequencer> InSequencer)
 {
 	if (bRespondingToTransportEvent)
 	{
@@ -244,7 +213,7 @@ void FConcertClientSequencerManager::OnSequencerTimeChanged(TWeakPtr<ISequencer>
 	UMovieSceneSequence*   Sequence  = Sequencer.IsValid() ? Sequencer->GetRootMovieSceneSequence() : nullptr;
 
 	TSharedPtr<IConcertClientSession> Session = WeakSession.Pin();
-	if (Session.IsValid() && Sequence && IsSequencerPlaybackSyncEnabled())
+	if (Session.IsValid() && Sequence)
 	{
 		// Find the entry that has been updated so we can check/assign its playback mode, or add it in case a Sequencer root sequence was just reassigned
 		FConcertSequencerState& SequencerState = SequencerStates.FindOrAdd(*Sequence->GetPathName());
@@ -279,7 +248,7 @@ void FConcertClientSequencerManager::OnSequencerTimeChanged(TWeakPtr<ISequencer>
 	}
 }
 
-void FConcertClientSequencerManager::OnCloseEvent(const FConcertSessionContext&, const FConcertSequencerCloseEvent& InEvent)
+void FSequencerEventClient::OnCloseEvent(const FConcertSessionContext&, const FConcertSequencerCloseEvent& InEvent)
 {
 	FConcertSequencerState* SequencerState = SequencerStates.Find(*InEvent.SequenceObjectPath);
 	if (SequencerState)
@@ -304,22 +273,22 @@ void FConcertClientSequencerManager::OnCloseEvent(const FConcertSessionContext&,
 	ApplyCloseToPlayers(InEvent);
 }
 
-void FConcertClientSequencerManager::OnOpenEvent(const FConcertSessionContext&, const FConcertSequencerOpenEvent& InEvent)
+void FSequencerEventClient::OnOpenEvent(const FConcertSessionContext&, const FConcertSequencerOpenEvent& InEvent)
 {
 	UE_LOG(LogConcertSequencerSync, Verbose, TEXT("OnOpenEvent: %s"), *InEvent.SequenceObjectPath);
 	PendingSequenceOpenEvents.Add(InEvent.SequenceObjectPath);
 }
 
-void FConcertClientSequencerManager::ApplyTransportOpenEvent(const FString& SequenceObjectPath)
+void FSequencerEventClient::ApplyTransportOpenEvent(const FString& SequenceObjectPath)
 {
 	TGuardValue<bool> ReentrancyGuard(bRespondingToTransportEvent, true);
-	if (IsSequencerRemoteOpenEnabled())
+	if (CVarEnableRemoteSequencerOpen.GetValueOnAnyThread() > 0)
 	{
 		FAssetEditorManager::Get().OpenEditorForAsset(SequenceObjectPath);
 	}
 }
 
-void FConcertClientSequencerManager::ApplyCloseToPlayers(const FConcertSequencerCloseEvent& InEvent)
+void FSequencerEventClient::ApplyCloseToPlayers(const FConcertSequencerCloseEvent& InEvent)
 {
 	ULevelSequencePlayer* Player = SequencePlayers.FindRef(*InEvent.SequenceObjectPath);
 	if (Player)
@@ -332,12 +301,12 @@ void FConcertClientSequencerManager::ApplyCloseToPlayers(const FConcertSequencer
 	}
 }
 
-void FConcertClientSequencerManager::OnTransportEvent(const FConcertSessionContext&, const FConcertSequencerStateEvent& InEvent)
+void FSequencerEventClient::OnTransportEvent(const FConcertSessionContext&, const FConcertSequencerStateEvent& InEvent)
 {
 	PendingSequencerEvents.Add(InEvent.State);
 }
 
-void FConcertClientSequencerManager::ApplyTransportEvent(const FConcertSequencerState& EventState)
+void FSequencerEventClient::ApplyTransportEvent(const FConcertSequencerState& EventState)
 {
 	if (bRespondingToTransportEvent)
 	{
@@ -362,7 +331,7 @@ void FConcertClientSequencerManager::ApplyTransportEvent(const FConcertSequencer
 	}
 }
 
-void FConcertClientSequencerManager::ApplyEventToSequencers(const FConcertSequencerState& EventState)
+void FSequencerEventClient::ApplyEventToSequencers(const FConcertSequencerState& EventState)
 {
 	UE_LOG(LogConcertSequencerSync, Verbose, TEXT("ApplyEvent: %s, at frame: %d"), *EventState.SequenceObjectPath, EventState.Time.Time.FrameNumber.Value);
 	FConcertSequencerState& SequencerState = SequencerStates.FindOrAdd(*EventState.SequenceObjectPath);
@@ -370,7 +339,7 @@ void FConcertClientSequencerManager::ApplyEventToSequencers(const FConcertSequen
 	// Record the Sequencer State
 	SequencerState = EventState;
 
-	float LatencyCompensationMs = GetLatencyCompensationMs();
+	float LatencyCompensationMs = GetDefault<UConcertClientConfig>()->ClientSettings.LatencyCompensationMs;
 
 	// Update all opened sequencer with this root sequence
 	for (FOpenSequencerData* OpenSequencer : GatherRootSequencersByAssetPath(EventState.SequenceObjectPath))
@@ -452,7 +421,7 @@ void FConcertClientSequencerManager::ApplyEventToSequencers(const FConcertSequen
 	}
 }
 
-void FConcertClientSequencerManager::ApplyEventToPlayers(const FConcertSequencerState& EventState)
+void FSequencerEventClient::ApplyEventToPlayers(const FConcertSequencerState& EventState)
 {
 	ULevelSequencePlayer* Player = nullptr;
 	// we do not have a player for this state yet
@@ -477,7 +446,7 @@ void FConcertClientSequencerManager::ApplyEventToPlayers(const FConcertSequencer
 	Player = SequencePlayers.FindChecked(*EventState.SequenceObjectPath);
 	if (Player)
 	{
-		float LatencyCompensationMs = GetLatencyCompensationMs();
+		float LatencyCompensationMs = GetDefault<UConcertClientConfig>()->ClientSettings.LatencyCompensationMs;
 
 		FFrameRate SequenceRate = Player->GetFrameRate();
 		FFrameTime IncomingTime = EventState.Time.ConvertTo(SequenceRate);
@@ -557,7 +526,7 @@ void FConcertClientSequencerManager::ApplyEventToPlayers(const FConcertSequencer
 	}
 }
 
-void FConcertClientSequencerManager::OnEndFrame()
+void FSequencerEventClient::OnEndFrame()
 {
 	for (const FString& SequenceObjectPath : PendingSequenceOpenEvents)
 	{
@@ -572,7 +541,7 @@ void FConcertClientSequencerManager::OnEndFrame()
 	PendingSequencerEvents.Reset();
 }
 
-void FConcertClientSequencerManager::AddReferencedObjects(FReferenceCollector& Collector)
+void FSequencerEventClient::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObjects(SequencePlayers);
 }

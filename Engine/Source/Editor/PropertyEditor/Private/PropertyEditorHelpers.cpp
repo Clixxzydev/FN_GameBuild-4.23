@@ -21,7 +21,6 @@
 #include "UserInterface/PropertyEditor/SResetToDefaultPropertyEditor.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorAsset.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorClass.h"
-#include "UserInterface/PropertyEditor/SPropertyEditorStruct.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorSet.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorMap.h"
 
@@ -168,22 +167,6 @@ TSharedRef<SWidget> SPropertyValueWidget::ConstructPropertyEditorWidget( TShared
 
 			MapWidget->GetDesiredWidth( MinDesiredWidth, MaxDesiredWidth );
 		}
-		else if (SPropertyEditorClass::Supports(PropertyEditorRef))
-		{
-			TSharedRef<SPropertyEditorClass> ClassWidget =
-				SAssignNew(PropertyWidget, SPropertyEditorClass, PropertyEditorRef)
-				.Font(FontStyle);
-
-			ClassWidget->GetDesiredWidth(MinDesiredWidth, MaxDesiredWidth);
-		}
-		else if (SPropertyEditorStruct::Supports(PropertyEditorRef))
-		{
-			TSharedRef<SPropertyEditorStruct> StructWidget =
-				SAssignNew(PropertyWidget, SPropertyEditorStruct, PropertyEditorRef)
-				.Font(FontStyle);
-
-			StructWidget->GetDesiredWidth(MinDesiredWidth, MaxDesiredWidth);
-		}
 		else if ( SPropertyEditorAsset::Supports( PropertyEditorRef ) )
 		{
 			TSharedRef<SPropertyEditorAsset> AssetWidget = 
@@ -198,6 +181,14 @@ TSharedRef<SWidget> SPropertyValueWidget::ConstructPropertyEditorWidget( TShared
 				bCreatedResetButton = true;
 			}
 			AssetWidget->GetDesiredWidth( MinDesiredWidth, MaxDesiredWidth );
+		}
+		else if ( SPropertyEditorClass::Supports( PropertyEditorRef ) )
+		{
+			TSharedRef<SPropertyEditorClass> ClassWidget = 
+				SAssignNew( PropertyWidget, SPropertyEditorClass, PropertyEditorRef )
+				.Font( FontStyle );
+
+			ClassWidget->GetDesiredWidth( MinDesiredWidth, MaxDesiredWidth );
 		}
 		else if ( SPropertyEditorNumeric<float>::Supports( PropertyEditorRef ) )
 		{
@@ -371,7 +362,7 @@ void SEditConditionWidget::OnEditConditionCheckChanged( ECheckBoxState CheckStat
 
 	if( PropertyEditor.IsValid() && PropertyEditor->HasEditCondition() && PropertyEditor->SupportsEditConditionToggle() )
 	{
-		PropertyEditor->ToggleEditConditionState();
+		PropertyEditor->SetEditConditionState( CheckState == ECheckBoxState::Checked );
 	}
 	else
 	{
@@ -630,13 +621,13 @@ namespace PropertyEditorHelpers
 		return (NodeProperty->IsA<UObjectPropertyBase>() || NodeProperty->IsA<UInterfaceProperty>()) && (!bUsingAssetPicker || !SPropertyEditorAsset::Supports(NodeProperty));
 	}
 	
-	bool IsSoftObjectPath( const UProperty* Property )
+	static bool IsSoftObjectPath( const UProperty* Property )
 	{
 		const UStructProperty* StructProp = Cast<const UStructProperty>( Property );
 		return StructProp && StructProp->Struct == TBaseStructure<FSoftObjectPath>::Get();
 	}
 
-	bool IsSoftClassPath( const UProperty* Property )
+	static bool IsSoftClassPath( const UProperty* Property )
 	{
 		const UStructProperty* StructProp = Cast<const UStructProperty>(Property);
 		return StructProp && StructProp->Struct == TBaseStructure<FSoftClassPath>::Get();
@@ -675,31 +666,83 @@ namespace PropertyEditorHelpers
 		}
 
 		//////////////////////////////
+		// Handle an object property.
+		
+		
+		if( SupportsObjectPropertyButtons( NodeProperty, bUsingAssetPicker ) )
+		{
+			//ignore this node if the consistency check should happen for the children
+			bool bStaticSizedArray = (NodeProperty->ArrayDim > 1) && (PropertyNode->GetArrayIndex() == -1);
+			if (!bStaticSizedArray)
+			{
+					if( PropertyNode->HasNodeFlags(EPropertyNodeFlags::EditInlineNew) )
+					{
+						// hmmm, seems like this code could be removed and the code inside the 'if <UClassProperty>' check
+						// below could be moved outside the else....but is there a reason to allow class properties to have the
+						// following buttons if the class property is marked 'editinline' (which is effectively what this logic is doing)
+						if( !(NodeProperty->PropertyFlags & CPF_NoClear) )
+						{
+							OutRequiredButtons.Add( EPropertyButton::Clear );
+						}
+					}
+					else
+					{
+						// ignore class properties
+						if( (Cast<const UClassProperty>( NodeProperty ) == NULL) && (Cast<const USoftClassProperty>( NodeProperty ) == NULL) )
+						{
+							UObjectPropertyBase* ObjectProperty = Cast<UObjectPropertyBase>( NodeProperty );
+
+							if( ObjectProperty && ObjectProperty->PropertyClass->IsChildOf( AActor::StaticClass() ) )
+							{
+								// add button for picking the actor from the viewport
+								OutRequiredButtons.Add( EPropertyButton::PickActorInteractive );
+							}
+							else
+							{
+								// add button for filling the value of this item with the selected object from the GB
+								OutRequiredButtons.Add( EPropertyButton::Use );
+							}
+
+							// add button to display the generic browser
+							OutRequiredButtons.Add( EPropertyButton::Browse );
+
+							// reference to object resource that isn't dynamically created (i.e. some content package)
+							if( !(NodeProperty->PropertyFlags & CPF_NoClear) )
+							{
+								// add button to clear the text
+								OutRequiredButtons.Add( EPropertyButton::Clear );
+							}
+							
+							// Do not allow actor object properties to show the asset picker
+							if( ( ObjectProperty && !ObjectProperty->PropertyClass->IsChildOf( AActor::StaticClass() ) ) || IsSoftObjectPath(NodeProperty) )
+							{
+								// add button for picking the asset from an asset picker
+								OutRequiredButtons.Add( EPropertyButton::PickAsset );
+							}
+							else if( ObjectProperty && ObjectProperty->PropertyClass->IsChildOf( AActor::StaticClass() ) )
+							{
+								// add button for picking the actor from the scene outliner
+								OutRequiredButtons.Add( EPropertyButton::PickActor );
+							}
+						}
+					}
+				}
+			}
+
+		//////////////////////////////
 		// Handle a class property.
+
 		UClassProperty* ClassProp = Cast<UClassProperty>(NodeProperty);
-		USoftClassProperty* SoftClassProp = Cast<USoftClassProperty>(NodeProperty);
-		if( ClassProp || SoftClassProp || IsSoftClassPath(NodeProperty))
+		if( ClassProp || IsSoftClassPath(NodeProperty))
 		{
 			OutRequiredButtons.Add( EPropertyButton::Use );			
 			OutRequiredButtons.Add( EPropertyButton::Browse );
 
-			UClass* Class = nullptr;
-			if (ClassProp)
-			{
-				Class = ClassProp->MetaClass;
-			}
-			else if (SoftClassProp)
-			{
-				Class = SoftClassProp->MetaClass;
-			}
-			else
-			{
-				Class = NodeProperty->GetOwnerProperty()->GetClassMetaData(TEXT("MetaClass"));
-			}
+			UClass* Class = (ClassProp ? ClassProp->MetaClass : FEditorClassUtils::GetClassFromString(NodeProperty->GetMetaData("MetaClass")));
 
 			if (Class && FKismetEditorUtilities::CanCreateBlueprintOfClass(Class) && !NodeProperty->HasMetaData("DisallowCreateNew"))
 			{
-				OutRequiredButtons.Add(EPropertyButton::NewBlueprint);
+				OutRequiredButtons.Add( EPropertyButton::NewBlueprint );
 			}
 
 			if( !(NodeProperty->PropertyFlags & CPF_NoClear) )
@@ -707,80 +750,15 @@ namespace PropertyEditorHelpers
 				OutRequiredButtons.Add( EPropertyButton::Clear );
 			}
 		}
-
-		//////////////////////////////
-		// Handle a struct type property.
-		if (SPropertyEditorStruct::Supports(NodeProperty))
+		else if (NodeProperty->IsA<USoftClassProperty>() )
 		{
-			OutRequiredButtons.Add(EPropertyButton::Use);
+			OutRequiredButtons.Add( EPropertyButton::Use );
+			
+			OutRequiredButtons.Add( EPropertyButton::Browse );
 
-			OutRequiredButtons.Add(EPropertyButton::Browse);
-
-			if (!(NodeProperty->PropertyFlags & CPF_NoClear))
+			if( !(NodeProperty->PropertyFlags & CPF_NoClear) )
 			{
-				OutRequiredButtons.Add(EPropertyButton::Clear);
-			}
-		}
-
-		//////////////////////////////
-		// Handle an object property.
-		if( SupportsObjectPropertyButtons( NodeProperty, bUsingAssetPicker ) )
-		{
-			//ignore this node if the consistency check should happen for the children
-			bool bStaticSizedArray = (NodeProperty->ArrayDim > 1) && (PropertyNode->GetArrayIndex() == -1);
-			if (!bStaticSizedArray)
-			{
-				if( PropertyNode->HasNodeFlags(EPropertyNodeFlags::EditInlineNew) )
-				{
-					// hmmm, seems like this code could be removed and the code inside the 'if <UClassProperty>' check
-					// below could be moved outside the else....but is there a reason to allow class properties to have the
-					// following buttons if the class property is marked 'editinline' (which is effectively what this logic is doing)
-					if( !(NodeProperty->PropertyFlags & CPF_NoClear) )
-					{
-						OutRequiredButtons.Add( EPropertyButton::Clear );
-					}
-				}
-				else
-				{
-					// ignore class properties
-					if( (Cast<const UClassProperty>( NodeProperty ) == NULL) && (Cast<const USoftClassProperty>( NodeProperty ) == NULL) )
-					{
-						UObjectPropertyBase* ObjectProperty = Cast<UObjectPropertyBase>( NodeProperty );
-
-						if( ObjectProperty && ObjectProperty->PropertyClass->IsChildOf( AActor::StaticClass() ) )
-						{
-							// add button for picking the actor from the viewport
-							OutRequiredButtons.Add( EPropertyButton::PickActorInteractive );
-						}
-						else
-						{
-							// add button for filling the value of this item with the selected object from the GB
-							OutRequiredButtons.Add( EPropertyButton::Use );
-						}
-
-						// add button to display the generic browser
-						OutRequiredButtons.Add( EPropertyButton::Browse );
-
-						// reference to object resource that isn't dynamically created (i.e. some content package)
-						if( !(NodeProperty->PropertyFlags & CPF_NoClear) )
-						{
-							// add button to clear the text
-							OutRequiredButtons.Add( EPropertyButton::Clear );
-						}
-							
-						// Do not allow actor object properties to show the asset picker
-						if( ( ObjectProperty && !ObjectProperty->PropertyClass->IsChildOf( AActor::StaticClass() ) ) || IsSoftObjectPath(NodeProperty) )
-						{
-							// add button for picking the asset from an asset picker
-							OutRequiredButtons.Add( EPropertyButton::PickAsset );
-						}
-						else if( ObjectProperty && ObjectProperty->PropertyClass->IsChildOf( AActor::StaticClass() ) )
-						{
-							// add button for picking the actor from the scene outliner
-							OutRequiredButtons.Add( EPropertyButton::PickActor );
-						}
-					}
-				}
+				OutRequiredButtons.Add( EPropertyButton::Clear );
 			}
 		}
 
@@ -815,11 +793,6 @@ namespace PropertyEditorHelpers
 	{
 		const TSharedRef<FPropertyEditor> PropertyEditor = FPropertyEditor::Create( PropertyNode, PropertyUtilities );
 		PropertyEditorHelpers::MakeRequiredPropertyButtons( PropertyEditor, OutButtons, ButtonsToIgnore, bUsingAssetPicker );
-	}
-
-	static bool IsPropertyButtonEnabled(TWeakPtr<FPropertyNode> PropertyNode)
-	{
-		return PropertyNode.IsValid() ? !PropertyNode.Pin()->IsEditConst() : false;
 	}
 
 	TSharedRef<SWidget> MakePropertyReorderHandle(const TSharedRef<FPropertyNode>& PropertyNode, TSharedPtr<SDetailSingleItemRow> InParentRow)
@@ -918,6 +891,12 @@ namespace PropertyEditorHelpers
 		}
 
 		return SelectionPathName;
+	}
+
+	
+	static bool IsPropertyButtonEnabled( TWeakPtr<FPropertyNode> PropertyNode )
+	{
+		return PropertyNode.IsValid() ? !PropertyNode.Pin()->IsEditConst() : false;
 	}
 
 	/**

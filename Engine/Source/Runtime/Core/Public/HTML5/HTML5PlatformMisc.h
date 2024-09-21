@@ -102,7 +102,7 @@ struct CORE_API FHTML5Misc : public FGenericPlatformMisc
 		return true;
 	}
 
-	static bool UseRenderThread()
+	static bool AllowRenderThread()
 	{
 #ifdef __EMSCRIPTEN_PTHREADS__
 		return !!HTML5_ENABLE_RENDERER_THREAD;

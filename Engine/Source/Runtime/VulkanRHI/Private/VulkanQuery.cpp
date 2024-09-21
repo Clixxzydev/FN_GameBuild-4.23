@@ -32,7 +32,6 @@ constexpr int32 NUM_FRAMES_TO_WAIT_REUSE_POOL = 10;
 constexpr uint32 NUM_FRAMES_TO_WAIT_RELEASE_POOL = MAX_uint32; // never release
 #endif
 
-extern FVulkanCommandBufferManager* GVulkanCommandBufferManager;
 
 FVulkanQueryPool::FVulkanQueryPool(FVulkanDevice* InDevice, uint32 InMaxQueries, VkQueryType InQueryType)
 	: VulkanRHI::FDeviceChild(InDevice)
@@ -49,8 +48,6 @@ FVulkanQueryPool::FVulkanQueryPool(FVulkanDevice* InDevice, uint32 InMaxQueries,
 
 	VERIFYVULKANRESULT(VulkanRHI::vkCreateQueryPool(Device->GetInstanceHandle(), &PoolCreateInfo, VULKAN_CPU_ALLOCATOR, &QueryPool));
 
-	GVulkanCommandBufferManager->AddQueryPoolForReset(QueryPool, InMaxQueries);
-	
 	VkEventCreateInfo EventCreateInfo;
 	ZeroVulkanStruct(EventCreateInfo, VK_STRUCTURE_TYPE_EVENT_CREATE_INFO);
 	VERIFYVULKANRESULT(VulkanRHI::vkCreateEvent(Device->GetInstanceHandle(), &EventCreateInfo, VULKAN_CPU_ALLOCATOR, &ResetEvent));
@@ -429,7 +426,7 @@ FRenderQueryRHIRef FVulkanDynamicRHI::RHICreateRenderQuery(ERenderQueryType Quer
 	return Query;
 }
 
-bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64& OutNumPixels, bool bWait)
+bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRenderQueryRHIParamRef QueryRHI, uint64& OutNumPixels, bool bWait)
 {
 	auto ToMicroseconds = [](uint64 Timestamp)
 	{
@@ -530,7 +527,7 @@ bool FVulkanDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 	return false;
 }
 
-void FVulkanCommandListContext::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
+void FVulkanCommandListContext::RHIBeginRenderQuery(FRenderQueryRHIParamRef QueryRHI)
 {
 	FVulkanRenderQuery* BaseQuery = ResourceCast(QueryRHI);
 	if (BaseQuery->QueryType == RQT_Occlusion)
@@ -567,7 +564,7 @@ void FVulkanCommandListContext::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
 	}
 }
 
-void FVulkanCommandListContext::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
+void FVulkanCommandListContext::RHIEndRenderQuery(FRenderQueryRHIParamRef QueryRHI)
 {
 	FVulkanRenderQuery* BaseQuery = ResourceCast(QueryRHI);
 	if (BaseQuery->QueryType == RQT_Occlusion)
@@ -591,7 +588,9 @@ void FVulkanCommandListContext::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
 		const uint32 QueryEndIndex = Query->Pool.CurrentTimestamp;
 		FVulkanCmdBuffer* CmdBuffer = CommandBufferManager->GetActiveCmdBuffer();
 		VulkanRHI::vkCmdWriteTimestamp(CmdBuffer->GetHandle(), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, Query->Pool.GetHandle(), QueryEndIndex);
-		CmdBuffer->AddPendingTimestampQuery(QueryEndIndex, 1, Query->Pool.GetHandle(), Query->Pool.ResultsBuffer->GetHandle());
+		//check(CmdBuffer->IsOutsideRenderPass());
+		VulkanRHI::vkCmdCopyQueryPoolResults(CmdBuffer->GetHandle(), Query->Pool.GetHandle(), QueryEndIndex, 1, Query->Pool.ResultsBuffer->GetHandle(), sizeof(uint64) * QueryEndIndex, sizeof(uint64), VK_QUERY_RESULT_64_BIT);
+		VulkanRHI::vkCmdResetQueryPool(CmdBuffer->GetHandle(), Query->Pool.GetHandle(), QueryEndIndex, 1);
 		Query->Pool.TimestampListHandles[QueryEndIndex].CmdBuffer = CmdBuffer;
 		Query->Pool.TimestampListHandles[QueryEndIndex].FenceCounter = CmdBuffer->GetFenceSignaledCounter();
 		Query->Pool.NumIssuedTimestamps = FMath::Min<uint32>(Query->Pool.NumIssuedTimestamps + 1, Query->Pool.BufferSize);

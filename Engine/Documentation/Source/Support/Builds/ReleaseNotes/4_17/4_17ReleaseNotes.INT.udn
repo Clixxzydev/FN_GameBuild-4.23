@@ -3,7 +3,8 @@ Title: Unreal Engine 4.17 Release Notes
 Description: Release Notes for Unreal Engine 4.17
 Crumbs:%ROOT%, Engine
 Parent:Support/Builds
-Order: 27
+Order:17
+
 ## What's New
 
 ![image alt text](image_31.png)(convert:false)
@@ -297,7 +298,7 @@ Video by Shane Caudle | GhostPaint.com
 
 You can now draw any texture, including render targets or UI, to the Spectator Screen in addition to - or instead of - a view of what is being displayed in VR.  A simple layout system is exposed to Blueprint.  Most debug modes are now available on all platforms.
 
-For more information on adding VR Spectator Screen support to your project, see the [](Platforms/VR/DevelopVR/VRSpectatorScreen) documentation.
+For more information on adding VR Spectator Screen support to your project, see the [](Platforms/VR/VRSpectatorScreen) documentation.
 
 ### New: ARKit Support (Experimental)
 

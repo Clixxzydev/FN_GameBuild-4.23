@@ -577,10 +577,7 @@ void FStringTableRedirects::RedirectTableId(FName& InOutTableId)
 	}
 
 	// Process the asset redirect (only works if the asset is loaded)
-	if (IStringTableEngineBridge::CanFindOrLoadStringTableAsset())
-	{
-		IStringTableEngineBridge::RedirectStringTableAsset(InOutTableId);
-	}
+	IStringTableEngineBridge::RedirectStringTableAsset(InOutTableId);
 }
 
 void FStringTableRedirects::RedirectKey(const FName InTableId, FString& InOutKey)

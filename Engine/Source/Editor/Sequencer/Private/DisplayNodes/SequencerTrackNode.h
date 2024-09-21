@@ -10,7 +10,6 @@
 #include "ISequencerSection.h"
 #include "IKeyArea.h"
 #include "SequencerHotspots.h"
-#include "SectionHandle.h"
 
 class FMenuBuilder;
 class ISequencerTrackEditor;
@@ -39,9 +38,10 @@ public:
 	 * @param InAssociatedType The track that this node represents.
 	 * @param InAssociatedEditor The track editor for the track that this node represents.
 	 * @param bInCanBeDragged Whether or not this node can be dragged and dropped.
+	 * @param InParentNode The parent of this node, or nullptr if this is a root node.
 	 * @param InParentTree The tree this node is in.
 	 */
-	FSequencerTrackNode(UMovieSceneTrack* InAssociatedTrack, ISequencerTrackEditor& InAssociatedEditor, bool bInCanBeDragged, FSequencerNodeTree& InParentTree);
+	FSequencerTrackNode(UMovieSceneTrack& InAssociatedTrack, ISequencerTrackEditor& InAssociatedEditor, bool bInCanBeDragged, TSharedPtr<FSequencerDisplayNode> InParentNode, FSequencerNodeTree& InParentTree);
 
 public:
 	/** Defines interaction modes when using sub-tracks for sections on multiple rows. */
@@ -58,14 +58,32 @@ public:
 public:
 
 	/**
-	 * Ensure this track's inner hierarchy is up to date, and that this track has the correct sub track mode initialized
+	 * Adds a section to this node
+	 *
+	 * @param SequencerSection	The section to add
 	 */
-	void UpdateInnerHierarchy();
+	void AddSection(TSharedRef<ISequencerSection>& SequencerSection)
+	{
+		Sections.Add(SequencerSection);
+	}
+
+	void AddChildTrack(TSharedRef<FSequencerTrackNode> TrackNode)
+	{
+		AddChildAndSetParent(TrackNode);
+	}
 
 	/**
-	 * Ensure that the section pointers for this track node are all correct based on its sub track mode and row index
+	 * Makes the section itself a key area without taking up extra space
+	 *
+	 * @param KeyArea	Interface for the key area
 	 */
-	void UpdateSections();
+	void SetSectionAsKeyArea(TSharedRef<IKeyArea>& KeyArea);
+	
+	/**
+	 * Adds a key to the track
+	 *
+	 */
+	void AddKey(const FGuid& ObjectGuid);
 
 	/**
 	 * @return All sections in this node
@@ -78,11 +96,6 @@ public:
 	TArray<TSharedRef<ISequencerSection>>& GetSections()
 	{
 		return Sections;
-	}
-
-	void SetTopLevelKeyNode(TSharedPtr<FSequencerSectionKeyAreaNode> InTopLevelKeyNode)
-	{
-		TopLevelKeyNode = InTopLevelKeyNode;
 	}
 
 	/** @return Returns the top level key node for the section area if it exists */
@@ -130,7 +143,6 @@ public:
 	virtual TSharedRef<SWidget> GetCustomOutlinerContent() override;
 	virtual void GetChildKeyAreaNodesRecursively(TArray<TSharedRef<FSequencerSectionKeyAreaNode>>& OutNodes) const override;
 	virtual FText GetDisplayName() const override;
-	virtual FLinearColor GetDisplayNameColor() const override;
 	virtual float GetNodeHeight() const override;
 	virtual FNodePadding GetNodePadding() const override;
 	virtual ESequencerNode::Type GetType() const override;
@@ -145,16 +157,9 @@ public:
 	virtual void SetSortingOrder(const int32 InSortingOrder) override;
 	virtual void ModifyAndSetSortingOrder(const int32 InSortingOrder) override;
 
-	// ICurveEditorTreeItem interface
-	virtual void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels) override;
-
 private:
 
 	FReply CreateNewSection() const;
-
-	void ClearChildren();
-
-	void RemoveStaleChildren();
 
 private:
 

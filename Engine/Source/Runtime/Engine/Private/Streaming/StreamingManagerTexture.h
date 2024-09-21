@@ -107,8 +107,10 @@ struct FRenderAssetStreamingManager final : public IRenderAssetStreamingManager
 #if STATS_FAST
 	bool HandleDumpTextureStreamingStatsCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 #endif // STATS_FAST
-#if !UE_BUILD_SHIPPING
+#if STATS
 	bool HandleListStreamingRenderAssetsCommand(const TCHAR* Cmd, FOutputDevice& Ar);
+#endif // STATS
+#if !UE_BUILD_SHIPPING
 	bool HandleResetMaxEverRequiredRenderAssetMemoryCommand(const TCHAR* Cmd, FOutputDevice& Ar);
 	bool HandleLightmapStreamingFactorCommand( const TCHAR* Cmd, FOutputDevice& Ar );
 	bool HandleCancelRenderAssetStreamingCommand( const TCHAR* Cmd, FOutputDevice& Ar );
@@ -274,7 +276,6 @@ private:
 
 	void	SetLastUpdateTime();
 	void	UpdateStats();
-	void	UpdateCSVOnlyStats();
 	void	LogViewLocationChange();
 
 	void	IncrementalUpdate( float Percentage, bool bUpdateDynamicComponents);

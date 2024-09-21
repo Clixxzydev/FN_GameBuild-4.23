@@ -6,8 +6,8 @@
 void FD3D12CommandListHandle::AddTransitionBarrier(FD3D12Resource* pResource, D3D12_RESOURCE_STATES Before, D3D12_RESOURCE_STATES After, uint32 Subresource)
 {
 	check(CommandListData);
-	int32 NumAdded = CommandListData->ResourceBarrierBatcher.AddTransition(pResource->GetResource(), Before, After, Subresource);
-	CommandListData->CurrentOwningContext->numBarriers += NumAdded;
+	CommandListData->ResourceBarrierBatcher.AddTransition(pResource->GetResource(), Before, After, Subresource);
+	CommandListData->CurrentOwningContext->numBarriers++;
 
 	pResource->UpdateResidency(*this);
 }

@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
-#include "Misc/IEngineCrypto.h"
 
 /**
  * Generic result type for cryptographic functions.
@@ -14,6 +13,11 @@ enum class EPlatformCryptoResult
 	Success,
 	Failure
 };
+
+/**
+ * Generic handle to an RSA key
+ */
+typedef void* TPlatformCryptoRSAKey;
 
 /**
  * Stat group for implementations to use.

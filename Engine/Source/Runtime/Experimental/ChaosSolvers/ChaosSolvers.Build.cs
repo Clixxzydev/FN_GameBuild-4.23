@@ -13,14 +13,13 @@ namespace UnrealBuildTool.Rules
                 "Core",
                 "CoreUObject",
 				"Chaos",
-				"FieldSystemCore",
-				"GeometryCollectionCore",
-                "GeometryCollectionSimulationCore",
-				"PhysicsCore"
+				"FieldSystemCore"
                 }
-            ); 
+            );
 
             PublicDefinitions.Add("COMPILE_WITHOUT_UNREAL_SUPPORT=0");
+
+            SetupModulePhysicsSupport(Target);
         }
     }
 }

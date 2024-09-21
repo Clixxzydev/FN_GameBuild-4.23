@@ -45,6 +45,4 @@ public:
 	virtual void SyncObjects() = 0;
 	virtual void SyncInput()   = 0;
 	virtual void SyncEvents()  = 0;
-
-	virtual void ClearSyncObjects() = 0;
 };

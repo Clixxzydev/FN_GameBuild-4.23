@@ -29,21 +29,4 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Take Recorder")
 	static TArray<FAssetData> FindTakes(const FString& Slate, int32 TakeNumber = 0);
-
-public:
-
-	DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTakeRecorderSlateChanged, const FString&, Slate);
-	DECLARE_DYNAMIC_DELEGATE_OneParam(FOnTakeRecorderTakeNumberChanged, int32, TakeNumber);
-
-	/** Called when the slate is changed. */
-	UFUNCTION(BlueprintCallable, Category = "Take Recorder")
-	static void SetOnTakeRecorderSlateChanged(FOnTakeRecorderSlateChanged OnTakeRecorderSlateChanged);
-
-	/** Called when the take number is changed. */
-	UFUNCTION(BlueprintCallable, Category = "Take Recorder")
-	static void SetOnTakeRecorderTakeNumberChanged(FOnTakeRecorderTakeNumberChanged OnTakeRecorderTakeNumberChanged);
-
-	static void OnTakeRecorderSlateChanged(const FString& InSlate);
-	static void OnTakeRecorderTakeNumberChanged(int32 InTakeNumber);
-
 };

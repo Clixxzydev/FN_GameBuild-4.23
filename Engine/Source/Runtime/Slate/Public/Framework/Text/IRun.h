@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "Framework/Text/ShapedTextCacheFwd.h"
 #include "Misc/EnumClassFlags.h"
+#include "Framework/Text/TextRange.h"
 
 class ILayoutBlock;
 class IRunRenderer;

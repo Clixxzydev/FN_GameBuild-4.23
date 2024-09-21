@@ -67,6 +67,19 @@ public:
 	 */
 	static bool IsLevelLoaded(ULevel* Level);
 
+	/**
+	 * Flags an unloaded level for loading.
+	 *
+	 * @param	Level		The level to modify.
+	 */
+	static void MarkLevelForLoading(ULevel* Level);
+
+	/**
+	 * Flags a loaded level for unloading.
+	 *
+	 * @param	Level		The level to modify.
+	 */
+	static void MarkLevelForUnloading(ULevel* Level);
 
 	///////////////////////////////////////////////////////////////////////////
 	// Level visibility.

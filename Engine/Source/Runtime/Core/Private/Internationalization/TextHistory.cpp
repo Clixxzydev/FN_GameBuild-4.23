@@ -836,36 +836,34 @@ void FTextHistory_Base::SerializeForDisplayString(FStructuredArchive::FRecord Re
 			TextNamespaceUtil::StripPackageNamespaceInline(Namespace);
 		}
 		else
-		{
 #if USE_STABLE_LOCALIZATION_KEYS
-			// Make sure the package namespace for this text property is up-to-date
-			if (GIsEditor && !BaseArchive.HasAnyPortFlags(PPF_DuplicateVerbatim | PPF_DuplicateForPIE))
+		// Make sure the package namespace for this text property is up-to-date
+		if (GIsEditor && !BaseArchive.HasAnyPortFlags(PPF_DuplicateVerbatim | PPF_DuplicateForPIE))
+		{
+			const FString PackageNamespace = TextNamespaceUtil::GetPackageNamespace(BaseArchive);
+			if (!PackageNamespace.IsEmpty())
 			{
-				const FString PackageNamespace = TextNamespaceUtil::GetPackageNamespace(BaseArchive);
-				if (!PackageNamespace.IsEmpty())
+				const FString FullNamespace = TextNamespaceUtil::BuildFullNamespace(Namespace, PackageNamespace);
+				if (!Namespace.Equals(FullNamespace, ESearchCase::CaseSensitive))
 				{
-					const FString FullNamespace = TextNamespaceUtil::BuildFullNamespace(Namespace, PackageNamespace);
-					if (!Namespace.Equals(FullNamespace, ESearchCase::CaseSensitive))
-					{
-						// We may assign a new key when saving if we don't have the correct package namespace in order to avoid identity conflicts when instancing (which duplicates without any special flags)
-						// This can happen if an asset was duplicated (and keeps the same keys) but later both assets are instanced into the same world (causing them to both take the worlds package id, and conflict with each other)
-						Namespace = FullNamespace;
-						Key = FGuid::NewGuid().ToString();
-					}
+					// We may assign a new key when saving if we don't have the correct package namespace in order to avoid identity conflicts when instancing (which duplicates without any special flags)
+					// This can happen if an asset was duplicated (and keeps the same keys) but later both assets are instanced into the same world (causing them to both take the worlds package id, and conflict with each other)
+					Namespace = FullNamespace;
+					Key = FGuid::NewGuid().ToString();
 				}
 			}
+		}
 #endif // USE_STABLE_LOCALIZATION_KEYS
 
-			// If this has no key, give it a GUID for a key
-			if (!bFoundNamespaceAndKey && GIsEditor && (BaseArchive.IsPersistent() && !BaseArchive.HasAnyPortFlags(PPF_Duplicate)))
+		// If this has no key, give it a GUID for a key
+		if (!bFoundNamespaceAndKey && GIsEditor && (BaseArchive.IsPersistent() && !BaseArchive.HasAnyPortFlags(PPF_Duplicate)))
+		{
+			Key = FGuid::NewGuid().ToString();
+			if (!FTextLocalizationManager::Get().AddDisplayString(InOutDisplayString.ToSharedRef(), Namespace, Key))
 			{
-				Key = FGuid::NewGuid().ToString();
-				if (!FTextLocalizationManager::Get().AddDisplayString(InOutDisplayString.ToSharedRef(), Namespace, Key))
-				{
-					// Could not add display string, reset namespace and key.
-					Namespace.Empty();
-					Key.Empty();
-				}
+				// Could not add display string, reset namespace and key.
+				Namespace.Empty();
+				Key.Empty();
 			}
 		}
 
@@ -2579,7 +2577,7 @@ void FTextHistory_StringTableEntry::FStringTableReferenceData::Initialize(uint16
 		LoadingPhase = EStringTableLoadingPhase::Loaded;
 		ResolveStringTableEntry();
 	}
-	else if (InLoadingPolicy == EStringTableLoadingPolicy::FindOrFullyLoad && IStringTableEngineBridge::CanFindOrLoadStringTableAsset())
+	else if (InLoadingPolicy == EStringTableLoadingPolicy::FindOrFullyLoad && IsInGameThread())
 	{
 		// Forced synchronous load
 		LoadingPhase = EStringTableLoadingPhase::Loaded;
@@ -2669,7 +2667,7 @@ FStringTableEntryConstPtr FTextHistory_StringTableEntry::FStringTableReferenceDa
 
 void FTextHistory_StringTableEntry::FStringTableReferenceData::ConditionalBeginAssetLoad()
 {
-	if (!IStringTableEngineBridge::CanFindOrLoadStringTableAsset())
+	if (!IsInGameThread())
 	{
 		return;
 	}

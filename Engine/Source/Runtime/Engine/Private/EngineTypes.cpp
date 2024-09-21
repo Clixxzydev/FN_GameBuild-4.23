@@ -197,10 +197,9 @@ FLightmassDebugOptions::FLightmassDebugOptions()
 	, ExecutionTimeDivisor(15.0f)
 {}
 
-UActorComponent* FComponentReference::GetComponent(AActor* OwningActor) const
+USceneComponent* FComponentReference::GetComponent(AActor* OwningActor) const
 {
-	UActorComponent* Result = nullptr;
-
+	USceneComponent* Result = NULL;
 	// Component is specified directly, use that
 	if(OverrideComponent.IsValid())
 	{
@@ -218,12 +217,8 @@ UActorComponent* FComponentReference::GetComponent(AActor* OwningActor) const
 				if(ObjProp != NULL)
 				{
 					// .. and return the component that is there
-					Result = Cast<UActorComponent>(ObjProp->GetObjectPropertyValue_InContainer(SearchActor));
+					Result = Cast<USceneComponent>(ObjProp->GetObjectPropertyValue_InContainer(SearchActor));
 				}
-			}
-			else if (!PathToComponent.IsEmpty())
-			{
-				Result = FindObject<UActorComponent>(SearchActor, *PathToComponent);
 			}
 			else
 			{

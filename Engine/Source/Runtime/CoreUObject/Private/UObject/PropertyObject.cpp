@@ -93,11 +93,6 @@ void UObjectProperty::SerializeItem( FStructuredArchive::FSlot Slot, void* Value
 		// Serialize in place
 		UObject** ObjectPtr = GetPropertyValuePtr(Value);
 		Slot << (*ObjectPtr);
-
-		if(!UnderlyingArchive.IsSaving())
-		{
-			CheckValidObject(ObjectPtr);
-		}
 	}
 	else
 	{

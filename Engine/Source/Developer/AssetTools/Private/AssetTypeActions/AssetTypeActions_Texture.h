@@ -28,11 +28,6 @@ private:
 	/** Handler for when CreateMaterial is selected */
 	void ExecuteCreateMaterial(TArray<TWeakObjectPtr<UTexture>> Objects);
 
-	/** Handler for when ConvertToVirtualTexture is selected */
-	void ConvertVTTexture(TArray<TWeakObjectPtr<UTexture>> Objects, bool backwards);
-	void ExecuteConvertToVirtualTexture(TArray<TWeakObjectPtr<UTexture>> Objects);
-	void ExecuteConvertToRegularTexture(TArray<TWeakObjectPtr<UTexture>> Objects);
-
 	/** Handler for when CreateSubUVAnimation is selected */
 	void ExecuteCreateSubUVAnimation(TArray<TWeakObjectPtr<UTexture>> Objects);
 

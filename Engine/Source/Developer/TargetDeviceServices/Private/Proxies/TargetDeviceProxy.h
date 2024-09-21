@@ -5,8 +5,8 @@
 #include "CoreTypes.h"
 #include "IMessageContext.h"
 #include "MessageEndpoint.h"
+
 #include "ITargetDeviceProxy.h"
-#include "Misc/Optional.h"
 
 class FTargetDeviceProxy;
 class IMessageContext;
@@ -51,26 +51,17 @@ public:
 public:
 
 	/**
-	 * Add a time by which a ping response should arrive
+	 * Gets the time at which the proxy was last updated.
+	 *
+	 * @return Date and time of the last update.
 	 */
-	void AddTimeout(const FDateTime& NewTimeout)
+	const FDateTime& GetLastUpdateTime() const
 	{
-		if (!PingTimeout || NewTimeout < PingTimeout.GetValue())
-		{
-			PingTimeout = NewTimeout;
-		}
+		return LastUpdateTime;
 	}
 
 	/**
-	 * Check if ping response arrived on time
-	 */
-	bool HasTimedOut(const FDateTime& Now) const
-	{
-		return PingTimeout && Now > PingTimeout.GetValue();
-	}
-
-	/**
-	 * Updates the proxy's information from the given device service response and clear timeout expectations
+	 * Updates the proxy's information from the given device service response.
 	 *
 	 * @param Message The message containing the response.
 	 * @param Context The message context.
@@ -233,8 +224,8 @@ private:
 	/** Holds the name of the user that owns the device. */
 	FString HostUser;
 
-	/** The time by which the lack of any ping response is considered a timeout. */
-	TOptional<FDateTime> PingTimeout;
+	/** Holds the time at which the last ping reply was received. */
+	FDateTime LastUpdateTime;
 
 	/** Holds the device make. */
 	FString Make;

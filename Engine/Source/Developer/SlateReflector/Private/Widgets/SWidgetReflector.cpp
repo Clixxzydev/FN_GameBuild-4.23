@@ -843,7 +843,6 @@ TSharedRef<SDockTab> SWidgetReflector::SpawnWidgetHierarchyTab(const FSpawnTabAr
 					.OnGenerateRow(this, &SWidgetReflector::HandleReflectorTreeGenerateRow)
 					.OnGetChildren(this, &SWidgetReflector::HandleReflectorTreeGetChildren)
 					.OnSelectionChanged(this, &SWidgetReflector::HandleReflectorTreeSelectionChanged)
-					.HighlightParentNodesForSelection(true)
 					.HeaderRow
 					(
 						SNew(SHeaderRow)

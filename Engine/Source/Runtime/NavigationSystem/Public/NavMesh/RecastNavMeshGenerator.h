@@ -220,8 +220,7 @@ public:
 	uint32 UsedMemoryOnStartup;
 
 	// FGCObject begin
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
+	virtual void AddReferencedObjects(FReferenceCollector& Collector);
 	// FGCObject end
 		
 protected:
@@ -519,9 +518,6 @@ protected:
 	
 	/** Marks grid tiles affected by specified areas as dirty */
 	virtual void MarkDirtyTiles(const TArray<FNavigationDirtyArea>& DirtyAreas);
-
-	/** Marks all tiles overlapping with InclusionBounds dirty (via MarkDirtyTiles). */
-	bool MarkNavBoundsDirty();
 
 	void RemoveLayers(const FIntPoint& Tile, TArray<uint32>& UpdatedTiles);
 	

@@ -43,6 +43,9 @@ public:
 	{ return ControllerName; }
 
 protected:
+	virtual bool InitializeStereo()
+	{ return true; }
+
 	virtual bool InitializeServers()
 	{ return true; }
 

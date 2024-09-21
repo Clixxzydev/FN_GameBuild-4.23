@@ -36,10 +36,11 @@
 
 UGameInstance::UGameInstance(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
-	, TimerManager(new FTimerManager(this))
+	, TimerManager(new FTimerManager())
 	, LatentActionManager(new FLatentActionManager())
 	, SubsystemCollection(this)
 {
+	TimerManager->SetGameInstance(this);
 }
 
 void UGameInstance::FinishDestroy()
@@ -319,7 +320,7 @@ FGameInstancePIEResult UGameInstance::StartPlayInEditorGameInstance(ULocalPlayer
 
 		if (EditorEngine->Browse(*WorldContext, FURL(&BaseURL, *URLString, (ETravelType)TRAVEL_Absolute), Error) == EBrowseReturnVal::Pending)
 		{
-			EditorEngine->TransitionType = ETransitionType::WaitingToConnect;
+			EditorEngine->TransitionType = TT_WaitingToConnect;
 		}
 		else
 		{

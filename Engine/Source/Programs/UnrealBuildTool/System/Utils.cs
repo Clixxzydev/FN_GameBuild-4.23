@@ -305,91 +305,6 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Runs a local process and pipes the output to a file
-		/// </summary>
-		public static int RunLocalProcessAndPrintfOutput(ProcessStartInfo StartInfo)
-		{
-			string AppName = Path.GetFileNameWithoutExtension(StartInfo.FileName);
-			string LogFilenameBase = string.Format("{0}_{1}", AppName, DateTime.Now.ToString("yyyy.MM.dd-HH.mm.ss"));
-			string LogDir = Path.Combine(UnrealBuildTool.EngineDirectory.FullName, "Programs", "AutomationTool", "Saved", "Logs");
-			string LogFilename = "";
-			for (int Attempt = 1; Attempt < 100; ++Attempt)
-			{
-				try
-				{
-					if (!Directory.Exists(LogDir))
-					{
-						string IniPath = UnrealBuildTool.GetRemoteIniPath();
-						if(string.IsNullOrEmpty(IniPath))
-						{
-							break;
-						}
-
-						LogDir = Path.Combine(IniPath, "Saved", "Logs");
-						if(!Directory.Exists(LogDir) && !Directory.CreateDirectory(LogDir).Exists)
-						{
-							break;
-						}
-					}
-
-					string LogFilenameBaseToCreate = LogFilenameBase;
-					if (Attempt > 1)
-					{
-						LogFilenameBaseToCreate += "_" + Attempt;
-					}
-					LogFilenameBaseToCreate += ".txt";
-					string LogFilenameToCreate = Path.Combine(LogDir, LogFilenameBaseToCreate);
-					if (File.Exists(LogFilenameToCreate))
-					{
-						continue;
-					}
-					File.CreateText(LogFilenameToCreate).Close();
-					LogFilename = LogFilenameToCreate;
-					break;
-				}
-				catch (IOException)
-				{
-					//fatal error, let report to console
-					break;
-				}
-			}
-
-
-			DataReceivedEventHandler Output = (object sender, DataReceivedEventArgs Args) =>
-			{
-				if (Args != null && Args.Data != null)
-				{
-					string data = Args.Data.TrimEnd();
-					if(string.IsNullOrEmpty(data))
-					{
-						return;
-					}
-
-					if (!string.IsNullOrEmpty(LogFilename))
-					{
-						File.AppendAllLines(LogFilename, data.Split('\n'));
-					}
-					else
-					{
-						Log.TraceInformation(data);
-					}
-				}
-			};
-			Process LocalProcess = new Process();
-			LocalProcess.StartInfo = StartInfo;
-			LocalProcess.OutputDataReceived += Output;
-			LocalProcess.ErrorDataReceived += Output;
-			var ExitCode = RunLocalProcess(LocalProcess);
-			if(ExitCode != 0 && !string.IsNullOrEmpty(LogFilename))
-			{
-				Log.TraceError("Process \'{0}\' failed. Details are in \'{1}\'", AppName, LogFilename);
-			}
-
-			return ExitCode;
-		}
-
-
-		/// <summary>
 		/// Runs a local process and pipes the output to the log
 		/// </summary>
 		public static int RunLocalProcessAndLogOutput(string Command, string Args)
@@ -476,7 +391,7 @@ namespace UnrealBuildTool
 			switch (Class)
 			{
 				case UnrealPlatformClass.All:
-					return UnrealTargetPlatform.GetValidPlatforms();
+					return ((UnrealTargetPlatform[])Enum.GetValues(typeof(UnrealTargetPlatform))).Where(x => x != UnrealTargetPlatform.Unknown).ToArray();
 				case UnrealPlatformClass.Desktop:
 					return new UnrealTargetPlatform[] { UnrealTargetPlatform.Win32, UnrealTargetPlatform.Win64, UnrealTargetPlatform.Linux, UnrealTargetPlatform.Mac };
 				case UnrealPlatformClass.Editor:
@@ -498,10 +413,9 @@ namespace UnrealBuildTool
 			// up file path comparisons later on
 			List<string> OtherPlatformNameStrings = new List<string>();
 			{
-				List<UnrealPlatformGroup> SupportedGroups = new List<UnrealPlatformGroup>();
-
 				// look at each group to see if any supported platforms are in it
-				foreach (UnrealPlatformGroup Group in UnrealPlatformGroup.GetValidGroups())
+				List<UnrealPlatformGroup> SupportedGroups = new List<UnrealPlatformGroup>();
+				foreach (UnrealPlatformGroup Group in Enum.GetValues(typeof(UnrealPlatformGroup)))
 				{
 					// get the list of platforms registered to this group, if any
 					List<UnrealTargetPlatform> Platforms = UEBuildPlatform.GetPlatformsInGroup(Group);
@@ -519,8 +433,8 @@ namespace UnrealBuildTool
 					}
 				}
 
-				// loop over groups one more time, anything NOT in SupportedGroups is now unsupported, and should be added to the output list
-				foreach (UnrealPlatformGroup Group in UnrealPlatformGroup.GetValidGroups())
+				// loop over groups one more time, anything NOT in SupportedGroups is now unsuppored, and should be added to the output list
+				foreach (UnrealPlatformGroup Group in Enum.GetValues(typeof(UnrealPlatformGroup)))
 				{
 					if (SupportedGroups.Contains(Group) == false)
 					{
@@ -528,28 +442,31 @@ namespace UnrealBuildTool
 					}
 				}
 
-				foreach (UnrealTargetPlatform CurPlatform in UnrealTargetPlatform.GetValidPlatforms())
+				foreach (UnrealTargetPlatform CurPlatform in Enum.GetValues(typeof(UnrealTargetPlatform)))
 				{
-					bool ShouldConsider = true;
-
-					// If we have a platform and a group with the same name, don't add the platform
-					// to the other list if the same-named group is supported.  This is a lot of
-					// lines because we need to do the comparisons as strings.
-					string CurPlatformString = CurPlatform.ToString();
-					foreach (UnrealPlatformGroup Group in UnrealPlatformGroup.GetValidGroups())
+					if (CurPlatform != UnrealTargetPlatform.Unknown)
 					{
-						if (Group.ToString().Equals(CurPlatformString))
+						bool ShouldConsider = true;
+
+						// If we have a platform and a group with the same name, don't add the platform
+						// to the other list if the same-named group is supported.  This is a lot of
+						// lines because we need to do the comparisons as strings.
+						string CurPlatformString = CurPlatform.ToString();
+						foreach (UnrealPlatformGroup Group in Enum.GetValues(typeof(UnrealPlatformGroup)))
 						{
-							ShouldConsider = false;
-							break;
+							if (Group.ToString().Equals(CurPlatformString))
+							{
+								ShouldConsider = false;
+								break;
+							}
 						}
-					}
 
-					// Don't add our current platform to the list of platform sub-directory names that
-					// we'll skip source files for
-					if (ShouldConsider && !SupportedPlatforms.Contains(CurPlatform))
-					{
-						OtherPlatformNameStrings.Add(CurPlatform.ToString());
+						// Don't add our current platform to the list of platform sub-directory names that
+						// we'll skip source files for
+						if (ShouldConsider && !SupportedPlatforms.Contains(CurPlatform))
+						{
+							OtherPlatformNameStrings.Add(CurPlatform.ToString());
+						}
 					}
 				}
 
@@ -1157,87 +1074,6 @@ namespace UnrealBuildTool
 					throw new BuildException("Custom build step terminated with exit code {0}", ReturnCode);
 				}
 			}
-		}
-
-		/// <summary>
-		/// Parses a command line into a list of arguments
-		/// </summary>
-		/// <param name="CommandLine">The command line to parse</param>
-		/// <returns>List of output arguments</returns>
-		public static List<string> ParseArgumentList(string CommandLine)
-		{
-			List<string> Arguments = new List<string>();
-
-			StringBuilder CurrentArgument = new StringBuilder();
-			for (int Idx = 0; Idx < CommandLine.Length; Idx++)
-			{
-				if (!Char.IsWhiteSpace(CommandLine[Idx]))
-				{
-					CurrentArgument.Clear();
-
-					bool bInQuotes = false;
-					for (; Idx < CommandLine.Length; Idx++)
-					{
-						if (CommandLine[Idx] == '\"')
-						{
-							bInQuotes ^= true;
-						}
-						else if (CommandLine[Idx] == ' ' && !bInQuotes)
-						{
-							break;
-						}
-						else
-						{
-							CurrentArgument.Append(CommandLine[Idx]);
-						}
-					}
-
-					Arguments.Add(CurrentArgument.ToString());
-				}
-			}
-
-			return Arguments;
-		}
-
-		/// <summary>
-		/// Formats a list of arguments as a command line, inserting quotes as necessary
-		/// </summary>
-		/// <param name="Arguments">List of arguments to format</param>
-		/// <returns>Command line string</returns>
-		public static string FormatCommandLine(List<string> Arguments)
-		{
-			StringBuilder CommandLine = new StringBuilder();
-			foreach (string Argument in Arguments)
-			{
-				if (CommandLine.Length > 0)
-				{
-					CommandLine.Append(' ');
-				}
-
-				int SpaceIdx = Argument.IndexOf(' ');
-				if (SpaceIdx == -1)
-				{
-					CommandLine.Append(Argument);
-				}
-				else
-				{
-					int EqualsIdx = Argument.IndexOf('=');
-					if (EqualsIdx != -1 && Argument[0] == '-')
-					{
-						CommandLine.Append(Argument, 0, EqualsIdx + 1);
-						CommandLine.Append('\"');
-						CommandLine.Append(Argument, EqualsIdx + 1, Argument.Length - (EqualsIdx + 1));
-						CommandLine.Append('\"');
-					}
-					else
-					{
-						CommandLine.Append('\"');
-						CommandLine.Append(Argument);
-						CommandLine.Append('\"');
-					}
-				}
-			}
-			return CommandLine.ToString();
 		}
 	}
 }

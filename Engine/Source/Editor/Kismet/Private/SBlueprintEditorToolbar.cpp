@@ -88,7 +88,7 @@ void FKismet2Menu::FillFileMenuBlueprintSection( FMenuBuilder& MenuBuilder, FBlu
 				LOCTEXT("DeveloperMenu", "Developer"),
 				LOCTEXT("DeveloperMenu_ToolTip", "Open the developer menu"),
 				FNewMenuDelegate::CreateStatic( &FKismet2Menu::FillDeveloperMenu ),
-				false);
+				true);
 		}
 		MenuBuilder.EndSection();
 	}
@@ -243,7 +243,7 @@ static void OnDiffRevisionPicked(FRevisionInfo const& RevisionInfo, TWeakObjectP
 					if (Revision->Get(PreviousTempPkgName))
 					{
 						// Try and load that package
-						UPackage* PreviousTempPkg = LoadPackage(NULL, *PreviousTempPkgName, LOAD_ForDiff|LOAD_DisableCompileOnLoad);
+						UPackage* PreviousTempPkg = LoadPackage(NULL, *PreviousTempPkgName, LOAD_DisableCompileOnLoad);
 
 						if (PreviousTempPkg != NULL)
 						{

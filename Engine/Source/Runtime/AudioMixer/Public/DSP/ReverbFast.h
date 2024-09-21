@@ -94,8 +94,6 @@ namespace Audio
 
 
 			float SampleRate;
-			float LastWetness;
-			bool bProcessCallSinceWetnessChanged;
 
 			FPlateReverbFastSettings Settings;
 			FEarlyReflectionsFast EarlyReflections;
@@ -109,7 +107,6 @@ namespace Audio
 			AlignedFloatBuffer FrontRightReverbSamples;
 			AlignedFloatBuffer LeftAttenuatedSamples;
 			AlignedFloatBuffer RightAttenuatedSamples;
-			AlignedFloatBuffer ScaledInputBuffer;
 
 			bool bEnableEarlyReflections;
 			bool bEnableLateReflections;

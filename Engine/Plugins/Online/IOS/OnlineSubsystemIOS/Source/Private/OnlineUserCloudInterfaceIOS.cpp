@@ -1,6 +1,6 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "OnlineUserCloudInterfaceIOS.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
 #include "HAL/PlatformProcess.h"
 #include "PlatformFeatures.h"
 
@@ -340,10 +340,7 @@ bool FOnlineUserCloudInterfaceIOS::ReadUserFile(const FUniqueNetId& UserId, cons
 			if (error)
 			{
 				// TODO: record is potentially not found
-				if (File)
-				{
-					File->AsyncState = EOnlineAsyncTaskState::Failed;
-				}
+				File->AsyncState = EOnlineAsyncTaskState::Failed;
 				TriggerOnReadUserFileCompleteDelegates(false, UserId, NewFile);
 				NSLog(@"Error: %@", error);
 			}
@@ -351,12 +348,9 @@ bool FOnlineUserCloudInterfaceIOS::ReadUserFile(const FUniqueNetId& UserId, cons
 			{
  				// store the contents in the memory record database
 				NSData* data = (NSData*)record[@"contents"];
-				if (File && data)
-				{
-					File->Data.Empty();
-					File->Data.Append((uint8*)data.bytes, data.length);
-					File->AsyncState = EOnlineAsyncTaskState::Done;
-				}
+				File->Data.Empty();
+				File->Data.Append((uint8*)data.bytes, data.length);
+				File->AsyncState = EOnlineAsyncTaskState::Done;
 				TriggerOnReadUserFileCompleteDelegates(true, UserId, NewFile);
 				NSLog(@"Record Read!");
 			}
@@ -386,21 +380,15 @@ bool FOnlineUserCloudInterfaceIOS::WriteUserFile(const FUniqueNetId& UserId, con
 			if (error)
 			{
 				// TODO: record is potentially newer on the server
-				if (File)
-				{
-					File->AsyncState = EOnlineAsyncTaskState::Failed;
-				}
+				File->AsyncState = EOnlineAsyncTaskState::Failed;
 				TriggerOnWriteUserFileCompleteDelegates(false, UserId, NewFile);
 				NSLog(@"Error: %@", error);
 			}
 			else
 			{
                 FCloudFileHeader* Header = GetCloudFileHeader(NewFile, true);
-				if (File)
-				{
-					File->Data = DataContents;
-					File->AsyncState = EOnlineAsyncTaskState::Done;
-				}
+				File->Data = DataContents;
+				File->AsyncState = EOnlineAsyncTaskState::Done;
 				TriggerOnWriteUserFileCompleteDelegates(true, UserId, NewFile);
 				NSLog(@"Record Saved!");
 			}
@@ -625,7 +613,7 @@ void FOnlineUserCloudInterfaceIOS::OnReadUserCloudFileBegin(const FString &  Fil
 
 void FOnlineUserCloudInterfaceIOS::OnDeleteUserCloudFileBegin(const FString &  FileName)
 {
-	OnDeleteUserCloudFileCompleteDelegateHandle = AddOnDeleteUserFileCompleteDelegate_Handle(OnDeleteUserCloudFileCompleteDelegate);
+	OnDeleteUserCloudFileCompleteDelegateHandle = AddOnDeleteUserFileCompleteDelegate_Handle(OnWriteUserCloudFileCompleteDelegate);
 
 	DeleteUserFile(*UniqueNetId, FileName, true, true); 
 }

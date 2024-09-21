@@ -51,7 +51,7 @@ private:
 
 	FArchive* ProxyAr;
 	FArchive* FileAr;
-	TArray<FNameEntryId> NameMap;
+	TArray<FName> NameMap;
 };
 
 class FNameTableArchiveWriter : public FArchive
@@ -84,6 +84,6 @@ private:
 	FArchive* FileAr;
 	FString FinalFilename;
 	FString TempFilename;
-	TMap<FNameEntryId, int32> NameMap;
+	TMap<FName, int32, FDefaultSetAllocator, TLinkerNameMapKeyFuncs<int32>> NameMap;
 	int64 NameOffsetLoc;
 };

@@ -1,4 +1,4 @@
-Availability: Docs
+availability:Public
 title:3. Blueprint Setup
 description:Going over creating and setting up the height map painter Blueprint.
 crumbs:%ROOT%, Engine, Engine\Rendering\RenderTargets

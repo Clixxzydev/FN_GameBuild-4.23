@@ -287,9 +287,7 @@ private:
 class FCodecV1Decoder : public ICodecDecoder
 {
 public:
-	FCodecV1Decoder() {}
-
-	static void InitLUT();
+	FCodecV1Decoder();
 
 	/**
 	* Read a frame's bit stream and decode the frame
@@ -346,6 +344,6 @@ private:
 	/** Any context information to decode a frame in a sequence of frames, such as any Huffman tables used. */
 	FCodecV1DecodingContext DecodingContext;	
 
-	static int32 CachedHighBitsLUT[64];
+	int32 HighBitsLUT[64];
 };
 

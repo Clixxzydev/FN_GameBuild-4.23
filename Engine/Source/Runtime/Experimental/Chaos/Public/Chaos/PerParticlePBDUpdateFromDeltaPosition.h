@@ -23,8 +23,7 @@ class TPerParticlePBDUpdateFromDeltaPosition : public TPerParticleRule<T, d>
 
 	inline void Apply(TPBDParticles<T, d>& InParticles, const T Dt, const int32 Index) const override //-V762
 	{
-		InParticles.V(Index) = (InParticles.P(Index) - InParticles.X(Index)) / Dt;
-		InParticles.X(Index) = InParticles.P(Index);
+		ApplyHelper(InParticles, Dt, Index);
 	}
 
 	inline void Apply(TPBDRigidParticles<T, d>& InParticles, const T Dt, const int32 Index) const override //-V762

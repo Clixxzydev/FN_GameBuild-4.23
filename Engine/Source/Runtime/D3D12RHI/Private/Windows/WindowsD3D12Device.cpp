@@ -8,9 +8,7 @@
 #include "Modules/ModuleManager.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 	#include <delayimp.h>
-#if !PLATFORM_CPU_ARM_FAMILY
-#include "amd_ags.h"
-#endif
+	#include "amd_ags.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 
 #include "HardwareInfo.h"
@@ -27,6 +25,16 @@ extern bool D3D12RHI_ShouldCreateWithD3DDebug();
 extern bool D3D12RHI_ShouldCreateWithWarp();
 extern bool D3D12RHI_ShouldAllowAsyncResourceCreation();
 extern bool D3D12RHI_ShouldForceCompatibility();
+
+static TAutoConsoleVariable<int32> CVarGraphicsAdapter(
+	TEXT("D3D12.GraphicsAdapter"),
+	-1,
+	TEXT("User request to pick a specific graphics adapter (e.g. when using an integrated graphics card with a discrete one)\n")
+	TEXT(" -2: Take the first one that fulfills the criteria\n")
+	TEXT(" -1: Favor discrete because they are usually faster (default)\n")
+	TEXT("  0: Adapter #0\n")
+	TEXT("  1: Adapter #1, ..."),
+	ECVF_RenderThreadSafe);
 
 #if NV_AFTERMATH
 // Disabled by default since introduces stalls between render and driver threads
@@ -211,11 +219,6 @@ static bool SupportsHDROutput(FD3D12DynamicRHI* D3DRHI)
 
 bool FD3D12DynamicRHIModule::IsSupported()
 {
-	if (!FWindowsPlatformMisc::VerifyWindowsVersion(10, 0))
-	{
-		return false;
-	}
-
 	// If not computed yet
 	if (ChosenAdapters.Num() == 0)
 	{
@@ -286,10 +289,7 @@ void FD3D12DynamicRHIModule::FindAdapter()
 
 	// Allow HMD to override which graphics adapter is chosen, so we pick the adapter where the HMD is connected
 	uint64 HmdGraphicsAdapterLuid = IHeadMountedDisplayModule::IsAvailable() ? IHeadMountedDisplayModule::Get().GetGraphicsAdapterLuid() : 0;
-	// Non-static as it is used only a few times
-	auto* CVarGraphicsAdapter = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.GraphicsAdapter"));
-	int32 CVarExplicitAdapterValue = HmdGraphicsAdapterLuid == 0 ? (CVarGraphicsAdapter ? CVarGraphicsAdapter->GetValueOnGameThread() : -1) : -2;
-	FParse::Value(FCommandLine::Get(), TEXT("graphicsadapter="), CVarExplicitAdapterValue);
+	int32 CVarExplicitAdapterValue = HmdGraphicsAdapterLuid == 0 ? CVarGraphicsAdapter.GetValueOnGameThread() : -2;
 
 	const bool bFavorNonIntegrated = CVarExplicitAdapterValue == -1;
 
@@ -391,9 +391,9 @@ void FD3D12DynamicRHIModule::FindAdapter()
 	}
 
 #if WITH_EDITOR
-	if (bIsAnyIntel || bIsAnyNVIDIA)
+	if (bIsAnyIntel && bIsAnyNVIDIA)
 	{
-		UE_LOG(LogD3D12RHI, Log, TEXT("Forcing D3D12.AsyncDeferredDeletion=0 as a workaround for a deadlock."));
+		UE_LOG(LogD3D12RHI, Log, TEXT("Forcing D3D12.AsyncDeferredDeletion=0 as a workaround for a deadlock on hybrid NVIDIA+Intel systems."));
 
 		extern D3D12RHI_API int32 GD3D12AsyncDeferredDeletion;
 		GD3D12AsyncDeferredDeletion = 0;
@@ -460,7 +460,13 @@ FDynamicRHI* FD3D12DynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type RequestedF
 		GMaxRHIShaderPlatform = SP_PCD3D_SM5;
 	}
 
-	return new FD3D12DynamicRHI(ChosenAdapters);
+	TArray<FD3D12Adapter*> RawPointers;
+	for (int32 i = 0; i < ChosenAdapters.Num(); i++)
+	{
+		RawPointers.Add(ChosenAdapters[i].Get());
+	}
+
+	return new FD3D12DynamicRHI(RawPointers);
 }
 
 void FD3D12DynamicRHIModule::StartupModule()
@@ -482,11 +488,7 @@ void FD3D12DynamicRHIModule::StartupModule()
 #endif
 
 #if USE_PIX
-#if PLATFORM_CPU_ARM_FAMILY
-	static FString WindowsPixDllRelativePath = FPaths::Combine(*FPaths::EngineDir(), TEXT("Binaries/ThirdParty/Windows/DirectX/arm64"));
-#else
 	static FString WindowsPixDllRelativePath = FPaths::Combine(*FPaths::EngineDir(), TEXT("Binaries/ThirdParty/Windows/DirectX/x64"));
-#endif
 	static FString WindowsPixDll("WinPixEventRuntime.dll");
 	UE_LOG(LogD3D12RHI, Log, TEXT("Loading %s for PIX profiling (from %s)."), WindowsPixDll.GetCharArray().GetData(), WindowsPixDllRelativePath.GetCharArray().GetData());
 	WindowsPixDllHandle = FPlatformProcess::GetDllHandle(*FPaths::Combine(*WindowsPixDllRelativePath, *WindowsPixDll));
@@ -513,7 +515,7 @@ void FD3D12DynamicRHIModule::ShutdownModule()
 
 void FD3D12DynamicRHI::Init()
 {
-	for (TSharedPtr<FD3D12Adapter>& Adapter : ChosenAdapters)
+	for (FD3D12Adapter*& Adapter : ChosenAdapters)
 	{
 		Adapter->Initialize(this);
 	}
@@ -531,7 +533,6 @@ void FD3D12DynamicRHI::Init()
 	// Need to set GRHIVendorId before calling IsRHIDevice* functions
 	GRHIVendorId = AdapterDesc.VendorId;
 
-#if !PLATFORM_CPU_ARM_FAMILY
 	// Initialize the AMD AGS utility library, when running on an AMD device
 	if (IsRHIDeviceAMD())
 	{
@@ -539,19 +540,16 @@ void FD3D12DynamicRHI::Init()
 		// agsInit should be called before D3D device creation
 		agsInit(&AmdAgsContext, nullptr, nullptr);
 	}
-#endif
 
 	// Create a device chain for each of the adapters we have choosen. This could be a single discrete card,
 	// a set discrete cards linked together (i.e. SLI/Crossfire) an Integrated device or any combination of the above
-	for (TSharedPtr<FD3D12Adapter>& Adapter : ChosenAdapters)
+	for (FD3D12Adapter*& Adapter : ChosenAdapters)
 	{
 		check(Adapter->GetDesc().IsValid());
 		Adapter->InitializeDevices();
 	}
 
 	uint32 AmdSupportedExtensionFlags = 0;
-
-#if !PLATFORM_CPU_ARM_FAMILY
 	if (AmdAgsContext)
 	{
 		// Initialize AMD driver extensions
@@ -568,7 +566,6 @@ void FD3D12DynamicRHI::Init()
 	{
 		UE_LOG(LogD3D12RHI, Warning, TEXT("Attempting to use RGP frame markers without driver support. Update AMD driver."));
 	}
-#endif
 
 	GTexturePoolSize = 0;
 
@@ -728,7 +725,7 @@ void FD3D12DynamicRHI::PostInit()
 
 	if (GRHISupportsRayTracing)
 	{
-		for (TSharedPtr<FD3D12Adapter>& Adapter : ChosenAdapters)
+		for (FD3D12Adapter*& Adapter : ChosenAdapters)
 		{
 			Adapter->InitializeRayTracing();
 		}
@@ -757,8 +754,7 @@ void FD3D12Device::Initialize()
 #if ENABLE_RESIDENCY_MANAGEMENT
 	IDXGIAdapter3* DxgiAdapter3 = nullptr;
 	VERIFYD3D12RESULT(GetParentAdapter()->GetAdapter()->QueryInterface(IID_PPV_ARGS(&DxgiAdapter3)));
-	const uint32 ResidencyMangerGPUIndex = GVirtualMGPU ? 0 : GetGPUIndex(); // GPU node index is used by residency manager to query budget
-	D3DX12Residency::InitializeResidencyManager(ResidencyManager, GetDevice(), ResidencyMangerGPUIndex, DxgiAdapter3, RESIDENCY_PIPELINE_DEPTH);
+	D3DX12Residency::InitializeResidencyManager(ResidencyManager, GetDevice(), GetGPUIndex(), DxgiAdapter3, RESIDENCY_PIPELINE_DEPTH);
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 
 	SetupAfterDeviceCreation();

@@ -79,7 +79,7 @@ private:
 	//Functions supporting BasePropertyOverrides
 
 	/** Creates all the base property override widgets. */
-	void CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout, IDetailGroup& MaterialPropertyOverrideGroup);
+	void CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout);
 
 	EVisibility IsOverriddenAndVisible(TAttribute<bool> IsOverridden) const;
 

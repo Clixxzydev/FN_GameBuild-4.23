@@ -8,8 +8,6 @@ AVPViewportTickableActorBase::AVPViewportTickableActorBase(const FObjectInitiali
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
 	SetActorTickEnabled(true);
-	//we don't want virtual production objects to be visible by cameras
-	SetActorHiddenInGame(true);
 }
 
 
@@ -27,23 +25,9 @@ AVPViewportTickableActorBase::AVPViewportTickableActorBase(const FObjectInitiali
 	 EditorTick(DeltaSeconds);
  }
 
- void AVPViewportTickableActorBase::Destroyed()
- {
-	 FEditorScriptExecutionGuard ScriptGuard;
-	 EditorDestroyed();
-
-	 Super::Destroyed();
- }
-
 
  void AVPViewportTickableActorBase::EditorTick_Implementation(float DeltaSeconds)
  {
 
  }
-
- void AVPViewportTickableActorBase::EditorDestroyed_Implementation()
- {
-
- }
-
  

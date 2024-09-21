@@ -13,14 +13,15 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"Engine",
 					"Concert",
-					"ConcertSyncCore",
-				}
-			);
-
+                }
+            );
+       
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"ConcertTransport",
+					"ConcertSyncCore",
+					"ConcertUICore",
 					"AssetRegistry",
 					"HeadMountedDisplay",
 					"InputCore",
@@ -32,9 +33,8 @@ namespace UnrealBuildTool.Rules
 					"SlateCore",
 					"Slate",
 					"SourceControl",
-					"Serialization",
-                }
-            );
+				}
+			);
 
 			if (Target.bBuildEditor)
 			{

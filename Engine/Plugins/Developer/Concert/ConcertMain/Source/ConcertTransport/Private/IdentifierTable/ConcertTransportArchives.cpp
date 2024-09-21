@@ -33,12 +33,12 @@ FArchive& FConcertIdentifierWriter::operator<<(FName& Name)
 		SerializeIntPacked(UnsignedIndex);
 	};
 
-	const EName* Ename = Name.ToEName();
+	int32 HardcodedIndex = Name.GetComparisonIndex();
 	int32 IdentifierTableIndex = INDEX_NONE;
-	if (Ename && ShouldReplicateAsInteger(*Ename))
+	if (HardcodedIndex <= MAX_NETWORKED_HARDCODED_NAME)
 	{
 		SerializeConcertIdentifierSource(EConcertIdentifierSource::HardcodedIndex);
-		SerializeIndexValue(*Ename);
+		SerializeIndexValue(HardcodedIndex);
 	}
 	else if (LocalIdentifierTable)
 	{

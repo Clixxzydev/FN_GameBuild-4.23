@@ -53,19 +53,19 @@ void UEnvQueryTest_Trace::RunTest(FEnvQueryInstance& QueryInstance) const
 	switch (TraceData.TraceShape)
 	{
 	case EEnvTraceShape::Line:
-		TraceFunc.BindUObject(const_cast<UEnvQueryTest_Trace*>(this), bTraceToItem ? &UEnvQueryTest_Trace::RunLineTraceTo : &UEnvQueryTest_Trace::RunLineTraceFrom);
+		TraceFunc.BindUObject(this, bTraceToItem ? &UEnvQueryTest_Trace::RunLineTraceTo : &UEnvQueryTest_Trace::RunLineTraceFrom);
 		break;
 
 	case EEnvTraceShape::Box:
-		TraceFunc.BindUObject(const_cast<UEnvQueryTest_Trace*>(this), bTraceToItem ? &UEnvQueryTest_Trace::RunBoxTraceTo : &UEnvQueryTest_Trace::RunBoxTraceFrom);
+		TraceFunc.BindUObject(this, bTraceToItem ? &UEnvQueryTest_Trace::RunBoxTraceTo : &UEnvQueryTest_Trace::RunBoxTraceFrom);
 		break;
 
 	case EEnvTraceShape::Sphere:
-		TraceFunc.BindUObject(const_cast<UEnvQueryTest_Trace*>(this), bTraceToItem ? &UEnvQueryTest_Trace::RunSphereTraceTo : &UEnvQueryTest_Trace::RunSphereTraceFrom);
+		TraceFunc.BindUObject(this, bTraceToItem ? &UEnvQueryTest_Trace::RunSphereTraceTo : &UEnvQueryTest_Trace::RunSphereTraceFrom);
 		break;
 
 	case EEnvTraceShape::Capsule:
-		TraceFunc.BindUObject(const_cast<UEnvQueryTest_Trace*>(this), bTraceToItem ? &UEnvQueryTest_Trace::RunCapsuleTraceTo : &UEnvQueryTest_Trace::RunCapsuleTraceFrom);
+		TraceFunc.BindUObject(this, bTraceToItem ? &UEnvQueryTest_Trace::RunCapsuleTraceTo : &UEnvQueryTest_Trace::RunCapsuleTraceFrom);
 		break;
 
 	default:

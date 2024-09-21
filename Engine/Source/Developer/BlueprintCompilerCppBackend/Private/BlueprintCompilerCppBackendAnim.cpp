@@ -33,8 +33,7 @@ void FBackendHelperAnim::CreateAnimClassData(FEmitterLocalContext& Context)
 			FEmitDefaultValueHelper::OuterGenerate(Context, Property, LocalNativeName
 				, reinterpret_cast<const uint8*>(AnimClassData)
 				, reinterpret_cast<const uint8*>(ObjectArchetype)
-				, FEmitDefaultValueHelper::EPropertyAccessOperator::Pointer
-				, FEmitDefaultValueHelper::EPropertyGenerationControlFlags::AllowTransient);
+				, FEmitDefaultValueHelper::EPropertyAccessOperator::Pointer);
 		}
 
 		Context.AddLine(FString::Printf(TEXT("InDynamicClass->%s = %s;"), GET_MEMBER_NAME_STRING_CHECKED(UDynamicClass, AnimClassImplementation), *LocalNativeName));
@@ -77,23 +76,7 @@ void FBackendHelperAnim::AddAnimNodeInitializationFunction(FEmitterLocalContext&
 			Context.Body.AddLine(TEXT("{"));
 			Context.Body.IncreaseIndent();
 
-			FEmitDefaultValueHelper::OuterGenerate(Context, InProperty, TEXT(""), reinterpret_cast<const uint8*>(InCDO), bInNewProperty ? nullptr : reinterpret_cast<const uint8*>(InParentCDO), FEmitDefaultValueHelper::EPropertyAccessOperator::None, FEmitDefaultValueHelper::EPropertyGenerationControlFlags::AllowProtected);
-			
-			// anim nodes constructed, finish anim node initialization:
-			if (UAnimBlueprintGeneratedClass* AnimClass = Cast<UAnimBlueprintGeneratedClass>(Context.GetCurrentlyGeneratedClass()))
-			{
-				for (int32 i = 0; i < AnimClass->EvaluateGraphExposedInputs.Num(); ++i)
-				{
-					if (AnimClass->EvaluateGraphExposedInputs[i].ValueHandlerNodeProperty == InProperty)
-					{
-						const FString ClassName = FEmitHelper::GetCppName(Context.GetCurrentlyGeneratedClass());
-						const FString MemberName = FEmitHelper::GetCppName(InProperty);
-						Context.Body.AddLine(FString::Printf(TEXT("%s.SetExposedValueHandler(&CastChecked<UAnimClassData>(CastChecked<UDynamicClass>(%s::StaticClass())->%s)->GetExposedValueHandlers()[%d]);"), *MemberName, *ClassName, GET_MEMBER_NAME_STRING_CHECKED(UDynamicClass, AnimClassImplementation), i));
-
-						break;
-					}
-				}
-			}
+			FEmitDefaultValueHelper::OuterGenerate(Context, InProperty, TEXT(""), reinterpret_cast<const uint8*>(InCDO), bInNewProperty ? nullptr : reinterpret_cast<const uint8*>(InParentCDO), FEmitDefaultValueHelper::EPropertyAccessOperator::None, true);
 
 			Context.Body.DecreaseIndent();
 			Context.Body.AddLine(TEXT("}"));
@@ -121,4 +104,8 @@ void FBackendHelperAnim::AddAllAnimNodesInitializationFunction(FEmitterLocalCont
 void FBackendHelperAnim::AddAllAnimNodesInitializationFunctionCall(FEmitterLocalContext& Context)
 {
 	Context.Body.AddLine(TEXT("__InitAllAnimNodes();"));
+	
+	// anim nodes constructed, finish anim node initialization:
+	FString Class = FEmitHelper::GetCppName(Context.GetCurrentlyGeneratedClass());
+	Context.Body.AddLine(FString::Printf(TEXT("CastChecked<UAnimClassData>(CastChecked<UDynamicClass>(%s::StaticClass())->%s)->InitGraphExposedInputs(this);"), *Class, GET_MEMBER_NAME_STRING_CHECKED(UDynamicClass, AnimClassImplementation)));
 }

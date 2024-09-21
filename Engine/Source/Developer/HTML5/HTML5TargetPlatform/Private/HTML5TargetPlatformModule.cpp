@@ -36,7 +36,7 @@ public:
 
 	virtual ITargetPlatform* GetTargetPlatform( ) override
 	{
-		if (Singleton == NULL && FHTML5TargetPlatform::IsUsable())
+		if (Singleton == NULL)
 		{
 			// finally, make the interface object
 			Singleton = new FHTML5TargetPlatform();

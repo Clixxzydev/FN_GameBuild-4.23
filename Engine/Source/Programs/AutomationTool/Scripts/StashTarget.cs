@@ -24,12 +24,7 @@ namespace AutomationTool
 		{
 			// Parse all the arguments
 			string TargetName = ParseRequiredStringParam("Name");
-			string PlatformName = ParseOptionalStringParam("Platform");
-			UnrealTargetPlatform Platform;
-			if (UnrealTargetPlatform.TryParse(PlatformName, out Platform))
-			{
-				Platform = HostPlatform.Current.HostEditorPlatform;
-			}
+			UnrealTargetPlatform Platform = ParseOptionalEnumParam<UnrealTargetPlatform>("Platform") ?? HostPlatform.Current.HostEditorPlatform;
 			UnrealTargetConfiguration Configuration = ParseOptionalEnumParam<UnrealTargetConfiguration>("Configuration") ?? UnrealTargetConfiguration.Development;
 			string Architecture = ParseOptionalStringParam("Architecture");
 			FileReference ProjectFile = ParseOptionalFileReferenceParam("Project");

@@ -99,7 +99,10 @@ public:
 
 	SLATE_END_ARGS()
 
-	~SSourceControlSubmitWidget();
+	/** Constructor */
+	SSourceControlSubmitWidget()
+	{
+	}
 
 	/** Constructs the widget */
 	void Construct(const FArguments& InArgs);
@@ -118,10 +121,6 @@ public:
 
 	/** Does the user want to keep the files checked out */
 	bool WantToKeepCheckedOut();
-
-	/** Clears the current change list description */
-	void ClearChangeListDescription();
-
 private:
 	/**
 	 * @return the desired toggle state for the ToggleSelectedCheckBox.
@@ -217,9 +216,6 @@ private:
 
 	/** Currently selected sorting mode */
 	EColumnSortMode::Type SortMode;
-
-	/** Submit Description saved when the widget is destroyed if canceled */
-	static FText SavedChangeListDescription;	
 };
 
 class SSourceControlSubmitListRow : public SMultiColumnTableRow<TSharedPtr<FSubmitItem>>

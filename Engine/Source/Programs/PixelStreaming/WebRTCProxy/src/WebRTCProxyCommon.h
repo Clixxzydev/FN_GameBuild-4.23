@@ -38,7 +38,7 @@ std::string GetExtension(const std::string& FullFilename, std::string* Basename)
 // Available parameters
 //
 extern std::pair<std::string, uint16_t> PARAM_Cirrus;
-extern std::pair<std::string, uint16_t> PARAM_UE4;
+extern uint16_t PARAM_UE4Port;
 extern bool PARAM_PlanB;
 extern bool PARAM_LocalTime;
 

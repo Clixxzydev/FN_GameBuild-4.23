@@ -152,6 +152,29 @@ void SequencerHelpers::GetAllSections(TSharedRef<FSequencerDisplayNode> DisplayN
 	}
 }
 
+bool SequencerHelpers::FindObjectBindingNode(TSharedRef<FSequencerDisplayNode> DisplayNode, TSharedRef<FSequencerDisplayNode>& ObjectBindingNode)
+{
+	TArray< TSharedPtr<FSequencerDisplayNode> > ParentNodes;
+	ParentNodes.Add(DisplayNode);
+
+	while (DisplayNode->GetParent().IsValid())
+	{
+		ParentNodes.Add(DisplayNode->GetParent());
+		DisplayNode = DisplayNode->GetParent().ToSharedRef();
+	}
+
+	for (int32 ParentNodeIndex = ParentNodes.Num() - 1; ParentNodeIndex >= 0; --ParentNodeIndex)
+	{
+		if (ParentNodes[ParentNodeIndex]->GetType() == ESequencerNode::Object)
+		{
+			ObjectBindingNode = ParentNodes[ParentNodeIndex].ToSharedRef();
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool IsSectionSelectedInNode(FSequencer& Sequencer, TSharedRef<FSequencerDisplayNode> InNode)
 {
 	if (InNode->GetType() == ESequencerNode::Track)
@@ -292,7 +315,7 @@ void SequencerHelpers::PerformDefaultSelection(FSequencer& Sequencer, const FPoi
 		}
 		else if (Hotspot->GetType() == ESequencerHotspot::Section || Hotspot->GetType() == ESequencerHotspot::EasingArea)
 		{
-			UMovieSceneSection* Section = static_cast<FSectionHotspot*>(Hotspot.Get())->WeakSection.Get();
+			UMovieSceneSection* Section = static_cast<FSectionHotspot*>(Hotspot.Get())->Section.GetSectionObject();
 			if (!Selection.IsSelected(Section))
 			{
 				ConditionallyClearSelection();
@@ -301,7 +324,7 @@ void SequencerHelpers::PerformDefaultSelection(FSequencer& Sequencer, const FPoi
 		}
 		else if (Hotspot->GetType() == ESequencerHotspot::SectionResize_L || Hotspot->GetType() == ESequencerHotspot::SectionResize_R)
 		{
-			UMovieSceneSection* Section = static_cast<FSectionResizeHotspot*>(Hotspot.Get())->WeakSection.Get();
+			UMovieSceneSection* Section = static_cast<FSectionResizeHotspot*>(Hotspot.Get())->Section.GetSectionObject();
 			if (!Selection.IsSelected(Section))
 			{
 				ConditionallyClearSelection();
@@ -344,7 +367,7 @@ void SequencerHelpers::PerformDefaultSelection(FSequencer& Sequencer, const FPoi
 	}
 	else if (Hotspot->GetType() == ESequencerHotspot::Section || Hotspot->GetType() == ESequencerHotspot::EasingArea)
 	{
-		UMovieSceneSection* Section = static_cast<FSectionHotspot*>(Hotspot.Get())->WeakSection.Get();
+		UMovieSceneSection* Section = static_cast<FSectionHotspot*>(Hotspot.Get())->Section.GetSectionObject();
 
 		// Never allow infinite sections to be selected through normal click (they're only selectable through right click)
 		if (Section->GetRange() != TRange<FFrameNumber>::All())

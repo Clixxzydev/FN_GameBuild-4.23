@@ -40,7 +40,6 @@ public:
 
 private:
 
-	bool CheckPlatformCompatibility() const;
 	void UpdateViewport(FSceneViewport* Viewport);
 	void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
 	void OnPreResizeWindowBackbuffer(void* BackBuffer);

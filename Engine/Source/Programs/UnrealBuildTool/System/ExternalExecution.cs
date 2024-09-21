@@ -114,8 +114,6 @@ namespace UnrealBuildTool
 		{
 			switch (ModuleType)
 			{
-				case ModuleHostType.Program:
-					return UHTModuleType.Program;
 				case ModuleHostType.Runtime:
 				case ModuleHostType.RuntimeNoCommandlet:
                 case ModuleHostType.RuntimeAndProgram:
@@ -136,8 +134,6 @@ namespace UnrealBuildTool
 		{
 			switch (ModuleType)
 			{
-				case ModuleHostType.Program:
-					return UHTModuleType.Program;
 				case ModuleHostType.Runtime:
 				case ModuleHostType.RuntimeNoCommandlet:
                 case ModuleHostType.RuntimeAndProgram:
@@ -350,27 +346,23 @@ namespace UnrealBuildTool
 	{
 		public DirectoryItem SourceFolder;
 		public List<FileItem> HeaderFiles;
-		public bool bUsePrecompiled;
 
-		public UHTModuleHeaderInfo(DirectoryItem SourceFolder, List<FileItem> HeaderFiles, bool bUsePrecompiled)
+		public UHTModuleHeaderInfo(DirectoryItem SourceFolder, List<FileItem> HeaderFiles)
 		{
 			this.SourceFolder = SourceFolder;
 			this.HeaderFiles = HeaderFiles;
-			this.bUsePrecompiled = bUsePrecompiled;
 		}
 
 		public UHTModuleHeaderInfo(BinaryArchiveReader Reader)
 		{
 			SourceFolder = Reader.ReadDirectoryItem();
 			HeaderFiles = Reader.ReadList(() => Reader.ReadFileItem());
-			bUsePrecompiled = Reader.ReadBool();
 		}
 
 		public void Write(BinaryArchiveWriter Writer)
 		{
 			Writer.WriteDirectoryItem(SourceFolder);
 			Writer.WriteList(HeaderFiles, Item => Writer.WriteFileItem(Item));
-			Writer.WriteBool(bUsePrecompiled);
 		}
 	}
 
@@ -384,7 +376,7 @@ namespace UnrealBuildTool
             UHTModuleType? Type = UHTModuleTypeExtensions.EngineModuleTypeFromHostType(Module.Type);
             if (Type == null)
             {
-                throw new BuildException("Unhandled engine module type {0} for {1}", Module.Type.ToString(), Module.Name);
+                throw new BuildException("Unhandled engine module type {0}", Module.Type.ToString());
             }
             return Type.GetValueOrDefault();
         }
@@ -398,6 +390,36 @@ namespace UnrealBuildTool
             }
             return Type.GetValueOrDefault();
         }
+
+		static UHTModuleType? GetEngineModuleTypeBasedOnLocation(DirectoryReference SourceDirectory, FileReference ModuleFileName)
+		{
+			if (ModuleFileName.IsUnderDirectory(DirectoryReference.Combine(SourceDirectory, "Runtime")))
+			{
+				return UHTModuleType.EngineRuntime;
+			}
+
+			if (ModuleFileName.IsUnderDirectory(DirectoryReference.Combine(SourceDirectory, "Developer")))
+			{
+				return UHTModuleType.EngineDeveloper;
+			}
+
+			if (ModuleFileName.IsUnderDirectory(DirectoryReference.Combine(SourceDirectory, "Editor")))
+			{
+				return UHTModuleType.EngineEditor;
+			}
+
+			if (ModuleFileName.IsUnderDirectory(DirectoryReference.Combine(SourceDirectory, "Programs")))
+			{
+				return UHTModuleType.Program;
+			}
+
+			if (ModuleFileName.IsUnderDirectory(DirectoryReference.Combine(SourceDirectory, "ThirdParty")))
+			{
+				return UHTModuleType.EngineThirdParty;
+			}
+
+			return null;
+		}
 
 		/// <summary>
 		/// Returns a copy of Nodes sorted by dependency.  Independent or circularly-dependent nodes should
@@ -463,55 +485,84 @@ namespace UnrealBuildTool
 		/// <returns>The module type</returns>
 		static UHTModuleType GetModuleType(ModuleRules RulesObject, ProjectDescriptor ProjectDescriptor)
 		{
-			ModuleRulesContext Context = RulesObject.Context;
-			if (Context.bClassifyAsGameModuleForUHT)
+			// Get the type of module we're creating
+			UHTModuleType? ModuleType = null;
+
+			// Get the module descriptor for this module if it's a plugin
+			ModuleDescriptor PluginModuleDesc = null;
+			if (RulesObject.Plugin != null)
+			{
+				PluginModuleDesc = RulesObject.Plugin.Descriptor.Modules.FirstOrDefault(x => x.Name == RulesObject.Name);
+				if (PluginModuleDesc != null && PluginModuleDesc.Type == ModuleHostType.Program)
+				{
+					ModuleType = UHTModuleType.Program;
+				}
+			}
+
+			if (UnrealBuildTool.IsUnderAnEngineDirectory(RulesObject.File.Directory))
 			{
 				if (RulesObject.Type == ModuleRules.ModuleType.External)
 				{
-					return UHTModuleType.GameThirdParty;
+					ModuleType = UHTModuleType.EngineThirdParty;
 				}
-				if (Context.DefaultUHTModuleType.HasValue)
+				else
 				{
-					return Context.DefaultUHTModuleType.Value;
-				}
-				if (RulesObject.Plugin != null)
-				{
-					ModuleDescriptor Module = RulesObject.Plugin.Descriptor.Modules.FirstOrDefault(x => x.Name == RulesObject.Name);
-					if(Module != null)
+					if (!ModuleType.HasValue && PluginModuleDesc != null)
 					{
-						return GetGameModuleTypeFromDescriptor(Module);
+						ModuleType = ExternalExecution.GetEngineModuleTypeFromDescriptor(PluginModuleDesc);
+					}
+
+					if (!ModuleType.HasValue)
+					{
+						if (RulesObject.File.IsUnderDirectory(UnrealBuildTool.EngineDirectory))
+						{
+							ModuleType = ExternalExecution.GetEngineModuleTypeBasedOnLocation(UnrealBuildTool.EngineSourceDirectory, RulesObject.File);
+						}
+						else if (RulesObject.File.IsUnderDirectory(UnrealBuildTool.EnterpriseSourceDirectory))
+						{
+							ModuleType = ExternalExecution.GetEngineModuleTypeBasedOnLocation(UnrealBuildTool.EnterpriseSourceDirectory, RulesObject.File);
+						}
 					}
 				}
-				if(ProjectDescriptor != null && ProjectDescriptor.Modules != null)
-				{
-					ModuleDescriptor Module = ProjectDescriptor.Modules.FirstOrDefault(x => x.Name == RulesObject.Name);
-					if(Module != null)
-					{
-						return UHTModuleTypeExtensions.GameModuleTypeFromHostType(Module.Type) ?? UHTModuleType.GameRuntime;
-					}
-				}
-				return UHTModuleType.GameRuntime;
 			}
 			else
 			{
 				if (RulesObject.Type == ModuleRules.ModuleType.External)
 				{
-					return UHTModuleType.EngineThirdParty;
+					ModuleType = UHTModuleType.GameThirdParty;
 				}
-				if (Context.DefaultUHTModuleType.HasValue)
+				else
 				{
-					return Context.DefaultUHTModuleType.Value;
-				}
-				if (RulesObject.Plugin != null)
-				{
-					ModuleDescriptor Module = RulesObject.Plugin.Descriptor.Modules.FirstOrDefault(x => x.Name == RulesObject.Name);
-					if (Module != null)
+					if (!ModuleType.HasValue && PluginModuleDesc != null)
 					{
-						return GetEngineModuleTypeFromDescriptor(Module);
+						ModuleType = ExternalExecution.GetGameModuleTypeFromDescriptor(PluginModuleDesc);
+					}
+
+					if (!ModuleType.HasValue)
+					{
+						if (ProjectDescriptor != null)
+						{
+							ModuleDescriptor ProjectModule = (ProjectDescriptor.Modules == null)? null : ProjectDescriptor.Modules.FirstOrDefault(x => x.Name == RulesObject.Name);
+							if (ProjectModule != null)
+							{
+								ModuleType = UHTModuleTypeExtensions.GameModuleTypeFromHostType(ProjectModule.Type) ?? UHTModuleType.GameRuntime;
+							}
+							else
+							{
+								// No descriptor file or module was not on the list
+								ModuleType = UHTModuleType.GameRuntime;
+							}
+						}
 					}
 				}
+			}
+
+			if (!ModuleType.HasValue)
+			{
 				throw new BuildException("Unable to determine UHT module type for {0}", RulesObject.File);
 			}
+
+			return ModuleType.Value;
 		}
 
 		/// <summary>
@@ -593,7 +644,7 @@ namespace UnrealBuildTool
 					ReflectedHeaderFiles.AddRange(Info.PublicUObjectHeaders);
 					ReflectedHeaderFiles.AddRange(Info.PublicUObjectClassesHeaders);
 					ReflectedHeaderFiles.AddRange(Info.PrivateUObjectHeaders);
-					UObjectModuleHeaders.Add(new UHTModuleHeaderInfo(ModuleDirectoryItem, ReflectedHeaderFiles, Module.Rules.bUsePrecompiled));
+					UObjectModuleHeaders.Add(new UHTModuleHeaderInfo(ModuleDirectoryItem, ReflectedHeaderFiles));
 				}
 				else
 				{
@@ -960,20 +1011,41 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
+		/// Run an external exe (and capture the output), given the exe path and the commandline.
+		/// </summary>
+		public static int RunExternalDotNETExecutable(string ExePath, string Commandline)
+		{
+#if NET_CORE
+			ProcessStartInfo ExeInfo = new ProcessStartInfo("dotnet", ExePath + " " + Commandline);
+#else
+			ProcessStartInfo ExeInfo = new ProcessStartInfo(ExePath, Commandline);
+#endif
+			Log.TraceVerbose("RunExternalExecutable {0} {1}", ExePath, Commandline);
+			ExeInfo.UseShellExecute = false;
+			ExeInfo.RedirectStandardOutput = true;
+			using (Process GameProcess = Process.Start(ExeInfo))
+			{
+				GameProcess.BeginOutputReadLine();
+				GameProcess.OutputDataReceived += PrintProcessOutputAsync;
+				GameProcess.WaitForExit();
+
+				return GameProcess.ExitCode;
+			}
+		}
+
+		/// <summary>
 		/// Run an external native executable (and capture the output), given the executable path and the commandline.
 		/// </summary>
 		public static int RunExternalNativeExecutable(FileReference ExePath, string Commandline)
 		{
+			ProcessStartInfo ExeInfo = new ProcessStartInfo(ExePath.FullName, Commandline);
 			Log.TraceVerbose("RunExternalExecutable {0} {1}", ExePath.FullName, Commandline);
-			using (Process GameProcess = new Process())
+			ExeInfo.UseShellExecute = false;
+			ExeInfo.RedirectStandardOutput = true;
+			using (Process GameProcess = Process.Start(ExeInfo))
 			{
-				GameProcess.StartInfo.FileName = ExePath.FullName;
-				GameProcess.StartInfo.Arguments = Commandline;
-				GameProcess.StartInfo.UseShellExecute = false;
-				GameProcess.StartInfo.RedirectStandardOutput = true;
-				GameProcess.OutputDataReceived += PrintProcessOutputAsync;
-				GameProcess.Start();
 				GameProcess.BeginOutputReadLine();
+				GameProcess.OutputDataReceived += PrintProcessOutputAsync;
 				GameProcess.WaitForExit();
 
 				return GameProcess.ExitCode;
@@ -1034,20 +1106,6 @@ namespace UnrealBuildTool
 					bUHTNeedsToRun = true;
 				}
 
-				// Check we're not using a different version of UHT
-				FileReference ToolInfoFile = ModuleInfoFileName.ChangeExtension(".uhtpath");
-				if(!bUHTNeedsToRun)
-				{
-					if(!FileReference.Exists(ToolInfoFile))
-					{
-						bUHTNeedsToRun = true;
-					}
-					else if(FileReference.ReadAllText(ToolInfoFile) != HeaderToolReceipt.FullName)
-					{
-						bUHTNeedsToRun = true;
-					}
-				}
-
 				// Get the file containing dependencies for the generated code
 				FileReference ExternalDependenciesFile = ModuleInfoFileName.ChangeExtension(".deps");
 				if (AreExternalDependenciesOutOfDate(ExternalDependenciesFile))
@@ -1105,7 +1163,7 @@ namespace UnrealBuildTool
 
 						using(Timeline.ScopeEvent("Buildng UnrealHeaderTool"))
 						{
-							BuildMode.Build(TargetDescriptors, BuildConfiguration, WorkingSet, BuildOptions.Quiet, null);
+							BuildMode.Build(TargetDescriptors, BuildConfiguration, WorkingSet, BuildOptions.Quiet);
 						}
 					}
 
@@ -1168,10 +1226,6 @@ namespace UnrealBuildTool
 					}
 
 					Log.TraceInformation("Reflection code generated for {0} in {1} seconds", ActualTargetName, s.Elapsed.TotalSeconds);
-
-					// Update the tool info file
-					DirectoryReference.CreateDirectory(ToolInfoFile.Directory);
-					FileReference.WriteAllText(ToolInfoFile, HeaderToolReceipt.FullName);
 
 					// Now that UHT has successfully finished generating code, we need to update all cached FileItems in case their last write time has changed.
 					// Otherwise UBT might not detect changes UHT made.

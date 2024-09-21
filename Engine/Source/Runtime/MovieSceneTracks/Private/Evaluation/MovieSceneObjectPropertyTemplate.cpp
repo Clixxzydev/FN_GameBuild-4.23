@@ -3,35 +3,6 @@
 #include "Evaluation/MovieSceneObjectPropertyTemplate.h"
 #include "Tracks/MovieSceneObjectPropertyTrack.h"
 #include "Sections/MovieSceneObjectPropertySection.h"
-#include "UObject/StrongObjectPtr.h"
-
-
-struct FMovieSceneObjectPropertyValue : IMovieScenePreAnimatedToken
-{
-	TStrongObjectPtr<UObject> Value;
-	FTrackInstancePropertyBindings PropertyBindings;
-
-	FMovieSceneObjectPropertyValue(UObject* AnimatedObject, FTrackInstancePropertyBindings* InPropertyBindings)
-		: Value(InPropertyBindings->GetCurrentValue<UObject*>(*AnimatedObject))
-		, PropertyBindings(*InPropertyBindings)
-	{}
-
-	virtual void RestoreState(UObject& Object, IMovieScenePlayer& Player)
-	{
-		PropertyBindings.CallFunction<UObject*>(Object, Value.Get());
-	}
-};
-
-struct FMovieSceneObjectPropertyValueProducer : IMovieScenePreAnimatedTokenProducer
-{
-	FTrackInstancePropertyBindings* PropertyBindings;
-	FMovieSceneObjectPropertyValueProducer(FTrackInstancePropertyBindings* InPropertyBindings) : PropertyBindings(InPropertyBindings) {}
-
-	virtual IMovieScenePreAnimatedTokenPtr CacheExistingState(UObject& Object) const
-	{
-		return FMovieSceneObjectPropertyValue(&Object, PropertyBindings);
-	}
-};
 
 
 struct FObjectPropertyExecToken : IMovieSceneExecutionToken
@@ -62,7 +33,7 @@ struct FObjectPropertyExecToken : IMovieSceneExecutionToken
 				continue;
 			}
 
-			Player.SavePreAnimatedState(*ObjectPtr, PropertyTrackData.PropertyID, FMovieSceneObjectPropertyValueProducer(PropertyBindings));
+			Player.SavePreAnimatedState(*ObjectPtr, PropertyTrackData.PropertyID, FTokenProducer<UObject*>(*PropertyBindings));
 
 			UObject* ExistingValue = PropertyBindings->GetCurrentValue<UObject*>(*ObjectPtr);
 			if (ExistingValue != NewObjectValue)

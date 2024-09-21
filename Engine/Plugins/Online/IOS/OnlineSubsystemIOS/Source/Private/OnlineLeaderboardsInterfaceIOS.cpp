@@ -1,8 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 // Module includes
-#include "OnlineLeaderboardsInterfaceIOS.h"
-#include "OnlineSubsystemIOS.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
 
 // GameCenter includes
 #include <GameKit/GKLeaderboard.h>

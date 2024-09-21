@@ -143,6 +143,11 @@ void SMediaFrameworkCaptureOutputWidget::Construct(const FArguments& InArgs)
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
+SMediaFrameworkCaptureOutputWidget::~SMediaFrameworkCaptureOutputWidget()
+{
+	StopOutput();
+}
+
 void SMediaFrameworkCaptureOutputWidget::StopOutput()
 {
 	if (MediaCapture.IsValid())
@@ -373,7 +378,10 @@ END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 SMediaFrameworkCaptureCameraViewportWidget::~SMediaFrameworkCaptureCameraViewportWidget()
 {
-	StopOutput();
+	if (LevelViewportClient.IsValid())
+	{
+		LevelViewportClient->Viewport = nullptr;
+	}
 }
 
 void SMediaFrameworkCaptureCameraViewportWidget::StartOutput()
@@ -388,19 +396,6 @@ void SMediaFrameworkCaptureCameraViewportWidget::StartOutput()
 			SceneViewport->SetFixedViewportSize(TargetSize.X, TargetSize.Y);
 			MediaCapture->CaptureSceneViewport(SceneViewport, CaptureOptions);
 		}
-	}
-}
-
-void SMediaFrameworkCaptureCameraViewportWidget::StopOutput()
-{
-	Super::StopOutput();
-
-	if (LevelViewportClient.IsValid())
-	{
-		LevelViewportClient->Viewport = nullptr;
-		LevelViewportClient.Reset();
-		ViewportWidget.Reset();
-		SceneViewport.Reset();
 	}
 }
 
@@ -506,11 +501,6 @@ void SMediaFrameworkCaptureRenderTargetWidget::Construct(const FArguments& InArg
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-SMediaFrameworkCaptureRenderTargetWidget::~SMediaFrameworkCaptureRenderTargetWidget()
-{
-	StopOutput();
-}
-
 void SMediaFrameworkCaptureRenderTargetWidget::StartOutput()
 {
 	UMediaOutput* MediaOutputPtr = MediaOutput.Get();
@@ -571,11 +561,6 @@ void SMediaFrameworkCaptureCurrentViewportWidget::Construct(const FArguments& In
 	];
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
-
-SMediaFrameworkCaptureCurrentViewportWidget::~SMediaFrameworkCaptureCurrentViewportWidget()
-{
-	StopOutput();
-}
 
 void SMediaFrameworkCaptureCurrentViewportWidget::StartOutput()
 {

@@ -20,42 +20,38 @@ class MOVIESCENE_API UMovieSceneFolder : public UObject
 	/** Gets the name of this folder. */
 	FName GetFolderName() const;
 
-	/** Sets the name of this folder. Automatically calls Modify() on the folder object. */
+	/** Sets the name of this folder. */
 	void SetFolderName( FName InFolderName );
 
 	/** Gets the folders contained by this folder. */
 	const TArray<UMovieSceneFolder*>& GetChildFolders() const;
 
-	/** Adds a child folder to this folder. Automatically calls Modify() on the folder object. */
+	/** Adds a child folder to this folder. */
 	void AddChildFolder( UMovieSceneFolder* InChildFolder );
 
-	/** Removes a child folder from this folder. Automatically calls Modify() on the folder object. */
+	/** Removes a child folder from this folder. */
 	void RemoveChildFolder( UMovieSceneFolder* InChildFolder );
 
 	/** Gets the master tracks contained by this folder. */
 	const TArray<UMovieSceneTrack*>& GetChildMasterTracks() const;
 
-	/** Adds a master track to this folder. Automatically calls Modify() on the folder object. */
+	/** Adds a master track to this folder. */
 	void AddChildMasterTrack( UMovieSceneTrack* InMasterTrack );
 
-	/** Removes a master track from this folder. Automatically calls Modify() on the folder object. */
+	/** Removes a master track from this folder. */
 	void RemoveChildMasterTrack( UMovieSceneTrack* InMasterTrack );
 
 	/** Gets the guids for the object bindings contained by this folder. */
 	const TArray<FGuid>& GetChildObjectBindings() const;
 
-	/** Adds a guid for an object binding to this folder. Automatically calls Modify() on the folder object. */
+	/** Adds a guid for an object binding to this folder. */
 	void AddChildObjectBinding(const FGuid& InObjectBinding );
 
-	/** Removes a guid for an object binding from this folder. Automatically calls Modify() on the folder object. */
+	/** Removes a guid for an object binding from this folder. */
 	void RemoveChildObjectBinding( const FGuid& InObjectBinding );
 
 	/** Called after this object has been deserialized */
 	virtual void PostLoad() override;
-
-	/** Searches for a guid in this folder and it's child folders, if found returns the folder containing the guid. */
-	UMovieSceneFolder* FindFolderContaining(const FGuid& InObjectBinding);
-
 
 	virtual void Serialize( FArchive& Archive );
 
@@ -71,7 +67,7 @@ class MOVIESCENE_API UMovieSceneFolder : public UObject
 	}
 
 	/**
-	 * Set this folder's color. Does not call Modify() on the folder object for legacy reasons.
+	 * Set this folder's color.
 	 *
 	 * @param InFolderColor The folder color to set.
 	 */
@@ -89,7 +85,7 @@ class MOVIESCENE_API UMovieSceneFolder : public UObject
 	}
 
 	/**
-	 * Set this folder's desired sorting order. Does not call Modify() internally for legacy reasons.
+	 * Set this folder's desired sorting order.
 	 *
 	 * @param InSortingOrder The higher the value the further down the list the folder will be.
 	 */

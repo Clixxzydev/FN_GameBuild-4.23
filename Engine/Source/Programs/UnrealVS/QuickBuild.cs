@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 using EnvDTE;
 using EnvDTE80;
@@ -257,8 +257,6 @@ namespace UnrealVS
 
 			UnrealVSPackage.Instance.OnUIContextChanged += OnUIContextChanged;
 			UnrealVSPackage.Instance.OnSolutionOpened += OnSolutionChanged;
-
-			OnSolutionChanged();
 		}
 
 		/// <summary>
@@ -299,7 +297,6 @@ namespace UnrealVS
 			CacheBuildConfigs();
 
 			ActivePlaformMenus.Clear();
-			Logging.WriteLine("Updating solution menu state, currently active config platforms are: " + string.Join(", ", SolutionConfigPlatforms));
 			foreach (var SubMenu in SubMenus)
 			{
 				if (SolutionConfigPlatforms.Any(Platform => string.Compare(Platform, SubMenu.Name, StringComparison.InvariantCultureIgnoreCase) == 0))
@@ -322,7 +319,6 @@ namespace UnrealVS
 
 			SolutionConfigNames =
 							(from SolutionConfiguration2 Sc in SolutionConfigs select Sc.Name).Distinct().ToArray();
-
 		}
 
 		/// <summary>

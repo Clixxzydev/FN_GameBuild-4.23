@@ -480,8 +480,9 @@ void FWmfVideoEncoder::ResolveBackBuffer(const FTexture2DRHIRef& BackBuffer, con
 	}
 	else // Texture format mismatch, use a shader to do the copy.
 	{
-		FRHIRenderPassInfo RPInfo(ResolvedBackBuffer, ERenderTargetActions::Load_Store);
-		RHICmdList.BeginRenderPass(RPInfo, TEXT("WmfVideoEncoder"));
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		SetRenderTarget(RHICmdList, ResolvedBackBuffer, FTextureRHIRef());
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		RHICmdList.SetViewport(0, 0, 0.0f, ResolvedBackBuffer->GetSizeX(), ResolvedBackBuffer->GetSizeY(), 1.0f);
 
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
@@ -502,13 +503,9 @@ void FWmfVideoEncoder::ResolveBackBuffer(const FTexture2DRHIRef& BackBuffer, con
 		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit);
 
 		if (ResolvedBackBuffer->GetSizeX() != BackBuffer->GetSizeX() || ResolvedBackBuffer->GetSizeY() != BackBuffer->GetSizeY())
-		{
 			PixelShader->SetParameters(RHICmdList, TStaticSamplerState<SF_Bilinear>::GetRHI(), BackBuffer);
-		}
 		else
-		{
 			PixelShader->SetParameters(RHICmdList, TStaticSamplerState<SF_Point>::GetRHI(), BackBuffer);
-		}
 
 		RendererModule->DrawRectangle(
 			RHICmdList,
@@ -521,7 +518,6 @@ void FWmfVideoEncoder::ResolveBackBuffer(const FTexture2DRHIRef& BackBuffer, con
 			FIntPoint(1, 1),						// Source texture size
 			*VertexShader,
 			EDRF_Default);
-		RHICmdList.EndRenderPass();
 	}
 }
 

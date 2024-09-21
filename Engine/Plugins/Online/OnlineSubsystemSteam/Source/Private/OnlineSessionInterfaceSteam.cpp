@@ -444,24 +444,18 @@ bool FOnlineSessionSteam::UpdateSession(FName SessionName, FOnlineSessionSetting
 		if (!Session->SessionSettings.bIsLANMatch)
 		{
 			FOnlineSessionInfoSteam* SessionInfo = (FOnlineSessionInfoSteam*)(Session->SessionInfo.Get());
-			if (SessionInfo)
+
+			if (SessionInfo->SessionType == ESteamSession::LobbySession && SessionInfo->SessionId.IsValid())
 			{
-				if (SessionInfo->SessionType == ESteamSession::LobbySession && SessionInfo->SessionId.IsValid())
-				{
-					// Lobby update
-					FOnlineAsyncTaskSteamUpdateLobby* NewTask = new FOnlineAsyncTaskSteamUpdateLobby(SteamSubsystem, SessionName, bShouldRefreshOnlineData, UpdatedSessionSettings);
-					SteamSubsystem->QueueAsyncTask(NewTask);
-				}
-				else if (SessionInfo->SessionType == ESteamSession::AdvertisedSessionHost)
-				{
-					// Gameserver update
-					FOnlineAsyncTaskSteamUpdateServer* NewTask = new FOnlineAsyncTaskSteamUpdateServer(SteamSubsystem, SessionName, bShouldRefreshOnlineData, UpdatedSessionSettings);
-					SteamSubsystem->QueueAsyncTask(NewTask);
-				}
+				// Lobby update
+				FOnlineAsyncTaskSteamUpdateLobby* NewTask = new FOnlineAsyncTaskSteamUpdateLobby(SteamSubsystem, SessionName, bShouldRefreshOnlineData, UpdatedSessionSettings);
+				SteamSubsystem->QueueAsyncTask(NewTask);
 			}
-			else
+			else if (SessionInfo->SessionType == ESteamSession::AdvertisedSessionHost)
 			{
-				bWasSuccessful = false;
+				// Gameserver update
+				FOnlineAsyncTaskSteamUpdateServer* NewTask = new FOnlineAsyncTaskSteamUpdateServer(SteamSubsystem, SessionName, bShouldRefreshOnlineData, UpdatedSessionSettings);
+				SteamSubsystem->QueueAsyncTask(NewTask);
 			}
 		}
 		else
@@ -1005,7 +999,9 @@ uint32 FOnlineSessionSteam::JoinLANSession(int32 PlayerNum, FNamedOnlineSession*
 		const FOnlineSessionInfoSteam* SearchSessionInfo = (const FOnlineSessionInfoSteam*)SearchSession->SessionInfo.Get();
 		FOnlineSessionInfoSteam* SessionInfo = (FOnlineSessionInfoSteam*)Session->SessionInfo.Get();
 
-		SessionInfo->HostAddr = SearchSessionInfo->HostAddr->Clone();
+		uint32 IpAddr;
+		SearchSessionInfo->HostAddr->GetIp(IpAddr);
+		SessionInfo->HostAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr(IpAddr, SearchSessionInfo->HostAddr->GetPort());
 		Result = ONLINE_SUCCESS;
 	}
 
@@ -1042,9 +1038,7 @@ bool FOnlineSessionSteam::FindFriendSession(int32 LocalUserNum, const FUniqueNet
 				else
 				{
 					// Search for the session via host ip
-					TSharedRef<FInternetAddr> IpAddr = ISocketSubsystem::Get(PLATFORM_SOCKETSUBSYSTEM)->CreateInternetAddr();
-					IpAddr->SetIp(FriendGameInfo.m_unGameIP);
-					IpAddr->SetPort(FriendGameInfo.m_usGamePort);
+					TSharedRef<FInternetAddr> IpAddr = ISocketSubsystem::Get()->CreateInternetAddr(FriendGameInfo.m_unGameIP, FriendGameInfo.m_usGamePort);
 					CurrentSessionSearch->QuerySettings.Set(FName(SEARCH_STEAM_HOSTIP), IpAddr->ToString(true), EOnlineComparisonOp::Equals);
 
 					FOnlineAsyncTaskSteamFindServerForFriendSession* NewTask = new FOnlineAsyncTaskSteamFindServerForFriendSession(SteamSubsystem, CurrentSessionSearch, LocalUserNum, OnFindFriendSessionCompleteDelegates[LocalUserNum]);
@@ -1228,27 +1222,35 @@ static bool GetConnectStringFromSessionInfo(TSharedPtr<FOnlineSessionInfoSteam>&
 
 	if (SessionInfo.IsValid())
 	{
-		if (SessionInfo->SteamP2PAddr.IsValid() && SessionInfo->SteamP2PAddr->IsValid())
+		if (SessionInfo->SessionType == ESteamSession::LobbySession ||
+			SessionInfo->SessionType == ESteamSession::AdvertisedSessionHost ||
+			SessionInfo->SessionType == ESteamSession::AdvertisedSessionClient)
 		{
-			int32 SteamPort = SessionInfo->SteamP2PAddr->GetPort();
-			if (PortOverride > 0)
+			if (SessionInfo->SteamP2PAddr.IsValid() && SessionInfo->SteamP2PAddr->IsValid())
 			{
-				SteamPort = PortOverride;
-			}
+				int32 SteamPort = SessionInfo->SteamP2PAddr->GetPort();
+				if (PortOverride > 0)
+				{
+					SteamPort = PortOverride;
+				}
 
-			ConnectInfo = FString::Printf(STEAM_URL_PREFIX TEXT("%s:%d"), *SessionInfo->SteamP2PAddr->ToString(false), SteamPort);
-			bSuccess = true;
+				ConnectInfo = FString::Printf(STEAM_URL_PREFIX TEXT("%s:%d"), *SessionInfo->SteamP2PAddr->ToString(false), SteamPort);
+				bSuccess = true;
+			}
 		}
-		else if (SessionInfo->HostAddr.IsValid() && SessionInfo->HostAddr->IsValid())
+		else
 		{
-			int32 HostPort = SessionInfo->HostAddr->GetPort();
-			if (PortOverride > 0)
+			if (SessionInfo->HostAddr.IsValid() && SessionInfo->HostAddr->IsValid())
 			{
-				HostPort = PortOverride;
-			}
+				int32 HostPort = SessionInfo->HostAddr->GetPort();
+				if (PortOverride > 0)
+				{
+					HostPort = PortOverride;
+				}
 
-			ConnectInfo = FString::Printf(TEXT("%s:%d"), *SessionInfo->HostAddr->ToString(false), HostPort);
-			bSuccess = true;
+				ConnectInfo = FString::Printf(TEXT("%s:%d"), *SessionInfo->HostAddr->ToString(false), HostPort);
+				bSuccess = true;
+			}
 		}
 	}
 
@@ -1331,15 +1333,6 @@ FString FOnlineSessionSteam::GetCustomDedicatedServerName() const
 	}
 	
 	return TEXT("");
-}
-
-TSharedPtr<const FUniqueNetId> FOnlineSessionSteam::CreateSessionIdFromString(const FString& SessionIdStr)
-{
-	if (!SessionIdStr.IsEmpty())
-	{
-		return MakeShared<FUniqueNetIdSteam>(SessionIdStr);
-	}
-	return nullptr;
 }
 
 FOnlineSessionSettings* FOnlineSessionSteam::GetSessionSettings(FName SessionName) 

@@ -5,7 +5,6 @@
 #include "Containers/UnrealString.h"
 #include "Modules/ModuleManager.h"
 
-PRAGMA_DEFAULT_VISIBILITY_START
 THIRD_PARTY_INCLUDES_START
 	#include "ImathBox.h"
 	#include "ImfHeader.h"
@@ -13,7 +12,6 @@ THIRD_PARTY_INCLUDES_START
 	#include "ImfCompressionAttribute.h"
 	#include "ImfStandardAttributes.h"
 THIRD_PARTY_INCLUDES_END
-PRAGMA_DEFAULT_VISIBILITY_END
 
 
 /* FOpenExr

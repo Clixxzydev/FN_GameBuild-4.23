@@ -16,7 +16,6 @@ UCanvasRenderTarget2D::UCanvasRenderTarget2D( const FObjectInitializer& ObjectIn
 {
 	bNeedsTwoCopies = false;
 	bShouldClearRenderTargetOnReceiveUpdate = true;
-	bCanCreateUAV = true;
 }
 
 

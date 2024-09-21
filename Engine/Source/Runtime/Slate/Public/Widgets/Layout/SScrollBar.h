@@ -39,8 +39,7 @@ public:
 #endif
 		, _Orientation( Orient_Vertical )
 		, _DragFocusCause( EFocusCause::Mouse )
-		, _Thickness( FVector2D(16.0f, 16.0f) )
-		, _Padding( 2.0f )
+		, _Thickness( FVector2D(12.0f, 12.0f) )
 		{}
 
 		/** The style to use for this scrollbar */
@@ -53,8 +52,6 @@ public:
 		SLATE_ARGUMENT( EFocusCause, DragFocusCause )
 		/** The thickness of the scrollbar thumb */
 		SLATE_ATTRIBUTE( FVector2D, Thickness )
-		/** The margin around the scrollbar */
-		SLATE_ATTRIBUTE( FMargin, Padding )
 	SLATE_END_ARGS()
 
 	/**

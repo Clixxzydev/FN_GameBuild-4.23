@@ -42,7 +42,6 @@ bool UMovieSceneFolderExtensions::SetFolderColor(UMovieSceneFolder* Folder, FCol
 #if WITH_EDITORONLY_DATA
 	if (Folder)
 	{
-		Folder->Modify();
 		Folder->SetFolderColor(InFolderColor);
 		return true;
 	}

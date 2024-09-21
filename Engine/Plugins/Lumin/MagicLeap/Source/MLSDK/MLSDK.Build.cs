@@ -22,26 +22,24 @@ public class MLSDK : ModuleRules
 			string IncludePath = Path.Combine(MLSDKPath, "include");
 			string LibraryPath = Path.Combine(MLSDKPath, "lib");
 			string LibraryPlatformFolder = string.Empty;
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+			switch (Target.Platform)
 			{
-				LibraryPlatformFolder = "win64";
-			}
-			else if (Target.Platform == UnrealTargetPlatform.Mac)
-			{
-				LibraryPlatformFolder = "osx";
-			}
-			else if (Target.Platform == UnrealTargetPlatform.Linux)
-			{
-				LibraryPlatformFolder = "linux64";
-			}
-			else if (Target.Platform == UnrealTargetPlatform.Lumin)
-			{
-				LibraryPlatformFolder = "lumin";
-			}
-			else
-			{
-				// This will fail the bIsMLSDKInstalled check, causing WITH_MLSDK to be set to 0 for unsupported platforms.
-				LibraryPlatformFolder = "unsupported";
+				case UnrealTargetPlatform.Win64:
+					LibraryPlatformFolder = "win64";
+					break;
+				case UnrealTargetPlatform.Mac:
+					LibraryPlatformFolder = "osx";
+					break;
+				case UnrealTargetPlatform.Linux:
+					LibraryPlatformFolder = "linux64";
+					break;
+				case UnrealTargetPlatform.Lumin:
+					LibraryPlatformFolder = "lumin";
+					break;
+				default:
+					// This will fail the bIsMLSDKInstalled check, causing WITH_MLSDK to be set to 0 for unsupported platforms.
+					LibraryPlatformFolder = "unsupported";
+					break;
 			}
 			LibraryPath = Path.Combine(LibraryPath, LibraryPlatformFolder);
 

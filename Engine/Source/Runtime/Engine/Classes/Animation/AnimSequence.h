@@ -813,7 +813,7 @@ public:
 
 	// Helper function to allow us to update streaming animations that depend on us with our data when we are updated
 	void UpdateDependentStreamingAnimations() const;
-
+	
 	// Generate a GUID from a hash of our own raw data
 	FGuid GenerateGuidFromRawData() const;
 
@@ -907,5 +907,4 @@ public:
 
 	friend class UAnimationBlueprintLibrary;
 };
-
 

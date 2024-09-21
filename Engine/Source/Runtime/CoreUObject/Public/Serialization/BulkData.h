@@ -364,7 +364,7 @@ public:
 	*
 	* @return true if bulk data has been loaded or async loading was not used to load this data, false otherwise
 	*/
-	bool IsAsyncLoadingComplete() const;
+	bool IsAsyncLoadingComplete();
 
 	/**
 	* Returns whether this bulk data is used
@@ -744,7 +744,7 @@ class FFormatContainer
 {
 	friend class UBodySetup;
 
-	TSortedMap<FName, FByteBulkData*, FDefaultAllocator, FNameFastLess> Formats;
+	TSortedMap<FName, FByteBulkData*> Formats;
 	uint32 Alignment;
 public:
 	~FFormatContainer()

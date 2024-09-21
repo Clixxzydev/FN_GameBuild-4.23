@@ -6,7 +6,6 @@
 #include "Engine/World.h"
 #include "DestructibleComponent.h"
 #include "Physics/PhysicsInterfaceCore.h"
-#include "PhysicsInitialization.h"
 
 #ifndef APEX_STATICALLY_LINKED
 #define APEX_STATICALLY_LINKED	0

@@ -74,7 +74,7 @@ public:
 	template <typename TRHICmdList>
 	void SetParameters(TRHICmdList& RHICmdList, const FRenderingCompositePassContext& Context)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		const FViewInfo& View = Context.View;
 
@@ -190,7 +190,7 @@ public:
 
 	void SetParameters(const FRenderingCompositePassContext& Context)
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(Context.RHICmdList, ShaderRHI, Context.View.ViewUniformBuffer);
 

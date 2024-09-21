@@ -223,7 +223,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 //$${gameActivityImplementsAdditions}$$
 															ComponentCallbacks2
 {
-	public int VersionCode = 0;
 	private boolean bAllowIMU = true;
 	private SensorManager sensorManager;
 	private Sensor accelerometer;
@@ -313,10 +312,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	protected ProgressDialog mProgressDialog;
 
 	// Commandline arguments and flags
-	private boolean bHaveParsedCommandline = false;
-	public String CommandLineFull = "";
-	public ArrayList<String> CommandLineArguments = new ArrayList<String>();
-	public HashMap<String, String> CommandLineFlags = new HashMap<String, String>();
+	String CommandLineFull = "";
+	ArrayList<String> CommandLineArguments = new ArrayList<String>();
+	HashMap<String, String> CommandLineFlags = new HashMap<String, String>();
 
 	// Engine branch from manifest
 	String EngineBranch = "UE4";
@@ -629,14 +627,8 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
         return packages.contains(packagename);
     }
 
-	public void ParseCommandline(String ProjectName)
+	private void ParseCommandline(String ProjectName)
 	{
-		if (bHaveParsedCommandline)
-		{
-			return;
-		}
-		bHaveParsedCommandline = true;
-
 		File file;
 		InputStream stream = null;
 		BufferedReader reader = null;
@@ -2124,12 +2116,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	@Override
 	public void onCreate(Bundle savedInstanceState)
 	{
-		// Grab a reference to the asset manager
-		AssetManagerReference = this.getAssets();
-
-		_activity = this;
 		super.onCreate(savedInstanceState);
-
 		sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
 		accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 		magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
@@ -2226,6 +2213,8 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			//For non-shipping builds we need to request this permission bc we write to the sdcard for logs
 			PermissionHelper.acquirePermissions(new String[] {"android.permission.WRITE_EXTERNAL_STORAGE"}, this);
 		}
+
+		_activity = this;
 
 		// update memory stats every 10 seconds
 		memoryRunnable = new Runnable() {
@@ -2418,6 +2407,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			}
 		}
 		
+		// Grab a reference to the asset manager
+		AssetManagerReference = this.getAssets();
+
 		// Read metadata from AndroidManifest.xml
 		appPackageName = getPackageName();
 		String ProjectName = getPackageName();
@@ -2613,9 +2605,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		try
 		{
-			VersionCode = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
+			int Version = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
 			int PatchVersion = 0;
-			nativeSetObbInfo(ProjectName, getApplicationContext().getPackageName(), VersionCode, PatchVersion, AppType);
+			nativeSetObbInfo(ProjectName, getApplicationContext().getPackageName(), Version, PatchVersion, AppType);
 		}
 		catch (Exception e)
 		{
@@ -2660,7 +2652,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 						// remember down time and position
 						downTime = System.currentTimeMillis();
 						downX = event.getX();
-						consoleInputBox.requestFocus();
 						return true;
 					}
 					case MotionEvent.ACTION_UP: {
@@ -2804,7 +2795,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		// check for OBB file present if we don't have all the files and don't need to verify
 		if (!HasAllFiles && !VerifyOBBOnStartUp)
 		{
-			HasAllFiles = DownloadShim.expansionFilesDelivered(this, VersionCode);
+			HasAllFiles = DownloadShim.expansionFilesDelivered(this);
 		}
 
 		containerFrameLayout = new FrameLayout(_activity);
@@ -2829,49 +2820,46 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		
 		// check for display cutouts to set safe zone
 		View mainRootView = mainDecorView.findViewById(android.R.id.content).getRootView();
-		if (Build.VERSION.SDK_INT > 19)
-		{
-			mainRootView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
-				@Override
-       			public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
-					if (Build.VERSION.SDK_INT >= 28)
+		mainRootView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+       	    public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+				if (Build.VERSION.SDK_INT >= 28)
+				{
+					DisplayCutout cutout = insets.getDisplayCutout();
+					if (cutout != null)
 					{
-						DisplayCutout cutout = insets.getDisplayCutout();
-						if (cutout != null)
-						{
-							Rect fullViewRect = new Rect();
-							mainDecorView.getDrawingRect( mainDecorViewRect );
+						Rect fullViewRect = new Rect();
+						mainDecorView.getDrawingRect( mainDecorViewRect );
 
-							android.view.Display display = getWindowManager().getDefaultDisplay();
-							android.graphics.Point displaySize = new android.graphics.Point();
-							display.getRealSize(displaySize);
+						android.view.Display display = getWindowManager().getDefaultDisplay();
+						android.graphics.Point displaySize = new android.graphics.Point();
+						display.getRealSize(displaySize);
 
-							// store safezone independent of resolution
-							float invX = 1.0f / (displaySize.x != 0.0f ? displaySize.x : 1.0f);
-							float invY = 1.0f / (displaySize.y != 0.0f ? displaySize.y : 1.0f);
-							safezoneF.left = (safezone.left = cutout.getSafeInsetLeft()) * invX;
-							safezoneF.top = (safezone.top = cutout.getSafeInsetTop()) * invY;
-							safezoneF.right = (safezone.right = cutout.getSafeInsetRight()) * invX;
-							safezoneF.bottom = (safezone.bottom = cutout.getSafeInsetBottom()) *invY;
-							nativeSetSafezoneInfo(displaySize.y > displaySize.x, safezoneF.left, safezoneF.top, safezoneF.right, safezoneF.bottom);
+						// store safezone independent of resolution
+						float invX = 1.0f / (displaySize.x != 0.0f ? displaySize.x : 1.0f);
+						float invY = 1.0f / (displaySize.y != 0.0f ? displaySize.y : 1.0f);
+						safezoneF.left = (safezone.left = cutout.getSafeInsetLeft()) * invX;
+						safezoneF.top = (safezone.top = cutout.getSafeInsetTop()) * invY;
+						safezoneF.right = (safezone.right = cutout.getSafeInsetRight()) * invX;
+						safezoneF.bottom = (safezone.bottom = cutout.getSafeInsetBottom()) *invY;
+						nativeSetSafezoneInfo(displaySize.y > displaySize.x, safezoneF.left, safezoneF.top, safezoneF.right, safezoneF.bottom);
 
-							//Log.debug("FullViewRect: " + fullViewRect.toString());	
-							//Log.debug("DisplayCutout: " + cutout.toString());
-							//Log.debug("SafeTop: " + cutout.getSafeInsetTop());
-							//Log.debug("SafeBottom: " + cutout.getSafeInsetBottom());
-							//Log.debug("SafeLeft: " + cutout.getSafeInsetLeft());
-							//Log.debug("SafeRight: " + cutout.getSafeInsetRight());
-							//List<Rect>bounds = cutout.getBoundingRects();
-							//for (Rect r : bounds)
-							//{
-							//	Log.debug("Rect: " + r.toString());
-							//}
-						}
+						//Log.debug("FullViewRect: " + fullViewRect.toString());	
+						//Log.debug("DisplayCutout: " + cutout.toString());
+						//Log.debug("SafeTop: " + cutout.getSafeInsetTop());
+						//Log.debug("SafeBottom: " + cutout.getSafeInsetBottom());
+						//Log.debug("SafeLeft: " + cutout.getSafeInsetLeft());
+						//Log.debug("SafeRight: " + cutout.getSafeInsetRight());
+						//List<Rect>bounds = cutout.getBoundingRects();
+						//for (Rect r : bounds)
+						//{
+						//	Log.debug("Rect: " + r.toString());
+						//}
 					}
-					return insets;
 				}
-			});
-		}
+				return insets;
+			}
+        });
 
 		createVirtualKeyboardInput();
 		
@@ -4625,6 +4613,9 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			}
 			editor.putString("notificationIDs", notificationIDs + "-" + idToReturn);
 		}
+
+		notificationIDs = preferences.getString("notificationIDs", "");
+
 		editor.commit();
 
 		return idToReturn;
@@ -4649,30 +4640,11 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		return iParts;
 	}
 
-	private boolean LocalNotificationIDExists(int notificationID)
-	{
-		if (notificationID == -1)
-		{
-			return false;
-		}
-
-		ArrayList<Integer> notificationIDs = LocalNotificationGetIDList();
-
-		for(int id : notificationIDs)
-		{
-			if (id == notificationID)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
 	private void LocalNotificationRemoveID(int notificationID)
 	{
 		SharedPreferences preferences = getApplicationContext().getSharedPreferences("LocalNotificationPreferences", MODE_PRIVATE);
 		SharedPreferences.Editor editor = preferences.edit();
-		String notificationIDs = preferences.getString("notificationIDs", "");
+		String notificationIDs = preferences.getString("notificationIDs", null);
 
 		ArrayList<String> iParts = new ArrayList<String>();
 
@@ -4710,7 +4682,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		editor.commit();
 	}
 
-	public int AndroidThunkJava_LocalNotificationScheduleAtTime(String targetDateTime, boolean localTime, String title, String body, String action, String activationEvent) 
+	public void AndroidThunkJava_LocalNotificationScheduleAtTime(String targetDateTime, boolean localTime, String title, String body, String action, String activationEvent) 
 	{
 		int notificationID = LocalNotificationGetID(this);
 
@@ -4747,8 +4719,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 		catch (ParseException e) 
 		{
 			e.printStackTrace();
-			LocalNotificationRemoveID(notificationID);
-			return -1;
+			return;
 		}
 
 		Date currentDate = new Date();
@@ -4757,8 +4728,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		if(msDiff < 0)
 		{
-			LocalNotificationRemoveID(notificationID);
-			return -1;
+			return;
 		}
 
 		long futureTimeInMillis = SystemClock.elapsedRealtime() + msDiff;//Calculate the time to run the callback
@@ -4766,8 +4736,6 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 
 		//Schedule the operation by using AlarmService
 		alarmManager.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, futureTimeInMillis, pendingIntent);
-
-		return notificationID;
 	}
 
 	public class LaunchNotification {
@@ -4799,35 +4767,24 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 			pendingIntent.cancel();
 			alarmManager.cancel(pendingIntent);
 		}
-
-		// clear them all
-		SharedPreferences preferences = getApplicationContext().getSharedPreferences("LocalNotificationPreferences", MODE_PRIVATE);
-		SharedPreferences.Editor editor = preferences.edit();
-		editor.putString("notificationIDs", "");
-		editor.commit();
 	}
 
-	public boolean AndroidThunkJava_LocalNotificationExists(int notificationId)
-	{
-		return LocalNotificationIDExists(notificationId);
-	}
-
+	/*
 	// Returns true only if the scheduled notification exists and gets destoyed successfully
 	public boolean AndroidThunkJava_LocalNotificationDestroyIfExists(int notificationId)
 	{
-		if (AndroidThunkJava_LocalNotificationExists(notificationId))
+		if (AndroidThunkJava_ScheduledNotificationExists(notificationId))
 		{
-			LocalNotificationRemoveID(notificationId);
-
 			//Cancel the intent itself as well as from the alarm manager
 			AlarmManager alarmManager = (AlarmManager)getSystemService(Context.ALARM_SERVICE);
-			PendingIntent pendingIntent = PendingIntent.getBroadcast(this, notificationId, new Intent(this, LocalNotificationReceiver.class), PendingIntent.FLAG_UPDATE_CURRENT);
+			PendingIntent pendingIntent = PendingIntent.getBroadcast(this, notificationId, new Intent(this, ScheduledNotificationReceiver.class), PendingIntent.FLAG_UPDATE_CURRENT);
 			pendingIntent.cancel();
 			alarmManager.cancel(pendingIntent);
 			return true;
 		}
 		return false;
 	}
+	*/
 
 	// List of vendor/product ids
 	private static final DeviceInfoData[] DeviceInfoList = {

@@ -10,7 +10,6 @@ public class LiveCodingServer : ModuleRules
         PrivateDependencyModuleNames.Add("Core");
         PrivateDependencyModuleNames.Add("Json");
         PrivateDependencyModuleNames.Add("LiveCoding");
-		PrivateDependencyModuleNames.Add("VisualStudioDTE");
 
         AddEngineThirdPartyPrivateStaticDependencies(Target, "Distorm");
 

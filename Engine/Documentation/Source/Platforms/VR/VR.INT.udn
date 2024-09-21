@@ -1,31 +1,29 @@
-Availability: Public
-Title: Virtual Reality Development
-Description: Information over developing for virtual reality platforms.
-Type: landing
+Availability:Public
+Title:Virtual Reality Development
+Crumbs:%ROOT%, Platforms
+Description:Information over developing for virtual reality platforms.
+Navigation:platform
 Version: 4.17
-Parent: Platforms
-Tags: Platform
-Tags: VR
-topic-image: VirtualRealityDevelopment_topic.png
-topic-icon: %ROOT%/platform_icon.png
+Type:landing
+tags:VR
+tags:Platform
+parent:Platforms
+order:2
+topic-icon:%ROOT%/platform_icon.png
+topic-image:VirtualRealityDevelopment_topic.png
 
-## General Unreal Engine VR Development
+## Desktop Platforms
 
-%Platforms/VR/DevelopVR:topic%
+[DIR(end:"1" output:"topic" type:"landing" tags:"platform" tags:"Desktop VR" parent:"Platforms/VR")]
 
-## Platforms
+## Mobile Platforms
 
-%Platforms/VR/GoogleVR:topic%
+[DIR(end:"1" output:"topic" type:"landing" tags:"platform" tags:"Mobile VR" parent:"Platforms/VR")]
 
-%Platforms/VR/OculusVR:topic%
+## General VR Development
 
-%Platforms/VR/GearVR:topic%
+[DIR(end:"1" output:"topic" parent:"Platforms/VR" type:"overview,reference,how-to")]
 
-%Platforms/VR/SteamVR:topic%
+## Training Streams
 
-%Platforms/VR/WMR:topic%
-
-
-
-
-
+[DIR(output:"video" type:"video" tags:"Virtual Reality")]

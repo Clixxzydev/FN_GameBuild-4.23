@@ -61,10 +61,6 @@ int32 UPyTestObject::FuncBlueprintNative_Implementation(const int32 InValue) con
 	return InValue;
 }
 
-void UPyTestObject::FuncBlueprintNativeRef_Implementation(FPyTestStruct& InOutStruct) const
-{
-}
-
 int32 UPyTestObject::CallFuncBlueprintImplementable(const int32 InValue) const
 {
 	return FuncBlueprintImplementable(InValue);
@@ -73,11 +69,6 @@ int32 UPyTestObject::CallFuncBlueprintImplementable(const int32 InValue) const
 int32 UPyTestObject::CallFuncBlueprintNative(const int32 InValue) const
 {
 	return FuncBlueprintNative(InValue);
-}
-
-void UPyTestObject::CallFuncBlueprintNativeRef(FPyTestStruct& InOutStruct) const
-{
-	return FuncBlueprintNativeRef(InOutStruct);
 }
 
 void UPyTestObject::FuncTakingPyTestStruct(const FPyTestStruct& InStruct) const
@@ -114,27 +105,6 @@ void UPyTestObject::MulticastDelegatePropertyCallback(FString InStr) const
 	{
 		UE_LOG(LogPython, Error, TEXT("Given value (%s) did not match the String property value (%s)"), *InStr, *String);
 	}
-}
-
-TArray<int32> UPyTestObject::ReturnArray()
-{
-	TArray<int32> TmpArray;
-	TmpArray.Add(10);
-	return TmpArray;
-}
-
-TSet<int32> UPyTestObject::ReturnSet()
-{
-	TSet<int32> TmpSet;
-	TmpSet.Add(10);
-	return TmpSet;
-}
-
-TMap<int32, bool> UPyTestObject::ReturnMap()
-{
-	TMap<int32, bool> TmpMap;
-	TmpMap.Add(10, true);
-	return TmpMap;
 }
 
 void UPyTestObject::EmitScriptError()

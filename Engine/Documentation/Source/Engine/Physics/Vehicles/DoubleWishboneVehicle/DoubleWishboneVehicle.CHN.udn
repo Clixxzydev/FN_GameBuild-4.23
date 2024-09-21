@@ -1,12 +1,11 @@
-﻿INTSourceChangelist:6411601
+﻿INTSourceChangelist:4649792
 Availability:Public
 Title:如何创建双横臂悬挂载具
-Parent: Engine/Physics/Vehicles
+Crumbs:%ROOT%, Engine, Engine/Physics
 Description:利用虚幻引擎 4 设置双横臂悬挂载具的描述
 Navigation:topic
 SkillLevel: Advanced
-Version: 4.9
-Order:3
+Version:4.9
 
 [TOC (start:2)]
 

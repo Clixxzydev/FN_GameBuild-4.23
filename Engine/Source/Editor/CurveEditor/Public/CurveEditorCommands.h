@@ -66,32 +66,7 @@ public:
 	TSharedPtr<FUICommandInfo> AddKeyHovered;
 
 	TSharedPtr<FUICommandInfo> AddKeyToAllCurves;
-
-	TSharedPtr<FUICommandInfo> SetViewModeAbsolute;
-	TSharedPtr<FUICommandInfo> SetViewModeStacked;
-	TSharedPtr<FUICommandInfo> SetViewModeNormalized;
-
-	TSharedPtr<FUICommandInfo> DeactivateCurrentTool;
-	TSharedPtr<FUICommandInfo> DeselectAllKeys;
-
-	TSharedPtr<FUICommandInfo> BufferVisibleCurves;
-	TSharedPtr<FUICommandInfo> ApplyBufferedCurves;
-
-	// User Filtering
-	TSharedPtr<FUICommandInfo> OpenUserImplementableFilterWindow;
-
-	// Axis Snapping
-	TSharedPtr<FUICommandInfo> SetAxisSnappingNone;
-	TSharedPtr<FUICommandInfo> SetAxisSnappingHorizontal;
-	TSharedPtr<FUICommandInfo> SetAxisSnappingVertical;
-
-	// Time Management
-	TSharedPtr<FUICommandInfo> StepToNextKey;
-	TSharedPtr<FUICommandInfo> StepToPreviousKey;
-	TSharedPtr<FUICommandInfo> StepForward;
-	TSharedPtr<FUICommandInfo> StepBackward;
-	TSharedPtr<FUICommandInfo> JumpToStart;
-	TSharedPtr<FUICommandInfo> JumpToEnd;
+	TSharedPtr<FUICommandInfo> AddKeyToAllCurvesHere;
 
 public:
 	virtual void RegisterCommands() override;

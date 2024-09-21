@@ -19,8 +19,7 @@ class LIVELINK_API ULiveLinkRemapAsset : public ULiveLinkRetargetAsset
 	//~ End UObject Interface
 
 	//~ Begin ULiveLinkRetargetAsset interface
-	virtual void BuildPoseFromAnimationData(float DeltaTime, const FLiveLinkSkeletonStaticData* InSkeletonData, const FLiveLinkAnimationFrameData* InFrameData, FCompactPose& OutPose) override;
-	virtual void BuildPoseAndCurveFromBaseData(float DeltaTime, const FLiveLinkBaseStaticData* InBaseStaticData, const FLiveLinkBaseFrameData* InBaseFrameData, FCompactPose& OutPose, FBlendedCurve& OutCurve) override;
+	virtual void BuildPoseForSubject(float DeltaTime, const FLiveLinkSubjectFrame& InFrame, FCompactPose& OutPose, FBlendedCurve& OutCurve) override;
 	//~ End ULiveLinkRetargetAsset interface
 
 	/** Blueprint Implementable function for getting a remapped bone name from the original */

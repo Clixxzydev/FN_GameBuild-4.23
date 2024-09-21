@@ -9,7 +9,7 @@
 /**
  * Data table composed of a stack of other data tables.
  */
-UCLASS(MinimalAPI, BlueprintType, hideCategories=(ImportOptions,ImportSource))
+UCLASS(MinimalAPI, BlueprintType)
 class UCompositeDataTable
 	: public UDataTable
 {
@@ -67,9 +67,9 @@ protected:
 	// if bClearParentTables is false then the row map will be cleared but the parent table array won't be changed
 	void EmptyCompositeTable(bool bClearParentTables);
 
-	void UpdateCachedRowMap(bool bWarnOnInvalidChildren = true);
+	void UpdateCachedRowMap();
 
-	void OnParentTablesUpdated(EPropertyChangeType::Type ChangeType = EPropertyChangeType::Unspecified);
+	void OnParentTablesUpdated();
 
 	// true if this asset is currently being loaded; false otherwise
 	uint8 bIsLoading : 1;

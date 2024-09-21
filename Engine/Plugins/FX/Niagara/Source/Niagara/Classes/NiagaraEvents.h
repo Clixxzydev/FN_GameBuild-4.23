@@ -41,7 +41,7 @@ struct FNiagaraCollisionEventPayload
 };
 
 
-class FNiagaraEmitterInstance;
+struct FNiagaraEmitterInstance;
 
 /**
 Base class for actions that an event receiver will perform at the emitter level.

@@ -6,7 +6,7 @@
 
 #ifdef __OBJC__
 
-OBJC_EXPORT @interface FCocoaTextView : NSView <NSTextInputClient>
+@interface FCocoaTextView : NSView <NSTextInputClient>
 {
 	TSharedPtr<ITextInputMethodContext> IMMContext;
 	NSRange markedRange;

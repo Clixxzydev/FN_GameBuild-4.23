@@ -7,18 +7,11 @@
 #include "EdGraph/EdGraph.h"
 #include "SGraphActionMenu.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Styling/SlateTypes.h"
-
-#define LOCTEXT_NAMESPACE "NiagaraStackItemGroupAddMenu"
-
-bool SNiagaraStackItemGroupAddMenu::bIncludeNonLibraryScripts = false;
 
 void SNiagaraStackItemGroupAddMenu::Construct(const FArguments& InArgs, INiagaraStackItemGroupAddUtilities* InAddUtilities, int32 InInsertIndex)
 {
 	AddUtilities = InAddUtilities;
 	InsertIndex = InInsertIndex;
-	bSetFocusOnNextTick = true;
 	ChildSlot
 	[
 		SNew(SBorder)
@@ -29,56 +22,14 @@ void SNiagaraStackItemGroupAddMenu::Construct(const FArguments& InArgs, INiagara
 			.WidthOverride(300)
 			.HeightOverride(400)
 			[
-				SNew(SVerticalBox)
-				+SVerticalBox::Slot()
-				.Padding(1.0f)
-				[
-					SNew(SHorizontalBox)
-
-					// Search context description
-					+SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(STextBlock)
-						.Text(FText::Format(LOCTEXT("AddToGroupFormatTitle", "Add new {0}"), AddUtilities->GetAddItemName()))
-					]
-
-					// Library Only Toggle
-					+SHorizontalBox::Slot()
-					.HAlign(HAlign_Right)
-					.VAlign(VAlign_Center)
-					[
-						SNew(SCheckBox)
-						.OnCheckStateChanged(this, &SNiagaraStackItemGroupAddMenu::OnLibraryToggleChanged)
-						.IsChecked(this, &SNiagaraStackItemGroupAddMenu::LibraryToggleIsChecked)
-						[
-							SNew(STextBlock)
-							.Text(LOCTEXT("LibraryOnly", "Library Only"))
-						]
-					]
-				]
-				+SVerticalBox::Slot()
-				.FillHeight(15)
-				[
-					SAssignNew(AddMenu, SGraphActionMenu)
-					.OnActionSelected(this, &SNiagaraStackItemGroupAddMenu::OnActionSelected)
-					.OnCollectAllActions(this, &SNiagaraStackItemGroupAddMenu::CollectAllAddActions)
-					.AutoExpandActionMenu(AddUtilities->GetAutoExpandAddActions())
-					.ShowFilterTextBox(true)
-				]
+				SAssignNew(AddMenu, SGraphActionMenu)
+				.OnActionSelected(this, &SNiagaraStackItemGroupAddMenu::OnActionSelected)
+				.OnCollectAllActions(this, &SNiagaraStackItemGroupAddMenu::CollectAllAddActions)
+				.AutoExpandActionMenu(AddUtilities->GetAutoExpandAddActions())
+				.ShowFilterTextBox(true)
 			]
 		]
 	];
-}
-
-void SNiagaraStackItemGroupAddMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	if (bSetFocusOnNextTick)
-	{
-		bSetFocusOnNextTick = false;
-		FSlateApplication::Get().SetKeyboardFocus(GetFilterTextBox(), EFocusCause::SetDirectly);
-	}
 }
 
 TSharedPtr<SEditableTextBox> SNiagaraStackItemGroupAddMenu::GetFilterTextBox()
@@ -93,12 +44,8 @@ void SNiagaraStackItemGroupAddMenu::CollectAllAddActions(FGraphActionListBuilder
 		OutAllActions.OwnerOfTemporaries = NewObject<UEdGraph>((UObject*)GetTransientPackage());
 	}
 
-	FNiagaraStackItemGroupAddOptions AddOptions;
-	AddOptions.bIncludeDeprecated = false;
-	AddOptions.bIncludeNonLibrary = bIncludeNonLibraryScripts;
-
 	TArray<TSharedRef<INiagaraStackItemGroupAddAction>> AddActions;
-	AddUtilities->GenerateAddActions(AddActions, AddOptions);
+	AddUtilities->GenerateAddActions(AddActions);
 
 	for (TSharedRef<INiagaraStackItemGroupAddAction> AddAction : AddActions)
 	{
@@ -125,16 +72,3 @@ void SNiagaraStackItemGroupAddMenu::OnActionSelected(const TArray< TSharedPtr<FE
 		}
 	}
 }
-
-void SNiagaraStackItemGroupAddMenu::OnLibraryToggleChanged(ECheckBoxState CheckState)
-{
-	SNiagaraStackItemGroupAddMenu::bIncludeNonLibraryScripts = CheckState == ECheckBoxState::Unchecked;
-	AddMenu->RefreshAllActions(true, false);
-}
-
-ECheckBoxState SNiagaraStackItemGroupAddMenu::LibraryToggleIsChecked() const
-{
-	return SNiagaraStackItemGroupAddMenu::bIncludeNonLibraryScripts ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
-}
-
-#undef LOCTEXT_NAMESPACE

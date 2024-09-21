@@ -139,7 +139,7 @@ void FRenderTargetWriteMask::Decode(FRHICommandListImmediate& RHICmdList, TShade
 	RHICmdList.SetUAVParameter(ComputeShader->GetComputeShader(), ComputeShader->OutCombinedRTWriteMask.GetBaseIndex(), OutRTWriteMask->GetRenderTargetItem().UAV);
 	ComputeShader->SetParameters(RHICmdList, RTWriteMaskDims, InRenderTargets);
 
-	FRHIComputeShader* ShaderRHI = ComputeShader->GetComputeShader();
+	const FComputeShaderRHIParamRef ShaderRHI = ComputeShader->GetComputeShader();
 
 	RHICmdList.TransitionResource(EResourceTransitionAccess::EWritable, EResourceTransitionPipeline::EGfxToCompute, OutRTWriteMask->GetRenderTargetItem().UAV);
 	{

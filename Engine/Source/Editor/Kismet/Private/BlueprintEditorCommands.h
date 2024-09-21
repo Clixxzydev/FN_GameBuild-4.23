@@ -75,9 +75,6 @@ public:
 
 	// SSC commands
 	TSharedPtr< FUICommandInfo > BeginBlueprintMerge;
-	
-	// Toggle focusing nodes which are related to the selected nodes
-	TSharedPtr< FUICommandInfo > ToggleHideUnrelatedNodes;
 };
 
 //////////////////////////////////////////////////////////////////////////

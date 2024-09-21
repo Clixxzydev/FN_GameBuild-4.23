@@ -2,7 +2,7 @@
 
 using UnrealBuildTool;
 
-[SupportedPlatforms("Win64")]
+[SupportedPlatforms(UnrealTargetPlatform.Win64)]
 public class WebRTCProxyTarget : TargetRules
 {
 	public WebRTCProxyTarget(TargetInfo Target) : base(Target)

@@ -1,14 +1,9 @@
-﻿INTSourceChangelist:6528370
-Availability: Public
-Title: 地形表达式
-Description: 可创建应用于地形地貌的材质的表达式。
+﻿Availability:Public
+Title:Landscape Expressions
+Crumbs: %ROOT%, Engine, Engine/Rendering/Materials, Engine/Rendering/Materials/ExpressionReference
+Description:Expressions for creating materials to be applied to Landscape terrains.
 Version: 4.9
-Parent: Engine/Rendering/Materials/ExpressionReference
-Tags: Materials
-
-[EXCERPT:TOC]
-[TOC(start:2)]
-[/EXCERPT:TOC]
+tags:Materials
 
 [EXCERPT:TOC]
 [TOC(start:2)]
@@ -16,20 +11,21 @@ Tags: Materials
 
 ## LandscapeLayerBlend
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayerblendnode]
+[INCLUDE:Engine/Landscape/Materials#LandscapeLayerBlend]
 
 ## LandscapeLayerCoords
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayercoordsnode]
+[INCLUDE:Engine/Landscape/Materials#TerrainLayerCoords]
 
 ## LandscapeLayerSwitch
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayerswitchnode]
+[INCLUDE:Engine/Landscape/Materials#TerrainLayerSwitch]
 
 ## LandscapeLayerWeight
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayerweightnode]
+[INCLUDE:Engine/Landscape/Materials#TerrainLayerWeight]
 
 ## LandscapeVisibilityMask
 
-[INCLUDE:Engine/Landscape/Materials#landscapevisibilitymasknode]
+[INCLUDE:Engine/Landscape/Materials#landscapevisibilitymask]
+

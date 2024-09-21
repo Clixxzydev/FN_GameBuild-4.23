@@ -28,12 +28,8 @@ public:
 	/* Game state callback */
 	virtual void Tick(float DeltaSeconds) override;
 
-#if WITH_EDITOR
-	virtual bool GetReferencedContentObjects(TArray<UObject*>& Objects) const override;
-#endif
-
 	/* GeometryCollectionComponent */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Destruction, meta = (ExposeFunctionCategories = "Components|GeometryCollection", AllowPrivateAccess = "true"))
+	UPROPERTY(VisibleAnywhere, Category = Destruction, meta = (ExposeFunctionCategories = "Components|GeometryCollection", AllowPrivateAccess = "true"))
 	UGeometryCollectionComponent* GeometryCollectionComponent;
 	UGeometryCollectionComponent* GetGeometryCollectionComponent() const { return GeometryCollectionComponent; }
 
@@ -61,8 +57,9 @@ public:
 
 	void DisableCollisionsCallback(TSet<TTuple<int32, int32>>& CollisionPairs);
 
-	void AddForceCallback(FSolverCallbacks::FParticlesType& Particles, const float Dt, const int32 Index);
+	void AddConstraintCallback(FSolverCallbacks::FParticlesType& Particles, const float Time);
 
+	void AddForceCallback(FSolverCallbacks::FParticlesType& Particles, const float Dt, const int32 Index);
 private:
 	FPhysScene_LLImmediate Scene;
 	bool bInitializedState;

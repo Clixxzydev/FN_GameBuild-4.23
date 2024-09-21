@@ -16,7 +16,7 @@
 #include "DecalRenderingShared.h"
 
 
-extern FRHIRasterizerState* GetDecalRasterizerState(EDecalRasterizerState DecalRasterizerState);
+extern FRasterizerStateRHIParamRef GetDecalRasterizerState(EDecalRasterizerState DecalRasterizerState);
 
 void FMobileSceneRenderer::RenderDecals(FRHICommandListImmediate& RHICmdList)
 {

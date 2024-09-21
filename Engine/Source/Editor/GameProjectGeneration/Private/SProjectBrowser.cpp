@@ -396,10 +396,10 @@ void SProjectBrowser::ConstructCategory( const TSharedRef<SVerticalBox>& InCateg
 		.SelectionMode(ESelectionMode::Single)
 		.ClearSelectionOnClick(false)
 		.AllowOverscroll(EAllowOverscroll::No)
-		.OnGenerateTile(const_cast<SProjectBrowser*>(this), &SProjectBrowser::MakeProjectViewWidget)
+		.OnGenerateTile(this, &SProjectBrowser::MakeProjectViewWidget)
 		.OnContextMenuOpening(this, &SProjectBrowser::OnGetContextMenuContent)
-		.OnMouseButtonDoubleClick(const_cast<SProjectBrowser*>(this), &SProjectBrowser::HandleProjectItemDoubleClick)
-		.OnSelectionChanged(const_cast<SProjectBrowser*>(this), &SProjectBrowser::HandleProjectViewSelectionChanged, Category->CategoryName)
+		.OnMouseButtonDoubleClick(this, &SProjectBrowser::HandleProjectItemDoubleClick)
+		.OnSelectionChanged(this, &SProjectBrowser::HandleProjectViewSelectionChanged, Category->CategoryName)
 		.ItemHeight(ThumbnailSize + ThumbnailBorderPadding + 32)
 		.ItemWidth(ThumbnailSize + ThumbnailBorderPadding)
 	];
@@ -865,14 +865,17 @@ FReply SProjectBrowser::FindProjects()
 
 				// Work out which platforms this project is targeting
 				TArray<FName> TargetPlatforms;
-				for(const PlatformInfo::FPlatformInfo& PlatformInfo : PlatformInfo::GetPlatformInfoArray())
+				for(const PlatformInfo::FPlatformInfo& PlatformInfo : PlatformInfo::EnumeratePlatformInfoArray())
 				{
 					if(PlatformInfo.IsVanilla() && PlatformInfo.PlatformType == PlatformInfo::EPlatformType::Game && ProjectStatus.IsTargetPlatformSupported(PlatformInfo.PlatformInfoName))
 					{
 						TargetPlatforms.Add(PlatformInfo.PlatformInfoName);
 					}
 				}
-				TargetPlatforms.Sort(FNameLexicalLess());
+				TargetPlatforms.Sort([](const FName& One, const FName& Two) -> bool
+				{
+					return One < Two;
+				});
 
 				const bool bIsNewProjectItem = false;
 				TSharedRef<FProjectItem> NewProjectItem = MakeShareable( new FProjectItem(ProjectName, ProjectDescription, ProjectEngineIdentifier, bIsUpToDate, DynamicBrush, ProjectFilename, bIsNewProjectItem, TargetPlatforms, ProjectStatus.SupportsAllPlatforms() ) );

@@ -162,7 +162,7 @@ void SNiagaraStack::Construct(const FArguments& InArgs, UNiagaraStackViewModel* 
 					FSlateIcon(),
 					FUIAction(
 						FExecuteAction::CreateUObject(StackViewModel, &UNiagaraStackViewModel::RemoveEmitterSource),
-						FCanExecuteAction::CreateUObject(StackViewModel, &UNiagaraStackViewModel::HasParentEmitter)));
+						FCanExecuteAction::CreateUObject(StackViewModel, &UNiagaraStackViewModel::HasEmitterSource)));
 
 				MenuBuilder.AddMenuEntry(
 					LOCTEXT("ShowEmitterInContentBrowser", "Show in Content Browser"),
@@ -339,11 +339,11 @@ void SNiagaraStack::ConstructHeaderWidget()
 				[
 					SNew(SButton)
 					.IsFocusable(false)
-					.ToolTipText(LOCTEXT("OpenAndFocusParentEmitterToolTip", "Open and Focus Parent Emitter"))
+					.ToolTipText(LOCTEXT("OpenAndFocusSourceEmitterToolTip", "Open and Focus Source Emitter"))
 					.ButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
 					.ForegroundColor(this, &SNiagaraStack::GetPinColor)
 					.ContentPadding(2)
-					.OnClicked(this, &SNiagaraStack::OpenParentEmitter)
+					.OnClicked(this, &SNiagaraStack::OpenSourceEmitter)
 					.Visibility(this, &SNiagaraStack::GetOpenSourceEmitterVisibility)
 					// GoToSource icon is 30x30px so we scale it down to stay in line with other 12x12px UI
 					.DesiredSizeScale(FVector2D(0.55f, 0.55f))
@@ -530,14 +530,14 @@ bool SNiagaraStack::IsEntryFocusedInSearch(UNiagaraStackEntry* Entry) const
 	return false;
 }
 
-FReply SNiagaraStack::OpenParentEmitter() 
+FReply SNiagaraStack::OpenSourceEmitter() 
 {
-	if (StackViewModel && StackViewModel->GetEmitterHandleViewModel().IsValid() && StackViewModel->GetEmitterHandleViewModel()->GetEmitterViewModel().IsValid())
+	if (StackViewModel && StackViewModel->GetEmitterHandleViewModel().IsValid() && StackViewModel->GetEmitterHandleViewModel()->GetEmitterHandle())
 	{
-		UNiagaraEmitter* ParentEmitter = const_cast<UNiagaraEmitter*>(StackViewModel->GetEmitterHandleViewModel()->GetEmitterViewModel()->GetParentEmitter());
-		if (ParentEmitter != nullptr)
+		UNiagaraEmitter* Emitter = const_cast<UNiagaraEmitter*>(StackViewModel->GetEmitterHandleViewModel()->GetEmitterHandle()->GetSource());
+		if (Emitter != nullptr)
 		{
-			FAssetEditorManager::Get().OpenEditorForAsset(ParentEmitter);
+			FAssetEditorManager::Get().OpenEditorForAsset(Emitter);
 		}
 	}
 	return FReply::Handled();
@@ -555,7 +555,7 @@ EVisibility SNiagaraStack::GetPinEmitterVisibility() const
 
 EVisibility SNiagaraStack::GetOpenSourceEmitterVisibility() const
 {
-	return StackViewModel->HasParentEmitter() ? EVisibility::Visible : EVisibility::Collapsed;
+	return CanOpenSourceEmitter() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 bool SNiagaraStack::GetEmitterNameIsReadOnly() const
@@ -565,6 +565,17 @@ bool SNiagaraStack::GetEmitterNameIsReadOnly() const
 		return StackViewModel->GetSystemViewModel()->GetEditMode() == ENiagaraSystemViewModelEditMode::EmitterAsset;
 	}
 	return true;
+}
+
+bool SNiagaraStack::CanOpenSourceEmitter() const
+{
+	if (StackViewModel && StackViewModel->GetEmitterHandleViewModel().IsValid() && StackViewModel->GetEmitterHandleViewModel()->GetEmitterHandle()
+		&& StackViewModel->GetEmitterHandleViewModel()->GetEmitterHandle()->GetSource())
+	{
+		return true;
+	}
+
+	return false;
 }
 
 void SNiagaraStack::SetEmitterEnabled(bool bIsEnabled)
@@ -581,11 +592,8 @@ void SNiagaraStack::ShowEmitterInContentBrowser()
 {
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	TArray<FAssetData> Assets;
-	if (StackViewModel->HasParentEmitter())
-	{
-		Assets.Add(FAssetData(StackViewModel->GetEmitterHandleViewModel()->GetEmitterViewModel()->GetParentEmitter()));
-		ContentBrowserModule.Get().SyncBrowserToAssets(Assets);
-	}
+	Assets.Add(FAssetData(StackViewModel->GetEmitterHandleViewModel()->GetEmitterHandle()->GetSource()));
+	ContentBrowserModule.Get().SyncBrowserToAssets(Assets);
 }
 
 void SNiagaraStack::NavigateTo(UNiagaraStackEntry* Item)
@@ -1059,16 +1067,16 @@ void SNiagaraStack::StackStructureChanged()
 
 FText SNiagaraStack::GetSourceEmitterNameText() const 
 {
-	return StackViewModel->GetEmitterHandleViewModel()->GetEmitterViewModel()->GetParentNameText();
+	return StackViewModel->GetEmitterHandleViewModel()->GetSourceNameText();
 }
 
 FText SNiagaraStack::GetEmitterNameToolTip() const
 {
-	if (StackViewModel->HasParentEmitter())
+	if (CanOpenSourceEmitter())
 	{
 		// We are looking at this Emitter in a System Asset and it has a valid parent Emitter
 		TSharedPtr<FNiagaraEmitterHandleViewModel> ThisViewModel = StackViewModel->GetEmitterHandleViewModel();
-		return FText::Format(LOCTEXT("EmitterNameAndPath", "{0}\nParent: {1}"), ThisViewModel->GetNameText(), ThisViewModel->GetEmitterViewModel()->GetParentPathNameText());
+		return FText::Format(LOCTEXT("EmitterNameAndPath", "{0}\nParent: {1}"), ThisViewModel->GetNameText(), ThisViewModel->GetSourcePathNameText());
 	}
 	else
 	{
@@ -1084,13 +1092,13 @@ void SNiagaraStack::OnStackViewNameTextCommitted(const FText& InText, ETextCommi
 
 EVisibility SNiagaraStack::GetSourceEmitterNameVisibility() const
 {
-	return StackViewModel->HasParentEmitter() && GetIsEmitterRenamed() ? EVisibility::Visible : EVisibility::Collapsed;
+	return CanOpenSourceEmitter() && GetIsEmitterRenamed() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 bool SNiagaraStack::GetIsEmitterRenamed() const
 {
 	const FText CurrentNameText = StackViewModel->GetEmitterHandleViewModel()->GetNameText();
-	const FText SourceNameText = StackViewModel->GetEmitterHandleViewModel()->GetEmitterViewModel()->GetParentNameText();
+	const FText SourceNameText = StackViewModel->GetEmitterHandleViewModel()->GetSourceNameText();
 	return !CurrentNameText.EqualTo(SourceNameText);
 }
 

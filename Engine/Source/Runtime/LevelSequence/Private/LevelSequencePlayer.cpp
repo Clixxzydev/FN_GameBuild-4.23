@@ -131,6 +131,29 @@ void ULevelSequencePlayer::OnStopped()
 {
 	EnableCinematicMode(false);
 
+	AActor* LevelSequenceActor = Cast<AActor>(GetOuter());
+	if (LevelSequenceActor == nullptr)
+	{
+		return;
+	}
+
+	for (FObjectKey WeakActor : PrerequisiteActors)
+	{
+		AActor* Actor = Cast<AActor>(WeakActor.ResolveObjectPtr());
+		if (Actor)
+		{
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (Component)
+				{
+					Component->PrimaryComponentTick.RemovePrerequisite(LevelSequenceActor, LevelSequenceActor->PrimaryActorTick);
+				}
+			}
+
+			Actor->PrimaryActorTick.RemovePrerequisite(LevelSequenceActor, LevelSequenceActor->PrimaryActorTick);
+		}
+	}
+
 	if (World != nullptr && World->GetGameInstance() != nullptr)
 	{
 		APlayerController* PC = World->GetGameInstance()->GetFirstLocalPlayerController();
@@ -144,6 +167,7 @@ void ULevelSequencePlayer::OnStopped()
 		}
 	}
 
+	PrerequisiteActors.Reset();
 	LastViewTarget.Reset();
 }
 
@@ -213,7 +237,7 @@ void ULevelSequencePlayer::UpdateCameraCut(UObject* CameraObject, UObject* Unloc
 		{
 			if (PC->PlayerCameraManager)
 			{
-				PC->PlayerCameraManager->SetGameCameraCutThisFrame();
+				PC->PlayerCameraManager->bGameCameraCutThisFrame = true;
 			}
 
 			if (CameraComponent)
@@ -264,12 +288,44 @@ void ULevelSequencePlayer::UpdateCameraCut(UObject* CameraObject, UObject* Unloc
 	if (PC->PlayerCameraManager)
 	{
 		PC->PlayerCameraManager->bClientSimulatingViewTarget = (CameraActor != nullptr);
-		PC->PlayerCameraManager->SetGameCameraCutThisFrame();
+		PC->PlayerCameraManager->bGameCameraCutThisFrame = true;
 	}
 
 	if (OnCameraCut.IsBound())
 	{
 		OnCameraCut.Broadcast(CameraComponent);
+	}
+}
+
+void ULevelSequencePlayer::NotifyBindingUpdate(const FGuid& InGuid, FMovieSceneSequenceIDRef InSequenceID, TArrayView<TWeakObjectPtr<>> Objects)
+{
+	AActor* LevelSequenceActor = Cast<AActor>(GetOuter());
+	if (LevelSequenceActor == nullptr)
+	{
+		return;
+	}
+
+	for (TWeakObjectPtr<> WeakObject : Objects)
+	{
+		if (AActor* Actor = Cast<AActor>(WeakObject.Get()))
+		{
+			
+			if (Actor == LevelSequenceActor)
+			{
+				continue;
+			}
+
+			for (UActorComponent* Component : Actor->GetComponents())
+			{
+				if (Component)
+				{
+					Component->PrimaryComponentTick.AddPrerequisite(LevelSequenceActor, LevelSequenceActor->PrimaryActorTick);
+				}
+			}
+
+			Actor->PrimaryActorTick.AddPrerequisite(LevelSequenceActor, LevelSequenceActor->PrimaryActorTick);
+			PrerequisiteActors.Add(Actor);
+		}
 	}
 }
 
@@ -339,16 +395,9 @@ void ULevelSequencePlayer::TakeFrameSnapshot(FLevelSequencePlayerSnapshot& OutSn
 	OutSnapshot.CurrentShotLocalTime = FQualifiedFrameTime(CurrentPlayTime, PlayPosition.GetInputRate());
 	OutSnapshot.CameraComponent = CachedCameraComponent.IsValid() ? CachedCameraComponent.Get() : nullptr;
 	OutSnapshot.ShotID = MovieSceneSequenceID::Invalid;
+	OutSnapshot.ActiveShot = nullptr;
 
-	OutSnapshot.ActiveShot = Cast<ULevelSequence>(Sequence);
-
-	UMovieScene* MovieScene = Sequence->GetMovieScene();
-
-#if WITH_EDITORONLY_DATA
-	OutSnapshot.SourceTimecode = MovieScene->TimecodeSource.Timecode.ToString();
-#endif
-
-	UMovieSceneCinematicShotTrack* ShotTrack = MovieScene->FindMasterTrack<UMovieSceneCinematicShotTrack>();
+	UMovieSceneCinematicShotTrack* ShotTrack = Sequence->GetMovieScene()->FindMasterTrack<UMovieSceneCinematicShotTrack>();
 	if (ShotTrack)
 	{
 		UMovieSceneCinematicShotSection* ActiveShot = nullptr;

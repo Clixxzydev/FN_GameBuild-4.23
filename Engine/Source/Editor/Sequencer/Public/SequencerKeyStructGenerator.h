@@ -164,15 +164,6 @@ inline UMovieSceneKeyStructType* InstanceGeneratedStruct(void* Channel, FSequenc
 	return nullptr;
 }
 
-/**
- * Called to initialize a newly allocated key struct for editing.
- * Empty by default, but can be overridden to perform any per-instance setup required for specific channel's key structs
- */
-template<typename ChannelType>
-void PostConstructKeyInstance(const TMovieSceneChannelHandle<ChannelType>& ChannelHandle, FKeyHandle InHandle, FStructOnScope* Struct)
-{
-}
-
 template<typename ChannelType>
 TSharedPtr<FStructOnScope> FSequencerKeyStructGenerator::CreateKeyStructInstance(const TMovieSceneChannelHandle<ChannelType>& ChannelHandle, FKeyHandle InHandle)
 {
@@ -197,10 +188,7 @@ TSharedPtr<FStructOnScope> FSequencerKeyStructGenerator::CreateKeyStructInstance
 					FSequencerKeyStructGenerator::CopyInstanceToKey(ChannelHandle, InHandle, StructPtr);
 				};
 
-				FGeneratedMovieSceneKeyStruct* KeyStruct = reinterpret_cast<FGeneratedMovieSceneKeyStruct*>(StructInstance->GetStructMemory());
-				KeyStruct->OnPropertyChangedEvent = CopyInstanceToKeyLambda;
-
-				PostConstructKeyInstance(ChannelHandle, InHandle, StructInstance.Get());
+				reinterpret_cast<FGeneratedMovieSceneKeyStruct*>(StructInstance->GetStructMemory())->OnPropertyChangedEvent = CopyInstanceToKeyLambda;
 
 				return StructInstance;
 			}

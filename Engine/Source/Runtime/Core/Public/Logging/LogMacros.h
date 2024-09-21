@@ -8,7 +8,6 @@
 #include "Containers/UnrealString.h"
 #include "Logging/LogCategory.h"
 #include "Logging/LogScopedCategoryAndVerbosityOverride.h"
-#include "Logging/LogTrace.h"
 #include "Templates/IsValidVariadicFunctionArg.h"
 #include "Templates/AndOrNot.h"
 #include "Templates/IsArrayOrRefOfType.h"
@@ -196,7 +195,6 @@ private:
 		{ \
 			UE_LOG_EXPAND_IS_FATAL(Verbosity, PREPROCESSOR_NOTHING, if (!CategoryName.IsSuppressed(ELogVerbosity::Verbosity))) \
 			{ \
-				TRACE_LOG_MESSAGE(CategoryName, Verbosity, Format, ##__VA_ARGS__) \
 				UE_LOG_EXPAND_IS_FATAL(Verbosity, \
 					{ \
 						FMsg::Logf_Internal(UE_LOG_SOURCE_FILE(__FILE__), __LINE__, CategoryName.GetCategoryName(), ELogVerbosity::Verbosity, Format, ##__VA_ARGS__); \
@@ -242,7 +240,6 @@ private:
 			{ \
 				if (Condition) \
 				{ \
-					TRACE_LOG_MESSAGE(CategoryName, Verbosity, Format, ##__VA_ARGS__) \
 					UE_LOG_EXPAND_IS_FATAL(Verbosity, \
 						{ \
 							FMsg::Logf_Internal(UE_LOG_SOURCE_FILE(__FILE__), __LINE__, CategoryName.GetCategoryName(), ELogVerbosity::Verbosity, Format, ##__VA_ARGS__); \

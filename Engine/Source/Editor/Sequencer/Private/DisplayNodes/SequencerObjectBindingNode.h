@@ -30,10 +30,12 @@ public:
 	 * Create and initialize a new instance.
 	 * 
 	 * @param InNodeName The name identifier of then node.
+	 * @param InObjectName The name of the object we're binding to.
 	 * @param InObjectBinding Object binding guid for associating with live objects.
+	 * @param InParentNode The parent of this node, or nullptr if this is a root node.
 	 * @param InParentTree The tree this node is in.
 	 */
-	FSequencerObjectBindingNode(FName InNodeName, const FGuid& InObjectBinding, FSequencerNodeTree& InParentTree);
+	FSequencerObjectBindingNode(FName NodeName, const FText& InDisplayName, const FGuid& InObjectBinding, TSharedPtr<FSequencerDisplayNode> InParentNode, FSequencerNodeTree& InParentTree);
 
 public:
 
@@ -48,6 +50,13 @@ public:
 	{
 		return BindingType;
 	}
+
+	/**
+	 * Adds a new externally created node to this display node
+	 *
+	 * @param NewChild		The child node to add
+	 */
+	void AddTrackNode( TSharedRef<FSequencerTrackNode> NewChild );
 
 public:
 
@@ -98,6 +107,9 @@ private:
 
 	/** The binding to live objects */
 	FGuid ObjectBinding;
+
+	/** The default display name of the object which is used if the binding manager doesn't provide one. */
+	FText DefaultDisplayName;
 
 	/** Enumeration specifying what kind of object binding this is */
 	EObjectBindingType BindingType;

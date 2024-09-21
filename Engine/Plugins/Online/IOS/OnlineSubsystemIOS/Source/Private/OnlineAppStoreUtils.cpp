@@ -1,7 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "OnlineAppStoreUtils.h"
-#include "OnlineSubsystem.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
+#import "OnlineAppStoreUtils.h"
 
 #include "HAL/PlatformProcess.h"
 

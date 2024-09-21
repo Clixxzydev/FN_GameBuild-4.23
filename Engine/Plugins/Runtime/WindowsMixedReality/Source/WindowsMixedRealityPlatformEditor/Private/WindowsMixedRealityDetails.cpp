@@ -28,7 +28,6 @@ void FWindowsMixedRealityDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 			SNew(SButton)
 			.Text(LOCTEXT("Connect", "Connect"))
 			.OnClicked_Raw(this, &FWindowsMixedRealityDetails::OnConnectButtonClicked)
-			.IsEnabled_Raw(this, &FWindowsMixedRealityDetails::AreButtonsEnabled)
 		];
 	
 	remotingCategory.AddCustomRow(LOCTEXT("Disconnect Button", "Disconnect Button"))
@@ -36,7 +35,6 @@ void FWindowsMixedRealityDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 			SNew(SButton)
 			.Text(LOCTEXT("Disconnect", "Disconnect"))
 			.OnClicked_Raw(this, &FWindowsMixedRealityDetails::OnDisconnectButtonClicked)
-			.IsEnabled_Raw(this, &FWindowsMixedRealityDetails::AreButtonsEnabled)
 		];
 }
 
@@ -49,7 +47,7 @@ FReply FWindowsMixedRealityDetails::OnConnectButtonClicked()
 
 	unsigned int bitrate = settings->MaxBitrate;
 
-	WindowsMixedReality::FWindowsMixedRealityStatics::ConnectToRemoteHoloLens(ip, bitrate, settings->IsHoloLens1Remoting);
+	WindowsMixedReality::FWindowsMixedRealityStatics::ConnectToRemoteHoloLens(ip, bitrate);
 
 	return FReply::Handled();
 }
@@ -60,12 +58,6 @@ FReply FWindowsMixedRealityDetails::OnDisconnectButtonClicked()
 	WindowsMixedReality::FWindowsMixedRealityStatics::DisconnectFromRemoteHoloLens();
 
 	return FReply::Handled();
-}
-
-bool FWindowsMixedRealityDetails::AreButtonsEnabled() const
-{
-	UWindowsMixedRealityRuntimeSettings* settings = UWindowsMixedRealityRuntimeSettings::Get();
-	return settings->bEnableRemotingForEditor;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -100,8 +100,8 @@ private:
 
 	FReply OnReviewLastRecording();
 
-	ECheckBoxState GetSettingsCheckState() const;
-	void ToggleSettings(ECheckBoxState CheckState);
+	ECheckBoxState GetUserSettingsCheckState() const;
+	void ToggleUserSettings(ECheckBoxState CheckState);
 
 	void OnLevelSequenceChanged();
 

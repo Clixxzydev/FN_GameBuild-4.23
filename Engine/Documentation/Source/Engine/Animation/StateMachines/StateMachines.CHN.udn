@@ -1,15 +1,17 @@
-﻿INTSourceChangelist:6411890
+﻿INTSourceChangelist:3809606
 Availability:Public
 Title:状态机
 Crumbs: %ROOT%, Engine, Engine/Animation
 Description:状态机允许将骨骼动画拆分成各种状态，可以完全控制如何从一个状态混合到另一个状态。
 version: 4.12
-tags:Animation Assets
-type:landing
+tags:Assets
 topic-image:Engine/Animation/Overview/StateMachineTopic.png
 related:Gameplay/HowTo/CharacterMovement/Blueprints
 related:Gameplay/HowTo/CharacterMovement/Blueprints
-hero-image:StateMachineImage.png
+
+[REGION:banner]
+![](StateMachineImage.png)
+[/REGION]
 
 [COMMENT:none]
 
@@ -30,10 +32,12 @@ hero-image:StateMachineImage.png
 
 以下是在虚幻引擎4中使用状态机所需了解的信息和教程。 
 
+(#startingout)
 ## 开始
 
 [DIR(output:"topic" parent:"Engine/Animation/StateMachines" type:"overview")]
 
+(#guides)
 ## 指南
 
 [DIR(output:"fancy" parent:"Engine/Animation/StateMachines" type:"how-to")]

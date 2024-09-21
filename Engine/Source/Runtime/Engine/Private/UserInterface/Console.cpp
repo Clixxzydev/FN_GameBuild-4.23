@@ -38,26 +38,6 @@ static const FName NAME_Open = FName(TEXT("Open"));
 
 UConsole::FRegisterConsoleAutoCompleteEntries UConsole::RegisterConsoleAutoCompleteEntries;
 UConsole::FOnConsoleActivationStateChanged UConsole::OnConsoleActivationStateChanged;
-
-static TAutoConsoleVariable<int32> CVarCustomConsolePosEnabled(
-	TEXT("console.position.enable"),
-	0,
-	TEXT("Enable custom console positioning \n"),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarConsoleXPos(
-	TEXT("console.position.x"),
-	0,
-	TEXT("Console X offset from left border \n"),
-	ECVF_Default);
-
-static TAutoConsoleVariable<int32> CVarConsoleYPos(
-	TEXT("console.position.y"),
-	0,
-	TEXT("Console Y offset from bottom border \n"),
-	ECVF_Default);
-
-
 namespace ConsoleDefs
 {
 	/** Colors */
@@ -1117,27 +1097,18 @@ void UConsole::PostRender_Console_Typing(UCanvas* Canvas)
 	float ClipY = Canvas->ClipY;
 	float LeftPos = 0;
 
-	if (CVarCustomConsolePosEnabled.GetValueOnAnyThread())
+	if (GEngine->IsConsoleBuild())
 	{
-		LeftPos = (float)CVarConsoleXPos.GetValueOnAnyThread();
-		float BottomOffset = (float)CVarConsoleYPos.GetValueOnAnyThread();
-		ClipY = ClipY - BottomOffset;
+		ClipX	-= 64;
+		ClipY	-= 32;
+		LeftPos	 = 32;
 	}
-	else
-	{
-		if (GEngine->IsConsoleBuild())
-		{
-			ClipX	-= 64;
-			ClipY	-= 32;
-			LeftPos	 = 32;
-		}
 
-		if (GEngine->IsStereoscopic3D())
-		{
-			LeftPos = ClipX / 3;
-			ClipX -= LeftPos;
-			ClipY = ClipY * 0.60;
-		}
+	if (GEngine->IsStereoscopic3D())
+	{
+		LeftPos = ClipX / 3;
+		ClipX -= LeftPos;
+		ClipY = ClipY * 0.60;
 	}
 
 	PostRender_InputLine(Canvas, FIntPoint(LeftPos, ClipY));
@@ -1217,27 +1188,17 @@ void UConsole::PostRender_Console_Open(UCanvas* Canvas)
 	float TopPos = 0;
 	float LeftPos = 0;
 
-	if (CVarCustomConsolePosEnabled.GetValueOnAnyThread())
+	if (GEngine->IsConsoleBuild())
 	{
-		LeftPos = (float)CVarConsoleXPos.GetValueOnAnyThread();
-		float BottomOffset = (float)CVarConsoleYPos.GetValueOnAnyThread();
-		Height = Canvas->ClipY - BottomOffset;
+		ClipX	-= 80;
+		TopPos	 = 30;
+		LeftPos	 = 40;
 	}
-	else
+	if (GEngine->IsStereoscopic3D())
 	{
-		if (GEngine->IsConsoleBuild())
-		{
-			ClipX	-= 80;
-			TopPos	 = 30;
-			LeftPos	 = 40;
-		}
-
-		if (GEngine->IsStereoscopic3D())
-		{
-			LeftPos = ClipX / 3;
-			ClipX -= LeftPos;
-			Height = Canvas->ClipY * 0.60;
-		}
+		LeftPos = ClipX / 3;
+		ClipX -= LeftPos;
+		Height = Canvas->ClipY * 0.60;
 	}
 
 	UFont* Font = GEngine->GetSmallFont();

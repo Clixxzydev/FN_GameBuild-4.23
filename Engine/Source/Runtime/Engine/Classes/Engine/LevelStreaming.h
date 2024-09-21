@@ -15,7 +15,7 @@ class ULevel;
 class ULevelStreaming;
 
 // Stream Level Action
-class ENGINE_API FStreamLevelAction : public FPendingLatentAction
+class FStreamLevelAction : public FPendingLatentAction
 {
 public:
 	bool			bLoading;
@@ -150,13 +150,10 @@ private:
 	ETargetState TargetState;
 
 	/** Whether this level streaming object's level should be unloaded and the object be removed from the level list.			*/
-	uint8 bIsRequestingUnloadAndRemoval:1;
+	uint8 bIsRequestingUnloadAndRemoval : 1;
 
 	/* Whether CachedWorldAssetPackageFName is valid */
 	mutable uint8 bHasCachedWorldAssetPackageFName:1;
-
-	/* Whether CachedLoadedLevelPackageName is valid */
-	mutable uint8 bHasCachedLoadedLevelPackageName:1;
 
 #if WITH_EDITORONLY_DATA
 	/** Whether this level should be visible in the Editor																		*/
@@ -479,9 +476,6 @@ private:
 	/** @return Name of the LOD package on disk to load to the new package named PackageName, Name_None otherwise					*/
 	FName GetLODPackageNameToLoad() const;
 
-	/** @return Name of the level package that is currently loaded.																	*/
-	FName GetLoadedLevelPackageName() const;
-
 	/** 
 	 * Try to find loaded level in memory, issue a loading request otherwise
 	 *
@@ -523,8 +517,7 @@ private:
 	/** The cached package name of the world asset that is loaded by the levelstreaming */
 	mutable FName CachedWorldAssetPackageFName;
 
-	/** The cached package name of the currently loaded level. */
-	mutable FName CachedLoadedLevelPackageName;
+	FName CachedLoadedLevelPackageName;
 
 	friend struct FStreamingLevelPrivateAccessor;
 };

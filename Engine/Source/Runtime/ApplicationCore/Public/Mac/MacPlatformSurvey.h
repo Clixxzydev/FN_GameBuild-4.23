@@ -16,7 +16,7 @@ class FString;
 struct FMacPlatformSurvey : public FGenericPlatformSurvey
 {
 	/** Start, or check on, the hardware survey */
-	APPLICATIONCORE_API static bool GetSurveyResults( FHardwareSurveyResults& OutResults, bool bWait = false );
+	static bool GetSurveyResults( FHardwareSurveyResults& OutResults, bool bWait = false );
 
 private:
 	/**

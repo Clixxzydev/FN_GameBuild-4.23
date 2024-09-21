@@ -83,15 +83,13 @@ PyTypeObject InitializePyWrapperNameType()
 			FName InitValue;
 
 			PyObject* PyObj = nullptr;
-			if (!PyArg_ParseTuple(InArgs, "|O:call", &PyObj))
+			if (PyArg_ParseTuple(InArgs, "|O:call", &PyObj))
 			{
-				return -1;
-			}
-			
-			if (PyObj && !PyConversion::Nativize(PyObj, InitValue))
-			{
-				PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert init argument '%s' to 'Name'"), *PyUtil::GetFriendlyTypename(PyObj)));
-				return -1;
+				if (PyObj && !PyConversion::Nativize(PyObj, InitValue))
+				{
+					PyUtil::SetPythonError(PyExc_TypeError, InSelf, *FString::Printf(TEXT("Failed to convert init argument '%s' to 'Name'"), *PyUtil::GetFriendlyTypename(PyObj)));
+					return -1;
+				}
 			}
 
 			return FPyWrapperName::Init(InSelf, InitValue);

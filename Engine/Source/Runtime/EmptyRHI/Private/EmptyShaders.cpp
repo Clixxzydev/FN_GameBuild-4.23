@@ -68,12 +68,12 @@ FComputeShaderRHIRef FEmptyDynamicRHI::RHICreateComputeShader(const TArray<uint8
 
 
 FEmptyBoundShaderState::FEmptyBoundShaderState(
-			FRHIVertexDeclaration* InVertexDeclarationRHI,
-			FRHIVertexShader* InVertexShaderRHI,
-			FRHIPixelShader* InPixelShaderRHI,
-			FRHIHullShader* InHullShaderRHI,
-	FRHIDomainShader* InDomainShaderRHI,
-	FRHIGeometryShader* InGeometryShaderRHI)
+			FVertexDeclarationRHIParamRef InVertexDeclarationRHI,
+			FVertexShaderRHIParamRef InVertexShaderRHI,
+			FPixelShaderRHIParamRef InPixelShaderRHI,
+			FHullShaderRHIParamRef InHullShaderRHI,
+			FDomainShaderRHIParamRef InDomainShaderRHI,
+			FGeometryShaderRHIParamRef InGeometryShaderRHI)
 	:	CacheLink(InVertexDeclarationRHI,InVertexShaderRHI,InPixelShaderRHI,InHullShaderRHI,InDomainShaderRHI,InGeometryShaderRHI,this)
 {
 	FEmptyVertexDeclaration* InVertexDeclaration = FEmptyDynamicRHI::ResourceCast(InVertexDeclarationRHI);
@@ -98,12 +98,12 @@ FEmptyBoundShaderState::~FEmptyBoundShaderState()
 }
 
 FBoundShaderStateRHIRef FEmptyDynamicRHI::RHICreateBoundShaderState(
-	FRHIVertexDeclaration* VertexDeclarationRHI,
-	FRHIVertexShader* VertexShaderRHI,
-	FRHIHullShader* HullShaderRHI,
-	FRHIDomainShader* DomainShaderRHI,
-	FRHIPixelShader* PixelShaderRHI,
-	FRHIGeometryShader* GeometryShaderRHI
+	FVertexDeclarationRHIParamRef VertexDeclarationRHI, 
+	FVertexShaderRHIParamRef VertexShaderRHI, 
+	FHullShaderRHIParamRef HullShaderRHI, 
+	FDomainShaderRHIParamRef DomainShaderRHI, 
+	FPixelShaderRHIParamRef PixelShaderRHI,
+	FGeometryShaderRHIParamRef GeometryShaderRHI
 	)
 {
 	check(IsInRenderingThread());

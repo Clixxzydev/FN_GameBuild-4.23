@@ -292,7 +292,7 @@ protected:
 class FImaginaryBlueprint : public FImaginaryFiBData
 {
 public:
-	FImaginaryBlueprint(FString InBlueprintName, FString InBlueprintPath, FString InBlueprintParentClass, TArray<FString>& InInterfaces, FString InUnparsedStringData, FSearchDataVersionInfo InVersionInfo);
+	FImaginaryBlueprint(FString InBlueprintName, FString InBlueprintPath, FString InBlueprintParentClass, TArray<FString>& InInterfaces, FString InUnparsedStringData, bool bInIsVersioned = true);
 
 	/** FImaginaryFiBData Interface */
 	virtual bool IsCompatibleWithFilter(ESearchQueryFilter InSearchQueryFilter) const override;
@@ -313,7 +313,7 @@ protected:
 	void ParseComponents(TSharedPtr< FJsonObject > InJsonObject, TArray<FImaginaryFiBDataSharedPtr>& OutParsedChildData);
 
 	/** Parses a raw string of Json to a Json object hierarchy */
-	void ParseToJson(FSearchDataVersionInfo InVersionInfo);
+	void ParseToJson(bool bInIsVersioned);
 
 protected:
 	/** The path for this Blueprint */

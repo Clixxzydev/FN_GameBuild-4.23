@@ -240,10 +240,10 @@ FString FNewClassInfo::GetClassPrefixCPP() const
 	switch(ClassType)
 	{
 	case EClassType::UObject:
-		return BaseClass ? BaseClass->GetPrefixCPP() : TEXT("U");
+		return BaseClass ? BaseClass->GetPrefixCPP() : TEXT("");
 
 	case EClassType::EmptyCpp:
-		return TEXT("F");
+		return TEXT("");
 
 	case EClassType::SlateWidget:
 		return TEXT("S");
@@ -824,46 +824,46 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 			if ( ProjectStatus.bRequiresUpdate )
 			{
 				bRequiresUpdate = true;
-			}
+				}
 		}
 
 		// Get the current project descriptor
-		const FProjectDescriptor* Project = IProjectManager::Get().GetCurrentProject();
+			const FProjectDescriptor* Project = IProjectManager::Get().GetCurrentProject();
 
 		// Check if there are any installed plugins that need to be added as a reference
-		TArray<FPluginReferenceDescriptor> NewPluginReferences = Project->Plugins;
-		for(TSharedRef<IPlugin>& Plugin: IPluginManager::Get().GetEnabledPlugins())
-		{
-			if(Plugin->GetDescriptor().bInstalled && Project->FindPluginReferenceIndex(Plugin->GetName()) == INDEX_NONE)
-			{
-				FPluginReferenceDescriptor PluginReference(Plugin->GetName(), true);
-				NewPluginReferences.Add(PluginReference);
-				bRequiresUpdate = true;
-			}
-		}
-
-		// Check if there are any referenced plugins that do not have a matching supported plugins list
-		for(FPluginReferenceDescriptor& Reference: NewPluginReferences)
-		{
-			if(Reference.bEnabled)
-			{
-				TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(Reference.Name);
-				if(Plugin.IsValid())
+				TArray<FPluginReferenceDescriptor> NewPluginReferences = Project->Plugins;
+				for(TSharedRef<IPlugin>& Plugin: IPluginManager::Get().GetEnabledPlugins())
 				{
-					const FPluginDescriptor& Descriptor = Plugin->GetDescriptor();
-					if(Reference.MarketplaceURL != Descriptor.MarketplaceURL)
+					if(Plugin->GetDescriptor().bInstalled && Project->FindPluginReferenceIndex(Plugin->GetName()) == INDEX_NONE)
 					{
-						Reference.MarketplaceURL = Descriptor.MarketplaceURL;
-						bRequiresUpdate = true;
-					}
-					if(Reference.SupportedTargetPlatforms != Descriptor.SupportedTargetPlatforms)
-					{
-						Reference.SupportedTargetPlatforms = Descriptor.SupportedTargetPlatforms;
-						bRequiresUpdate = true;
+						FPluginReferenceDescriptor PluginReference(Plugin->GetName(), true);
+						NewPluginReferences.Add(PluginReference);
+				bRequiresUpdate = true;
 					}
 				}
-			}
-		}
+
+				// Check if there are any referenced plugins that do not have a matching supported plugins list
+				for(FPluginReferenceDescriptor& Reference: NewPluginReferences)
+				{
+					if(Reference.bEnabled)
+					{
+						TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(Reference.Name);
+						if(Plugin.IsValid())
+						{
+							const FPluginDescriptor& Descriptor = Plugin->GetDescriptor();
+							if(Reference.MarketplaceURL != Descriptor.MarketplaceURL)
+							{
+								Reference.MarketplaceURL = Descriptor.MarketplaceURL;
+						bRequiresUpdate = true;
+							}
+							if(Reference.SupportedTargetPlatforms != Descriptor.SupportedTargetPlatforms)
+							{
+								Reference.SupportedTargetPlatforms = Descriptor.SupportedTargetPlatforms;
+						bRequiresUpdate = true;
+							}
+						}
+					}
+				}
 
 		// If we have updates pending, show the prompt
 		if (bRequiresUpdate)
@@ -887,10 +887,10 @@ void GameProjectUtils::CheckForOutOfDateGameProjectFile()
 			Info.ButtonDetails.Add(FNotificationButtonInfo(UpdateProjectCancelText, FText(), FSimpleDelegate::CreateStatic(&GameProjectUtils::OnUpdateProjectCancel)));
 
 			if (UpdateGameProjectNotification.IsValid())
-			{
+				{
 				UpdateGameProjectNotification.Pin()->ExpireAndFadeout();
 				UpdateGameProjectNotification.Reset();
-			}
+				}
 
 			UpdateGameProjectNotification = FSlateNotificationManager::Get().AddNotification(Info);
 
@@ -3658,7 +3658,7 @@ bool GameProjectUtils::ProjectRequiresBuild(const FName InPlatformInfoName)
 
 	// check to see if any plugins beyond the defaults have been enabled
 	const PlatformInfo::FPlatformInfo* PlatformInfo = PlatformInfo::FindPlatformInfo(InPlatformInfoName);
-	FName PlatformName = (PlatformInfo != nullptr) ? PlatformInfo->UBTTargetId : InPlatformInfoName;
+	FName PlatformName = (PlatformInfo != nullptr) ? PlatformInfo->VanillaPlatformName : InPlatformInfoName;
 	bRequiresBuild |= !HasDefaultPluginSettings(PlatformName.ToString());
 
 	// check to see if Blueprint nativization is enabled in the Project settings

@@ -395,4 +395,4 @@ private:
 	friend class FMacWindow;
 };
 
-APPLICATIONCORE_API extern FMacApplication* MacApplication;
+extern FMacApplication* MacApplication;

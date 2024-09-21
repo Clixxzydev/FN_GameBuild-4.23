@@ -11,18 +11,25 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"CoreUObject",
-					"Concert",
-					"ConcertSyncCore",
-				}
+                    "ConcertSyncCore",
+                }
 			);
 
-			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"ConcertTransport",
-					"Serialization",
-				}
-			);
-		}
-	}
+            PrivateDependencyModuleNames.AddRange(
+                new string[]
+                {
+                    // TODO: Review
+                    "Concert",
+                    "ConcertTransport",
+                    //"ConcertSyncCore",
+                }
+            );
+
+            PrivateIncludePathModuleNames.AddRange(
+                new string[] {
+                    "Concert",
+                }
+            );
+        }
+    }
 }

@@ -27,6 +27,12 @@ public:
 	/** Creates an instance of the widget for the tree */
 	virtual UWidget* Create(UWidgetTree* WidgetTree) override;
 
+	/** Returns the asset data for this widget */
+	FAssetData GetWidgetAssetData();
+
 	/** Returns true if the supplied class is supported by this template */
 	static bool Supports(UClass* InClass);
+
+private:
+	FAssetData WidgetAssetData;
 };

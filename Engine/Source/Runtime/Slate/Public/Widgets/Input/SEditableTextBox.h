@@ -52,8 +52,7 @@ public:
 		, _VirtualKeyboardOptions(FVirtualKeyboardOptions())
 		, _VirtualKeyboardTrigger(EVirtualKeyboardTrigger::OnFocusByPointer)
 		, _VirtualKeyboardDismissAction(EVirtualKeyboardDismissAction::TextChangeOnDismiss)
-		{
-		}
+		{}
 
 		/** The styling of the textbox */
 		SLATE_STYLE_ARGUMENT( FEditableTextBoxStyle, Style )
@@ -103,7 +102,7 @@ public:
 		/** Delegate to call before a context menu is opened. User returns the menu content or null to the disable context menu */
 		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
 
-		/** Called whenever the text is changed programmatically or interactively by the user */
+		/** Called whenever the text is changed interactively by the user */
 		SLATE_EVENT( FOnTextChanged, OnTextChanged )
 
 		/** Called whenever the text is committed.  This happens when the user presses enter or the text box loses focus. */
@@ -149,8 +148,6 @@ public:
 		SLATE_ARGUMENT(TOptional<ETextFlowDirection>, TextFlowDirection)
 
 	SLATE_END_ARGS()
-
-	SEditableTextBox();
 	
 	/**
 	 * Construct this widget
@@ -190,13 +187,9 @@ public:
 
 	/** See the IsReadOnly attribute */
 	void SetIsReadOnly( TAttribute< bool > InIsReadOnly );
-
-	bool IsReadOnly() const { return EditableText->IsTextReadOnly(); }
 	
 	/** See the IsPassword attribute */
 	void SetIsPassword( TAttribute< bool > InIsPassword );
-
-	bool IsPassword() const { return EditableText->IsTextPassword(); }
 
 	/** See the AllowContextMenu attribute */
 	void SetAllowContextMenu(TAttribute< bool > InAllowContextMenu);
@@ -343,11 +336,6 @@ public:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 protected:
-#if WITH_ACCESSIBILITY
-	virtual TSharedRef<FSlateAccessibleWidget> CreateAccessibleWidget() override;
-	virtual void SetDefaultAccessibleText(EAccessibleType AccessibleType = EAccessibleType::Main) override;
-#endif
-
 	const FEditableTextBoxStyle* Style;
 
 	/** Box widget that adds padding around the editable text */

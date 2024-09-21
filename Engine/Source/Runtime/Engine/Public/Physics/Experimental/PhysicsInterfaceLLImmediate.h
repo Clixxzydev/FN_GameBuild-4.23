@@ -285,7 +285,7 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////
 
-	static void CreateActor(const FActorCreationParams& Params, FPhysicsActorHandle& Handle);
+	static FPhysicsActorHandle CreateActor(const FActorCreationParams& Params);
 	static void ReleaseActor(FPhysicsActorHandle& InHandle, FPhysScene* InScene = nullptr, bool bNeverDeferRelease = false);
 	//
 	static FPhysicsAggregateHandle_LLImmediate CreateAggregate(int32 MaxBodies);

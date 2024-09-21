@@ -214,8 +214,9 @@ void FAppleARKitFaceSupport::PublishLiveLinkData(TSharedPtr<FAppleARKitAnchorDat
 	{
 		bNeedsInit = false;
 	    // Create our LiveLink provider if the project setting is enabled
-		if (GetMutableDefault<UAppleARKitSettings>()->IsLiveLinkEnabledForFaceTracking())
+		if (GetDefault<UAppleARKitSettings>()->bEnableLiveLinkForFaceTracking)
 		{
+			FaceTrackingLiveLinkSubjectName = GetDefault<UAppleARKitSettings>()->DefaultFaceTrackingLiveLinkSubjectName;
 #if PLATFORM_IOS
 			LiveLinkSource = FAppleARKitLiveLinkSourceFactory::CreateLiveLinkSource();
 #else
@@ -227,7 +228,6 @@ void FAppleARKitFaceSupport::PublishLiveLinkData(TSharedPtr<FAppleARKitAnchorDat
 
 	if (LiveLinkSource.IsValid())
 	{
-		FaceTrackingLiveLinkSubjectName = GetMutableDefault<UAppleARKitSettings>()->GetLiveLinkSubjectName();
         LiveLinkSource->PublishBlendShapes(FaceTrackingLiveLinkSubjectName, Anchor->Timecode, Anchor->FrameRate, Anchor->BlendShapes, LocalDeviceId);
 	}
 }

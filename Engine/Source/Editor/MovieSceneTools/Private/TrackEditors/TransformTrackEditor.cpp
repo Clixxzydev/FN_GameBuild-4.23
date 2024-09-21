@@ -428,30 +428,23 @@ void F3DTransformTrackEditor::BindCommands(TSharedRef<FUICommandList> SequencerC
 {
 	const F3DTransformTrackCommands& Commands = F3DTransformTrackCommands::Get();
 
-	CommandBindings = MakeShared<FUICommandList>();
-	CommandBindings->MapAction(
+	SequencerCommandBindings->MapAction(
 		Commands.AddTransformKey,
 		FExecuteAction::CreateSP( this, &F3DTransformTrackEditor::OnAddTransformKeysForSelectedObjects, EMovieSceneTransformChannel::All ) );
 
-	CommandBindings->MapAction(
+	SequencerCommandBindings->MapAction(
 		Commands.AddTranslationKey,
 		FExecuteAction::CreateSP( this, &F3DTransformTrackEditor::OnAddTransformKeysForSelectedObjects, EMovieSceneTransformChannel::Translation ) );
 
-	CommandBindings->MapAction(
+	SequencerCommandBindings->MapAction(
 		Commands.AddRotationKey,
 		FExecuteAction::CreateSP( this, &F3DTransformTrackEditor::OnAddTransformKeysForSelectedObjects, EMovieSceneTransformChannel::Rotation ) );
 
-	CommandBindings->MapAction(
+	SequencerCommandBindings->MapAction(
 		Commands.AddScaleKey,
 		FExecuteAction::CreateSP( this, &F3DTransformTrackEditor::OnAddTransformKeysForSelectedObjects, EMovieSceneTransformChannel::Scale ) );
 
 	Commands.BindingCount++;
-
-	// Add these bindings to Sequencer
-	SequencerCommandBindings->Append(CommandBindings.ToSharedRef());
-	
-	// Also add them to the Curve Editor 
-	GetSequencer()->GetCommandBindings(ESequencerCommandBindings::CurveEditor)->Append(CommandBindings.ToSharedRef());
 }
 
 
@@ -500,16 +493,16 @@ void F3DTransformTrackEditor::BuildObjectBindingEditButtons(TSharedPtr<SHorizont
 }
 
 
-void F3DTransformTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
+void F3DTransformTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding, const UClass* ObjectClass)
 {
 	if (ObjectClass != nullptr && (ObjectClass->IsChildOf(AActor::StaticClass()) || ObjectClass->IsChildOf(USceneComponent::StaticClass())))
 	{
 		MenuBuilder.AddMenuEntry(
 			NSLOCTEXT("Sequencer", "AddTransform", "Transform"),
-			NSLOCTEXT("Sequencer", "AddTransformTooltip", "Adds a transform track."),
+			NSLOCTEXT("Sequencer", "AddPTransformTooltip", "Adds a transform track."),
 			FSlateIcon(),
 			FUIAction( 
-				FExecuteAction::CreateSP( this, &F3DTransformTrackEditor::AddTransformKeysForHandle, ObjectBindings, EMovieSceneTransformChannel::All, ESequencerKeyMode::ManualKey )
+				FExecuteAction::CreateSP( this, &F3DTransformTrackEditor::AddTransformKeysForHandle, ObjectBinding, EMovieSceneTransformChannel::All, ESequencerKeyMode::ManualKey )
 			)
 		);
 	}
@@ -791,16 +784,11 @@ void F3DTransformTrackEditor::GetTransformKeys( const TOptional<FTransformData>&
 	}
 }
 
-void F3DTransformTrackEditor::AddTransformKeysForHandle(TArray<FGuid> ObjectHandles, EMovieSceneTransformChannel ChannelToKey, ESequencerKeyMode KeyMode)
+void F3DTransformTrackEditor::AddTransformKeysForHandle( FGuid ObjectHandle, EMovieSceneTransformChannel ChannelToKey, ESequencerKeyMode KeyMode )
 {
-	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "AddTransformTrack", "Add Transform Track"));
-	
-	for (FGuid ObjectHandle : ObjectHandles)
+	for ( TWeakObjectPtr<UObject> Object : GetSequencer()->FindObjectsInCurrentSequence(ObjectHandle) )
 	{
-		for (TWeakObjectPtr<UObject> Object : GetSequencer()->FindObjectsInCurrentSequence(ObjectHandle))
-		{
-			AddTransformKeysForObject(Object.Get(), ChannelToKey, KeyMode);
-		}
+		AddTransformKeysForObject(Object.Get(), ChannelToKey, KeyMode);
 	}
 }
 
@@ -862,8 +850,8 @@ bool F3DTransformTrackEditor::ModifyGeneratedKeysByCurrentAndWeight(UObject *Obj
 	FMovieSceneContext Context(FMovieSceneEvaluationRange(KeyTime, GetSequencer()->GetFocusedTickResolution()));
 	EvalTrack.Interrogate(Context, InterrogationData, Object);
 			
-	FVector CurrentPos(0.f); FRotator CurrentRot(0.f);
-	FVector CurrentScale(1.f);
+	FVector CurrentPos; FRotator CurrentRot;
+	FVector CurrentScale;
 	for (const FTransformData& Transform : InterrogationData.Iterate<FTransformData>(UMovieScene3DTransformSection::GetInterrogationKey()))
 	{
 		CurrentPos = Transform.Translation;

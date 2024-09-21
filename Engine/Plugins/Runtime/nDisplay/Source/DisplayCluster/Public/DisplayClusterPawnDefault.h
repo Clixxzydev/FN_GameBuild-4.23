@@ -99,5 +99,7 @@ protected:
 	URotatingMovementComponent * RotatingComponent2;
 
 private:
+	IPDisplayClusterGameManager* GameMgr = nullptr;
+
 	bool bIsCluster = false;
 };

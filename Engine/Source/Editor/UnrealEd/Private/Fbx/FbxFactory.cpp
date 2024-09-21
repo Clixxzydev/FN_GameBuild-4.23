@@ -476,9 +476,9 @@ UObject* UFbxFactory::FactoryCreateFile
 							else
 							{
 								FbxImporter->ImportStaticMeshAsSingle(InParent, LODMeshesArray, Name, Flags, ImportUI->StaticMeshImportData, NewStaticMesh, LODIndex);
-								if (NewStaticMesh && NewStaticMesh->IsSourceModelValid(LODIndex))
+								if (NewStaticMesh && NewStaticMesh->SourceModels.IsValidIndex(LODIndex))
 								{
-									NewStaticMesh->GetSourceModel(LODIndex).bImportWithBaseMesh = true;
+									NewStaticMesh->SourceModels[LODIndex].bImportWithBaseMesh = true;
 								}
 							}
 						}
@@ -822,32 +822,28 @@ UObject* UFbxFactory::RecursiveImportNode(void* VoidFbxImporter, void* VoidNode,
 					{
 						UStaticMesh* NewStaticMesh = Cast<UStaticMesh>(CreatedObject);
 						//Add a Lod generated model
-						while (NewStaticMesh->GetNumSourceModels() <= LODIndex)
+						while (NewStaticMesh->SourceModels.Num() <= LODIndex)
 						{
 							NewStaticMesh->AddSourceModel();
 						}
 						
 						ImportANode(VoidFbxImporter, TmpVoidArray, InParent, InName, Flags, NodeIndex, Total, CreatedObject, LODIndex);
 
-						FStaticMeshSourceModel& ThisSourceModel = NewStaticMesh->GetSourceModel(LODIndex);
-
 						if (LODIndex - 1 > 0 && NewStaticMesh->IsReductionActive(LODIndex - 1))
 						{
-							const FStaticMeshSourceModel& PrevSourceModel = NewStaticMesh->GetSourceModel(LODIndex - 1);
-
 							//Do not add the LODGroup bias here, since the bias will be apply during the build
-							if (PrevSourceModel.ReductionSettings.PercentTriangles < 1.0f)
+							if (NewStaticMesh->SourceModels[LODIndex - 1].ReductionSettings.PercentTriangles < 1.0f)
 							{
-								ThisSourceModel.ReductionSettings.PercentTriangles = PrevSourceModel.ReductionSettings.PercentTriangles * 0.5f;
+								NewStaticMesh->SourceModels[LODIndex].ReductionSettings.PercentTriangles = NewStaticMesh->SourceModels[LODIndex - 1].ReductionSettings.PercentTriangles * 0.5f;
 							}
-							else if (PrevSourceModel.ReductionSettings.MaxDeviation > 0.0f)
+							else if (NewStaticMesh->SourceModels[LODIndex - 1].ReductionSettings.MaxDeviation > 0.0f)
 							{
-								ThisSourceModel.ReductionSettings.MaxDeviation = PrevSourceModel.ReductionSettings.MaxDeviation + 1.0f;
+								NewStaticMesh->SourceModels[LODIndex].ReductionSettings.MaxDeviation = NewStaticMesh->SourceModels[LODIndex - 1].ReductionSettings.MaxDeviation + 1.0f;
 							}
 						}
 						else
 						{
-							ThisSourceModel.ReductionSettings.PercentTriangles = FMath::Pow(0.5f, (float)LODIndex);
+							NewStaticMesh->SourceModels[LODIndex].ReductionSettings.PercentTriangles = FMath::Pow(0.5f, (float)LODIndex);
 						}
 					}
 					else
@@ -859,9 +855,9 @@ UObject* UFbxFactory::RecursiveImportNode(void* VoidFbxImporter, void* VoidNode,
 						}
 						ImportANode(VoidFbxImporter, TmpVoidArray, InParent, InName, Flags, NodeIndex, Total, CreatedObject, LODIndex);
 						UStaticMesh* NewStaticMesh = Cast<UStaticMesh>(CreatedObject);
-						if(NewStaticMesh->IsSourceModelValid(LODIndex))
+						if(NewStaticMesh->SourceModels.IsValidIndex(LODIndex))
 						{
-							NewStaticMesh->GetSourceModel(LODIndex).bImportWithBaseMesh = true;
+							NewStaticMesh->SourceModels[LODIndex].bImportWithBaseMesh = true;
 						}
 					}
 					
@@ -1063,9 +1059,6 @@ void UFbxImportUI::ResetToDefault()
 	StaticMeshImportData->ReloadConfig();
 	SkeletalMeshImportData->ReloadConfig();
 	TextureImportData->ReloadConfig();
-	
-	//Make sure the UI do not display the Base Material
-	TextureImportData->bUseBaseMaterial = false;
 }
 
 namespace ImportCompareHelper
@@ -1223,13 +1216,13 @@ namespace ImportCompareHelper
 		}
 	}
 
-	void FillRecursivelySkeletonCompareData(const FbxNode *ParentNode, FSkeletonTreeNode& SkeletonTreeNode, UnFbx::FFbxImporter* FFbxImporter)
+	void FillRecursivelySkeletonCompareData(const FbxNode *ParentNode, FSkeletonTreeNode& SkeletonTreeNode)
 	{
-		SkeletonTreeNode.JointName = FName(UTF8_TO_TCHAR(FFbxImporter->MakeName(ParentNode->GetName())));
+		SkeletonTreeNode.JointName = FName(UTF8_TO_TCHAR(ParentNode->GetName()));
 		for (int32 ChildIndex = 0; ChildIndex < ParentNode->GetChildCount(); ChildIndex++)
 		{
 			FSkeletonTreeNode& ChildNode = SkeletonTreeNode.Childrens.AddDefaulted_GetRef();
-			FillRecursivelySkeletonCompareData(ParentNode->GetChild(ChildIndex), ChildNode, FFbxImporter);
+			FillRecursivelySkeletonCompareData(ParentNode->GetChild(ChildIndex), ChildNode);
 		}
 	}
 
@@ -1281,7 +1274,7 @@ namespace ImportCompareHelper
 			}
 			
 			//Fill the Result skeleton data
-			FillRecursivelySkeletonCompareData(JointLinks[0], SkeletonCompareData.ResultAssetRoot, FFbxImporter);
+			FillRecursivelySkeletonCompareData(JointLinks[0], SkeletonCompareData.ResultAssetRoot);
 		}
 	}
 

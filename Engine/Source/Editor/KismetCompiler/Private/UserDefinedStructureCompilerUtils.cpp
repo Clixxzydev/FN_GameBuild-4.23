@@ -253,13 +253,9 @@ struct FUserDefinedStructureCompilerInner
 			}
 			
 			VarProperty->SetPropertyFlags(CPF_Edit | CPF_BlueprintVisible);
-			if (VarDesc.bDontEditOnInstance)
+			if (VarDesc.bDontEditoOnInstance)
 			{
 				VarProperty->SetPropertyFlags(CPF_DisableEditOnInstance);
-			}
-			if (VarDesc.bEnableSaveGame)
-			{
-				VarProperty->SetPropertyFlags(CPF_SaveGame);
 			}
 			if (VarDesc.bEnableMultiLineText)
 			{
@@ -290,9 +286,9 @@ struct FUserDefinedStructureCompilerInner
 			{
 				const UClass* ClassObject = Cast<UClass>(VarType.PinSubCategoryObject.Get());
 
-				if (ClassObject && ClassObject->IsChildOf(AActor::StaticClass()) && (VarType.PinCategory == UEdGraphSchema_K2::PC_Object || VarType.PinCategory == UEdGraphSchema_K2::PC_Interface))
+				if (ClassObject && ClassObject->IsChildOf(AActor::StaticClass()))
 				{
-					// prevent hard reference Actor variables from having default values (because Blueprint templates are library elements that can 
+					// prevent Actor variables from having default values (because Blueprint templates are library elements that can 
 					// bridge multiple levels and different levels might not have the actor that the default is referencing).
 					VarProperty->PropertyFlags |= CPF_DisableEditOnTemplate;
 				}

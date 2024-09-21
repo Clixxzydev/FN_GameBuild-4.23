@@ -41,6 +41,7 @@
 #include "ISequenceRecorderExtender.h"
 #include "ScopedTransaction.h"
 #include "Features/IModularFeatures.h"
+#include "ILiveLinkClient.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "SequenceRecorder"
@@ -50,6 +51,7 @@ FSequenceRecorder::FSequenceRecorder()
 	, bWasImmersive(false)
 	, CurrentDelay(0.0f)
 	, CurrentTime(0.0f)
+	, bLiveLinkWasSaving(false)
 {
 }
 
@@ -877,6 +879,17 @@ bool FSequenceRecorder::StartRecordingInternal(UWorld* World)
 			}
 		}
 
+		IModularFeatures& ModularFeatures = IModularFeatures::Get();
+		if (ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+		{
+			ILiveLinkClient* LiveLinkClient = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+			if (LiveLinkClient)
+			{
+				LiveLinkClient->ClearAllSubjectsFrames();
+				bLiveLinkWasSaving = LiveLinkClient->SetSaveFrames(true);
+			}
+		}
+
 		if (OnRecordingStartedDelegate.IsBound())
 		{
 			OnRecordingStartedDelegate.Broadcast(CurrentSequence.Get());
@@ -1144,6 +1157,16 @@ bool FSequenceRecorder::StopRecording(bool bAllowLooping)
 				OnRecordingFinishedDelegate.Broadcast(LevelSequence);
 			}
 			
+			IModularFeatures& ModularFeatures = IModularFeatures::Get();
+			if (ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
+			{
+				ILiveLinkClient* LiveLinkClient = &IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
+				if (LiveLinkClient)
+				{
+					LiveLinkClient->SetSaveFrames(bLiveLinkWasSaving);
+				}
+			}
+
 			// Restart the recording if it's allowed, ie. the user has not pressed stop
 			if (bAllowLooping)
 			{

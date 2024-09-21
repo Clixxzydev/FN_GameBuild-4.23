@@ -6,7 +6,6 @@
 #include "WorldCollision.h"
 #include "Engine/World.h"
 #include "EnvironmentQuery/Items/EnvQueryItemType_VectorBase.h"
-#include "EnvironmentQuery/Contexts/EnvQueryContext_Querier.h"
 
 #define LOCTEXT_NAMESPACE "EnvQueryGenerator"
 
@@ -48,25 +47,23 @@ void UEnvQueryTest_Overlap::RunTest(FEnvQueryInstance& QueryInstance) const
 			return;
 	}
 
-	typedef bool(UEnvQueryTest_Overlap::*FRunOverlapSignature)(const FVector&, const FCollisionShape&, const TArray<AActor*>&, UWorld*, enum ECollisionChannel, const FCollisionQueryParams&) const;
-	FRunOverlapSignature OverlapFunc = (OverlapData.bOnlyBlockingHits ? (FRunOverlapSignature)&UEnvQueryTest_Overlap::RunOverlapBlocking : (FRunOverlapSignature)&UEnvQueryTest_Overlap::RunOverlap);
-
-	TArray<AActor*> IgnoredActors;
-	if (OverlapData.bSkipOverlapQuerier)
+	FRunOverlapSignature OverlapFunc;
+	if (OverlapData.bOnlyBlockingHits)
 	{
-		QueryInstance.PrepareContext(UEnvQueryContext_Querier::StaticClass(), IgnoredActors);
+		OverlapFunc.BindUObject(this, &UEnvQueryTest_Overlap::RunOverlapBlocking);
+	}
+	else
+	{
+		OverlapFunc.BindUObject(this, &UEnvQueryTest_Overlap::RunOverlap);
 	}
 
 	for (FEnvQueryInstance::ItemIterator It(this, QueryInstance); It; ++It)
 	{
 		const FVector ItemLocation = GetItemLocation(QueryInstance, It.GetIndex());
 		AActor* ItemActor = GetItemActor(QueryInstance, It.GetIndex());
-		IgnoredActors.Push(ItemActor);
-
-		const bool bHit = (this->*OverlapFunc)(ItemLocation + OverlapData.ShapeOffset, CollisionShape, IgnoredActors, QueryInstance.World, OverlapCollisionChannel, OverlapParams);
-		It.SetScore(TestPurpose, FilterType, bHit, bWantsHit);
 		
-		IgnoredActors.Pop(/*bAllowShrinking=*/false);
+		const bool bHit = OverlapFunc.Execute(ItemLocation + OverlapData.ShapeOffset, CollisionShape, ItemActor, QueryInstance.World, OverlapCollisionChannel, OverlapParams);
+		It.SetScore(TestPurpose, FilterType, bHit, bWantsHit);
 	}
 }
 
@@ -113,31 +110,17 @@ FText UEnvQueryTest_Overlap::GetDescriptionDetails() const
 
 bool UEnvQueryTest_Overlap::RunOverlap(const FVector& ItemPos, const FCollisionShape& CollisionShape, AActor* ItemActor, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params)
 {
-	TArray<AActor*> Actors;
-	Actors.Add(ItemActor);
-	return const_cast<UEnvQueryTest_Overlap*>(this)->RunOverlap(ItemPos, CollisionShape, Actors, World, Channel, Params);
-}
-
-bool UEnvQueryTest_Overlap::RunOverlapBlocking(const FVector& ItemPos, const FCollisionShape& CollisionShape, AActor* ItemActor, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params)
-{
-	TArray<AActor*> Actors;
-	Actors.Add(ItemActor);
-	return const_cast<UEnvQueryTest_Overlap*>(this)->RunOverlapBlocking(ItemPos, CollisionShape, Actors, World, Channel, Params);
-}
-
-bool UEnvQueryTest_Overlap::RunOverlap(const FVector& ItemPos, const FCollisionShape& CollisionShape, const TArray<AActor*>& IgnoredActors, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params) const
-{
 	FCollisionQueryParams OverlapParams(Params);
-	OverlapParams.AddIgnoredActors(IgnoredActors);
+	OverlapParams.AddIgnoredActor(ItemActor);
 
 	const bool bHit = World->OverlapAnyTestByChannel(ItemPos, FQuat::Identity, Channel, CollisionShape, OverlapParams);
 	return bHit;
 }
 
-bool UEnvQueryTest_Overlap::RunOverlapBlocking(const FVector& ItemPos, const FCollisionShape& CollisionShape, const TArray<AActor*>& IgnoredActors, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params) const
+bool UEnvQueryTest_Overlap::RunOverlapBlocking(const FVector& ItemPos, const FCollisionShape& CollisionShape, AActor* ItemActor, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params)
 {
 	FCollisionQueryParams OverlapParams(Params);
-	OverlapParams.AddIgnoredActors(IgnoredActors);
+	OverlapParams.AddIgnoredActor(ItemActor);
 
 	const bool bHit = World->OverlapBlockingTestByChannel(ItemPos, FQuat::Identity, Channel, CollisionShape, OverlapParams);
 	return bHit;

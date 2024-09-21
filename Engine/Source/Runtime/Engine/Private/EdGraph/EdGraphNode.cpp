@@ -14,7 +14,7 @@
 #include "UObject/PropertyPortFlags.h"
 #include "ScopedTransaction.h"
 #include "FindInBlueprintManager.h"
-#include "DiffResults.h"
+#include "Editor/GraphEditor/Public/DiffResults.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "EdGraph"
@@ -158,12 +158,10 @@ UEdGraphNode::UEdGraphNode(const FObjectInitializer& ObjectInitializer)
 	, bIsNodeEnabled_DEPRECATED(true)
 #if WITH_EDITORONLY_DATA
 	, bCanResizeNode(false)
-	, bUnrelated(false)
+#endif // WITH_EDITORONLY_DATA
 	, bCommentBubblePinned(false)
 	, bCommentBubbleVisible(false)
 	, bCommentBubbleMakeVisible(false)
-#endif // WITH_EDITORONLY_DATA
-
 {
 #if WITH_EDITORONLY_DATA
 	{ static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(UEdGraphNode::StaticClass(), &GatherGraphNodeForLocalization); }
@@ -231,7 +229,6 @@ FString UEdGraphNode::GetPropertyNameAndValueForDiff(const UProperty* Prop, cons
 	return FString::Printf(TEXT("%s: %s"), *FName::NameToDisplayString(Prop->GetName(), bIsBool), *ExportedStringValue);
 }
 
-
 void UEdGraphNode::DiffProperties(UClass* StructA, UClass* StructB, UObject* DataA, UObject* DataB, FDiffResults& Results, FDiffSingleResult& Diff) const
 {
 	// Find the common parent class in case the other node isn't of the same type
@@ -241,23 +238,10 @@ void UEdGraphNode::DiffProperties(UClass* StructA, UClass* StructB, UObject* Dat
 		ClassToViewAs = ClassToViewAs->GetSuperClass();
 	}
 
-	DiffProperties(ClassToViewAs, ClassToViewAs, (uint8*)DataA, (uint8*)DataB, Results, Diff);
-}
-
-void UEdGraphNode::DiffProperties(UStruct* StructA, UStruct* StructB, uint8* DataA, uint8* DataB, FDiffResults& Results, FDiffSingleResult& Diff) const
-{
-	// Run through all the properties in the first struct
-	for (TFieldIterator<UProperty> PropertyIt(StructA, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
+	// Run through all the properties
+	for (TFieldIterator<UProperty> PropertyIt(ClassToViewAs, EFieldIteratorFlags::IncludeSuper); PropertyIt; ++PropertyIt)
 	{
 		UProperty* Prop = *PropertyIt;
-		UProperty* PropB = StructB->FindPropertyByName(Prop->GetFName());
-
-		if (!PropB || Prop->GetClass() != PropB->GetClass())
-		{
-			// Skip if properties don't match
-			continue;
-		}
-
 		// skip properties we cant see
 		if (!Prop->HasAnyPropertyFlags(CPF_Edit | CPF_BlueprintVisible) ||
 			Prop->HasAnyPropertyFlags(CPF_Transient) ||
@@ -269,7 +253,7 @@ void UEdGraphNode::DiffProperties(UStruct* StructA, UStruct* StructB, uint8* Dat
 		}
 
 		const FString ValueStringA = GetPropertyNameAndValueForDiff(Prop, Prop->ContainerPtrToValuePtr<uint8>(DataA));
-		const FString ValueStringB = GetPropertyNameAndValueForDiff(PropB, PropB->ContainerPtrToValuePtr<uint8>(DataB));
+		const FString ValueStringB = GetPropertyNameAndValueForDiff(Prop, Prop->ContainerPtrToValuePtr<uint8>(DataB));
 
 		if (ValueStringA != ValueStringB)
 		{
@@ -537,54 +521,9 @@ bool UEdGraphNode::IsDeprecated() const
 	return GetClass()->HasAnyClassFlags(CLASS_Deprecated);
 }
 
-FEdGraphNodeDeprecationResponse UEdGraphNode::GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const
-{
-	FEdGraphNodeDeprecationResponse Response;
-
-	if (DeprecationType == EEdGraphNodeDeprecationType::NodeTypeIsDeprecated)
-	{
-		Response.MessageType = EEdGraphNodeDeprecationMessageType::Warning;
-		Response.MessageText = NSLOCTEXT("EdGraphCompiler", "NodeDeprecated_Warning", "@@ is deprecated; please replace or remove it.");
-	}
-	else if (DeprecationType == EEdGraphNodeDeprecationType::NodeHasDeprecatedReference)
-	{
-		Response.MessageType = EEdGraphNodeDeprecationMessageType::Warning;
-		Response.MessageText = NSLOCTEXT("EdGraphCompiler", "NodeDeprecatedReference_Note", "@@ has a deprecated reference; please replace or remove it.");
-	}
-
-	return Response;
-}
-
-// Deprecated; implemented for backwards-compatibility.
-bool UEdGraphNode::ShouldWarnOnDeprecation() const
-{
-	if (IsDeprecated())
-	{
-		return GetDeprecationResponse(EEdGraphNodeDeprecationType::NodeTypeIsDeprecated).MessageType == EEdGraphNodeDeprecationMessageType::Warning;
-	}
-	else if (HasDeprecatedReference())
-	{
-		return GetDeprecationResponse(EEdGraphNodeDeprecationType::NodeHasDeprecatedReference).MessageType == EEdGraphNodeDeprecationMessageType::Warning;
-	}
-
-	return false;
-}
-
-// Deprecated; implemented for backwards-compatibility.
 FString UEdGraphNode::GetDeprecationMessage() const
 {
-	FText MessageText;
-
-	if (IsDeprecated())
-	{
-		MessageText = GetDeprecationResponse(EEdGraphNodeDeprecationType::NodeTypeIsDeprecated).MessageText;
-	}
-	else if (HasDeprecatedReference())
-	{
-		MessageText = GetDeprecationResponse(EEdGraphNodeDeprecationType::NodeHasDeprecatedReference).MessageText;
-	}
-
-	return MessageText.ToString();
+	return NSLOCTEXT("EdGraphCompiler", "NodeDeprecated_Warning", "@@ is deprecated; please replace or remove it.").ToString();
 }
 
 void UEdGraphNode::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)

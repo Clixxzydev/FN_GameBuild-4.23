@@ -5,15 +5,9 @@
 #include "Framework/Text/PlainTextLayoutMarshaller.h"
 #include "Widgets/Text/SlateEditableTextLayout.h"
 #include "Types/ReflectionMetadata.h"
-#if WITH_ACCESSIBILITY
-#include "Widgets/Accessibility/SlateAccessibleWidgets.h"
-#endif
 
 SEditableText::SEditableText()
 {
-#if WITH_ACCESSIBILITY
-	AccessibleData = FAccessibleWidgetData(EAccessibleBehavior::Auto, EAccessibleBehavior::Auto, false);
-#endif
 }
 
 SEditableText::~SEditableText()
@@ -604,16 +598,3 @@ float SEditableText::UpdateAndClampVerticalScrollBar(const float InViewOffset, c
 {
 	return 0.0f;
 }
-
-#if WITH_ACCESSIBILITY
-TSharedRef<FSlateAccessibleWidget> SEditableText::CreateAccessibleWidget()
-{
-	return MakeShareable<FSlateAccessibleWidget>(new FSlateAccessibleEditableText(SharedThis(this)));
-}
-
-void SEditableText::SetDefaultAccessibleText(EAccessibleType AccessibleType)
-{
-	TAttribute<FText>& Text = (AccessibleType == EAccessibleType::Main) ? AccessibleData.AccessibleText : AccessibleData.AccessibleSummaryText;
-	Text.Bind(this, &SEditableText::GetHintText);
-}
-#endif

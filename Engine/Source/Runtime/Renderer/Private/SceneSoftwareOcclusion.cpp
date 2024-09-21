@@ -1048,7 +1048,10 @@ static FGraphEventRef SubmitScene(const FScene* Scene, FViewInfo& View, FOcclusi
 			{
 				Collector.SetPrimitiveID(PrimitiveComponentId);
 				// Collect occluder geometry
-				NumCollectedOccluders+= Proxy->CollectOccluderElements(Collector);
+				if (Proxy->CollectOccluderElements(Collector))
+				{
+					NumCollectedOccluders++;
+				}
 			}
 
 			if (NumCollectedOccluders >= GSOMaxOccluderNum)

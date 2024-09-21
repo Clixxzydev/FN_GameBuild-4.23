@@ -7,6 +7,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AtmosphereTextureParameters.h"
 #include "PostProcessParameters.h"
 #include "ShaderComplexityRendering.h"
 #include "Async/ParallelFor.h"

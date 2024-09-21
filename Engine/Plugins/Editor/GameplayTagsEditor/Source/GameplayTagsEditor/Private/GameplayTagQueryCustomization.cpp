@@ -31,49 +31,49 @@ void FGameplayTagQueryCustomization::CustomizeHeader(TSharedRef<class IPropertyH
 	bool const bReadOnly = StructPropertyHandle->IsEditConst();
 
 	HeaderRow
-		.NameContent()
-		[
-			StructPropertyHandle->CreatePropertyNameWidget()
-		]
+	.NameContent()
+	[
+		StructPropertyHandle->CreatePropertyNameWidget()
+	]
 	.ValueContent()
-		.MaxDesiredWidth(512)
-		[
-			SNew(SHorizontalBox)
+	.MaxDesiredWidth(512)
+	[
+		SNew(SHorizontalBox)
 		+SHorizontalBox::Slot()
 		.AutoWidth()
 		.VAlign(VAlign_Center)
 		[
 			SNew(SVerticalBox)
 			+SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SNew(SButton)
-			.Text(this, &FGameplayTagQueryCustomization::GetEditButtonText)
-		.OnClicked(this, &FGameplayTagQueryCustomization::OnEditButtonClicked)
-		]
+			.AutoHeight()
+			[
+				SNew(SButton)
+				.Text(this, &FGameplayTagQueryCustomization::GetEditButtonText)
+				.OnClicked(this, &FGameplayTagQueryCustomization::OnEditButtonClicked)
+			]
 			+SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SNew(SButton)
-			.IsEnabled(!bReadOnly)
-		.Text(LOCTEXT("GameplayTagQueryCustomization_Clear", "Clear All"))
-		.OnClicked(this, &FGameplayTagQueryCustomization::OnClearAllButtonClicked)
-		.Visibility(this, &FGameplayTagQueryCustomization::GetClearAllVisibility)
-		]
+			.AutoHeight()
+			[
+				SNew(SButton)
+				.IsEnabled(!bReadOnly)
+				.Text(LOCTEXT("GameplayTagQueryCustomization_Clear", "Clear All"))
+				.OnClicked(this, &FGameplayTagQueryCustomization::OnClearAllButtonClicked)
+				.Visibility(this, &FGameplayTagQueryCustomization::GetClearAllVisibility)
+			]
 		]
 		+SHorizontalBox::Slot()
 		.AutoWidth()
 		[
 			SNew(SBorder)
 			.Padding(4.0f)
-		.Visibility(this, &FGameplayTagQueryCustomization::GetQueryDescVisibility)
-		[
-			SNew(STextBlock)
-			.Text(this, &FGameplayTagQueryCustomization::GetQueryDescText)
-		.AutoWrapText(true)
+			.Visibility(this, &FGameplayTagQueryCustomization::GetQueryDescVisibility)
+			[
+				SNew(STextBlock)
+				.Text(this, &FGameplayTagQueryCustomization::GetQueryDescText)
+				.AutoWrapText(true)
+			]
 		]
-		]
-		];
+	];
 
 	GEditor->RegisterForUndo(this);
 }
@@ -99,11 +99,6 @@ FText FGameplayTagQueryCustomization::GetEditButtonText() const
 
 FReply FGameplayTagQueryCustomization::OnClearAllButtonClicked()
 {
-	if (StructPropertyHandle.IsValid())
-	{
-		StructPropertyHandle->NotifyPreChange();
-	}
-
 	for (auto& EQ : EditableQueries)
 	{
 		if (EQ.TagQuery)
@@ -113,11 +108,6 @@ FReply FGameplayTagQueryCustomization::OnClearAllButtonClicked()
 	}
 
 	RefreshQueryDescription();
-
-	if (StructPropertyHandle.IsValid())
-	{
-		StructPropertyHandle->NotifyPostChange();
-	}
 
 	return FReply::Handled();
 }
@@ -155,7 +145,7 @@ void FGameplayTagQueryCustomization::RefreshQueryDescription()
 	{
 		QueryDescription = TEXT("Multiple Selected");
 	}
-	else if ((EditableQueries.Num() == 1) && (EditableQueries[0].TagQuery != nullptr))
+	else if ( (EditableQueries.Num() == 1) && (EditableQueries[0].TagQuery != nullptr) )
 	{
 		QueryDescription = EditableQueries[0].TagQuery->GetDescription();
 	}
@@ -198,10 +188,9 @@ FReply FGameplayTagQueryCustomization::OnEditButtonClicked()
 				.ClientSize(FVector2D(600, 400))
 				[
 					SNew(SGameplayTagQueryWidget, EditableQueries)
-					.OnClosePreSave(this, &FGameplayTagQueryCustomization::PreSave)
-				.OnSaveAndClose(this, &FGameplayTagQueryCustomization::CloseWidgetWindow, false)
-				.OnCancel(this, &FGameplayTagQueryCustomization::CloseWidgetWindow, true)
-				.ReadOnly(bReadOnly)
+					.OnSaveAndClose(this, &FGameplayTagQueryCustomization::CloseWidgetWindow, false)
+					.OnCancel(this, &FGameplayTagQueryCustomization::CloseWidgetWindow, true)
+					.ReadOnly(bReadOnly)
 				];
 
 			// NOTE: FGlobalTabmanager::Get()-> is actually dereferencing a SharedReference, not a SharedPtr, so it cannot be null.
@@ -250,29 +239,35 @@ void FGameplayTagQueryCustomization::BuildEditableQueryList()
 	}	
 }
 
-void FGameplayTagQueryCustomization::PreSave()
-{
-	if (StructPropertyHandle.IsValid())
-	{
-		StructPropertyHandle->NotifyPreChange();
-	}
-}
-
 void FGameplayTagQueryCustomization::CloseWidgetWindow(bool WasCancelled)
 {
-	// Notify change.
-	if (!WasCancelled && StructPropertyHandle.IsValid())
+	// Notify change. This is required for these to work inside of UDataTables
+	if (!WasCancelled && PropertyUtilities.IsValid())
 	{
-		StructPropertyHandle->NotifyPostChange();
+		if (StructPropertyHandle.IsValid())
+		{
+			UProperty* TheProperty = StructPropertyHandle->GetProperty();
+
+			FEditPropertyChain PropertyChain;
+			PropertyChain.AddHead(TheProperty);
+			PropertyChain.SetActivePropertyNode(TheProperty);
+
+			FPropertyChangedEvent ChangeEvent(StructPropertyHandle->GetProperty(), EPropertyChangeType::ValueSet, nullptr);
+			FNotifyHook* NotifyHook = PropertyUtilities->GetNotifyHook();
+			if (NotifyHook != nullptr)
+			{
+				NotifyHook->NotifyPostChange(ChangeEvent, &PropertyChain);
+			}
+		}
 	}
 
-	if (GameplayTagQueryWidgetWindow.IsValid())
-	{
-		GameplayTagQueryWidgetWindow->RequestDestroyWindow();
+ 	if (GameplayTagQueryWidgetWindow.IsValid())
+ 	{
+ 		GameplayTagQueryWidgetWindow->RequestDestroyWindow();
 		GameplayTagQueryWidgetWindow = nullptr;
 
 		RefreshQueryDescription();
-	}
+ 	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -117,12 +117,6 @@ const FMessageAddress& FUdpDeserializedMessage::GetSender() const
 }
 
 
-const FMessageAddress& FUdpDeserializedMessage::GetForwarder() const
-{
-	return Sender;
-}
-
-
 ENamedThreads::Type FUdpDeserializedMessage::GetSenderThread() const
 {
 	return ENamedThreads::AnyThread;

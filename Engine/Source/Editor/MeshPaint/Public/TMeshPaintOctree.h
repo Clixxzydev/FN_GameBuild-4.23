@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Math/GenericOctreePublic.h"
-#include "Math/GenericOctree.h"
+#include "GenericOctreePublic.h"
+#include "GenericOctree.h"
 
 /** Triangle for use in Octree for mesh paint optimization */
 struct FMeshPaintTriangle

@@ -21,7 +21,6 @@ public:
 	FLandscapeToolStrokeErosionBase(FEdModeLandscape* InEdMode, FEditorViewportClient* InViewportClient, const FLandscapeToolTarget& InTarget)
 		: FLandscapeToolStrokeBase(InEdMode, InViewportClient, InTarget)
 		, HeightCache(InTarget)
-		, LayerHeightDataCache(InTarget, this->HeightCache)
 		, WeightCache(InTarget)
 		, bWeightApplied(InTarget.TargetType != ELandscapeToolTargetType::Heightmap)
 	{
@@ -29,7 +28,6 @@ public:
 
 protected:
 	FLandscapeHeightCache HeightCache;
-	FLandscapeLayerDataCache<FHeightmapToolTarget> LayerHeightDataCache;
 	FLandscapeFullWeightCache WeightCache;
 	bool bWeightApplied;
 };
@@ -63,13 +61,10 @@ public:
 
 	void Apply(FEditorViewportClient* ViewportClient, FLandscapeBrush* Brush, const ULandscapeEditorObject* UISettings, const TArray<FLandscapeToolInteractorPosition>& InteractorPositions)
 	{
-		if (!this->LandscapeInfo)
+		if (!LandscapeInfo)
 		{
 			return;
 		}
-
-		ALandscape* Landscape = this->LandscapeInfo->LandscapeActor.Get();
-		bool bCombinedLayerOperation = UISettings->bCombinedLayersOperation && Landscape && Landscape->HasLayersContent();
 
 		// Get list of verts to update
 		FLandscapeBrushData BrushInfo = Brush->ApplyBrush(InteractorPositions);
@@ -93,11 +88,11 @@ public:
 		const int32 NeighborNum = 4;
 		const int32 Iteration = UISettings->ErodeIterationNum;
 		const int32 Thickness = UISettings->ErodeSurfaceThickness;
-		const int32 LayerNum = this->LandscapeInfo->Layers.Num();
+		const int32 LayerNum = LandscapeInfo->Layers.Num();
 
+		HeightCache.CacheData(X1, Y1, X2, Y2);
 		TArray<uint16> HeightData;
-		LayerHeightDataCache.Initialize(this->LandscapeInfo, bCombinedLayerOperation);
-		LayerHeightDataCache.Read(X1, Y1, X2, Y2, HeightData);
+		HeightCache.GetCachedData(X1, Y1, X2, Y2, HeightData);
 
 		TArray<uint8> WeightDatas; // Weight*Layers...
 		WeightCache.CacheData(X1, Y1, X2, Y2);
@@ -159,7 +154,7 @@ public:
 							{
 								for (int32 Idx = 0; Idx < LayerNum; Idx++)
 								{
-									ULandscapeLayerInfoObject* LayerInfo = this->LandscapeInfo->Layers[Idx].LayerInfoObj;
+									ULandscapeLayerInfoObject* LayerInfo = LandscapeInfo->Layers[Idx].LayerInfoObj;
 									if (LayerInfo)
 									{
 										uint8 Weight = WeightDatas[Center*LayerNum + Idx];
@@ -261,7 +256,8 @@ public:
 			}
 		}
 
-		LayerHeightDataCache.Write(X1, Y1, X2, Y2, HeightData);
+		HeightCache.SetCachedData(X1, Y1, X2, Y2, HeightData);
+		HeightCache.Flush();
 		if (bWeightApplied)
 		{
 			WeightCache.SetCachedData(X1, Y1, X2, Y2, WeightDatas, LayerNum, ELandscapeLayerPaintingRestriction::None);
@@ -297,13 +293,10 @@ public:
 
 	void Apply(FEditorViewportClient* ViewportClient, FLandscapeBrush* Brush, const ULandscapeEditorObject* UISettings, const TArray<FLandscapeToolInteractorPosition>& InteractorPositions)
 	{
-		if (!this->LandscapeInfo)
+		if (!LandscapeInfo)
 		{
 			return;
 		}
-
-		ALandscape* Landscape = this->LandscapeInfo->LandscapeActor.Get();
-		bool bCombinedLayerOperation = UISettings->bCombinedLayersOperation && Landscape && Landscape->HasLayersContent();
 
 		// Get list of verts to update
 		FLandscapeBrushData BrushInfo = Brush->ApplyBrush(InteractorPositions);
@@ -324,7 +317,7 @@ public:
 		X2 += 1;
 		Y2 += 1;
 
-		const int32 LayerNum = this->LandscapeInfo->Layers.Num();
+		const int32 LayerNum = LandscapeInfo->Layers.Num();
 
 		const int32 Iteration = UISettings->HErodeIterationNum;
 		const uint16 RainAmount = UISettings->RainAmount;
@@ -332,9 +325,9 @@ public:
 		const float EvaporateRatio = 0.5;
 		const float SedimentCapacity = 0.10 * UISettings->SedimentCapacity; //DissolvingRatio; //0.01;
 
+		HeightCache.CacheData(X1, Y1, X2, Y2);
 		TArray<uint16> HeightData;
-		LayerHeightDataCache.Initialize(this->LandscapeInfo, bCombinedLayerOperation);
-		LayerHeightDataCache.Read(X1, Y1, X2, Y2, HeightData);
+		HeightCache.GetCachedData(X1, Y1, X2, Y2, HeightData);
 
 		// Apply the brush
 		TArray<uint16> WaterData;
@@ -486,7 +479,8 @@ public:
 			LowPassFilter<uint16>(X1, Y1, X2, Y2, BrushInfo, HeightData, UISettings->HErosionDetailScale, 1.0f);
 		}
 
-		LayerHeightDataCache.Write(X1, Y1, X2, Y2, HeightData);
+		HeightCache.SetCachedData(X1, Y1, X2, Y2, HeightData);
+		HeightCache.Flush();
 	}
 };
 

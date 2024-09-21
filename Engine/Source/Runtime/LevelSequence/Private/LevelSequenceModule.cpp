@@ -4,8 +4,6 @@
 #include "Modules/ModuleManager.h"
 #include "LevelSequenceActorSpawner.h"
 
-DEFINE_LOG_CATEGORY(LogLevelSequence);
-
 void FLevelSequenceModule::StartupModule()
 {
 	OnCreateMovieSceneObjectSpawnerDelegateHandle = RegisterObjectSpawner(FOnCreateMovieSceneObjectSpawner::CreateStatic(&FLevelSequenceActorSpawner::CreateObjectSpawner));

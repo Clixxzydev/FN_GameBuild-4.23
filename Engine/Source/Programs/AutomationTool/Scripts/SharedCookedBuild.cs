@@ -139,7 +139,7 @@ public class SharedCookedBuild
 		// Attempt manifest searching first
 		ConfigHierarchy Hierarchy = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, DirectoryReference.FromFile(ProjectFile), UnrealTargetPlatform.Win64);
 
-		IReadOnlyList<string> RawSharedCookedSources = null;
+		IEnumerable<string> RawSharedCookedSources = null;
 		Hierarchy.TryGetValues("SharedCookedBuildSettings", "SharedCookedSources", out RawSharedCookedSources);
 		if (RawSharedCookedSources == null)
 		{

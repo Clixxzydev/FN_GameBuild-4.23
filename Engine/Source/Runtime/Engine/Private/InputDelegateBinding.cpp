@@ -31,7 +31,7 @@ void UInputDelegateBinding::BindInputDelegates(const UClass* InClass, UInputComp
 												UInputVectorAxisDelegateBinding::StaticClass(),
 										   };
 
-	if (SupportsInputDelegate(InClass))
+	if (InClass)
 	{
 		BindInputDelegates(InClass->GetSuperClass(), InputComponent);
 

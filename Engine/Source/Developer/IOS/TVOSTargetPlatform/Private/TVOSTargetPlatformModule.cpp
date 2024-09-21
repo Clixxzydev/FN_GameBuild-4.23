@@ -28,7 +28,7 @@ public:
 
 	virtual TArray<ITargetPlatform*> GetTargetPlatforms() override
 	{
-		if (TargetPlatforms.Num() == 0 && FIOSTargetPlatform::IsUsable())
+		if (TargetPlatforms.Num() == 0)
 		{
 			// add Game and Client TPs
 			TargetPlatforms.Add(new FIOSTargetPlatform(true, true));

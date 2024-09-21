@@ -463,7 +463,7 @@ FArchive& FPackageReader::operator<<( FName& Name )
 {
 	check(Loader);
 
-	int32 NameIndex;
+	NAME_INDEX NameIndex;
 	FArchive& Ar = *this;
 	Ar << NameIndex;
 

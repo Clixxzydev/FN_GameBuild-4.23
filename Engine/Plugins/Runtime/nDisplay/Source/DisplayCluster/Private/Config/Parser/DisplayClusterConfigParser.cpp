@@ -49,11 +49,6 @@ void FDisplayClusterConfigParser::AddViewport(const FDisplayClusterConfigViewpor
 	ConfigParserListener->AddViewport(InCfgViewport);
 }
 
-void FDisplayClusterConfigParser::AddPostprocess(const FDisplayClusterConfigPostprocess& InCfgPostprocess)
-{
-	ConfigParserListener->AddPostprocess(InCfgPostprocess);
-}
-
 void FDisplayClusterConfigParser::AddCamera(const FDisplayClusterConfigCamera& InCfgCamera)
 {
 	ConfigParserListener->AddCamera(InCfgCamera);
@@ -102,9 +97,4 @@ void FDisplayClusterConfigParser::AddInputSetup(const FDisplayClusterConfigInput
 void FDisplayClusterConfigParser::AddCustom(const FDisplayClusterConfigCustom& InCfgCustom)
 {
 	ConfigParserListener->AddCustom(InCfgCustom);
-}
-
-void FDisplayClusterConfigParser::AddProjection(const FDisplayClusterConfigProjection& InCfgProjection)
-{
-	ConfigParserListener->AddProjection(InCfgProjection);
 }

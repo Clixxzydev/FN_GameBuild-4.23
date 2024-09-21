@@ -1,8 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
-
-#import <GameKit/GKLocalPlayer.h>
+#include <GameKit/GKLocalPlayer.h>
 
 #include "Interfaces/OnlineSessionInterface.h"
 #include "OnlineSubsystemIOSTypes.h"

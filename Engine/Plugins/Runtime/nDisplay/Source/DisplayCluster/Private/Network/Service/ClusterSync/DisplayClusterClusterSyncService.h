@@ -25,7 +25,7 @@ public:
 	void Shutdown() override;
 
 protected:
-	virtual TSharedPtr<FDisplayClusterSessionBase> CreateSession(FSocket* InSocket, const FIPv4Endpoint& InEP) override;
+	virtual FDisplayClusterSessionBase* CreateSession(FSocket* InSocket, const FIPv4Endpoint& InEP) override;
 
 protected:
 	//////////////////////////////////////////////////////////////////////////////////////////////

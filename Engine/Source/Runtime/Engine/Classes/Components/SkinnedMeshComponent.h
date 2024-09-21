@@ -238,9 +238,6 @@ class ENGINE_API USkinnedMeshComponent : public UMeshComponent
 	/* this update renderer with new revision number twice so to clear bone velocity for motion blur or temporal AA */
 	void ClearMotionVector();
 	
-	/* Forcibly update the renderer with a new revision number to assign the current bone velocity for motion blur or temporal AA */
-	void ForceMotionVector();
-
 private:
 	/** Temporary array of of component-space bone matrices, update each frame and used for rendering the mesh. */
 	TArray<FTransform> ComponentSpaceTransformsArray[2];
@@ -311,7 +308,7 @@ protected:
 	/**
 	*	Mapping for socket overrides, key is the Source socket name and the value is the override socket name
 	*/
-	TSortedMap<FName, FName, FDefaultAllocator, FNameFastLess> SocketOverrideLookup;
+	TSortedMap<FName, FName> SocketOverrideLookup;
 
 public:
 #if WITH_EDITORONLY_DATA
@@ -787,7 +784,7 @@ public:
 	virtual bool DoesSocketExist(FName InSocketName) const override;
 	virtual bool HasAnySockets() const override;
 	virtual void QuerySupportedSockets(TArray<FComponentSocketDescription>& OutSockets) const override;
-	virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps=NULL, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=NULL) override;
+	virtual bool UpdateOverlapsImpl(TArray<FOverlapInfo> const* PendingOverlaps=NULL, bool bDoNotifies=true, const TArray<FOverlapInfo>* OverlapsAtEndLocation=NULL) override;
 	//~ End USceneComponent Interface
 
 	//~ Begin UPrimitiveComponent Interface

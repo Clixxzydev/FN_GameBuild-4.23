@@ -11,9 +11,6 @@
 /////////////////////////////////////////////////////
 // UMultiLineEditableTextBox
 
-static FEditableTextBoxStyle* DefaultMultiLineEditableTextBoxStyle = nullptr;
-static FTextBlockStyle* DefaultMultiLineEditableTextBoxTextStyle = nullptr;
-
 UMultiLineEditableTextBox::UMultiLineEditableTextBox(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -21,26 +18,11 @@ UMultiLineEditableTextBox::UMultiLineEditableTextBox(const FObjectInitializer& O
 	BackgroundColor_DEPRECATED = FLinearColor::White;
 	ReadOnlyForegroundColor_DEPRECATED = FLinearColor::Black;
 
-	if (DefaultMultiLineEditableTextBoxStyle == nullptr)
-	{
-		// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BE DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
-		DefaultMultiLineEditableTextBoxStyle = new FEditableTextBoxStyle(FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox"));
-
-		// Unlink UMG default colors from the editor settings colors.
-		DefaultMultiLineEditableTextBoxStyle->UnlinkColors();
-	}
-
-	if (DefaultMultiLineEditableTextBoxTextStyle == nullptr)
-	{
-		// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BE DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
-		DefaultMultiLineEditableTextBoxTextStyle = new FTextBlockStyle(FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"));
-
-		// Unlink UMG default colors from the editor settings colors.
-		DefaultMultiLineEditableTextBoxTextStyle->UnlinkColors();
-	}
-	
-	WidgetStyle = *DefaultMultiLineEditableTextBoxStyle;
-	TextStyle = *DefaultMultiLineEditableTextBoxTextStyle;
+	// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BY DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
+	static const FEditableTextBoxStyle StaticNormalEditableTextBox = FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("NormalEditableTextBox");
+	static const FTextBlockStyle StaticNormalText = FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText");
+	WidgetStyle = StaticNormalEditableTextBox;
+	TextStyle = StaticNormalText;
 
 	bIsReadOnly = false;
 	AllowContextMenu = true;
@@ -165,16 +147,6 @@ void UMultiLineEditableTextBox::SetIsReadOnly(bool bReadOnly)
 	if ( MyEditableTextBlock.IsValid() )
 	{
 		MyEditableTextBlock->SetIsReadOnly(bIsReadOnly);
-	}
-}
-
-void UMultiLineEditableTextBox::SetTextStyle(const FTextBlockStyle& InTextStyle)
-{
-	TextStyle = InTextStyle;
-
-	if (MyEditableTextBlock.IsValid())
-	{
-		MyEditableTextBlock->SetTextStyle(&TextStyle);
 	}
 }
 

@@ -2,7 +2,6 @@
 #pragma once
 
 #include "ISourceCodeAccessor.h"
-#include "VisualStudioDTE.h"
 
 class FVisualStudioSourceCodeAccessor : public ISourceCodeAccessor
 {
@@ -13,7 +12,7 @@ public:
 		int32 VersionNumber;
 		bool bPreviewRelease;
 		FString ExecutablePath;
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 		FString ROTMoniker;
 #endif
 	};
@@ -125,7 +124,7 @@ private:
 	 */
 	bool RunVisualStudioAndOpenSolutionAndFiles(const FString& ExecutablePath, const FString& SolutionPath, const TArray<FileOpenRequest>* const Requests) const;
 
-#if WITH_VISUALSTUDIO_DTE
+#if VSACCESSOR_HAS_DTE
 	/** DTE specific implementations */
 	bool OpenVisualStudioSolutionViaDTE();
 	bool OpenVisualStudioFilesInternalViaDTE(const TArray<FileOpenRequest>& Requests, bool& bWasDeferred);

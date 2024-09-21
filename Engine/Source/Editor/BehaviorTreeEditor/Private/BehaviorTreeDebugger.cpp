@@ -21,7 +21,6 @@
 #include "BehaviorTreeGraphNode_Service.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTreeDelegates.h"
-#include "Framework/Application/SlateApplication.h"
 
 FBehaviorTreeDebugger::FBehaviorTreeDebugger()
 {
@@ -1019,11 +1018,6 @@ void FBehaviorTreeDebugger::OnActiveNodeChanged(const TArray<uint16>& ActivePath
 
 	if (bShouldPause)
 	{
-		if (EditorOwner.IsValid())
-		{
-			EditorOwner.Pin()->FocusWindow(TreeAsset);
-		}
-
 		PausePlaySession();
 	}
 }
@@ -1033,13 +1027,6 @@ void FBehaviorTreeDebugger::StopPlaySession()
 	if (GUnrealEd->PlayWorld)
 	{
 		GEditor->RequestEndPlayMap();
- 
-		// @TODO: we need a unified flow to leave debugging mode from the different debuggers to prevent strong coupling between modules.
-		// Each debugger (Blueprint & BehaviorTree for now) could then take the appropriate actions to resume the session.
-  		if (FSlateApplication::Get().InKismetDebuggingMode())
-  		{
-  			FSlateApplication::Get().LeaveDebuggingMode();
-  		}
 	}
 }
 
@@ -1073,13 +1060,6 @@ void FBehaviorTreeDebugger::ResumePlaySession()
 	});
 	if(bResumed)
 	{
-		// @TODO: we need a unified flow to leave debugging mode from the different debuggers to prevent strong coupling between modules.
-		// Each debugger (Blueprint & BehaviorTree for now) could then take the appropriate actions to resume the session.
-		if (FSlateApplication::Get().InKismetDebuggingMode())
-		{
-			FSlateApplication::Get().LeaveDebuggingMode();
-		}
-
 		GUnrealEd->PlaySessionResumed();
 	}
 }

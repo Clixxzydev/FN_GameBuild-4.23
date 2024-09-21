@@ -54,5 +54,5 @@ public:
 
 private:
 	/** True if the resource has been initialized. */
-	bool bInitialized = false;
+	bool bInitialized;
 };

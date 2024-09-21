@@ -27,27 +27,24 @@ struct FBlueprintRevPair
 	const FRevisionInfo& RevData;
 };;
 
-static UEdGraph* FindGraphByPath(UBlueprint const& FromBlueprint, const FString& GraphPath)
+static UEdGraph* FindGraphByName(UBlueprint const& FromBlueprint, const FName& GraphName)
 {
 	TArray<UEdGraph*> Graphs;
 	FromBlueprint.GetAllGraphs(Graphs);
 
-	for (UEdGraph* Graph : Graphs)
+	UEdGraph* Ret = nullptr;
+	if (UEdGraph** Result = Graphs.FindByPredicate(FMatchFName(GraphName)))
 	{
-		FString SearchGraphPath = FGraphDiffControl::GetGraphPath(Graph);
-		if (SearchGraphPath.Equals(GraphPath))
-		{
-			return Graph;
-		}
+		Ret = *Result;
 	}
-	return nullptr;
+	return Ret;
 }
 
 struct FMergeGraphRowEntry
 {
 	FText Label;
 
-	FString GraphPath;
+	FName GraphName;
 
 	UEdGraphNode* LocalNode;
 	UEdGraphNode* BaseNode;
@@ -64,7 +61,7 @@ struct FMergeGraphRowEntry
 
 struct FMergeGraphEntry
 {
-	FString GraphPath;
+	FName GraphName;
 
 	TArray<FMergeGraphRowEntry> Changes;
 	bool bAnyConflics;
@@ -80,24 +77,22 @@ static TArray< FMergeGraphEntry > GenerateDiffListItems(const FBlueprintRevPair&
 {
 	// Index all the graphs by name, we use the name of the graph as the 
 	// basis of comparison between the various versions of the blueprint.
-	TMap< FString, UEdGraph* > RemoteGraphMap, BaseGraphMap, LocalGraphMap;
+	TMap< FName, UEdGraph* > RemoteGraphMap, BaseGraphMap, LocalGraphMap;
 	// We also want the set of all graph names in these blueprints, so that we 
 	// can iterate over every graph.
-	TSet< FString > AllGraphPaths;
+	TSet< FName > AllGraphNames;
 	{
 		TArray<UEdGraph*> GraphsRemote, GraphsBase, GraphsLocal;
 		RemoteBlueprint.Blueprint->GetAllGraphs(GraphsRemote);
 		BaseBlueprint.Blueprint->GetAllGraphs(GraphsBase);
 		LocalBlueprint.Blueprint->GetAllGraphs(GraphsLocal);
 
-		const auto ToMap = [&AllGraphPaths](const TArray<UEdGraph*>& InList, TMap<FString, UEdGraph*>& OutMap)
+		const auto ToMap = [&AllGraphNames](const TArray<UEdGraph*>& InList, TMap<FName, UEdGraph*>& OutMap)
 		{
-			for (UEdGraph* Graph : InList)
+			for (auto Graph : InList)
 			{
-				FString GraphPath = FGraphDiffControl::GetGraphPath(Graph);
-
-				OutMap.Add(GraphPath, Graph);
-				AllGraphPaths.Add(GraphPath);
+				OutMap.Add(Graph->GetFName(), Graph);
+				AllGraphNames.Add(Graph->GetFName());
 			}
 		};
 		ToMap(GraphsRemote, RemoteGraphMap);
@@ -123,18 +118,18 @@ static TArray< FMergeGraphEntry > GenerateDiffListItems(const FBlueprintRevPair&
 			return Results;
 		};
 
-		for (const FString& GraphPath : AllGraphPaths)
+		for (const auto& GraphName : AllGraphNames)
 		{
 			TArray< FDiffSingleResult > RemoteDifferences;
 			TArray< FDiffSingleResult > LocalDifferences;
 			bool bExistsInRemote, bExistsInBase, bExistsInLocal;
 
 			FMergeGraphEntry GraphEntry;
-			GraphEntry.GraphPath = GraphPath;
+			GraphEntry.GraphName = GraphName;
 			{
-				UEdGraph** RemoteGraph = RemoteGraphMap.Find(GraphPath);
-				UEdGraph** BaseGraph = BaseGraphMap.Find(GraphPath);
-				UEdGraph** LocalGraph = LocalGraphMap.Find(GraphPath);
+				UEdGraph** RemoteGraph = RemoteGraphMap.Find(GraphName);
+				UEdGraph** BaseGraph = BaseGraphMap.Find(GraphName);
+				UEdGraph** LocalGraph = LocalGraphMap.Find(GraphName);
 
 				GraphEntry.bAnyConflics = false;
 				GraphEntry.bExistsInRemote = RemoteGraph != nullptr;
@@ -214,7 +209,7 @@ static TArray< FMergeGraphEntry > GenerateDiffListItems(const FBlueprintRevPair&
 
 						FMergeGraphRowEntry NewEntry = {
 							Label
-							, Difference.OwningObjectPath
+							, Difference.OwningGraph
 							, ConflictingDifference ? (*ConflictingDifference)->Node2 : nullptr /*UEdGraphNode* LocalNode*/
 							, Difference.Node1 /*UEdGraphNode* BaseNode*/
 							, Difference.Node2 /*UEdGraphNode* RemoteNode*/
@@ -239,7 +234,7 @@ static TArray< FMergeGraphEntry > GenerateDiffListItems(const FBlueprintRevPair&
 						{
 							FMergeGraphRowEntry NewEntry = {
 								Difference.DisplayString
-								, Difference.OwningObjectPath
+								, Difference.OwningGraph
 								, Difference.Node2 /*UEdGraphNode* LocalNode*/
 								, Difference.Node1 /*UEdGraphNode* BaseNode*/
 								, nullptr
@@ -458,29 +453,22 @@ void SMergeGraphView::Construct(const FArguments InArgs
 			FLinearColor LocalColor = ComputeColor(InDifference->bAnyConflics, InDifference->bLocalDifferences);
 			FLinearColor TextColor = ComputeColor(InDifference->bAnyConflics, InDifference->bLocalDifferences || InDifference->bRemoteDifferences);
 
-			FString DisplayString = InDifference->GraphPath;
-			int32 PeriodIndex = INDEX_NONE;
-			if (DisplayString.FindLastChar('.', PeriodIndex))
-			{
-				DisplayString = DisplayString.Mid(PeriodIndex + 1);
-			}
-
 			return SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
 				[
 					SNew(STextBlock)
 					.ColorAndOpacity( TextColor )
-					.Text(FText::FromString(DisplayString))
+					.Text(FText::FromString(InDifference->GraphName.GetPlainNameString()))
 				]
 				+ DiffViewUtils::Box(InDifference->bExistsInRemote, RemoteColor)
 				+ DiffViewUtils::Box(InDifference->bExistsInBase, BaseColor)
 				+ DiffViewUtils::Box(InDifference->bExistsInLocal, LocalColor);
 		};
 
-		const auto FocusGraph = [](FOnMergeNodeSelected InSelectionCallback, SMergeGraphView* Parent, FString GraphPath)
+		const auto FocusGraph = [](FOnMergeNodeSelected InSelectionCallback, SMergeGraphView* Parent, FName GraphName)
 		{
 			InSelectionCallback.ExecuteIfBound();
-			Parent->FocusGraph( GraphPath );
+			Parent->FocusGraph( GraphName );
 		};
 
 		if( Children.Num() == 0 )
@@ -490,7 +478,7 @@ void SMergeGraphView::Construct(const FArguments InArgs
 
 		OutTreeEntries.Push(
 			TSharedPtr<FBlueprintDifferenceTreeEntry>(new FBlueprintDifferenceTreeEntry(
-				FOnDiffEntryFocused::CreateStatic(FocusGraph, SelectionCallback, this, Difference.GraphPath)
+				FOnDiffEntryFocused::CreateStatic(FocusGraph, SelectionCallback, this, Difference.GraphName)
 				, FGenerateDiffEntryWidget::CreateStatic(Widget, &Difference)
 				, Children
 			))
@@ -520,11 +508,11 @@ void SMergeGraphView::Construct(const FArguments InArgs
 	];
 }
 
-void SMergeGraphView::FocusGraph(const FString& GraphPath)
+void SMergeGraphView::FocusGraph(FName GraphName)
 {
-	UEdGraph* GraphRemote = FindGraphByPath(*GetRemotePanel().Blueprint, GraphPath);
-	UEdGraph* GraphBase = FindGraphByPath(*GetBasePanel().Blueprint, GraphPath);
-	UEdGraph* GraphLocal = FindGraphByPath(*GetLocalPanel().Blueprint, GraphPath);
+	UEdGraph* GraphRemote = FindGraphByName(*GetRemotePanel().Blueprint, GraphName);
+	UEdGraph* GraphBase = FindGraphByName(*GetBasePanel().Blueprint, GraphName);
+	UEdGraph* GraphLocal = FindGraphByName(*GetLocalPanel().Blueprint, GraphName);
 
 	GetBasePanel().GeneratePanel(GraphBase, nullptr);
 	GetRemotePanel().GeneratePanel(GraphRemote, GraphBase);
@@ -535,7 +523,7 @@ void SMergeGraphView::FocusGraph(const FString& GraphPath)
 
 void SMergeGraphView::HighlightEntry(const struct FMergeGraphRowEntry& Conflict)
 {
-	FocusGraph(Conflict.GraphPath);
+	FocusGraph(Conflict.GraphName);
 
 	const auto FocusPinOrNode = [this]( UEdGraphPin* Pin, UEdGraphNode* Node )
 	{
@@ -563,7 +551,7 @@ TSharedRef<SDockTab> SMergeGraphView::CreateGraphDiffViews(const FSpawnTabArgs& 
 	{
 		PanelContainer->AddSlot()
 		[
-			SAssignNew(Panel.GraphEditorBox, SBox)
+			SAssignNew(Panel.GraphEditorBorder, SBox)
 			.VAlign(VAlign_Fill)
 			[
 				SBlueprintDiff::DefaultEmptyPanel()
@@ -584,7 +572,7 @@ TSharedRef<SDockTab> SMergeGraphView::CreateMyBlueprintsViews(const FSpawnTabArg
 	{
 		PanelContainer->AddSlot()
 		[
-			Panel.GenerateMyBlueprintWidget()
+			Panel.GenerateMyBlueprintPanel()
 		];
 	}
 

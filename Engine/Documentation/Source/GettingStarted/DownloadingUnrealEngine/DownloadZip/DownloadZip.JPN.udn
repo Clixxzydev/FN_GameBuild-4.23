@@ -12,6 +12,8 @@ SkillLevel:Advanced
 
 GitHub から Zip ファイルでソースコードをダウンロードする方法を説明します。
 
+%Globals:osselect_linux%
+
 [OBJECT:ToggleButtonContent]
 	[PARAMLITERAL:category]
 	OS

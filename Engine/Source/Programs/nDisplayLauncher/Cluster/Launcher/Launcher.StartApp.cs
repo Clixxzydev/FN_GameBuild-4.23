@@ -6,7 +6,6 @@ using System.IO;
 
 using nDisplayLauncher.Cluster.Config;
 using nDisplayLauncher.Cluster.Config.Entity;
-using nDisplayLauncher.Helpers;
 using nDisplayLauncher.Log;
 
 
@@ -22,6 +21,22 @@ namespace nDisplayLauncher.Cluster
 				return;
 			}
 
+			if (!File.Exists(SelectedApplication))
+			{
+				AppLogger.Log("No application found: " + SelectedApplication);
+				return;
+			}
+
+			// Update config files before application start
+			HashSet<string> NodesSent = new HashSet<string>();
+			foreach (EntityClusterNode Node in Config.ClusterNodes.Values)
+			{
+				if (!NodesSent.Contains(Node.Addr))
+				{
+					NodesSent.Add(Node.Addr);
+				}
+			}
+
 			// Send start command to the listeners
 			foreach (EntityClusterNode Node in Config.ClusterNodes.Values)
 			{
@@ -33,19 +48,9 @@ namespace nDisplayLauncher.Cluster
 		private string GenerateStartCommand(EntityClusterNode Node, Configuration Config)
 		{
 			string commandCmd = string.Empty;
-			string Application = SelectedApplication;
-			string ExtraAppParams = string.Empty;
 
-			// Start command at first
-			commandCmd = CommandStartApp;
-
-			// Get file(s)
-			List<string> Params = SplitAppLineParameters(SelectedApplication);
-			foreach (string Param in Params)
-			{
-				commandCmd = string.Format("{0} {1}", commandCmd, Param);
-			}
-
+			// Executable
+			commandCmd = string.Format("{0} \"{1}\"", CommandStartApp, SelectedApplication);
 			// Custom common arguments
 			if (!string.IsNullOrWhiteSpace(CustomCommonParams))
 			{
@@ -137,47 +142,6 @@ namespace nDisplayLauncher.Cluster
 			}
 
 			return commandCmd;
-		}
-
-		private List<string> SplitAppLineParameters(string Line)
-		{
-			const string ExecExtension = ".exe";
-			const string DashGameParam = "-game";
-
-			List<string> Params = new List<string>();
-
-			// Detect either we have -game line or single .exe/.bat/.cmd
-			bool IsDashGame = StringHelper.Contains(Line, DashGameParam, StringComparison.CurrentCultureIgnoreCase);
-
-			// In -game mode we have two files. One is the Editor executable, another is a project.
-			if (IsDashGame)
-			{
-				// Extract Editor and project files
-				int Idx = Line.IndexOf(ExecExtension, StringComparison.CurrentCultureIgnoreCase);
-				if (Idx > 0)
-				{
-					// 1. Add executable to output
-					string EditorFile = string.Format("\"{0}\"", Line.Substring(0, Idx + ExecExtension.Length).Trim());
-					Params.Add(EditorFile);
-
-					// 2. Remove everything except of .uproject file and store it to output
-					Line = Line.Remove(0, Idx + ExecExtension.Length);
-					Line = Line.Remove(Line.IndexOf(DashGameParam));
-					string ProjectFile = string.Format("\"{0}\"", Line.Trim());
-					Params.Add(ProjectFile);
-
-					// 3. Finally, add -game
-					Params.Add(DashGameParam);
-				}
-			}
-			// Otherwise we have one executable so nothing special to do
-			else
-			{
-				string ExecFile = string.Format("\"{0}\"", Line.Trim());
-				Params.Add(ExecFile);
-			}
-
-			return Params;
 		}
 	}
 }

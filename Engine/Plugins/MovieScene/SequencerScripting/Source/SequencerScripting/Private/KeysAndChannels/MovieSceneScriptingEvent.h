@@ -8,10 +8,9 @@
 #include "Channels/MovieSceneChannelTraits.h"
 #include "Channels/MovieSceneChannelHandle.h"
 #include "Sections/MovieSceneEventSection.h"
+#include "KeysAndChannels/MovieSceneScriptingChannel.h"
 #include "KeyParams.h"
 #include "MovieScene.h"
-#include "Channels/MovieSceneEvent.h"
-#include "Channels/MovieSceneEventChannel.h"
 
 #include "MovieSceneScriptingEvent.generated.h"
 
@@ -20,7 +19,7 @@
 * Stores a reference to the data so changes to this class are forwarded onto the underlying data structures.
 */
 UCLASS(BlueprintType)
-class UMovieSceneScriptingEventKey : public UMovieSceneScriptingKey, public TMovieSceneScriptingKey<FMovieSceneEventChannel, FMovieSceneEvent>
+class UMovieSceneScriptingEventKey : public UMovieSceneScriptingKey, public TMovieSceneScriptingKey<FMovieSceneEventSectionData, FEventPayload>
 {
 	GENERATED_BODY()
 public:
@@ -46,7 +45,7 @@ public:
 	* @return	The event payload for this key which contains an event name and data.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Keys", meta = (DisplayName = "Get Value (Event)"))
-	FMovieSceneEvent GetValue() const
+	FEventPayload GetValue() const
 	{
 		return GetValueFromChannel(KeyHandle);
 	}
@@ -56,14 +55,14 @@ public:
 	* @param InNewValue	The new event payload for this key.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Keys", meta = (DisplayName = "Get Value (Event)"))
-	void SetValue(const FMovieSceneEvent& InNewValue)
+	void SetValue(const FEventPayload& InNewValue)
 	{
 		SetValueInChannel(KeyHandle, InNewValue);
 	}
 };
 
 UCLASS(BlueprintType)
-class UMovieSceneScriptingEventChannel : public UMovieSceneScriptingChannel, public TMovieSceneScriptingChannel<FMovieSceneEventChannel, UMovieSceneScriptingEventKey, FMovieSceneEvent>
+class UMovieSceneScriptingEventChannel : public UMovieSceneScriptingChannel, public TMovieSceneScriptingChannel<FMovieSceneEventSectionData, UMovieSceneScriptingEventKey, FEventPayload>
 {
 	GENERATED_BODY()
 public:
@@ -76,7 +75,7 @@ public:
 	* @return	The key that was created with the specified values at the specified time.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Sequencer Tools | Keys", meta = (DisplayName = "Add Key (Event)"))
-	UMovieSceneScriptingEventKey* AddKey(const FFrameNumber& InTime, FMovieSceneEvent NewValue, float SubFrame = 0.f, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate)
+	UMovieSceneScriptingEventKey* AddKey(const FFrameNumber& InTime, FEventPayload NewValue, float SubFrame = 0.f, ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate)
 	{
 		return AddKeyInChannel(ChannelHandle, OwningSequence, InTime, NewValue, SubFrame, TimeUnit, EMovieSceneKeyInterpolation::Auto);
 	}
@@ -103,5 +102,5 @@ public:
 
 public:
 	TWeakObjectPtr<UMovieSceneSequence> OwningSequence;
-	TMovieSceneChannelHandle<FMovieSceneEventChannel> ChannelHandle;
+	TMovieSceneChannelHandle<FMovieSceneEventSectionData> ChannelHandle;
 };

@@ -78,12 +78,12 @@ public:
 	template <typename TRHICmdList>
 	void SetParameters(	
 		TRHICmdList& RHICmdList,
-		FRHITexture** LpvBufferSRVsIn,
-		FRHITexture* AOVolumeTextureSRVIn,
+		FTextureRHIParamRef* LpvBufferSRVsIn, 
+		FTextureRHIParamRef AOVolumeTextureSRVIn, 
 		FLpvReadUniformBufferRef LpvUniformBuffer, 
 		const FRenderingCompositePassContext& Context )
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		SetUniformBufferParameter(RHICmdList, ShaderRHI, GetUniformBufferParameter<FLpvReadUniformBufferParameters>(), LpvUniformBuffer);
 
@@ -177,11 +177,11 @@ public:
 	}
 
 	void SetParameters(	
-		FRHITexture* AOVolumeTextureSRVIn,
+		FTextureRHIParamRef AOVolumeTextureSRVIn, 
 		FLpvReadUniformBufferRef LpvUniformBuffer, 
 		const FRenderingCompositePassContext& Context )
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		SetUniformBufferParameter(Context.RHICmdList, ShaderRHI, GetUniformBufferParameter<FLpvReadUniformBufferParameters>(), LpvUniformBuffer);
 
@@ -269,7 +269,7 @@ void FRCPassPostProcessLpvIndirect::Process(FRenderingCompositePassContext& Cont
 		DoDirectionalOcclusionPass(Context);
 	}
 
-	FRHITexture* RenderTargets[2];
+	FTextureRHIParamRef RenderTargets[2];
 	RenderTargets[0] = DestColorRenderTarget.TargetableTexture;
 	RenderTargets[1] = DestSpecularRenderTarget.TargetableTexture;
 
@@ -321,7 +321,7 @@ void FRCPassPostProcessLpvIndirect::Process(FRenderingCompositePassContext& Cont
 		LpvReadUniformBufferParams = Lpv->GetReadUniformBufferParams();
 		LpvReadUniformBuffer = FLpvReadUniformBufferRef::CreateUniformBufferImmediate(LpvReadUniformBufferParams, UniformBuffer_SingleDraw);
 
-		FRHITexture* LpvBufferSrvs[7];
+		FTextureRHIParamRef LpvBufferSrvs[7];
 		for (int i = 0; i < 7; i++)
 		{
 			LpvBufferSrvs[i] = Lpv->GetLpvBufferSrv(i);
@@ -383,7 +383,7 @@ void FRCPassPostProcessLpvIndirect::DoDirectionalOcclusionPass(FRenderingComposi
 		return;
 	}
 
-	FRHITexture* RenderTarget = DestDirectionalOcclusionRenderTarget.TargetableTexture;
+	FTextureRHIParamRef RenderTarget = DestDirectionalOcclusionRenderTarget.TargetableTexture;
 
 	FRHIRenderPassInfo RPInfo(RenderTarget, ERenderTargetActions::Clear_Store);
 	Context.RHICmdList.BeginRenderPass(RPInfo, TEXT("DoDirectionalOcclusionPass"));

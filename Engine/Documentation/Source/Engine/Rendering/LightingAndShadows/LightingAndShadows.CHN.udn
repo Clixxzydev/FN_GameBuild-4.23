@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6412189
+﻿INTSourceChangelist:3782314
 Availability:Public
 Title: 照亮环境
 Crumbs: %ROOT%, Engine
@@ -9,10 +9,9 @@ Version: 4.18
 parent:Engine/Rendering
 order:3
 type:landing
-Tags:Rendering
-Tags:Graphics
 topic-image:lighting_topic.png
 
+(#Essentials)
 ## 要点知识
 
 %Engine/Rendering/LightingAndShadows/Basics:Topic%
@@ -21,6 +20,7 @@ topic-image:lighting_topic.png
 %Engine/Rendering/LightingAndShadows/Shadows:Topic%
 %Engine/Rendering/LightingAndShadows/QuickStart:topic%
 
+(#PrecomputedLighting)
 ## 预计算光照
 
 %Engine/Rendering/LightingAndShadows/Lightmass:Topic%
@@ -32,6 +32,7 @@ topic-image:lighting_topic.png
 %Engine/Rendering/LightingAndShadows/PrecomputedLightingScenarios:Topic%
 %Engine/Rendering/LightingAndShadows/LightmassPortals:Topic%
 
+(#DynamicLighting)
 ## 动态光照
 
 %Engine/Rendering/LightingAndShadows/LightMobility/DynamicLights:Topic%
@@ -43,6 +44,7 @@ topic-image:lighting_topic.png
 %Engine/Rendering/LightingAndShadows/ContactShadows:Topic%
 %Engine/Rendering/LightingAndShadows/CapsuleShadows:Topic%
 
+(#General)
 ## 综述
 
 %Engine/Rendering/LightingAndShadows/VolumetricFog:Topic%

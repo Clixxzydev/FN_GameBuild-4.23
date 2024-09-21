@@ -118,7 +118,7 @@ public:
 		                                const struct FMeshReductionSettings& ReductionSettings
 										) override {};
 
-
+	
 
 
 private:
@@ -461,34 +461,21 @@ void FQuadricSkeletalMeshReduction::ConvertToFSkinnedSkeletalMesh( const FSkelet
 
 
 
-	auto ApplySkinning = [](const FMatrix& XForm, FSoftSkinVertex& Vertex)->bool
+	auto ApplySkinning = [](const FMatrix& XForm, FSoftSkinVertex& Vertex)->void
 	{
-		// Some imported models will have garbage tangent space
-		bool bHasBadNTB =  ( Vertex.TangentX.ContainsNaN() || Vertex.TangentY.ContainsNaN() || Vertex.TangentZ.ContainsNaN() );
-
 		// transform position
 		FVector WeightedPosition = XForm.TransformPosition(Vertex.Position);
-
-		FVector WeightedTangentX(1.f, 0.f, 0.f);
-		FVector WeightedTangentY(0.f, 1.f, 0.f);
-		FVector WeightedTangentZ(0.f ,0.f, 1.f);
-
-		if (!bHasBadNTB)
-		{
-			WeightedTangentX = XForm.TransformVector(Vertex.TangentX);
-			WeightedTangentY = XForm.TransformVector(Vertex.TangentY);
-			WeightedTangentZ = XForm.TransformVector(Vertex.TangentZ); // how does this work since TangentZ is a FVector4?
-		}
+		FVector WeightedTangentX = XForm.TransformVector(Vertex.TangentX);
+		FVector WeightedTangentY = XForm.TransformVector(Vertex.TangentY);
+		FVector WeightedTangentZ = XForm.TransformVector(Vertex.TangentZ);
 
 		
 		Vertex.TangentX   = WeightedTangentX.GetSafeNormal();
 		Vertex.TangentY   = WeightedTangentY.GetSafeNormal();
-		uint8 WComponent  = (bHasBadNTB) ? 1 : Vertex.TangentZ.W;                    // NB: this looks bad.. the component of the vector is a float..
+		uint8 WComponent  = Vertex.TangentZ.W;                    // NB: this looks bad.. the component of the vector is a float..
 		Vertex.TangentZ   = WeightedTangentZ.GetSafeNormal();
 		Vertex.TangentZ.W = WComponent;
 		Vertex.Position   = WeightedPosition;
-
-		return bHasBadNTB;
 	};
 
 	auto CreateSkinningMatrix = [&BoneMatrices](const FSoftSkinVertex& Vertex, const FSkelMeshSection& Section, bool& bValidBoneWeights)->FMatrix
@@ -609,9 +596,10 @@ void FQuadricSkeletalMeshReduction::ConvertToFSkinnedSkeletalMesh( const FSkelet
 	const uint32 TexCoordCount = SrcLODModel.NumTexCoords;
 	check(TexCoordCount <= MAX_TEXCOORDS);
 
-
+	
+	
 	// Update the verts to the skinned location.
-	int32 NumBadNTBSpace = 0;
+
 	for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 	{
 		const FSkelMeshSection& Section  = SrcLODModel.Sections[SectionIndex];
@@ -626,15 +614,9 @@ void FQuadricSkeletalMeshReduction::ConvertToFSkinnedSkeletalMesh( const FSkelet
 			// Use the bone weights for this vertex to create a blended matrix 
 			const FMatrix BlendedMatrix = CreateSkinningMatrix(SkinVertex, Section, bHasValidBoneWeights);
 
-
 			// Update this Skin Vertex to the correct location, normal, etc.
-			// also replace NaN tangent spaces with default tangent before skinning
-			bool bHasBadNTB = ApplySkinning(BlendedMatrix, SkinVertex);
+			ApplySkinning(BlendedMatrix, SkinVertex);
 
-			if (bHasBadNTB)
-			{
-				NumBadNTBSpace++;
-			}
 		}
 
 		// Report any error with invalid bone weights
@@ -642,11 +624,6 @@ void FQuadricSkeletalMeshReduction::ConvertToFSkinnedSkeletalMesh( const FSkelet
 		{
 			UE_LOG(LogSkeletalMeshReduction, Warning, TEXT("Building LOD %d - Encountered questionable vertex weights in source."), LODIndex);
 		}
-	}
-
-	if (NumBadNTBSpace > 0)
-	{
-		UE_LOG(LogSkeletalMeshReduction, Warning, TEXT("There were NaNs in the Tangent Space of %d source model vertices."), NumBadNTBSpace);
 	}
 
 	// -- Make the index buffer; skipping the "SkipSections"
@@ -1795,34 +1772,7 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 			UE_LOG(LogSkeletalMeshReduction, Warning, TEXT("Building LOD %d - Invalid Base LOD entered. Using Base LOD 0 instead"), LODIndex);
 		}
 	}
-
-	//Store the sections flags
-	struct FSectionData
-	{
-		uint16 MaterialIndex;
-		bool bCastShadow;
-		bool bRecomputeTangent;
-	};
-
-	TMap<int32, FSectionData> BackupSectionIndexToSectionData;
-	//Store the section data. Store the source LOD model in case we add a LOD, or the target LOD model in case the LOD already exist
-	FSkeletalMeshLODModel& BackupSectionLODModel = bLODModelAdded ? SkeletalMeshResource.LODModels[Settings.BaseLOD] : SkeletalMeshResource.LODModels[LODIndex];
-	BackupSectionIndexToSectionData.Reserve(BackupSectionLODModel.Sections.Num());
-
-	for (int32 SectionIndex = 0; SectionIndex < BackupSectionLODModel.Sections.Num(); ++SectionIndex)
-	{
-		//Skip disable and not generated section
-		int32 MaxGeneratedLODIndex = BackupSectionLODModel.Sections[SectionIndex].GenerateUpToLodIndex;
-		if (BackupSectionLODModel.Sections[SectionIndex].bDisabled || (MaxGeneratedLODIndex != -1 && MaxGeneratedLODIndex < LODIndex))
-		{
-			continue;
-		}
-		FSectionData& SectionData = BackupSectionIndexToSectionData.FindOrAdd(SectionIndex);
-		SectionData.MaterialIndex = BackupSectionLODModel.Sections[SectionIndex].MaterialIndex;
-		SectionData.bCastShadow = BackupSectionLODModel.Sections[SectionIndex].bCastShadow;
-		SectionData.bRecomputeTangent = BackupSectionLODModel.Sections[SectionIndex].bRecomputeTangent;
-	}
-
+	
 	auto FillClothingData = [&SkeletalMeshResource, &LODIndex, bLODModelAdded](int32 &EnableSectionNumber, TArray<bool> &SectionStatus)
 	{
 		EnableSectionNumber = 0;
@@ -1950,7 +1900,7 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 	FSkeletalMeshLODModel* NewModel = new FSkeletalMeshLODModel();
 
 	// Swap out the old model.  
-	FSkeletalMeshImportData RawMesh;
+
 	{
 		FSkeletalMeshLODModel* Old = LODModels[LODIndex];
 
@@ -1963,7 +1913,9 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 		else if(bReducingSourceModel)
 		{
 			//In case we reduce the source model we want to keep the original import data
+			FSkeletalMeshImportData RawMesh;
 			SrcModel->RawSkeletalMeshBulkData.LoadRawMesh(RawMesh);
+			LODModels[LODIndex]->RawSkeletalMeshBulkData.SaveRawMesh(RawMesh);
 		}
 	}
 
@@ -2011,31 +1963,6 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 		// Flag this LOD as having been simplified.
 		SkeletalMesh.GetLODInfo(LODIndex)->bHasBeenSimplified = true;
 		SkeletalMesh.bHasBeenSimplified = true;
-		//Restore section data
-		FSkeletalMeshLODModel& ImportedModelLOD = SkeletalMesh.GetImportedModel()->LODModels[LODIndex];
-		TArray<bool> SectionMatched;
-		SectionMatched.AddZeroed(ImportedModelLOD.Sections.Num());
-		for (auto Kvp : BackupSectionIndexToSectionData)
-		{
-			const int32 SourceSectionIndex = Kvp.Key;
-
-			const FSectionData& SectionData = Kvp.Value;
-			int32 MaxSectionIndex = FMath::Min(ImportedModelLOD.Sections.Num(), SourceSectionIndex+1);
-			for (int32 SectionIndex = 0; SectionIndex < MaxSectionIndex; ++SectionIndex)
-			{
-				if (SectionMatched[SectionIndex])
-				{
-					continue;
-				}
-				if (SectionData.MaterialIndex == ImportedModelLOD.Sections[SectionIndex].MaterialIndex)
-				{
-					ImportedModelLOD.Sections[SectionIndex].bCastShadow = SectionData.bCastShadow;
-					ImportedModelLOD.Sections[SectionIndex].bRecomputeTangent = SectionData.bRecomputeTangent;
-					SectionMatched[SectionIndex] = true;
-					break;
-				}
-			}
-		}
 	}
 	else
 	{
@@ -2118,12 +2045,6 @@ void FQuadricSkeletalMeshReduction::ReduceSkeletalMesh(USkeletalMesh& SkeletalMe
 				}
 			}
 		}
-	}
-
-	if (bReducingSourceModel && RawMesh.Points.Num() > 0)
-	{
-		//Put back the original import data, we need it to allow inline reduction and skeletal mesh split workflow
-		SkeletalMeshResource.LODModels[LODIndex].RawSkeletalMeshBulkData.SaveRawMesh(RawMesh);
 	}
 
 	SkeletalMesh.CalculateRequiredBones(SkeletalMeshResource.LODModels[LODIndex], SkeletalMesh.RefSkeleton, &BonesToRemove);

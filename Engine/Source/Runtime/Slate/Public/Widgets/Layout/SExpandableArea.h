@@ -102,11 +102,6 @@ public:
 
 	virtual void SetExpanded_Animated( bool bExpanded );
 
-	/**
-	 * Returns true if area title is hovered, false otherwise.
-	 */
-	virtual bool IsTitleHovered() const;
-
 protected:
 
 	/**
@@ -145,7 +140,7 @@ protected:
 protected:
 
 	/** Border widget for the header area */
-	TSharedPtr<SBorder> TitleBorder;
+	TSharedPtr<SBorder> HeaderBorder;
 
 	/** Curved used to simulate a rollout of the section */
 	FCurveSequence RolloutCurve;

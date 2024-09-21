@@ -13,21 +13,22 @@
 class IDisplayClusterGameManager
 {
 public:
-	virtual ~IDisplayClusterGameManager() = 0
+	virtual ~IDisplayClusterGameManager()
 	{ }
 
 	virtual ADisplayClusterPawn*                    GetRoot() const = 0;
 
 	virtual TArray<UDisplayClusterScreenComponent*> GetAllScreens() const = 0;
+	virtual TArray<UDisplayClusterScreenComponent*> GetActiveScreens() const = 0;
 	virtual UDisplayClusterScreenComponent*         GetScreenById(const FString& id) const = 0;
 	virtual int32                                   GetScreensAmount() const = 0;
 
 	virtual TArray<UDisplayClusterCameraComponent*> GetAllCameras() const = 0;
+	virtual UDisplayClusterCameraComponent*         GetActiveCamera() const = 0;
 	virtual UDisplayClusterCameraComponent*         GetCameraById(const FString& id) const = 0;
 	virtual int32                                   GetCamerasAmount() const = 0;
-	virtual UDisplayClusterCameraComponent*         GetDefaultCamera() const = 0;
-	virtual void                                    SetDefaultCamera(int32 idx) = 0;
-	virtual void                                    SetDefaultCamera(const FString& id) = 0;
+	virtual void                                    SetActiveCamera(int32 idx) = 0;
+	virtual void                                    SetActiveCamera(const FString& id) = 0;
 
 	virtual TArray<UDisplayClusterSceneComponent*>  GetAllNodes() const = 0;
 	virtual UDisplayClusterSceneComponent*          GetNodeById(const FString& id) const = 0;

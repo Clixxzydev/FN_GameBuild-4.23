@@ -55,7 +55,7 @@ public:
     }
     inline bool IsStopped()
     {
-        return bStopped;
+        return bStoped;
     }
     inline bool WasSuccess()
     {
@@ -72,7 +72,7 @@ private:
     
     /** For the thread */
     bool bStopping;
-    bool bStopped;
+    bool bStoped;
     bool bIsSuccess;
 	bool bIsSystemError; ///< Deployment server was not able to start, or connection to it could not be made
     

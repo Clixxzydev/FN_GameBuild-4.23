@@ -6,6 +6,7 @@
 
 void ICurveEditorDragOperation::BeginDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
 {
+	GetLockedMousePosition(InitialPosition, CurrentPosition, MouseEvent);
 	OnBeginDrag(InitialPosition, CurrentPosition, MouseEvent);
 }
 
@@ -19,14 +20,37 @@ void ICurveEditorDragOperation::EndDrag(FVector2D InitialPosition, FVector2D Cur
 	OnEndDrag(InitialPosition, CurrentPosition, MouseEvent);
 }
 
-void ICurveEditorDragOperation::Paint(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 PaintOnLayerId)
+int32 ICurveEditorDragOperation::Paint(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId)
 {
-	OnPaint(AllottedGeometry, OutDrawElements, PaintOnLayerId);
+	return OnPaint(AllottedGeometry, OutDrawElements, LayerId);
 }
 
 void ICurveEditorDragOperation::CancelDrag()
 {
 	OnCancelDrag();
+}
+
+FVector2D ICurveEditorDragOperation::GetLockedMousePosition(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
+{
+	if (MouseEvent.IsShiftDown())
+	{
+		if (MouseLockVector == FVector2D::UnitVector)
+		{
+			if (FMath::Abs(CurrentPosition.Y - InitialPosition.Y) <= FMath::Abs(CurrentPosition.X - InitialPosition.X))
+			{
+				MouseLockVector.Y = 0.f;
+			}
+			else
+			{
+				MouseLockVector.X = 0.f;
+			}
+		}
+	}
+	else
+	{
+		MouseLockVector = FVector2D::UnitVector;
+	}
+	return InitialPosition + (CurrentPosition - InitialPosition) * MouseLockVector;
 }
 
 void ICurveEditorKeyDragOperation::Initialize(FCurveEditor* InCurveEditor, const TOptional<FCurvePointHandle>& CardinalPoint)

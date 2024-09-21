@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 
 using System;
@@ -1693,7 +1693,7 @@ namespace MachObjectHandling
 			}
 			if (string.IsNullOrEmpty(CertificateName))
 			{
-				CertificateName = CryptoAdapter.GetFriendlyNameFromCert(SigningCert);
+				CertificateName = SigningCert.FriendlyName;
 			}
 
 			// always use the new  requirements when initializing from cert

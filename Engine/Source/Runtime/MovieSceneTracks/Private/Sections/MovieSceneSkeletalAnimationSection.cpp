@@ -110,26 +110,20 @@ void UMovieSceneSkeletalAnimationSection::PostLoad()
 		Params.SlotName = SlotName_DEPRECATED;
 	}
 
-	UMovieScene* MovieScene = GetTypedOuter<UMovieScene>();
+	FFrameRate LegacyFrameRate = GetLegacyConversionFrameRate();
 
-	if (MovieScene)
+	if (Params.StartOffset_DEPRECATED != SkeletalDeprecatedMagicNumber)
 	{
-		FFrameRate DisplayRate = MovieScene->GetDisplayRate();
-		FFrameRate TickResolution = MovieScene->GetTickResolution();
+		Params.StartFrameOffset = UpgradeLegacyMovieSceneTime(this, LegacyFrameRate, Params.StartOffset_DEPRECATED).Value;
 
-		if (Params.StartOffset_DEPRECATED != SkeletalDeprecatedMagicNumber)
-		{
-			Params.StartFrameOffset = ConvertFrameTime(FFrameTime::FromDecimal(DisplayRate.AsDecimal() * Params.StartOffset_DEPRECATED), DisplayRate, TickResolution).FrameNumber;
+		Params.StartOffset_DEPRECATED = SkeletalDeprecatedMagicNumber;
+	}
 
-			Params.StartOffset_DEPRECATED = SkeletalDeprecatedMagicNumber;
-		}
+	if (Params.EndOffset_DEPRECATED != SkeletalDeprecatedMagicNumber)
+	{
+		Params.EndFrameOffset = UpgradeLegacyMovieSceneTime(this, LegacyFrameRate, Params.EndOffset_DEPRECATED).Value;
 
-		if (Params.EndOffset_DEPRECATED != SkeletalDeprecatedMagicNumber)
-		{
-			Params.EndFrameOffset = ConvertFrameTime(FFrameTime::FromDecimal(DisplayRate.AsDecimal() * Params.EndOffset_DEPRECATED), DisplayRate, TickResolution).FrameNumber;
-
-			Params.EndOffset_DEPRECATED = SkeletalDeprecatedMagicNumber;
-		}
+		Params.EndOffset_DEPRECATED = SkeletalDeprecatedMagicNumber;
 	}
 
 	// if version is less than this
@@ -191,9 +185,8 @@ TOptional<TRange<FFrameNumber> > UMovieSceneSkeletalAnimationSection::GetAutoSiz
 	FFrameRate FrameRate = GetTypedOuter<UMovieScene>()->GetTickResolution();
 
 	FFrameTime AnimationLength = Params.GetSequenceLength() * FrameRate;
-	int32 IFrameNumber = AnimationLength.FrameNumber.Value + (int)(AnimationLength.GetSubFrame() + 0.5f);
 
-	return TRange<FFrameNumber>(GetInclusiveStartFrame(), GetInclusiveStartFrame() + IFrameNumber + 1);
+	return TRange<FFrameNumber>(GetInclusiveStartFrame(), GetInclusiveStartFrame() + AnimationLength.FrameNumber);
 }
 
 

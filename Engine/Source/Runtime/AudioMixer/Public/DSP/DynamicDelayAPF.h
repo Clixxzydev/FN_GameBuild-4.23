@@ -25,10 +25,7 @@ namespace Audio
 		~FDynamicDelayAPF();
 
 		// Set the APF feedback/feedforward gain coefficient
-		void SetG(float InG)
-		{
-			G.SetValue(InG, EaseTimeInSec);
-		}
+		void SetG(float InG) { G = InG; }
 
 		// Processes InSamples through the all pass filter and populates OutSamples with the filter output.
 		// InDelays denotes the per-sample delay of the allpass. It must have an equal number of elements as InSamples
@@ -37,8 +34,6 @@ namespace Audio
 		// Zeros the internal delay line.
 		void Reset();
 
-		void SetEaseTimeInSec(float InEaseTimeInSec) { EaseTimeInSec = InEaseTimeInSec; }
-
 	protected:
 
 		// Process one block of audio.
@@ -46,8 +41,7 @@ namespace Audio
 
 	private:
 		// Feedback/Feedforward gain coefficient
-		FLinearEase G;
-		float EaseTimeInSec{ 2.0 };
+		float G;
 		int32 MinDelay;
 		int32 MaxDelay;
 		int32 NumDelaySamples;
@@ -62,6 +56,7 @@ namespace Audio
 		// Delay line memory.
 		TUniquePtr<FAlignedBlockBuffer> IntegerDelayLine;
 		TUniquePtr<FLinearInterpFractionalDelay> FractionalDelayLine;
+
 	};
 
 }

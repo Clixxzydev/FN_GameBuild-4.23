@@ -16,8 +16,6 @@
 #include "Engine/WorldComposition.h"
 #include "GameFramework/WorldSettings.h"
 #include "LandscapeInfo.h"
-#include "LandscapeEditorModule.h"
-#include "LandscapeFileFormatInterface.h"
 #include "LandscapeStreamingProxy.h"
 #include "Landscape.h"
 
@@ -33,11 +31,9 @@ FWorldTileModel::FWorldTileModel(FWorldTileCollectionModel& InWorldModel, int32 
 {
 	UWorldComposition* WorldComposition = LevelCollectionModel.GetWorld()->WorldComposition;
 
-	// Tile display details object, don't mark the tile details transaction on creation, its lifespan is controlled through root set
-	TileDetails = NewObject<UWorldTileDetails>(GetTransientPackage(), NAME_None, RF_Transient);
+	// Tile display details object
+	TileDetails = NewObject<UWorldTileDetails>(GetTransientPackage(), NAME_None, RF_Transient|RF_Transactional);
 	TileDetails->AddToRoot();
-	// Mark it transactional afterward so modification on it are undoable.
-	TileDetails->SetFlags(RF_Transactional);
 
 	// Subscribe to tile properties changes
 	// Un-subscribe in dtor if new is added!
@@ -339,22 +335,15 @@ bool FWorldTileModel::IsTiledLandscapeBased() const
 	if (IsLandscapeBased() && !GetLandscape()->ReimportHeightmapFilePath.IsEmpty())
 	{
 		// Check if single landscape actor resolution matches heightmap file size
-		ILandscapeEditorModule& LandscapeEditorModule = FModuleManager::GetModuleChecked<ILandscapeEditorModule>("LandscapeEditor");
-		const FString TargetExtension = FPaths::GetExtension(GetLandscape()->ReimportHeightmapFilePath, true);
-		const ILandscapeHeightmapFileFormat* HeightmapFormat = LandscapeEditorModule.GetHeightmapFormatByExtension(*TargetExtension);
-
-		FLandscapeHeightmapInfo HeightmapInfo = HeightmapFormat->Validate(*GetLandscape()->ReimportHeightmapFilePath);
-		if (HeightmapInfo.ResultCode != ELandscapeImportResult::Error)
+		IFileManager& FileManager = IFileManager::Get();
+		const int64 ImportFileSize = FileManager.FileSize(*GetLandscape()->ReimportHeightmapFilePath);
+		
+		FIntRect ComponentsRect = GetLandscape()->GetBoundingRect();
+		int64 LandscapeSamples	= (int64)(ComponentsRect.Width()+1)*(ComponentsRect.Height()+1);
+		// Height samples are 2 bytes wide
+		if (LandscapeSamples*2 == ImportFileSize)
 		{
-			FIntRect ComponentsRect = GetLandscape()->GetBoundingRect();
-
-			for (FLandscapeFileResolution& PossibleResolution: HeightmapInfo.PossibleResolutions)
-			{
-				if ((PossibleResolution.Width == (ComponentsRect.Width() + 1)) && (PossibleResolution.Height == (ComponentsRect.Height() + 1)))
-				{
-					return true;
-				}
-			}
+			return true;
 		}
 	}
 

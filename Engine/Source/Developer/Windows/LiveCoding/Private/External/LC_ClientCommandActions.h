@@ -10,19 +10,22 @@ class DuplexPipe;
 
 namespace actions
 {
-	#define DECLARE_ACTION(_name)																													\
-		struct _name																																\
-		{																																			\
-			typedef ::commands::_name CommandType;																									\
-			static bool Execute(const CommandType* command, const DuplexPipe* pipe, void* context, const void* payload, size_t payloadSize);		\
+	#define DECLARE_ACTION(_name)																		\
+		struct _name																					\
+		{																								\
+			typedef ::commands::_name CommandType;														\
+			static bool Execute(const CommandType* command, const DuplexPipe* pipe, void* context);		\
 		}
 
 	DECLARE_ACTION(RegisterProcessFinished);
-	DECLARE_ACTION(EnableModulesFinished);
-	DECLARE_ACTION(DisableModulesFinished);
+	DECLARE_ACTION(EnableModuleFinished);
+	DECLARE_ACTION(DisableModuleFinished);
+	DECLARE_ACTION(EnableAllModulesFinished);
+	DECLARE_ACTION(DisableAllModulesFinished);
 	DECLARE_ACTION(EnterSyncPoint);
 	DECLARE_ACTION(LeaveSyncPoint);
 	DECLARE_ACTION(CallHooks);
+	DECLARE_ACTION(GetModule);
 	DECLARE_ACTION(LoadPatch);
 	DECLARE_ACTION(UnloadPatch);
 	DECLARE_ACTION(CallEntryPoint);

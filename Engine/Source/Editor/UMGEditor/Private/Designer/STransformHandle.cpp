@@ -128,8 +128,8 @@ FReply STransformHandle::OnMouseMove(const FGeometry& MyGeometry, const FPointer
 		UWidget* Preview = SelectedWidget.GetPreview();
 
 		{
-			const FVector2D Delta = MouseEvent.GetScreenSpacePosition() - MouseDownPosition;
-			const FVector2D TranslateAmount = Delta * (1.0f / (Designer->GetPreviewScale() * MyGeometry.Scale));
+			FVector2D Delta = MouseEvent.GetScreenSpacePosition() - MouseDownPosition;
+			FVector2D TranslateAmount = Delta * ( 1.0f / Designer->GetPreviewScale() );
 
 			Resize(Cast<UCanvasPanelSlot>(Preview->Slot), DragDirection, TranslateAmount);
 			Resize(Cast<UCanvasPanelSlot>(Template->Slot), DragDirection, TranslateAmount);

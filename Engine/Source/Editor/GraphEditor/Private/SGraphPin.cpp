@@ -372,9 +372,6 @@ FReply SGraphPin::OnPinMouseDown( const FGeometry& SenderGeometry, const FPointe
 
 					// A weak reference to the node object that owns the pin
 					TWeakObjectPtr<UEdGraphNode> OwnerNodePtr;
-
-					// The direction of the pin
-					EEdGraphPinDirection Direction;
 				};
 
 				// Build a lookup table containing information about the set of pins that we're currently linked to
@@ -388,7 +385,6 @@ FReply SGraphPin::OnPinMouseDown( const FGeometry& SenderGeometry, const FPointe
 						FLinkedToPinInfo PinInfo;
 						PinInfo.PinName = (*PinWidget)->GetPinObj()->PinName;
 						PinInfo.OwnerNodePtr = (*PinWidget)->OwnerNodePtr.Pin()->GetNodeObj();
-						PinInfo.Direction = (*PinWidget)->GetPinObj()->Direction;
 						LinkedToPinInfoArray.Add(MoveTemp(PinInfo));
 					}
 				}
@@ -402,7 +398,7 @@ FReply SGraphPin::OnPinMouseDown( const FGeometry& SenderGeometry, const FPointe
 					{
 						for (UEdGraphPin* Pin : PinInfo.OwnerNodePtr.Get()->Pins)
 						{
-							if (Pin->PinName == PinInfo.PinName && Pin->Direction == PinInfo.Direction)
+							if (Pin->PinName == PinInfo.PinName)
 							{
 								if (TSharedRef<SGraphPin>* pWidget = PinToPinWidgetMap.Find(FGraphPinHandle(Pin)))
 								{
@@ -978,7 +974,7 @@ FSlateColor SGraphPin::GetPinColor() const
 		}
 		if (const UEdGraphSchema* Schema = GraphPinObj->GetSchema())
 		{
-			if (!GetPinObj()->GetOwningNode()->IsNodeEnabled() || GetPinObj()->GetOwningNode()->IsDisplayAsDisabledForced() || !IsEditingEnabled() || GetPinObj()->GetOwningNode()->IsNodeUnrelated())
+			if (!GetPinObj()->GetOwningNode()->IsNodeEnabled() || GetPinObj()->GetOwningNode()->IsDisplayAsDisabledForced() || !IsEditingEnabled())
 			{
 				return Schema->GetPinTypeColor(GraphPinObj->PinType) * FLinearColor(1.0f, 1.0f, 1.0f, 0.5f);
 			}
@@ -1001,13 +997,13 @@ FSlateColor SGraphPin::GetPinTextColor() const
 	// If there is no schema there is no owning node (or basically this is a deleted node)
 	if (UEdGraphNode* GraphNode = GraphPinObj->GetOwningNodeUnchecked())
 	{
-		const bool bDisabled = (!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || !IsEditingEnabled() || GraphNode->IsNodeUnrelated());
+		const bool bDisabled = (!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || !IsEditingEnabled());
 		if (GraphPinObj->bOrphanedPin)
 		{
 			FLinearColor PinColor = FLinearColor::Red;
 			if (bDisabled)
 			{
-				PinColor.A = .25f;
+				PinColor.A = 0.5f;
 			}
 			return PinColor;
 		}

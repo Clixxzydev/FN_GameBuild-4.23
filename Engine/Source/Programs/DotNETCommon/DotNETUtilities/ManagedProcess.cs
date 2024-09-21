@@ -224,7 +224,7 @@ namespace Tools.DotNETCommon
             IntPtr hTargetProcess,
             out SafeWaitHandle targetHandle,
             int dwDesiredAccess,
-            [MarshalAs(UnmanagedType.Bool)] bool bInheritHandle,
+            bool bInheritHandle,
             int dwOptions
         );
 
@@ -241,8 +241,6 @@ namespace Tools.DotNETCommon
 
 		[DllImport("kernel32.dll", SetLastError=true)]
 		static extern UInt32 WaitForSingleObject(SafeHandleZeroOrMinusOneIsInvalid hHandle, UInt32 dwMilliseconds);
-
-		const int ERROR_ACCESS_DENIED = 5;
 
 		/// <summary>
 		/// Handle for the child process.
@@ -289,269 +287,216 @@ namespace Tools.DotNETCommon
 		/// <param name="WorkingDirectory">Working directory for the new process. May be null to use the current working directory.</param>
 		/// <param name="Environment">Environment variables for the new process. May be null, in which case the current process' environment is inherited</param>
 		/// <param name="Input">Text to be passed via stdin to the new process. May be null.</param>
-		/// <param name="Priority">Priority for the child process</param>
 		public ManagedProcess(ManagedProcessGroup Group, string FileName, string CommandLine, string WorkingDirectory, IReadOnlyDictionary<string, string> Environment, byte[] Input, ProcessPriorityClass Priority)
 		{
-			// Create the child process
-			// NOTE: Child process must be created in a separate method to avoid stomping exception callstacks (https://stackoverflow.com/a/2494150)
-			try
+			if(ManagedProcessGroup.SupportsJobObjects)
 			{
-				if (ManagedProcessGroup.SupportsJobObjects)
-				{
-					CreateManagedProcessWin32(Group, FileName, CommandLine, WorkingDirectory, Environment, Input, Priority);
-				}
-				else
-				{
-					CreateManagedProcessPortable(Group, FileName, CommandLine, WorkingDirectory, Environment, Input, Priority);
-				}
-			}
-			catch (Exception Ex)
-			{
-				ExceptionUtils.AddContext(Ex, "while launching {0} {1}", FileName, CommandLine);
-				throw;
-			}
-		}
-
-		/// <summary>
-		/// Spawns a new managed process using Win32 native functions. 
-		/// </summary>
-		/// <param name="Group">The managed process group to add to</param>
-		/// <param name="FileName">Path to the executable to be run</param>
-		/// <param name="CommandLine">Command line arguments for the process</param>
-		/// <param name="WorkingDirectory">Working directory for the new process. May be null to use the current working directory.</param>
-		/// <param name="Environment">Environment variables for the new process. May be null, in which case the current process' environment is inherited</param>
-		/// <param name="Input">Text to be passed via stdin to the new process. May be null.</param>
-		/// <param name="Priority">Priority for the child process</param>
-		private void CreateManagedProcessWin32(ManagedProcessGroup Group, string FileName, string CommandLine, string WorkingDirectory, IReadOnlyDictionary<string, string> Environment, byte[] Input, ProcessPriorityClass Priority)
-		{
-			IntPtr EnvironmentBlock = IntPtr.Zero;
-			try
-			{
-				// Create the environment block for the child process, if necessary.
-				if (Environment != null)
-				{
-					// The native format for the environment block is a sequence of null terminated strings with a final null terminator.
-					List<byte> EnvironmentBytes = new List<byte>();
-					foreach (KeyValuePair<string, string> Pair in Environment)
-					{
-						EnvironmentBytes.AddRange(Console.OutputEncoding.GetBytes(Pair.Key));
-						EnvironmentBytes.Add((byte)'=');
-						EnvironmentBytes.AddRange(Console.OutputEncoding.GetBytes(Pair.Value));
-						EnvironmentBytes.Add((byte)0);
-					}
-					EnvironmentBytes.Add((byte)0);
-
-					// Allocate an unmanaged block of memory to store it.
-					EnvironmentBlock = Marshal.AllocHGlobal(EnvironmentBytes.Count);
-					Marshal.Copy(EnvironmentBytes.ToArray(), 0, EnvironmentBlock, EnvironmentBytes.Count);
-				}
-
-				PROCESS_INFORMATION ProcessInfo = new PROCESS_INFORMATION();
+				// Create the child process
+				IntPtr EnvironmentBlock = IntPtr.Zero;
 				try
 				{
-					// Get the flags to create the new process
-					ProcessCreationFlags Flags = ProcessCreationFlags.CREATE_NO_WINDOW | ProcessCreationFlags.CREATE_SUSPENDED;
-					switch (Priority)
+					// Create the environment block for the child process, if necessary.
+					if(Environment != null)
 					{
-						case ProcessPriorityClass.Normal:
-							Flags |= ProcessCreationFlags.NORMAL_PRIORITY_CLASS;
-							break;
-						case ProcessPriorityClass.Idle:
-							Flags |= ProcessCreationFlags.IDLE_PRIORITY_CLASS;
-							break;
-						case ProcessPriorityClass.High:
-							Flags |= ProcessCreationFlags.HIGH_PRIORITY_CLASS;
-							break;
-						case ProcessPriorityClass.RealTime:
-							Flags |= ProcessCreationFlags.REALTIME_PRIORITY_CLASS;
-							break;
-						case ProcessPriorityClass.BelowNormal:
-							Flags |= ProcessCreationFlags.BELOW_NORMAL_PRIORITY_CLASS;
-							break;
-						case ProcessPriorityClass.AboveNormal:
-							Flags |= ProcessCreationFlags.ABOVE_NORMAL_PRIORITY_CLASS;
-							break;
+						// The native format for the environment block is a sequence of null terminated strings with a final null terminator.
+						List<byte> EnvironmentBytes = new List<byte>();
+						foreach(KeyValuePair<string, string> Pair in Environment)
+						{
+							EnvironmentBytes.AddRange(Console.OutputEncoding.GetBytes(Pair.Key));
+							EnvironmentBytes.Add((byte)'=');
+							EnvironmentBytes.AddRange(Console.OutputEncoding.GetBytes(Pair.Value));
+							EnvironmentBytes.Add((byte)0);
+						}
+						EnvironmentBytes.Add((byte)0);
+
+						// Allocate an unmanaged block of memory to store it.
+						EnvironmentBlock = Marshal.AllocHGlobal(EnvironmentBytes.Count);
+						Marshal.Copy(EnvironmentBytes.ToArray(), 0, EnvironmentBlock, EnvironmentBytes.Count);
 					}
 
-					// Acquire a global lock before creating inheritable handles. If multiple threads create inheritable handles at the same time, and child processes will inherit them all.
-					// Since we need to wait for output pipes to be closed (in order to consume all output), this can result in output reads not returning until all processes with the same
-					// inherited handles are closed.
-					lock (LockObject)
+					PROCESS_INFORMATION ProcessInfo = new PROCESS_INFORMATION();
+					try
 					{
-						SafeFileHandle StdInRead = null;
-						SafeFileHandle StdOutWrite = null;
-						SafeWaitHandle StdErrWrite = null;
-						try
+						// Get the flags to create the new process
+						ProcessCreationFlags Flags = ProcessCreationFlags.CREATE_NO_WINDOW | ProcessCreationFlags.CREATE_SUSPENDED;
+						switch(Priority)
 						{
-							// Create stdin and stdout pipes for the child process. We'll close the handles for the child process' ends after it's been created.
-							SECURITY_ATTRIBUTES SecurityAttributes = new SECURITY_ATTRIBUTES();
-							SecurityAttributes.nLength = Marshal.SizeOf(SecurityAttributes);
-							SecurityAttributes.bInheritHandle = 1;
+							case ProcessPriorityClass.Normal:
+								Flags |= ProcessCreationFlags.NORMAL_PRIORITY_CLASS;
+								break;
+							case ProcessPriorityClass.Idle:
+								Flags |= ProcessCreationFlags.IDLE_PRIORITY_CLASS;
+								break;
+							case ProcessPriorityClass.High:
+								Flags |= ProcessCreationFlags.HIGH_PRIORITY_CLASS;
+								break;
+							case ProcessPriorityClass.RealTime:
+								Flags |= ProcessCreationFlags.REALTIME_PRIORITY_CLASS;
+								break;
+							case ProcessPriorityClass.BelowNormal:
+								Flags |= ProcessCreationFlags.BELOW_NORMAL_PRIORITY_CLASS;
+								break;
+							case ProcessPriorityClass.AboveNormal:
+								Flags |= ProcessCreationFlags.ABOVE_NORMAL_PRIORITY_CLASS;
+								break;
+						}
 
-							if (CreatePipe(out StdInRead, out StdInWrite, SecurityAttributes, 0) == 0 || SetHandleInformation(StdInWrite, HANDLE_FLAG_INHERIT, 0) == 0)
+						// Acquire a global lock before creating inheritable handles. If multiple threads create inheritable handles at the same time, and child processes will inherit them all.
+						// Since we need to wait for output pipes to be closed (in order to consume all output), this can result in output reads not returning until all processes with the same
+						// inherited handles are closed.
+						lock(LockObject)
+						{
+							SafeFileHandle StdInRead = null;
+							SafeFileHandle StdOutWrite = null;
+							SafeWaitHandle StdErrWrite = null;
+							try
 							{
-								throw new Win32ExceptionWithCode("Unable to create stdin pipe");
-							}
-							if (CreatePipe(out StdOutRead, out StdOutWrite, SecurityAttributes, 0) == 0 || SetHandleInformation(StdOutRead, HANDLE_FLAG_INHERIT, 0) == 0)
-							{
-								throw new Win32ExceptionWithCode("Unable to create stdout pipe");
-							}
-							if (DuplicateHandle(GetCurrentProcess(), StdOutWrite, GetCurrentProcess(), out StdErrWrite, 0, true, DUPLICATE_SAME_ACCESS) == 0)
-							{
-								throw new Win32ExceptionWithCode("Unable to duplicate stdout handle");
-							}
+								// Create stdin and stdout pipes for the child process. We'll close the handles for the child process' ends after it's been created.
+								SECURITY_ATTRIBUTES SecurityAttributes = new SECURITY_ATTRIBUTES();
+								SecurityAttributes.nLength = Marshal.SizeOf(SecurityAttributes);
+								SecurityAttributes.bInheritHandle = 1;
 
-							// Create the new process as suspended, so we can modify it before it starts executing (and potentially preempting us)
-							STARTUPINFO StartupInfo = new STARTUPINFO();
-							StartupInfo.cb = Marshal.SizeOf(StartupInfo);
-							StartupInfo.hStdInput = StdInRead;
-							StartupInfo.hStdOutput = StdOutWrite;
-							StartupInfo.hStdError = StdErrWrite;
-							StartupInfo.dwFlags = STARTF_USESTDHANDLES;
-
-							// Under heavy load (ie. spawning large number of processes, typically Clang) we see CreateProcess very occasionally failing with ERROR_ACCESS_DENIED.
-							int[] RetryDelay = { 100, 200, 1000, 5000 };
-							for(int AttemptIdx = 0; ; AttemptIdx++)
-							{
-								if (CreateProcess(null, new StringBuilder("\"" + FileName + "\" " + CommandLine), IntPtr.Zero, IntPtr.Zero, true, Flags, EnvironmentBlock, WorkingDirectory, StartupInfo, ProcessInfo) != 0)
+								if(CreatePipe(out StdInRead, out StdInWrite, SecurityAttributes, 0) == 0 || SetHandleInformation(StdInWrite, HANDLE_FLAG_INHERIT, 0) == 0)
 								{
-									break;
+									throw new Win32Exception();
+								}
+								if(CreatePipe(out StdOutRead, out StdOutWrite, SecurityAttributes, 0) == 0 || SetHandleInformation(StdOutRead, HANDLE_FLAG_INHERIT, 0) == 0)
+								{
+									throw new Win32Exception();
+								}
+								if(DuplicateHandle(GetCurrentProcess(), StdOutWrite, GetCurrentProcess(), out StdErrWrite, 0, true, DUPLICATE_SAME_ACCESS) == 0)
+								{
+									throw new Win32Exception();
 								}
 
-								if (Marshal.GetLastWin32Error() != ERROR_ACCESS_DENIED || AttemptIdx >= RetryDelay.Length)
+								// Create the new process as suspended, so we can modify it before it starts executing (and potentially preempting us)
+								STARTUPINFO StartupInfo = new STARTUPINFO();
+								StartupInfo.cb = Marshal.SizeOf(StartupInfo);
+								StartupInfo.hStdInput = StdInRead;
+								StartupInfo.hStdOutput = StdOutWrite;
+								StartupInfo.hStdError = StdErrWrite;
+								StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+
+								if (CreateProcess(null, new StringBuilder("\"" + FileName + "\" " + CommandLine), IntPtr.Zero, IntPtr.Zero, true, Flags, EnvironmentBlock, WorkingDirectory, StartupInfo, ProcessInfo) == 0)
 								{
-									throw new Win32ExceptionWithCode("Unable to create process");
+									throw new Win32Exception();
 								}
-
-								Log.TraceWarning("Unable to create process {0} (access denied); waiting {1}ms to retry...", FileName, RetryDelay[AttemptIdx]);
-								Thread.Sleep(RetryDelay[AttemptIdx]);
 							}
-						}
-						finally
-						{
-							// Close the write ends of the handle. We don't want any other process to be able to inherit these.
-							if (StdInRead != null)
+							finally
 							{
-								StdInRead.Dispose();
-								StdInRead = null;
-							}
-							if (StdOutWrite != null)
-							{
-								StdOutWrite.Dispose();
-								StdOutWrite = null;
-							}
-							if (StdErrWrite != null)
-							{
-								StdErrWrite.Dispose();
-								StdErrWrite = null;
+								// Close the write ends of the handle. We don't want any other process to be able to inherit these.
+								if(StdInRead != null)
+								{
+									StdInRead.Dispose();
+									StdInRead = null;
+								}
+								if(StdOutWrite != null)
+								{
+									StdOutWrite.Dispose();
+									StdOutWrite = null;
+								}
+								if(StdErrWrite != null)
+								{
+									StdErrWrite.Dispose();
+									StdErrWrite = null;
+								}
 							}
 						}
-					}
 
-					// Add it to our job object
-					if (Group != null && AssignProcessToJobObject(Group.JobHandle, ProcessInfo.hProcess) == 0)
-					{
-						// Support for nested job objects was only addeed in Windows 8; prior to that, assigning processes to job objects would fail. Figure out if we're already in a job, and ignore the error if we are.
-						int OriginalError = Marshal.GetLastWin32Error();
-
-						bool bProcessInJob;
-						IsProcessInJob(GetCurrentProcess(), IntPtr.Zero, out bProcessInJob);
-
-						if (!bProcessInJob)
+						// Add it to our job object
+						if(AssignProcessToJobObject(Group.JobHandle, ProcessInfo.hProcess) == 0)
 						{
-							throw new Win32ExceptionWithCode(OriginalError, "Unable to assign process to job object");
+							// Support for nested job objects was only addeed in Windows 8; prior to that, assigning processes to job objects would fail. Figure out if we're already in a job, and ignore the error if we are.
+							int OriginalError = Marshal.GetLastWin32Error();
+
+							bool bProcessInJob;
+							IsProcessInJob(GetCurrentProcess(), IntPtr.Zero, out bProcessInJob);
+
+							if(!bProcessInJob)
+							{
+								throw new Win32Exception(OriginalError);
+							}
 						}
-					}
 
-					// Allow the thread to start running
-					if (ResumeThread(ProcessInfo.hThread) == -1)
-					{
-						throw new Win32ExceptionWithCode("Unable to resume thread in child process");
-					}
-
-					// If we have any input text, write it to stdin now
-					using (FileStream Stream = new FileStream(StdInWrite, FileAccess.Write, 4096, false))
-					{
-						if (Input != null)
+						// Allow the thread to start running
+						if(ResumeThread(ProcessInfo.hThread) == -1)
 						{
-							Stream.Write(Input, 0, Input.Length);
-							Stream.Flush();
+							throw new Win32Exception();
+						}
+
+						// If we have any input text, write it to stdin now
+						using(FileStream Stream = new FileStream(StdInWrite, FileAccess.Write, 4096, false))
+						{
+							if(Input != null)
+							{
+								Stream.Write(Input, 0, Input.Length);
+								Stream.Flush();
+							}
+						}
+
+						// Create the stream objects for reading the process output
+						InnerStream = new FileStream(StdOutRead, FileAccess.Read, 4096, false);
+						ReadStream = new StreamReader(InnerStream, Console.OutputEncoding);
+
+						// Wrap the process handle in a SafeFileHandle
+						ProcessHandle = new SafeFileHandle(ProcessInfo.hProcess, true);
+					}
+					finally
+					{
+						if(ProcessInfo.hProcess != IntPtr.Zero && ProcessHandle == null)
+						{
+							CloseHandle(ProcessInfo.hProcess);
+						}
+						if(ProcessInfo.hThread != IntPtr.Zero)
+						{
+							CloseHandle(ProcessInfo.hThread);
 						}
 					}
-
-					// Create the stream objects for reading the process output
-					InnerStream = new FileStream(StdOutRead, FileAccess.Read, 4096, false);
-					ReadStream = new StreamReader(InnerStream, Console.OutputEncoding);
-
-					// Wrap the process handle in a SafeFileHandle
-					ProcessHandle = new SafeFileHandle(ProcessInfo.hProcess, true);
 				}
 				finally
 				{
-					if (ProcessInfo.hProcess != IntPtr.Zero && ProcessHandle == null)
+					if(EnvironmentBlock != IntPtr.Zero)
 					{
-						CloseHandle(ProcessInfo.hProcess);
-					}
-					if (ProcessInfo.hThread != IntPtr.Zero)
-					{
-						CloseHandle(ProcessInfo.hThread);
+						Marshal.FreeHGlobal(EnvironmentBlock);
+						EnvironmentBlock = IntPtr.Zero;
 					}
 				}
 			}
-			finally
+			else
 			{
-				if (EnvironmentBlock != IntPtr.Zero)
+				// Fallback for Mono platforms
+				FrameworkProcess = new Process();
+				FrameworkProcess.StartInfo.FileName = FileName;
+				FrameworkProcess.StartInfo.Arguments = CommandLine;
+				FrameworkProcess.StartInfo.WorkingDirectory = WorkingDirectory;
+				FrameworkProcess.StartInfo.RedirectStandardInput = true;
+				FrameworkProcess.StartInfo.RedirectStandardOutput = true;
+				FrameworkProcess.StartInfo.UseShellExecute = false;
+				FrameworkProcess.StartInfo.CreateNoWindow = true;
+
+				if(Environment != null)
 				{
-					Marshal.FreeHGlobal(EnvironmentBlock);
-					EnvironmentBlock = IntPtr.Zero;
+					foreach(KeyValuePair<string, string> Pair in Environment)
+					{
+						FrameworkProcess.StartInfo.EnvironmentVariables[Pair.Key] = Pair.Value;
+					}
 				}
-			}
-		}
 
-		/// <summary>
-		/// Spawns a new managed process using Win32 native functions. 
-		/// </summary>
-		/// <param name="Group">The managed process group to add to</param>
-		/// <param name="FileName">Path to the executable to be run</param>
-		/// <param name="CommandLine">Command line arguments for the process</param>
-		/// <param name="WorkingDirectory">Working directory for the new process. May be null to use the current working directory.</param>
-		/// <param name="Environment">Environment variables for the new process. May be null, in which case the current process' environment is inherited</param>
-		/// <param name="Input">Text to be passed via stdin to the new process. May be null.</param>
-		/// <param name="Priority">Priority for the child process</param>
-		private void CreateManagedProcessPortable(ManagedProcessGroup Group, string FileName, string CommandLine, string WorkingDirectory, IReadOnlyDictionary<string, string> Environment, byte[] Input, ProcessPriorityClass Priority)
-		{
-			// Fallback for Mono platforms
-			FrameworkProcess = new Process();
-			FrameworkProcess.StartInfo.FileName = FileName;
-			FrameworkProcess.StartInfo.Arguments = CommandLine;
-			FrameworkProcess.StartInfo.WorkingDirectory = WorkingDirectory;
-			FrameworkProcess.StartInfo.RedirectStandardInput = true;
-			FrameworkProcess.StartInfo.RedirectStandardOutput = true;
-			FrameworkProcess.StartInfo.UseShellExecute = false;
-			FrameworkProcess.StartInfo.CreateNoWindow = true;
-
-			if (Environment != null)
-			{
-				foreach (KeyValuePair<string, string> Pair in Environment)
+				FrameworkProcess.Start();
+				try
 				{
-					FrameworkProcess.StartInfo.EnvironmentVariables[Pair.Key] = Pair.Value;
+					FrameworkProcess.PriorityClass = Priority;
 				}
-			}
+				catch
+				{
 
-			FrameworkProcess.Start();
-			try
-			{
-				FrameworkProcess.PriorityClass = Priority;
-			}
-			catch
-			{
-
-			}
-			// If we have any input text, write it to stdin now
-			if (Input != null)
-			{
-				FrameworkProcess.StandardInput.BaseStream.Write(Input, 0, Input.Length);
-				FrameworkProcess.StandardInput.BaseStream.Close();
+				}
+				// If we have any input text, write it to stdin now
+				if (Input != null)
+				{
+					FrameworkProcess.StandardInput.BaseStream.Write(Input, 0, Input.Length);
+					FrameworkProcess.StandardInput.BaseStream.Close();
+				}
 			}
 		}
 

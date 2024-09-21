@@ -1,134 +1,107 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "ConcertClientLiveTransactionAuthors.h"
-#include "ConcertSyncClientLiveSession.h"
-#include "ConcertSyncSessionDatabase.h"
+#include "ConcertActivityLedger.h"
+#include "ConcertTransactionLedger.h"
+#include "ConcertActivityEvents.h"
 #include "IConcertSession.h"
 
-FConcertClientLiveTransactionAuthors::FConcertClientLiveTransactionAuthors(TSharedRef<FConcertSyncClientLiveSession> InLiveSession)
-	: LiveSession(MoveTemp(InLiveSession))
+//------------------------------------------------------------------------------
+// FConcertClientPackageModifiedByTracker implementation.
+//------------------------------------------------------------------------------
+
+FConcertClientLiveTransactionAuthors::FConcertClientLiveTransactionAuthors(TSharedRef<IConcertClientSession> InSession)
+	: Session(MoveTemp(InSession))
 {
-	ResolveLiveTransactionAuthors();
 }
 
 FConcertClientLiveTransactionAuthors::~FConcertClientLiveTransactionAuthors()
 {
 }
 
-void FConcertClientLiveTransactionAuthors::ResolveLiveTransactionAuthors()
+void FConcertClientLiveTransactionAuthors::AddLiveTransaction(const TArray<FName>& PackageNames, const FConcertClientInfo& TransactionAuthors, uint64 InTransactionIndex)
 {
-	OtherEndpointsWithLiveTransactionsMap.Reset();
-
-	TArray<int64> LiveTransactionEventIds;
-	if (LiveSession->GetSessionDatabase().GetLiveTransactionEventIds(LiveTransactionEventIds))
+	for (const FName& PackageName : PackageNames)
 	{
-		for (const int64 LiveTransactionEventId : LiveTransactionEventIds)
-		{
-			FConcertSyncTransactionActivity TransactionActivity;
-			if (LiveSession->GetSessionDatabase().GetTransactionActivityForEvent(LiveTransactionEventId, TransactionActivity))
-			{
-				AddLiveTransactionActivity(TransactionActivity.EndpointId, TransactionActivity.EventData.Transaction.ModifiedPackages);
-			}
-		}
+		AddLiveTransaction(PackageName, TransactionAuthors, InTransactionIndex);
 	}
 }
 
-void FConcertClientLiveTransactionAuthors::ResolveLiveTransactionAuthorsForPackage(const FName& PackageName)
+void FConcertClientLiveTransactionAuthors::AddLiveTransaction(const FName& PackageName, const FConcertClientInfo& TransactionAuthors, uint64 LastTransactionIndex)
 {
-	OtherEndpointsWithLiveTransactionsMap.Remove(PackageName);
+	const FConcertClientInfo& ThisClient = Session->GetLocalClientInfo();
 
-	TArray<int64> LiveTransactionEventIds;
-	if (LiveSession->GetSessionDatabase().GetLiveTransactionEventIdsForPackage(PackageName, LiveTransactionEventIds))
-	{
-		for (const int64 LiveTransactionEventId : LiveTransactionEventIds)
-		{
-			FConcertSyncTransactionActivity TransactionActivity;
-			if (LiveSession->GetSessionDatabase().GetTransactionActivityForEvent(LiveTransactionEventId, TransactionActivity))
-			{
-				AddLiveTransactionActivity(TransactionActivity.EndpointId, TArrayView<const FName>(&PackageName, 1));
-			}
-		}
-	}
-}
-
-void FConcertClientLiveTransactionAuthors::AddLiveTransactionActivity(const FGuid& EndpointId, TArrayView<const FName> ModifiedPackages)
-{
-	// Ignore this transaction if we generated it
-	if (EndpointId == LiveSession->GetSession().GetSessionClientEndpointId())
+	// Don't track the modification performed by this client. We are only interested to know who else modified a package to flag the UI with a "modified by other" icon.
+	if (TransactionAuthors.InstanceInfo.InstanceId == ThisClient.InstanceInfo.InstanceId)
 	{
 		return;
 	}
 
-	// Skip this transaction if its endpoint is already in the list of endpoints that have made changes to this package
-	TArray<FName, TInlineAllocator<2>> PackagesToProcess;
-	for (const FName& ModifiedPackage : ModifiedPackages)
-	{
-		const TArray<FGuid>* OtherEndpointsWithLiveTransactions = OtherEndpointsWithLiveTransactionsMap.Find(ModifiedPackage);
-		if (!OtherEndpointsWithLiveTransactions || !OtherEndpointsWithLiveTransactions->Contains(EndpointId))
-		{
-			PackagesToProcess.Add(ModifiedPackage);
-		}
-	}
-	if (PackagesToProcess.Num() == 0)
-	{
-		return;
-	}
+	// Find or add the package entry.
+	TMap<FClientInstanceGuid, FTransactionInfo>& TransactionInfoMap = OtherClientsLiveTransactionInfo.FindOrAdd(PackageName);
 
-	// Check to see if the other client is in our list of "other" clients
-	// If so then it cannot possibly be us
-	bool bClientIsConnected = false;
+	// If this client has already live transaction(s) on the package.
+	if (FTransactionInfo* TransactionInfo = TransactionInfoMap.Find(TransactionAuthors.InstanceInfo.InstanceId))
 	{
-		FConcertSessionClientInfo ConnectedClientInfo;
-		bClientIsConnected = LiveSession->GetSession().FindSessionClient(EndpointId, ConnectedClientInfo);
+		// Update the transaction index to the last value.
+		check(TransactionInfo->LastTransactionIndex < LastTransactionIndex);
+		TransactionInfo->LastTransactionIndex = LastTransactionIndex;
 	}
-	if (!bClientIsConnected)
+	// If the client who made the transaction is connected (it cannot be this client, this was tested at function first line)
+	else if (Session->GetSessionClients().FindByPredicate([&TransactionAuthors](const FConcertSessionClientInfo& Other) { return TransactionAuthors.InstanceInfo.InstanceId == Other.ClientInfo.InstanceInfo.InstanceId; }))
 	{
-		// If the client isn't connected, get the data for the endpoint and see if it looks like a previous version of us
-		// Ignore this transaction if so
-		FConcertSyncEndpointData EndpointData;
-		if (!LiveSession->GetSessionDatabase().GetEndpoint(EndpointId, EndpointData))
-		{
-			return;
-		}
-		const FConcertClientInfo& ThisClient = LiveSession->GetSession().GetLocalClientInfo();
-		if (EndpointData.ClientInfo.UserName == ThisClient.UserName &&
-			EndpointData.ClientInfo.DeviceName == ThisClient.DeviceName &&
-			EndpointData.ClientInfo.PlatformName == ThisClient.PlatformName &&
-			EndpointData.ClientInfo.DisplayName == ThisClient.DisplayName
-			)
-		{
-			return;
-		}
+		TransactionInfoMap.Add(TransactionAuthors.InstanceInfo.InstanceId, FTransactionInfo{LastTransactionIndex, TransactionAuthors});
 	}
+	// If the "disconnected" client doesn't match this client identity. (It is not this client instance nor any other connected clients, so we deduce it is a disconnected one that did not save upon existing and for which we got the identity from the activity ledger)
+	else if (TransactionAuthors.UserName != ThisClient.UserName || TransactionAuthors.DeviceName != ThisClient.DeviceName || TransactionAuthors.PlatformName != ThisClient.PlatformName || TransactionAuthors.DisplayName != ThisClient.DisplayName)
+	{
+		// It looks like the client who performed the transaction was not a previous instance of this client. (Like a client rejoining after a crash)
+		TransactionInfoMap.Add(TransactionAuthors.InstanceInfo.InstanceId, FTransactionInfo{LastTransactionIndex, TransactionAuthors});
+	}
+	// else -> It seems like the transaction was performed by a previous instance of this client. We are only interested to track who else than us modified a package.
+}
 
-	// Otherwise, this change must be from another endpoint so track it here
-	for (const FName& PackageToProcess : PackagesToProcess)
+void FConcertClientLiveTransactionAuthors::TrimLiveTransactions(const FName& PackageName, uint64 UpToIndex)
+{
+	// Find the package.
+	if (TMap<FClientInstanceGuid, FTransactionInfo>* TransactionInfoMap = OtherClientsLiveTransactionInfo.Find(PackageName))
 	{
-		TArray<FGuid>& OtherEndpointsWithLiveTransactions = OtherEndpointsWithLiveTransactionsMap.FindOrAdd(PackageToProcess);
-		OtherEndpointsWithLiveTransactions.Add(EndpointId);
+		// Visit all clients that have live transaction on the package.
+		for (auto ClientGuidTransactionInfoIter = TransactionInfoMap->CreateIterator(); ClientGuidTransactionInfoIter; ++ClientGuidTransactionInfoIter)
+		{
+			// If all live transaction from the visited client/package were trimmed (save to disk).
+			if (ClientGuidTransactionInfoIter->Value.LastTransactionIndex < UpToIndex)
+			{
+				// That client doesn't have any remaining live transaction on that package, remove the client.
+				ClientGuidTransactionInfoIter.RemoveCurrent();
+			}
+		}
+
+		// If all live transactions for all client has been trimmed (saved to disk), stop tracking the package.
+		if (TransactionInfoMap->Num() == 0)
+		{
+			OtherClientsLiveTransactionInfo.Remove(PackageName);
+		}
 	}
 }
 
-bool FConcertClientLiveTransactionAuthors::IsPackageAuthoredByOtherClients(const FName& PackageName, int32* OutOtherClientsWithModifNum, TArray<FConcertClientInfo>* OutOtherClientsWithModifInfo, int32 OtherClientsWithModifMaxFetchNum) const
+bool FConcertClientLiveTransactionAuthors::IsPackageAuthoredByOtherClients(const FName& PackageName, int* OutOtherClientsWithModifNum, TArray<FConcertClientInfo>* OutOtherClientsWithModifInfo, int OtherClientsWithModifMaxFetchNum) const
 {
-	int32 OtherClientWithModifNum = 0;
+	int OtherClientWithModifNum = 0;
+	int ClientInfoInArray = 0;
 
-	if (const TArray<FGuid>* OtherEndpointsWithLiveTransactions = OtherEndpointsWithLiveTransactionsMap.Find(PackageName))
+	if (const TMap<FClientInstanceGuid, FTransactionInfo>* TransactionInfoMap = OtherClientsLiveTransactionInfo.Find(PackageName))
 	{
-		OtherClientWithModifNum = OtherEndpointsWithLiveTransactions->Num();
+		OtherClientWithModifNum = TransactionInfoMap->Num();
 
 		// The caller wants to know which other client(s) modified the specified package.
 		if (OutOtherClientsWithModifInfo && OtherClientsWithModifMaxFetchNum > 0 && OtherClientWithModifNum > 0)
 		{
-			for (const FGuid& EndpointId : *OtherEndpointsWithLiveTransactions)
+			for (const TPair<FClientInstanceGuid, FTransactionInfo>& ClientGuidTransactionInfoPair : *TransactionInfoMap)
 			{
-				FConcertSyncEndpointData EndpointData;
-				LiveSession->GetSessionDatabase().GetEndpoint(EndpointId, EndpointData);
-				OutOtherClientsWithModifInfo->Emplace(MoveTemp(EndpointData.ClientInfo));
+				OutOtherClientsWithModifInfo->Emplace(ClientGuidTransactionInfoPair.Value.AuthorInfo);
 				if (--OtherClientsWithModifMaxFetchNum == 0)
-				{
 					break;
-				}
 			}
 		}
 	}
@@ -142,3 +115,40 @@ bool FConcertClientLiveTransactionAuthors::IsPackageAuthoredByOtherClients(const
 	// Returns if the specified package was modified by other clients.
 	return OtherClientWithModifNum > 0;
 }
+
+
+//------------------------------------------------------------------------------
+// Free functions.
+//------------------------------------------------------------------------------
+
+void ResolveLiveTransactionAuthors(const FConcertTransactionLedger& TransactionLedger, const FConcertActivityLedger& ActivityLedger, FConcertClientLiveTransactionAuthors& LiveTransactionAuthors)
+{
+	// Get all live transactions for which we must find the owner, i.e. the client who made the transaction. (The transaction ledger doesn't track the user information with the transactions).
+	TArray<uint64> UnresolvedLiveTransactions = TransactionLedger.GetAllLiveTransactions();
+
+	// Read the activity feed, which has the transaction index/client instance ID info, until all live transactions are matched to
+	// a user instance id or until we reached the end of the activity feed.
+	int64 ActivityIndex = ActivityLedger.GetActivityCount();
+	while (UnresolvedLiveTransactions.Num() > 0 && --ActivityIndex >= 0)
+	{
+		// Find the activity corresponding the to activity index.
+		FStructOnScope ActivityEvent;
+		ActivityLedger.FindActivity(ActivityIndex, ActivityEvent);
+
+		// If the recorded activity was a transaction activity.
+		if (ActivityEvent.GetStruct()->IsChildOf(FConcertTransactionActivityEvent::StaticStruct()))
+		{
+			// If the activity correspond to a live transaction, resolve it, removing it from the list of unresolved live transactions.
+			const FConcertTransactionDeleteActivityEvent* Event = reinterpret_cast<const FConcertTransactionDeleteActivityEvent*>(ActivityEvent.GetStructMemory());
+			if (UnresolvedLiveTransactions.Remove(Event->TransactionIndex) == 1)
+			{
+				// The activity has the instance Id of the client who performed it.
+				LiveTransactionAuthors.AddLiveTransaction(Event->PackageName, Event->ClientInfo, Event->TransactionIndex);
+			}
+		}
+	}
+
+	// We should have found a client instance ID for each live transaction by inspecting the activity feed. If not, maybe the activitity feed was truncated?
+	check(UnresolvedLiveTransactions.Num() == 0);
+}
+

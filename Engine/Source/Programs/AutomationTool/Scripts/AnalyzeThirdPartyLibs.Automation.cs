@@ -130,11 +130,14 @@ class AnalyzeThirdPartyLibs : BuildCommand
 		LogInformation("************************* Analyze Third Party Libs");
 
 		// figure out what batch/script to run
-		if (UnrealBuildTool.BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Win64 &&
-			UnrealBuildTool.BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Mac &&
-			UnrealBuildTool.BuildHostPlatform.Current.Platform != UnrealTargetPlatform.Linux)
+		switch (UnrealBuildTool.BuildHostPlatform.Current.Platform)
 		{
-			throw new AutomationException("Unknown runtime platform!");
+			case UnrealTargetPlatform.Win64:
+			case UnrealTargetPlatform.Mac:
+			case UnrealTargetPlatform.Linux:
+				break;
+			default:
+				throw new AutomationException("Unknown runtime platform!");
 		}
 
 		// go to the third party lib dir

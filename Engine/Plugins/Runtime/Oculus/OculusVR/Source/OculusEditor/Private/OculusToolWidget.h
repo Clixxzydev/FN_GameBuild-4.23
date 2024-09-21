@@ -26,18 +26,13 @@ enum class SupportFlags : int
 	ExcludeDeferred = 0x08
 };
 
-typedef struct _SimpleSettingAction
-{
-	FText buttonText;
-	FReply(SOculusToolWidget::*ClickFunc)(bool);
-} SimpleSettingAction;
-
 typedef struct _SimpleSetting
 {
 	FName tag;
 	FText description;
+	FText buttonText;
 	EVisibility(SOculusToolWidget::*VisFunc)(FName) const;
-	TArray<SimpleSettingAction> actions;
+	FReply(SOculusToolWidget::*ClickFunc)(bool);
 	int supportMask; // bitfield of SupportFlags
 } SimpleSetting;
 
@@ -95,8 +90,7 @@ protected:
 	FReply MobileHDRDisable(bool text);
 	EVisibility MobileHDRVisibility(FName tag) const;
 
-	FReply AndroidManifestGearGo(bool text);
-	FReply AndroidManifestQuest(bool text);
+	FReply AndroidManifestEnable(bool text);
 	EVisibility AndroidManifestVisibility(FName tag) const;
 
 	FReply AndroidPackagingFix(bool text);

@@ -19,7 +19,6 @@
 #include "PhysicsEngine/BodyInstance.h"
 #include "Engine/TextureStreamingTypes.h"
 #include "AI/Navigation/NavRelevantInterface.h"
-#include "VT/RuntimeVirtualTextureEnum.h"
 #include "PrimitiveComponent.generated.h"
 
 class AController;
@@ -217,18 +216,18 @@ public:
 	ELightmapType LightmapType;
 
 #if WITH_EDITORONLY_DATA
-	/** Which specific HLOD levels this component should be excluded from */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = HLOD)
-	TArray<int32> ExcludeForSpecificHLODLevels;
-
 	/** If true, and if World setting has bEnableHierarchicalLOD equal to true, then this component will be included when generating a Proxy mesh for the parent Actor */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = HLOD, meta = (DisplayName = "Include Component for HLOD Mesh generation"))
 	uint8 bEnableAutoLODGeneration : 1;
-#endif 
 
 	/** Use the Maximum LOD Mesh (imposter) instead of including Mesh data from this component in the Proxy Generation process */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = HLOD)
-	uint8 bUseMaxLODAsImposter : 1;
+	uint8 bUseMaxLODAsImposter: 1;
+
+	/** Which specific HLOD levels this component should be excluded from */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = HLOD)
+	TArray<int32> ExcludeForSpecificHLODLevels;
+#endif 
 
 	/**
 	 * When enabled this object will not be culled by distance. This is ignored if a child of a HLOD.
@@ -512,6 +511,9 @@ private:
 
 	FMaskFilter MoveIgnoreMask;
 
+	/** Custom data that can be read by a material through a material parameter expression. Set data using SetCustomPrimitiveData* functions */
+	UPROPERTY()
+	FCustomPrimitiveData CustomPrimitiveData;
 public:
 	/**
 	 * Determine whether a Character can step up onto this component.
@@ -536,17 +538,9 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering,  meta=(UIMin = "0", UIMax = "255", editcondition = "bRenderCustomDepth", DisplayName = "CustomDepth Stencil Value"))
 	int32 CustomDepthStencilValue;
 
-private:
-	/** Custom data that can be read by a material through a material parameter expression. Set data using SetCustomPrimitiveData* functions */
-	UPROPERTY()
-	FCustomPrimitiveData CustomPrimitiveData;
-
-public:
-
 	/**
 	 * Translucent objects with a lower sort priority draw behind objects with a higher priority.
 	 * Translucent objects with the same priority are rendered from back-to-front based on their bounds origin.
-	 * This setting is also used to sort objects being drawn into a runtime virtual texture.
 	 *
 	 * Ignored if the object is not translucent.  The default priority is zero.
 	 * Warning: This should never be set to a non-default value unless you know what you are doing, as it will prevent the renderer from sorting correctly.  
@@ -558,41 +552,6 @@ public:
 	/** Used for precomputed visibility */
 	UPROPERTY()
 	int32 VisibilityId;
-
-	/** 
-	 * Array of runtime virtual textures into which we render the mesh for this actor. 
-	 * The material also needs to be set up to output to a virtual texture. 
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = VirtualTexture, meta = (DisplayName = "Render to Virtual Textures"))
-	TArray<URuntimeVirtualTexture*> RuntimeVirtualTextures;
-
-	/** Bias to the LOD selected for rendering to runtime virtual textures. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = VirtualTexture, meta = (DisplayName = "Virtual Texture LOD Bias", UIMin = "0", UIMax = "7"))
-	int32 VirtualTextureLodBias = 0;
-
-	/**
-	 * Number of lower mips in the runtime virtual texture to skip for rendering this primitive.
-	 * Larger values reduce the effective draw distance in the runtime virtual texture.
-	 * This culling method doesn't take into account primitive size or virtual texture size.
-	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = VirtualTexture, meta = (DisplayName = "Virtual Texture Skip Mips", UIMin = "0", UIMax = "15"))
-	int32 VirtualTextureCullMips = 0;
-
-	/**
-	 * Set the minimum pixel coverage before culling from the runtime virtual texture.
-	 * Larger values reduce the effective draw distance in the runtime virtual texture.
-	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = VirtualTexture, meta = (UIMin = "0", UIMax = "7"))
-	int32 VirtualTextureMinCoverage = 0;
-
-	/** Render to the main pass based on the virtual texture settings. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = VirtualTexture, meta = (DisplayName = "Virtual Texture Pass Type"))
-	ERuntimeVirtualTextureMainPassType VirtualTextureRenderPassType = ERuntimeVirtualTextureMainPassType::Exclusive;
-
-	/** Get the array of runtime virtual textures into which we render the mesh for this actor. */
-	virtual TArray<URuntimeVirtualTexture*> const& GetRuntimeVirtualTextures() const { return RuntimeVirtualTextures; }
-	/** Get the runtime virtual texture pass settings. */
-	virtual ERuntimeVirtualTextureMainPassType GetVirtualTextureRenderPassType() const { return VirtualTextureRenderPassType; }
 
 	/** Used by the renderer, to identify a component across re-registers. */
 	FPrimitiveComponentId ComponentId;
@@ -792,15 +751,10 @@ protected:
 
 private:
 	/** Convert a set of overlaps from a sweep to a subset that includes only those at the end location (filling in OverlapsAtEndLocation). */
-	template<typename AllocatorType>
-	bool ConvertSweptOverlapsToCurrentOverlaps(TArray<FOverlapInfo, AllocatorType>& OutOverlapsAtEndLocation, const TOverlapArrayView& SweptOverlaps, int32 SweptOverlapsIndex, const FVector& EndLocation, const FQuat& EndRotationQuat);
+	const TArray<FOverlapInfo>* ConvertSweptOverlapsToCurrentOverlaps(TArray<FOverlapInfo>& OverlapsAtEndLocation, const TArray<FOverlapInfo>& SweptOverlaps, int32 SweptOverlapsIndex, const FVector& EndLocation, const FQuat& EndRotationQuat);
 
 	/** Convert a set of overlaps from a symmetric change in rotation to a subset that includes only those at the end location (filling in OverlapsAtEndLocation). */
-	template<typename AllocatorType>
-	bool ConvertRotationOverlapsToCurrentOverlaps(TArray<FOverlapInfo, AllocatorType>& OutOverlapsAtEndLocation, const TOverlapArrayView& CurrentOverlaps);
-
-	template<typename AllocatorType>
-	bool GetOverlapsWithActor_Template(const AActor* Actor, TArray<FOverlapInfo, AllocatorType>& OutOverlaps) const;
+	const TArray<FOverlapInfo>* ConvertRotationOverlapsToCurrentOverlaps(TArray<FOverlapInfo>& OverlapsAtEndLocation, const TArray<FOverlapInfo>& CurrentOverlaps);
 
 	// FScopedMovementUpdate needs access to the above two functions.
 	friend FScopedMovementUpdate;
@@ -879,15 +833,7 @@ public:
 	 *									Generally this should only be used if this component is the RootComponent of the owning actor and overlaps with other descendant components have been verified.
 	 * @return							True if we can skip calling this in the future (i.e. no useful work is being done.)
 	 */
-	virtual bool UpdateOverlapsImpl(const TOverlapArrayView* NewPendingOverlaps=nullptr, bool bDoNotifies=true, const TOverlapArrayView* OverlapsAtEndLocation=nullptr) override;
-
-#if WITH_EDITOR
-	/**
-	 * Whether or not the bounds of this component should be considered when focusing the editor camera to an actor with this component in it.
-	 * Useful for debug components which need a bounds for rendering but don't contribute to the visible part of the mesh in a meaningful way
-	 */
-	virtual bool IgnoreBoundsForEditorFocus() const { return false; }
-#endif
+	virtual bool UpdateOverlapsImpl(TArray<FOverlapInfo> const* NewPendingOverlaps=nullptr, bool bDoNotifies=true, const TArray<FOverlapInfo>* OverlapsAtEndLocation=nullptr) override;
 
 	/** Update current physics volume for this component, if bShouldUpdatePhysicsVolume is true. Overridden to use the overlaps to find the physics volume. */
 	virtual void UpdatePhysicsVolume( bool bTriggerNotifiers ) override;
@@ -915,7 +861,7 @@ public:
 	// Internal physics engine data.
 	
 	/** Physics scene information for this component, holds a single rigid body with multiple shapes. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Collision, meta=(ShowOnlyInnerProperties, SkipUCSModifiedProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Collision, meta=(ShowOnlyInnerProperties))
 	FBodyInstance BodyInstance;
 
 	/** 

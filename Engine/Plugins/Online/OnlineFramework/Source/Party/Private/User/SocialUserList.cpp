@@ -434,15 +434,14 @@ bool FSocialUserList::EvaluatePresenceFlag(bool bPresenceValue, ESocialUserState
 // encapsulates UserList sorting comparator and supporting data needed
 struct FUserSortData
 {
-	FUserSortData(USocialUser* InUser, EOnlinePresenceState::Type InStatus, bool InPlayingThisGame, FString InDisplayName, int32 InCustomSortValue)
-		: User(InUser), OnlineStatus(InStatus), PlayingThisGame(InPlayingThisGame), DisplayName(MoveTemp(InDisplayName)), CustomSortValue(InCustomSortValue)
+	FUserSortData(USocialUser* InUser, EOnlinePresenceState::Type InStatus, bool InPlayingThisGame, FString InDisplayName)
+		: User(InUser), OnlineStatus(InStatus), PlayingThisGame(InPlayingThisGame), DisplayName(MoveTemp(InDisplayName))
 	{ }
 
 	USocialUser* User;
 	EOnlinePresenceState::Type OnlineStatus;
 	bool PlayingThisGame;
 	FString DisplayName;
-	int32 CustomSortValue;
 
 	bool operator<(const FUserSortData& OtherSortData) const
 	{
@@ -451,14 +450,7 @@ struct FUserSortData
 		{
 			if (PlayingThisGame == OtherSortData.PlayingThisGame)
 			{
-				if (CustomSortValue == OtherSortData.CustomSortValue)
-				{
-					return DisplayName < OtherSortData.DisplayName;
-				}
-				else
-				{
-					return CustomSortValue > OtherSortData.CustomSortValue;
-				}
+				return DisplayName < OtherSortData.DisplayName;
 			}
 			else
 			{
@@ -546,7 +538,7 @@ void FSocialUserList::UpdateListInternal()
 
 		Algo::Transform(Users, SortedData, [](USocialUser* const User) -> FUserSortData
 		{
-			return FUserSortData(User, User->GetOnlineStatus(), User->IsPlayingThisGame(), User->GetDisplayName(), User->GetCustomSortValue());
+			return FUserSortData(User, User->GetOnlineStatus(), User->IsPlayingThisGame(), User->GetDisplayName());
 		});
 
 		Algo::Sort(SortedData);

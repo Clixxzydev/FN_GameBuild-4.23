@@ -6,10 +6,10 @@
 #include "Misc/OutputDeviceRedirector.h"
 #include "SocketSubsystemPackage.h"
 #include "SocketSubsystem.h"
-#include "IPAddress.h"
 
 #if PLATFORM_HAS_BSD_SOCKETS || PLATFORM_HAS_BSD_IPV6_SOCKETS
 
+class FInternetAddr;
 class FSocketBSD;
 
 #include "SocketSubsystemBSDPrivate.h"
@@ -20,6 +20,9 @@ class FSocketBSD;
 class FSocketSubsystemBSD : public ISocketSubsystem
 {
 public:
+
+	virtual ESocketErrors CreateAddressFromIP(const ANSICHAR* IPAddress, FInternetAddr& OutAddr);
+
 	/**
 	 * Specifies the default socket protocol family to use when creating a socket
 	 * without explicitly passing in the protocol type on creation.
@@ -30,32 +33,24 @@ public:
 	 * All sockets created using the base class's CreateSocket will use this function
 	 * to determine domain.
 	 */
-	virtual FName GetDefaultSocketProtocolFamily() const
+	virtual ESocketProtocolFamily GetDefaultSocketProtocolFamily() const
 	{
-		return FNetworkProtocolTypes::IPv4;
+		return ESocketProtocolFamily::IPv4;
 	}
-
 
 	// ISocketSubsystem interface
-	virtual TSharedRef<FInternetAddr> CreateInternetAddr() override;
-
-	virtual class FSocket* CreateSocket(const FName& SocketType, const FString& SocketDescription, bool bForceUDP = false) override
-	{
-		return CreateSocket(SocketType, SocketDescription, GetDefaultSocketProtocolFamily());
-	}
-
-	virtual class FSocket* CreateSocket(const FName& SocketType, const FString& SocketDescription, const FName& ProtocolType) override;
-
+	virtual TSharedRef<FInternetAddr> CreateInternetAddr(uint32 Address = 0, uint32 Port = 0) override;
+	virtual class FSocket* CreateSocket( const FName& SocketType, const FString& SocketDescription, bool bForceUDP = false ) override;
+	virtual class FSocket* CreateSocket(const FName& SocketType, const FString& SocketDescription, ESocketProtocolFamily ProtocolType) override;
 	virtual void DestroySocket( class FSocket* Socket ) override;
 
 	virtual FAddressInfoResult GetAddressInfo(const TCHAR* HostName, const TCHAR* ServiceName = nullptr,
 		EAddressInfoFlags QueryFlags = EAddressInfoFlags::Default,
-		const FName ProtocolTypeName = NAME_None,
+		ESocketProtocolFamily ProtocolType = ESocketProtocolFamily::None,
 		ESocketType SocketType = ESocketType::SOCKTYPE_Unknown) override;
 
-	virtual TSharedPtr<FInternetAddr> GetAddressFromString(const FString& InAddress) override;
-
-	virtual bool GetHostName(FString& HostName) override;
+	virtual ESocketErrors GetHostByName( const ANSICHAR* HostName, FInternetAddr& OutAddr ) override;
+	virtual bool GetHostName( FString& HostName ) override;
 	virtual ESocketErrors GetLastErrorCode() override;
 
 	virtual bool GetLocalAdapterAddresses( TArray<TSharedPtr<FInternetAddr> >& OutAdresses ) override
@@ -66,8 +61,6 @@ public:
 
 		return true;
 	}
-
-	virtual TSharedRef<FInternetAddr> GetLocalBindAddr(FOutputDevice& Out) override;
 
 	virtual const TCHAR* GetSocketAPIName() const override;
 
@@ -88,18 +81,12 @@ public:
 	/**
 	 * Translates an ESocketProtocolFamily code into a value usable by raw socket apis.
 	 */
-	UE_DEPRECATED(4.23, "Switch to the FName version for scalable protocol support")
 	virtual int32 GetProtocolFamilyValue(ESocketProtocolFamily InProtocol) const;
-	virtual int32 GetProtocolFamilyValue(const FName& InProtocol) const;
-	
-	/**
-	 * Translates an raw socket family type value into a protocol name that can be used by the network layer.
-	 */
-	virtual const FName GetProtocolFamilyTypeName(int32 InProtocol) const;
 
-	UE_DEPRECATED(4.23, "Use GetProtocolFamilyTypeName")
+	/**
+	 * Translates an raw socket family type value into an enum that can be used by the network layer.
+	 */
 	virtual ESocketProtocolFamily GetProtocolFamilyType(int32 InProtocol) const;
-	
 
 	/**
 	 * Translates an raw socket protocol type value into an enum that can be used by the network layer.
@@ -120,7 +107,7 @@ protected:
 	/**
 	 * Allows a subsystem subclass to create a FSocketBSD sub class.
 	 */
-	virtual class FSocketBSD* InternalBSDSocketFactory( SOCKET Socket, ESocketType SocketType, const FString& SocketDescription, const FName& SocketProtocol);
+	virtual class FSocketBSD* InternalBSDSocketFactory( SOCKET Socket, ESocketType SocketType, const FString& SocketDescription, ESocketProtocolFamily SocketProtocol);
 
 	/**
 	 * Allows a subsystem subclass to create a FSocketBSD sub class.

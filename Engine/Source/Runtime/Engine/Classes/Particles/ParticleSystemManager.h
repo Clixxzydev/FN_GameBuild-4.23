@@ -85,7 +85,6 @@ private:
 	static void OnWorldInit(UWorld* World, const UWorld::InitializationValues IVS);
 	static void OnWorldCleanup(UWorld* World, bool bSessionEnded, bool bCleanupResources);
 	static void OnPreWorldFinishDestroy(UWorld* World);
-	static void OnWorldBeginTearDown(UWorld* World);
 
 	typedef TFunction<void(UParticleSystemComponent*, FPSCTickData&, int32)> FPSCTickListFunction;
 
@@ -138,7 +137,6 @@ public:
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
 
 	void Dump();
 

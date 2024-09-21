@@ -51,7 +51,7 @@ struct FSkelMeshRenderSection;
 struct FVertexBufferAndSRV;
 
 // Can the skin cache be used (ie shaders added, etc)
-extern ENGINE_API bool IsGPUSkinCacheAvailable(EShaderPlatform Platform);
+extern ENGINE_API bool IsGPUSkinCacheAvailable();
 
 // Is it actually enabled?
 extern ENGINE_API int32 GEnableGPUSkinCache;
@@ -118,7 +118,6 @@ public:
 		const FShader* Shader,
 		const FGPUSkinPassthroughVertexFactory* VertexFactory,
 		uint32 BaseVertexIndex,
-		FShaderResourceParameter GPUSkinCachePositionBuffer,
 		FShaderResourceParameter GPUSkinCachePreviousPositionBuffer,
 		class FMeshDrawSingleShaderBindings& ShaderBindings,
 		FVertexInputStreamArray& VertexStreams);
@@ -159,11 +158,11 @@ public:
 		{
 			for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
 			{
-				RWBuffers[Index].Initialize(4, NumVertices * 3, PF_R32_FLOAT, BUF_Static, TEXT("Vertices"));
+				RWBuffers[Index].Initialize(4, NumVertices * 3, PF_R32_FLOAT, BUF_Static);
 			}
 			if (WithTangents)
 			{
-				Tangents.Initialize(8, NumVertices * 2, PF_R16G16B16A16_SNORM, BUF_Static, TEXT("Tangents"));
+				Tangents.Initialize(8, NumVertices * 2, PF_R16G16B16A16_SNORM, BUF_Static);
 			}
 		}
 
@@ -196,7 +195,7 @@ public:
 			return WithTangents ? &Tangents : nullptr;
 		}
 
-		void RemoveAllFromTransitionArray(TArray<FRHIUnorderedAccessView*>& BuffersToTransition);
+		void RemoveAllFromTransitionArray(TArray<FUnorderedAccessViewRHIParamRef>& BuffersToTransition);
 
 	private:
 		// Output of the GPU skinning (ie Pos, Normals)
@@ -284,23 +283,19 @@ public:
 #if RHI_RAYTRACING
 	void AddRayTracingGeometryToUpdate(FRayTracingGeometry* RayTracingGeometry)
 	{
-		RayTracingGeometriesToUpdate.Add(RayTracingGeometry);
+		FAccelerationStructureUpdateParams Params;
+		Params.Geometry     = RayTracingGeometry->RayTracingGeometryRHI;
+		Params.VertexBuffer = RayTracingGeometry->Initializer.PositionVertexBuffer;
+
+		RayTracingGeometriesToUpdate.Add(Params);
 	}
 
 	void CommitRayTracingGeometryUpdates(FRHICommandList& RHICmdList);
-
-	void RemoveRayTracingGeometryUpdate(FRayTracingGeometry* RayTracingGeometry)
-	{
-		if (RayTracingGeometriesToUpdate.Find(RayTracingGeometry) != nullptr)
-			RayTracingGeometriesToUpdate.Remove(RayTracingGeometry);
-	}
 #endif // RHI_RAYTRACING
 
 protected:
-	TArray<FRHIUnorderedAccessView*> BuffersToTransition;
-#if RHI_RAYTRACING
-	TSet<FRayTracingGeometry*> RayTracingGeometriesToUpdate;
-#endif // RHI_RAYTRACING
+	TArray<FUnorderedAccessViewRHIParamRef> BuffersToTransition;
+	TArray<FAccelerationStructureUpdateParams> RayTracingGeometriesToUpdate;
 
 	TArray<FRWBuffersAllocation*> Allocations;
 	TArray<FGPUSkinCacheEntry*> Entries;

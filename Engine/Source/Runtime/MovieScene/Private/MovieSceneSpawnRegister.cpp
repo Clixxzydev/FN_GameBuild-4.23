@@ -6,19 +6,17 @@
 #include "Evaluation/MovieSceneEvaluationTemplateInstance.h"
 #include "MovieSceneSpawnableAnnotation.h"
 
-TWeakObjectPtr<> FMovieSceneSpawnRegister::FindSpawnedObject(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID) const
+UObject* FMovieSceneSpawnRegister::FindSpawnedObject(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID) const
 {
 	FMovieSceneSpawnRegisterKey Key(TemplateID, BindingId);
 
 	const FSpawnedObject* Existing = Register.Find(Key);
-	return Existing ? Existing->Object : TWeakObjectPtr<>();
+	return Existing ? Existing->Object.Get() : nullptr;
 }
 
 UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieScene& MovieScene, FMovieSceneSequenceIDRef TemplateID, IMovieScenePlayer& Player)
 {
-	TWeakObjectPtr<> WeakObjectInstance = FindSpawnedObject(BindingId, TemplateID);
-	UObject*         ObjectInstance     = WeakObjectInstance.Get();
-
+	UObject* ObjectInstance = FindSpawnedObject(BindingId, TemplateID);
 	if (ObjectInstance)
 	{
 		return ObjectInstance;
@@ -27,11 +25,6 @@ UObject* FMovieSceneSpawnRegister::SpawnObject(const FGuid& BindingId, UMovieSce
 	// Find the spawnable definition
 	FMovieSceneSpawnable* Spawnable = MovieScene.FindSpawnable(BindingId);
 	if (!Spawnable)
-	{
-		return nullptr;
-	}
-
-	if (WeakObjectInstance.IsStale() && !Spawnable->bContinuouslyRespawn)
 	{
 		return nullptr;
 	}

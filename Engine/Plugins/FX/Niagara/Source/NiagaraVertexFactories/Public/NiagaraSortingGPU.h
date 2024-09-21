@@ -8,12 +8,10 @@ NiagaraSortingGPU.h: Niagara sorting shaders
 
 #include "CoreMinimal.h"
 #include "GlobalShader.h"
-#include "ShaderPermutation.h"
 
 struct FNiagaraGPUSortInfo;
 
 extern NIAGARAVERTEXFACTORIES_API int32 GNiagaraGPUSorting;
-extern NIAGARAVERTEXFACTORIES_API int32 GNiagaraGPUSortingUseMaxPrecision;
 extern NIAGARAVERTEXFACTORIES_API int32 GNiagaraGPUSortingCPUToGPUThreshold;
 extern NIAGARAVERTEXFACTORIES_API float GNiagaraGPUSortingBufferSlack;
 extern NIAGARAVERTEXFACTORIES_API int32 GNiagaraGPUSortingMinBufferSize;
@@ -28,12 +26,9 @@ extern NIAGARAVERTEXFACTORIES_API int32 GNiagaraGPUSortingFrameCountBeforeBuffer
  */
 class NIAGARAVERTEXFACTORIES_API FNiagaraSortKeyGenCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FNiagaraSortKeyGenCS);
+	DECLARE_SHADER_TYPE(FNiagaraSortKeyGenCS,Global);
 
 public:
-
-	class FSortUsingMaxPrecision : SHADER_PERMUTATION_BOOL("SORT_MAX_PRECISION");
-	using FPermutationDomain = TShaderPermutationDomain<FSortUsingMaxPrecision>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -54,12 +49,12 @@ public:
 	/**
 	 * Set output buffers for this shader.
 	 */
-	void SetOutput(FRHICommandList& RHICmdList, FRHIUnorderedAccessView* OutKeysUAV, FRHIUnorderedAccessView* OutIndicesUAV);
+	void SetOutput(FRHICommandList& RHICmdList, FUnorderedAccessViewRHIParamRef OutKeysUAV, FUnorderedAccessViewRHIParamRef OutIndicesUAV);
 
 	/**
 	 * Set input parameters.
 	 */
-	void SetParameters(FRHICommandList& RHICmdList,	const FNiagaraGPUSortInfo& SortInfo, uint32 EmitterKey, int32 OutputOffset, const FUintVector4& SortKeyParamsValue);
+	void SetParameters(FRHICommandList& RHICmdList,	const FNiagaraGPUSortInfo& SortInfo, int32 EmitterIndex, int32 OutputOffset);
 
 	/**
 	 * Unbinds any buffers that have been bound.
@@ -74,7 +69,6 @@ private:
 	FShaderResourceParameter GPUParticleCountBuffer;
 	FShaderParameter ParticleCountParams;
 	FShaderParameter SortParams;
-	FShaderParameter SortKeyParams;
 	FShaderParameter CameraPosition;
 	FShaderParameter CameraDirection;
 
@@ -121,8 +115,8 @@ public:
 	 */
 	void SetParameters(
 		FRHICommandList& RHICmdList,	
-		FRHIShaderResourceView* InSourceData,
-		FRHIUnorderedAccessView* const* InDestDatas,
+		const FShaderResourceViewRHIParamRef InSourceData, 
+		const FUnorderedAccessViewRHIParamRef* InDestDatas, 
 		const int32* InUsedIndexCounts, 
 		int32 StartingIndex,
 		int32 DestCount);

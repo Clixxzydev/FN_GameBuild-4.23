@@ -98,11 +98,10 @@ void FJavaWrapper::FindClassesAndMethods(JNIEnv* Env)
 	AndroidThunkJava_GetMetaDataString = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetMetaDataString", "(Ljava/lang/String;)Ljava/lang/String;", bIsOptional);
 	AndroidThunkJava_SetSustainedPerformanceMode = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_SetSustainedPerformanceMode", "(Z)V", bIsOptional);
 	AndroidThunkJava_ShowHiddenAlertDialog = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_ShowHiddenAlertDialog", "()V", bIsOptional);
-	AndroidThunkJava_LocalNotificationScheduleAtTime = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationScheduleAtTime", "(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I", bIsOptional);
+	AndroidThunkJava_LocalNotificationScheduleAtTime = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationScheduleAtTime", "(Ljava/lang/String;ZLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V", bIsOptional);
 	AndroidThunkJava_LocalNotificationClearAll = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationClearAll", "()V", bIsOptional);
-	AndroidThunkJava_LocalNotificationExists = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationExists", "(I)Z", bIsOptional);
 	AndroidThunkJava_LocalNotificationGetLaunchNotification = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationGetLaunchNotification", "()Lcom/epicgames/ue4/GameActivity$LaunchNotification;", bIsOptional);
-	AndroidThunkJava_LocalNotificationDestroyIfExists = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationDestroyIfExists", "(I)Z", bIsOptional);
+	//AndroidThunkJava_LocalNotificationDestroyIfExists = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_LocalNotificationDestroyIfExists", "(I)Z", bIsOptional);
 	AndroidThunkJava_GetNetworkConnectionType = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetNetworkConnectionType", "()I", bIsOptional);
 	AndroidThunkJava_GetAndroidId = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetAndroidId", "()Ljava/lang/String;", bIsOptional);
 	AndroidThunkJava_ShareURL = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_ShareURL", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;II)V", bIsOptional);
@@ -115,8 +114,8 @@ void FJavaWrapper::FindClassesAndMethods(JNIEnv* Env)
 	AndroidThunkJava_GetIntentExtrasString = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_GetIntentExtrasString", "(Ljava/lang/String;)Ljava/lang/String;", bIsOptional);
 	AndroidThunkJava_PushSensorEvents = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_PushSensorEvents", "()V", bIsOptional);
 
-	// this is optional - only inserted if Oculus Mobile plugin enabled
-	AndroidThunkJava_IsOculusMobileApplication = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_IsOculusMobileApplication", "()Z", true);
+	// this is optional - only inserted if Gear VR plugin enabled
+	AndroidThunkJava_IsGearVRApplication = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_IsGearVRApplication", "()Z", true);
 
 	// this is optional - only inserted if GCM plugin enabled
 	AndroidThunkJava_RegisterForRemoteNotifications = FindMethod(Env, GameActivityClassID, "AndroidThunkJava_RegisterForRemoteNotifications", "()V", true);
@@ -372,15 +371,14 @@ jmethodID FJavaWrapper::AndroidThunkJava_GetMetaDataInt;
 jmethodID FJavaWrapper::AndroidThunkJava_GetMetaDataLong;
 jmethodID FJavaWrapper::AndroidThunkJava_GetMetaDataFloat;
 jmethodID FJavaWrapper::AndroidThunkJava_GetMetaDataString;
-jmethodID FJavaWrapper::AndroidThunkJava_IsOculusMobileApplication;
+jmethodID FJavaWrapper::AndroidThunkJava_IsGearVRApplication;
 jmethodID FJavaWrapper::AndroidThunkJava_RegisterForRemoteNotifications;
 jmethodID FJavaWrapper::AndroidThunkJava_UnregisterForRemoteNotifications;
 jmethodID FJavaWrapper::AndroidThunkJava_ShowHiddenAlertDialog;
 jmethodID FJavaWrapper::AndroidThunkJava_LocalNotificationScheduleAtTime;
 jmethodID FJavaWrapper::AndroidThunkJava_LocalNotificationClearAll;
-jmethodID FJavaWrapper::AndroidThunkJava_LocalNotificationExists;
 jmethodID FJavaWrapper::AndroidThunkJava_LocalNotificationGetLaunchNotification;
-jmethodID FJavaWrapper::AndroidThunkJava_LocalNotificationDestroyIfExists;
+//jmethodID FJavaWrapper::AndroidThunkJava_LocalNotificationDestroyIfExists;
 jmethodID FJavaWrapper::AndroidThunkJava_GetNetworkConnectionType;
 jmethodID FJavaWrapper::AndroidThunkJava_GetAndroidId;
 jmethodID FJavaWrapper::AndroidThunkJava_ShareURL;
@@ -756,23 +754,23 @@ void AndroidThunkCpp_ShowHiddenAlertDialog()
 	}
 }
 
-// call out to JNI to see if the application was packaged for Oculus Mobile
-bool AndroidThunkCpp_IsOculusMobileApplication()
+// call out to JNI to see if the application was packaged for Gear VR
+bool AndroidThunkCpp_IsGearVRApplication()
 {
-	static int32 IsOculusMobileApplication = -1;
+	static int32 IsGearVRApplication = -1;
 
-	if (IsOculusMobileApplication == -1)
+	if (IsGearVRApplication == -1)
 	{
-		IsOculusMobileApplication = 0;
-		if (FJavaWrapper::AndroidThunkJava_IsOculusMobileApplication)
+		IsGearVRApplication = 0;
+		if (FJavaWrapper::AndroidThunkJava_IsGearVRApplication)
 		{
 			if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
 			{
-				IsOculusMobileApplication = FJavaWrapper::CallBooleanMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_IsOculusMobileApplication) ? 1 : 0;
+				IsGearVRApplication = FJavaWrapper::CallBooleanMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_IsGearVRApplication) ? 1 : 0;
 			}
 		}
 	}
-	return IsOculusMobileApplication == 1;
+	return IsGearVRApplication == 1;
 }
 
 // call optional remote notification registration
@@ -1419,7 +1417,7 @@ void AndroidThunkCpp_SetDesiredViewSize(int32 Width, int32 Height)
 // #endif
 }
 
-int32 AndroidThunkCpp_ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool LocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
+void AndroidThunkCpp_ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool LocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent) 
 {
 	//Convert FireDateTime to yyyy-MM-dd HH:mm:ss in order to pass to java
 	FString FireDateTimeFormatted = FString::FromInt(FireDateTime.GetYear()) + "-" + FString::FromInt(FireDateTime.GetMonth()) + "-" + FString::FromInt(FireDateTime.GetDay()) + " " + FString::FromInt(FireDateTime.GetHour()) + ":" + FString::FromInt(FireDateTime.GetMinute()) + ":" + FString::FromInt(FireDateTime.GetSecond());
@@ -1433,10 +1431,8 @@ int32 AndroidThunkCpp_ScheduleLocalNotificationAtTime(const FDateTime& FireDateT
 		auto jAction = FJavaHelper::ToJavaString(Env, Action.ToString());
 		auto jActivationEvent = FJavaHelper::ToJavaString(Env, ActivationEvent);
 		
-		return FJavaWrapper::CallIntMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_LocalNotificationScheduleAtTime, *jFireDateTime, LocalTime, *jTitle, *jBody, *jAction, *jActivationEvent);
+		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_LocalNotificationScheduleAtTime, *jFireDateTime, LocalTime, *jTitle, *jBody, *jAction, *jActivationEvent);
 	}
-	
-	return -1;
 }
 
 void AndroidThunkCpp_GetLaunchNotification(bool& NotificationLaunchedApp, FString& ActivationEvent, int32& FireDate)
@@ -1469,17 +1465,7 @@ void AndroidThunkCpp_ClearAllLocalNotifications()
 		FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_LocalNotificationClearAll);
 	}
 }
-
-bool AndroidThunkCpp_LocalNotificationExists(int32 NotificationId)
-{
-	bool Result = false;
-	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
-	{
-		Result = FJavaWrapper::CallBooleanMethod(Env, FJavaWrapper::GameActivityThis, FJavaWrapper::AndroidThunkJava_LocalNotificationExists, NotificationId);
-	}
-	return Result;
-}
-
+/*
 bool AndroidThunkCpp_DestroyScheduledNotificationIfExists(int32 NotificationId)
 {
 	bool Result = false;
@@ -1489,6 +1475,7 @@ bool AndroidThunkCpp_DestroyScheduledNotificationIfExists(int32 NotificationId)
 	}
 	return Result;
 }
+*/
 
 int32 AndroidThunkCpp_GetNetworkConnectionType()
 {
@@ -1713,9 +1700,8 @@ void AndroidThunkCpp_OnNativeToEmbeddedReply(FString ID, const FEmbeddedCommunic
 	if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
 	{
 		// marshall some data
-#if !UE_BUILD_SHIPPING
+
 		UE_LOG(LogInit, Display, TEXT("Java call Id: %s, Routing Function: %s, Error %s, Params:"), *ID, *RoutingFunction, *InError);
-#endif
 
 		// create a string array for the pairs
 		static auto StringClass = FJavaWrapper::FindClassGlobalRef(Env, "java/lang/String", false);
@@ -1727,9 +1713,7 @@ void AndroidThunkCpp_OnNativeToEmbeddedReply(FString ID, const FEmbeddedCommunic
 			auto ValueString = FJavaHelper::ToJavaString(Env, It.Value);
 			Env->SetObjectArrayElement(*ReturnValues, Index++, *KeyString);
 			Env->SetObjectArrayElement(*ReturnValues, Index++, *ValueString);
-#if !UE_BUILD_SHIPPING
 			UE_LOG(LogInit, Display, TEXT("  %s : %s"), *It.Key, *It.Value);
-#endif
 		}
 		auto Error = FJavaHelper::ToJavaString(Env, InError);
 		
@@ -1760,9 +1744,7 @@ JNI_METHOD void Java_com_epicgames_ue4_NativeCalls_CallNativeToEmbedded(JNIEnv* 
 	// wake up UE
 	FEmbeddedCommunication::KeepAwake(CommandName, false);
 
-#if !UE_BUILD_SHIPPING
 	FPlatformMisc::LowLevelOutputDebugStringf(TEXT("NativeToEmbeddedCall: Subsystem: %s, Command: %s, Params:"), *Subsystem, *Helper.Command);
-#endif
 
 	if (InParams != nullptr)
 	{
@@ -1774,9 +1756,7 @@ JNI_METHOD void Java_com_epicgames_ue4_NativeCalls_CallNativeToEmbedded(JNIEnv* 
 			auto javaValue = FJavaHelper::FStringFromLocalRef(jenv, (jstring)(jenv->GetObjectArrayElement(InParams, Index++)));
 
 			Helper.Parameters.Add(javaKey, javaValue);
-#if !UE_BUILD_SHIPPING
 			FPlatformMisc::LowLevelOutputDebugStringf(TEXT("  %s : %s"), *javaKey, *javaValue);
-#endif
 		}
 	}
 	

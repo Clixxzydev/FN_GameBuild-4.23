@@ -22,7 +22,10 @@ struct MOVIESCENE_API FMovieSceneObjectPathChannelKeyValue
 	{}
 
 	/** Construction from an object pointer */
-	FMovieSceneObjectPathChannelKeyValue(UObject* InObject);
+	FMovieSceneObjectPathChannelKeyValue(UObject* InObject)
+		: SoftPtr(InObject)
+		, HardPtr(InObject)
+	{}
 
 	/**
 	 * Assignment from a raw object pointer

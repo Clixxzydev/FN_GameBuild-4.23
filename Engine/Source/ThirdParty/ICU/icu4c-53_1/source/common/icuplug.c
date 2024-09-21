@@ -715,12 +715,7 @@ uplug_init(UErrorCode *status) {
   const char *plugin_dir;
 
   if(U_FAILURE(*status)) return;
-  plugin_dir = 
-#if PLATFORM_UWP
-    NULL;
-#else
-    getenv("ICU_PLUGINS");
-#endif
+  plugin_dir = getenv("ICU_PLUGINS");
 
 #if defined(DEFAULT_ICU_PLUGINS) 
   if(plugin_dir == NULL || !*plugin_dir) {

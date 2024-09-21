@@ -11,7 +11,7 @@ using System.Web.Script.Serialization;
 
 namespace UnrealGameSync
 {
-	class DetectProjectSettingsTask : IPerforceModalTask, IDisposable
+	class DetectProjectSettingsTask : IModalTask, IPerforceModalTask, IDisposable
 	{
 		public UserSelectedProjectSettings SelectedProject;
 		public PerforceConnection PerforceClient;
@@ -47,8 +47,27 @@ namespace UnrealGameSync
 			}
 		}
 
-		public bool Run(PerforceConnection Perforce, out string ErrorMessage)
+		public bool Run(out string ErrorMessage)
 		{
+			// Get the server settings
+			string ServerAndPort = SelectedProject.ServerAndPort;
+			string UserName = SelectedProject.UserName;
+
+			string ProjectFileName = null;
+			if(SelectedProject.Type == UserSelectedProjectType.Local)
+			{
+				ProjectFileName = SelectedProject.LocalPath;
+			}
+
+			if(!PerforceModalTask.TryGetServerSettings(ProjectFileName, ref ServerAndPort, ref UserName, Log))
+			{
+				ErrorMessage = "Unable to get Perforce server settings.";
+				return false;
+			}
+
+			// Create the connection
+			PerforceConnection Perforce = new PerforceConnection(UserName, null, ServerAndPort);
+
 			// Make sure we're logged in
 			bool bLoggedIn;
 			if(!Perforce.GetLoggedInState(out bLoggedIn, Log))
@@ -176,7 +195,7 @@ namespace UnrealGameSync
 			NewSelectedFileName = Utility.GetPathWithCorrectCase(new FileInfo(NewSelectedFileName));
 
 			// Update the selected project with all the data we've found
-			SelectedProject = new UserSelectedProjectSettings(SelectedProject.ServerAndPort, SelectedProject.UserName, SelectedProject.Type, NewSelectedClientFileName, NewSelectedFileName);
+			SelectedProject = new UserSelectedProjectSettings(Perforce.ServerAndPort, Perforce.UserName, SelectedProject.Type, NewSelectedClientFileName, NewSelectedFileName);
 
 			// Figure out where the engine is in relation to it
 			int EndIdx = NewSelectedClientFileName.Length - 1;
@@ -397,13 +416,11 @@ namespace UnrealGameSync
 
 	class DetectMultipleProjectSettingsTask : IModalTask, IDisposable
 	{
-		PerforceConnection DefaultConnection;
 		public DetectProjectSettingsTask[] Tasks;
 		public DetectProjectSettingsResult[] Results;
 
-		public DetectMultipleProjectSettingsTask(PerforceConnection DefaultConnection, IEnumerable<DetectProjectSettingsTask> Tasks)
+		public DetectMultipleProjectSettingsTask(IEnumerable<DetectProjectSettingsTask> Tasks)
 		{
-			this.DefaultConnection = DefaultConnection;
 			this.Tasks = Tasks.ToArray();
 		}
 
@@ -434,34 +451,10 @@ namespace UnrealGameSync
 
 		void RunTask(int Idx)
 		{
-			DetectProjectSettingsTask Task = Tasks[Idx];
-
-			UserSelectedProjectSettings Project = Task.SelectedProject;
-			PerforceConnection Perforce = Utility.OverridePerforceSettings(DefaultConnection, Project.ServerAndPort, Project.UserName);
-
 			string TaskErrorMessage;
-			bool bTaskSucceeded = Tasks[Idx].Run(Perforce, out TaskErrorMessage);
+			bool bTaskSucceeded = Tasks[Idx].Run(out TaskErrorMessage);
 			Results[Idx] = new DetectProjectSettingsResult(Tasks[Idx], bTaskSucceeded, TaskErrorMessage);
 			Tasks[Idx] = null;
-		}
-	}
-
-	class QuietDetectProjectSettingsTask : IModalTask
-	{
-		PerforceConnection Perforce;
-		DetectProjectSettingsTask Inner;
-		TextWriter Log;
-
-		public QuietDetectProjectSettingsTask(PerforceConnection Perforce, DetectProjectSettingsTask Inner, TextWriter Log)
-		{
-			this.Perforce = Perforce;
-			this.Inner = Inner;
-			this.Log = Log;
-		}
-
-		public bool Run(out string ErrorMessage)
-		{
-			return Inner.Run(Perforce, out ErrorMessage);
 		}
 	}
 }

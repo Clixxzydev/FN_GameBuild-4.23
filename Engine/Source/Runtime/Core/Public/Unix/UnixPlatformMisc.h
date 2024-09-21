@@ -134,10 +134,6 @@ struct CORE_API FUnixPlatformMisc : public FGenericPlatformMisc
 	static FString GetOSVersion();
 	static FString GetLoginId();
 
-	static void CreateGuid(FGuid& Result);
-
-	static IPlatformChunkInstall* GetPlatformChunkInstall();
-
 #if STATS || ENABLE_STATNAMEDEVENTS
 	static void BeginNamedEventFrame();
 	static void BeginNamedEvent(const struct FColor& Color, const TCHAR* Text);

@@ -7,7 +7,7 @@
 #pragma once
 
 #include "Runtime/Core/Private/HAL/PThreadRunnableThread.h"
-#include "Android/AndroidPlatformMisc.h"
+#include "Android/AndroidMisc.h"
 
 /**
 * Android implementation of the pthread functions

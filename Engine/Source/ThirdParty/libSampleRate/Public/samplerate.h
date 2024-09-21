@@ -15,8 +15,6 @@
 #ifdef PLATFORM_WINDOWS
 	#if PLATFORM_WINDOWS
 	#define SRC_EXPORT __declspec(dllexport)
-	#elif PLATFORM_MAC
-	#define SRC_EXPORT __attribute__((visibility("default")))
 	#else
 	#define SRC_EXPORT
 	#endif

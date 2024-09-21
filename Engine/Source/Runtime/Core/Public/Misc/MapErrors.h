@@ -220,11 +220,6 @@ struct CORE_API FMapErrors
 
 	/** Hierarchical LOD System is disabled, unable to build LOD actors */
 	static FName HLODSystemNotEnabled;
-
-	/** Virtual Textures */
-
-	/** {ObjectName} is using a virtual texture ('{TextureName}') on an unsupported property ('{PropertyName}'). */
-	static FName InvalidVirtualTextureUsage;
 };
 
 /**

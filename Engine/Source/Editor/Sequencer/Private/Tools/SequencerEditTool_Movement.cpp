@@ -16,7 +16,6 @@
 #include "Widgets/Layout/SBox.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Misc/Timecode.h"
-#include "MovieSceneTimeHelpers.h"
 
 const FName FSequencerEditTool_Movement::Identifier = "Movement";
 
@@ -77,17 +76,9 @@ FReply FSequencerEditTool_Movement::OnMouseMove(SWidget& OwnerWidget, const FGeo
 			{
 				DragPosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
-				if (Sequencer.GetSequencerSettings()->GetIsSnapEnabled() && Sequencer.GetSequencerSettings()->GetSnapKeysAndSectionsToPlayRange() && !Sequencer.GetSequencerSettings()->ShouldKeepPlayRangeInSectionBounds())
-				{
-					DragPosition.X = FMath::Max(DragPosition.X, 0.f);
-					FFrameTime CurrentTime = VirtualTrackArea.PixelToFrame(DragPosition.X);
-					CurrentTime = MovieScene::ClampToDiscreteRange(CurrentTime, Sequencer.GetPlaybackRange());
-					DragPosition.X = VirtualTrackArea.FrameToPixel(CurrentTime);
-				}
-					
 				double CurrentTime = VirtualTrackArea.PixelToSeconds(DragPosition.X);
 				Sequencer.UpdateAutoScroll(CurrentTime);
-
+				
 				DragOperation->OnDrag(MouseEvent, DragPosition, VirtualTrackArea);
 			}
 		}
@@ -165,7 +156,10 @@ TSharedPtr<ISequencerEditToolDragOperation> FSequencerEditTool_Movement::CreateD
 		// check for that first before trying to figure out if they're resizing or dilating.
 		if (bSectionsSelected && bKeySelected && !bIsDuplicateEvent)
 		{
-			return MakeShareable(new FMoveKeysAndSections(Sequencer, Selection.GetSelectedKeys(), Selection.GetSelectedSections(), bHotspotIsSection));
+			TArray<FSectionHandle> SelectedSectionHandles = SequencerWidget->GetSectionHandles(Selection.GetSelectedSections());
+			TSet<FSequencerSelectedKey> SelectedKeys = Selection.GetSelectedKeys();
+
+			return MakeShareable(new FMoveKeysAndSections(Sequencer, SelectedKeys, SelectedSectionHandles, bHotspotIsSection));
 		}
 		else if (bIsDuplicateEvent)
 		{
@@ -193,50 +187,57 @@ TSharedPtr<ISequencerEditToolDragOperation> FSequencerEditTool_Movement::CreateD
 			}
 			else if (HotspotType == ESequencerHotspot::Section)
 			{
-				UMovieSceneSection* HoveredSection = StaticCastSharedPtr<FSectionHotspot>(DelayedDrag->Hotspot)->WeakSection.Get();
+				FSectionHotspot HoveredSection = StaticCastSharedPtr<FSectionHotspot>(DelayedDrag->Hotspot)->Section;
 
-				if (!Selection.IsSelected(HoveredSection))
+				if (!Selection.IsSelected(HoveredSection.Section.GetSectionObject()))
 				{
 					Selection.EmptySelectedKeys();
 					Selection.EmptySelectedSections();
 					Selection.EmptyNodesWithSelectedKeysOrSections();
-					Selection.AddToSelection(HoveredSection);
+					Selection.AddToSelection(HoveredSection.Section.GetSectionObject());
 					SequencerHelpers::UpdateHoveredNodeFromSelectedSections(Sequencer);
 				}
 			}
 
-			return MakeShareable(new FDuplicateKeysAndSections(Sequencer, Selection.GetSelectedKeys(), Selection.GetSelectedSections(), bHotspotIsSection));
+			return MakeShareable(new FDuplicateKeysAndSections(Sequencer, Selection.GetSelectedKeys(), SequencerWidget->GetSectionHandles(Selection.GetSelectedSections()), bHotspotIsSection));
 		}
 
 
-		UMovieSceneSection* SectionToDrag = nullptr;
+		TOptional<FSectionHandle> SectionToDrag;
 		if (HotspotType == ESequencerHotspot::Section || HotspotType == ESequencerHotspot::EasingArea)
 		{
-			SectionToDrag = StaticCastSharedPtr<FSectionHotspot>(DelayedDrag->Hotspot)->WeakSection.Get();
+			SectionToDrag = StaticCastSharedPtr<FSectionHotspot>(DelayedDrag->Hotspot)->Section;
 		}
 
 		// Moving section(s)?
-		if (SectionToDrag)
+		if (SectionToDrag.IsSet())
 		{
-			if (!Selection.IsSelected(SectionToDrag))
+			UMovieSceneSection* ThisSection = SectionToDrag->GetSectionObject();
+
+			TArray<FSectionHandle> SectionHandles;
+			if (Selection.IsSelected(ThisSection))
+			{
+				SectionHandles = SequencerWidget->GetSectionHandles(Selection.GetSelectedSections());
+			}
+			else
 			{
 				Selection.EmptySelectedKeys();
 				Selection.EmptySelectedSections();
 				Selection.EmptyNodesWithSelectedKeysOrSections();
-				Selection.AddToSelection(SectionToDrag);
+				Selection.AddToSelection(ThisSection);
 				SequencerHelpers::UpdateHoveredNodeFromSelectedSections(Sequencer);
+				SectionHandles.Add(SectionToDrag.GetValue());
 			}
-
 			if (MouseEvent.IsShiftDown())
 			{
 				const bool bDraggingByEnd = false;
 				const bool bIsSlipping = true;
-				return MakeShareable( new FResizeSection( Sequencer, Selection.GetSelectedSections(), bDraggingByEnd, bIsSlipping ) );
+				return MakeShareable( new FResizeSection( Sequencer, SectionHandles, bDraggingByEnd, bIsSlipping ) );
 			}
 			else
 			{
 				TSet<FSequencerSelectedKey> EmptyKeySet;
-				return MakeShareable( new FMoveKeysAndSections( Sequencer, EmptyKeySet, Selection.GetSelectedSections(), true) );
+				return MakeShareable( new FMoveKeysAndSections( Sequencer, EmptyKeySet, SectionHandles, true) );
 			}
 		}
 		// Moving key(s)?
@@ -262,20 +263,20 @@ TSharedPtr<ISequencerEditToolDragOperation> FSequencerEditTool_Movement::CreateD
 				SequencerHelpers::UpdateHoveredNodeFromSelectedKeys(Sequencer);
 			}
 
-			TSet<TWeakObjectPtr<UMovieSceneSection>> NoSections;
-			return MakeShareable( new FMoveKeysAndSections( Sequencer, Selection.GetSelectedKeys(), NoSections, false) );
+			TArray<FSectionHandle> EmptySectionHandles;
+			return MakeShareable( new FMoveKeysAndSections( Sequencer, Selection.GetSelectedKeys(), EmptySectionHandles, false) );
 		}
 	}
 	// If we're not dragging a hotspot, sections take precedence over keys
 	else if (Selection.GetSelectedSections().Num())
 	{
 		TSet<FSequencerSelectedKey> EmptyKeySet;
-		return MakeShareable( new FMoveKeysAndSections( Sequencer, EmptyKeySet, Selection.GetSelectedSections(), true ) );
+		return MakeShareable( new FMoveKeysAndSections( Sequencer, EmptyKeySet, SequencerWidget->GetSectionHandles(Selection.GetSelectedSections()), true ) );
 	}
 	else if (Selection.GetSelectedKeys().Num())
 	{
-		TSet<TWeakObjectPtr<UMovieSceneSection>> NoSections;
-		return MakeShareable( new FMoveKeysAndSections( Sequencer, Selection.GetSelectedKeys(), NoSections, false) );
+		TArray<FSectionHandle> EmptySectionHandles;
+		return MakeShareable( new FMoveKeysAndSections( Sequencer, Selection.GetSelectedKeys(), EmptySectionHandles, false) );
 	}
 
 	return nullptr;

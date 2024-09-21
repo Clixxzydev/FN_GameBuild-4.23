@@ -23,18 +23,10 @@
 
 #define LOCTEXT_NAMESPACE "MeshProxyTool"
 
-bool UMeshProxySettingsObject::bInitialized = false;
-UMeshProxySettingsObject* UMeshProxySettingsObject::DefaultSettings = nullptr;
 
 FMeshProxyTool::FMeshProxyTool()
 {
 	SettingsObject = UMeshProxySettingsObject::Get();
-}
-
-FMeshProxyTool::~FMeshProxyTool()
-{
-	UMeshProxySettingsObject::Destroy();
-	SettingsObject = nullptr;
 }
 
 TSharedRef<SWidget> FMeshProxyTool::GetWidget()
@@ -286,4 +278,3 @@ TSharedRef<SWidget> FThirdPartyMeshProxyTool::GetWidget()
 }
 
 #undef LOCTEXT_NAMESPACE
-

@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "Animation/AnimCompressionTypes.h"
 #include "AnimationUtils.h"
@@ -164,7 +164,7 @@ FCompressibleAnimData::FCompressibleAnimData(class UAnimSequence* InSeq, const b
 	if (bPerformStripping)
 	{
 		const int32 NumTracks = RawAnimationData.Num();
-		
+
 		// End frame does not count towards "Even framed" calculation
 		const bool bIsEvenFramed = ((NumFrames - 1) % 2) == 0;
 
@@ -589,7 +589,7 @@ void FCompressedAnimSequence::SerializeCompressedData(FArchive& Ar, bool bDDCDat
 		Ar << NumCurveBytes;
 		Ar.Serialize(CompressedCurveByteStream.GetData(), NumCurveBytes);
 	}
-
+	
 #if WITH_EDITOR
 	if (bDDCData)
 	{
@@ -813,4 +813,3 @@ void DecompressPose(FCompactPose& OutPose, const FCompressedAnimSequence& Compre
 		}
 	}
 }
-

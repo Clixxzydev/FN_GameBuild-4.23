@@ -9,7 +9,6 @@
 
 =============================================================================*/
 
-#include "HTML5/HTML5PlatformFile.h"
 #include "CoreTypes.h"
 #include "HAL/PlatformMath.h"
 #include "HAL/PlatformProcess.h"

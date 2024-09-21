@@ -74,8 +74,7 @@ public:
 
 private:
 	bool SaveHighlightInBackground(const FString& Filename, double MaxDurationSecs);
-	bool SaveHighlightInBackgroundImpl(const FString& Filename, double MaxDurationSecs);
-	bool InitialiseMp4Writer(const FString& Filename, bool bHasAudio);
+	bool InitialiseMp4Writer(const FString& Filename);
 	bool GetSavingStart(const TArray<FGameplayMediaEncoderSample>& Samples, FTimespan MaxDuration, int& OutStartIndex, FTimespan& OutStartTime) const;
 
 	// takes into account if we've been paused and shifts current time back to compensate paused state
@@ -105,9 +104,10 @@ private:
 	// for how long recording has been paused since it's started
 	FTimespan TotalPausedDuration = 0;
 
-	TUniquePtr<FThread> BackgroundSaving;
+	TUniquePtr<FThread> BackgroundProcessor;
 	FDoneCallback DoneCallback;
 	FThreadSafeBool bSaving = false;
+	FThreadSafeBool bStopSaving = false;
 
 #pragma region testing
 public:
@@ -136,11 +136,6 @@ public:
 
 	static void StopCmd()
 	{
-		if (!CheckSingleton())
-		{
-			return;
-		}
-
 		Get()->Stop();
 		delete Singleton;
 		Singleton = nullptr;
@@ -148,31 +143,16 @@ public:
 
 	static void PauseCmd()
 	{
-		if (!CheckSingleton())
-		{
-			return;
-		}
-
 		Get()->Pause(true);
 	}
 
 	static void ResumeCmd()
 	{
-		if (!CheckSingleton())
-		{
-			return;
-		}
-
 		Get()->Pause(false);
 	}
 
 	static void SaveCmd(const TArray<FString>& Args, UWorld*, FOutputDevice& Output)
 	{
-		if (!CheckSingleton())
-		{
-			return;
-		}
-
 		if (Args.Num() > 2)
 		{
 			Output.Logf(ELogVerbosity::Error, TEXT("0-2 parameters expected: Save [filename=\"test.mp4\"] [max_duration_secs= ring buffer duration]"));
@@ -202,20 +182,6 @@ public:
 	}
 
 private:
-
-	static bool CheckSingleton()
-	{
-		if (Singleton)
-		{
-			return true;
-		}
-		else
-		{
-			UE_LOG(HighlightRecorder, Error, TEXT("HighlightRecorder not initialized."));
-			return false;
-		}
-	}
-
 	static FHighlightRecorder* Get()
 	{
 		check(Singleton);

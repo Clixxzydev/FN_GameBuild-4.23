@@ -13,41 +13,39 @@
 
 #define LOCTEXT_NAMESPACE "DataValidationManager"
 
-UDEPRECATED_DataValidationManager* GDataValidationManager = nullptr;
+UDataValidationManager* GDataValidationManager = nullptr;
 
 /**
- * UDEPRECATED_DataValidationManager
+ * UDataValidationManager
  */
 
-UDEPRECATED_DataValidationManager::UDEPRECATED_DataValidationManager(const FObjectInitializer& ObjectInitializer)
+UDataValidationManager::UDataValidationManager(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	DataValidationManagerClassName = FSoftClassPath(TEXT("/Script/DataValidation.DataValidationManager"));
 	bValidateOnSave = true;
 }
 
-UDEPRECATED_DataValidationManager* UDEPRECATED_DataValidationManager::Get()
+UDataValidationManager* UDataValidationManager::Get()
 {
 	if (GDataValidationManager == nullptr)
 	{
-		FSoftClassPath DataValidationManagerClassName = (UDEPRECATED_DataValidationManager::StaticClass()->GetDefaultObject<UDEPRECATED_DataValidationManager>())->DataValidationManagerClassName;
+		FSoftClassPath DataValidationManagerClassName = (UDataValidationManager::StaticClass()->GetDefaultObject<UDataValidationManager>())->DataValidationManagerClassName;
 
 		UClass* SingletonClass = DataValidationManagerClassName.TryLoadClass<UObject>();
 		checkf(SingletonClass != nullptr, TEXT("Data validation config value DataValidationManagerClassName is not a valid class name."));
 
-		GDataValidationManager = NewObject<UDEPRECATED_DataValidationManager>(GetTransientPackage(), SingletonClass, NAME_None);
+		GDataValidationManager = NewObject<UDataValidationManager>(GetTransientPackage(), SingletonClass, NAME_None);
 		checkf(GDataValidationManager != nullptr, TEXT("Data validation config value DataValidationManagerClassName is not a subclass of UDataValidationManager."))
 
 		GDataValidationManager->AddToRoot();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		GDataValidationManager->Initialize();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	return GDataValidationManager;
 }
 
-void UDEPRECATED_DataValidationManager::Initialize()
+void UDataValidationManager::Initialize()
 {
 	FMessageLogInitializationOptions InitOptions;
 	InitOptions.bShowFilters = true;
@@ -56,11 +54,11 @@ void UDEPRECATED_DataValidationManager::Initialize()
 	MessageLogModule.RegisterLogListing("DataValidation", LOCTEXT("DataValidation", "Data Validation"), InitOptions);
 }
 
-UDEPRECATED_DataValidationManager::~UDEPRECATED_DataValidationManager()
+UDataValidationManager::~UDataValidationManager()
 {
 }
 
-EDataValidationResult UDEPRECATED_DataValidationManager::IsObjectValid(UObject* InObject, TArray<FText>& ValidationErrors) const
+EDataValidationResult UDataValidationManager::IsObjectValid(UObject* InObject, TArray<FText>& ValidationErrors) const
 {
 	if (ensure(InObject))
 	{
@@ -70,23 +68,21 @@ EDataValidationResult UDEPRECATED_DataValidationManager::IsObjectValid(UObject* 
 	return EDataValidationResult::NotValidated;
 }
 
-EDataValidationResult UDEPRECATED_DataValidationManager::IsAssetValid(FAssetData& AssetData, TArray<FText>& ValidationErrors) const
+EDataValidationResult UDataValidationManager::IsAssetValid(FAssetData& AssetData, TArray<FText>& ValidationErrors) const
 {
 	if (AssetData.IsValid())
 	{
 		UObject* Obj = AssetData.GetAsset();
 		if (Obj)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			return IsObjectValid(Obj, ValidationErrors);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
 
 	return EDataValidationResult::Invalid;
 }
 
-int32 UDEPRECATED_DataValidationManager::ValidateAssets(TArray<FAssetData> AssetDataList, bool bSkipExcludedDirectories, bool bShowIfNoFailures) const
+int32 UDataValidationManager::ValidateAssets(TArray<FAssetData> AssetDataList, bool bSkipExcludedDirectories, bool bShowIfNoFailures) const
 {
 	FScopedSlowTask SlowTask(1.0f, LOCTEXT("ValidatingDataTask", "Validating Data..."));
 	SlowTask.Visibility = bShowIfNoFailures ? ESlowTaskVisibility::ForceVisible : ESlowTaskVisibility::Invisible;
@@ -113,18 +109,14 @@ int32 UDEPRECATED_DataValidationManager::ValidateAssets(TArray<FAssetData> Asset
 		SlowTask.EnterProgressFrame(1.0f / NumFilesToValidate, FText::Format(LOCTEXT("ValidatingFilename", "Validating {0}"), FText::FromString(Data.GetFullName())));
 
 		// Check exclusion path
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (bSkipExcludedDirectories && IsPathExcludedFromValidation(Data.PackageName.ToString()))
 		{
 			++NumFilesSkipped;
 			continue;
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		TArray<FText> ValidationErrors;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		EDataValidationResult Result = IsAssetValid(Data, ValidationErrors);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		++NumFilesChecked;
 
 		for (const FText& ErrorMsg : ValidationErrors)
@@ -178,7 +170,7 @@ int32 UDEPRECATED_DataValidationManager::ValidateAssets(TArray<FAssetData> Asset
 	return NumInvalidFiles;
 }
 
-void UDEPRECATED_DataValidationManager::ValidateOnSave(TArray<FAssetData> AssetDataList) const
+void UDataValidationManager::ValidateOnSave(TArray<FAssetData> AssetDataList) const
 {
 	// Only validate if enabled and not auto saving
 	if (!bValidateOnSave || GEditor->IsAutosaving())
@@ -187,7 +179,6 @@ void UDEPRECATED_DataValidationManager::ValidateOnSave(TArray<FAssetData> AssetD
 	}
 
 	FMessageLog DataValidationLog("DataValidation");
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (ValidateAssets(AssetDataList, true, false) > 0)
 	{
 		const FText ErrorMessageNotification = FText::Format(
@@ -195,10 +186,9 @@ void UDEPRECATED_DataValidationManager::ValidateOnSave(TArray<FAssetData> AssetD
 			AssetDataList.Num() == 1 ? FText::FromName(AssetDataList[0].AssetName) : LOCTEXT("MultipleErrors", "multiple assets"));
 		DataValidationLog.Notify(ErrorMessageNotification, EMessageSeverity::Warning, /*bForce=*/ true);
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
-void UDEPRECATED_DataValidationManager::ValidateSavedPackage(FName PackageName)
+void UDataValidationManager::ValidateSavedPackage(FName PackageName)
 {
 	// Only validate if enabled and not auto saving
 	if (!bValidateOnSave || GEditor->IsAutosaving())
@@ -208,12 +198,10 @@ void UDEPRECATED_DataValidationManager::ValidateSavedPackage(FName PackageName)
 
 	SavedPackagesToValidate.AddUnique(PackageName);
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	GEditor->GetTimerManager()->SetTimerForNextTick(this, &UDEPRECATED_DataValidationManager::ValidateAllSavedPackages);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	GEditor->GetTimerManager()->SetTimerForNextTick(this, &UDataValidationManager::ValidateAllSavedPackages);
 }
 
-bool UDEPRECATED_DataValidationManager::IsPathExcludedFromValidation(const FString& Path) const
+bool UDataValidationManager::IsPathExcludedFromValidation(const FString& Path) const
 {
 	for (const FDirectoryPath& ExcludedPath : ExcludedDirectories)
 	{
@@ -226,7 +214,7 @@ bool UDEPRECATED_DataValidationManager::IsPathExcludedFromValidation(const FStri
 	return false;
 }
 
-void UDEPRECATED_DataValidationManager::ValidateAllSavedPackages()
+void UDataValidationManager::ValidateAllSavedPackages()
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
@@ -258,9 +246,8 @@ void UDEPRECATED_DataValidationManager::ValidateAllSavedPackages()
 		AssetRegistry.GetAssetsByPackageName(PackageName, Assets);
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ValidateOnSave(Assets);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	SavedPackagesToValidate.Empty();
 }
 

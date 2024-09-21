@@ -68,13 +68,6 @@
 #include "EditorFontGlyphs.h"
 #include "AnimationBlueprintInterfaceEditorMode.h"
 
-// Hide related nodes feature
-#include "Preferences/AnimationBlueprintEditorOptions.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "EdGraphNode_Comment.h"
-#include "AnimStateNodeBase.h"
-#include "AnimStateEntryNode.h"
-
 #define LOCTEXT_NAMESPACE "AnimationBlueprintEditor"
 
 const FName AnimationBlueprintEditorAppName(TEXT("AnimationBlueprintEditorApp"));
@@ -173,8 +166,6 @@ FAnimationBlueprintEditor::~FAnimationBlueprintEditor()
 	FReimportManager::Instance()->OnPostReimport().RemoveAll(this);
 
 	// NOTE: Any tabs that we still have hanging out when destroyed will be cleaned up by FBaseToolkit's destructor
-
-	SaveEditorSettings();
 }
 
 UAnimBlueprint* FAnimationBlueprintEditor::GetAnimBlueprint() const
@@ -217,8 +208,6 @@ void FAnimationBlueprintEditor::InitAnimationBlueprintEditor(const EToolkitMode:
 	{
 		Toolbar = MakeShareable(new FBlueprintEditorToolbar(SharedThis(this)));
 	}
-
-	LoadEditorSettings();
 
 	GetToolkitCommands()->Append(FPlayWorldCommands::GlobalPlayWorldActions.ToSharedRef());
 
@@ -358,39 +347,6 @@ void FAnimationBlueprintEditor::ExtendToolbar()
 			}
 		));
 	}
-
-	struct Local
-	{
-		static void FillToolbar(FToolBarBuilder& ToolbarBuilder, const TSharedRef< FUICommandList > ToolkitCommands, FAnimationBlueprintEditor* BlueprintEditor)
-		{
-			ToolbarBuilder.BeginSection("Graph");
-			{
-				ToolbarBuilder.AddToolBarButton(
-					FAnimGraphCommands::Get().ToggleHideUnrelatedNodes,
-					NAME_None,
-					TAttribute<FText>(),
-					TAttribute<FText>(),
-					FSlateIcon(FEditorStyle::GetStyleSetName(), "GraphEditor.ToggleHideUnrelatedNodes")
-				);
-				ToolbarBuilder.AddComboButton(
-					FUIAction(),
-					FOnGetContent::CreateSP(BlueprintEditor, &FBlueprintEditor::MakeHideUnrelatedNodesOptionsMenu),
-					LOCTEXT("HideUnrelatedNodesOptions", "Hide Unrelated Nodes Options"),
-					LOCTEXT("HideUnrelatedNodesOptionsMenu", "Hide Unrelated Nodes options menu"),
-					TAttribute<FSlateIcon>(),
-					true
-				);
-			}
-			ToolbarBuilder.EndSection();
-		}
-	};
-
-    ToolbarExtender->AddToolBarExtension(
-		"Asset",
-		EExtensionHook::After,
-		GetToolkitCommands(),
-		FToolBarExtensionDelegate::CreateStatic( &Local::FillToolbar, GetToolkitCommands(), this )
-	);
 }
 
 UBlueprint* FAnimationBlueprintEditor::GetBlueprintObj() const
@@ -430,11 +386,6 @@ void FAnimationBlueprintEditor::OnGraphEditorFocused(const TSharedRef<class SGra
 	{
 		OnPinDefaultValueChangedHandle = AnimationGraph->OnPinDefaultValueChanged.Add(FOnPinDefaultValueChanged::FDelegate::CreateSP(this, &FAnimationBlueprintEditor::HandlePinDefaultValueChanged));
 	}
-
-	if (bHideUnrelatedNodes && GetSelectedNodes().Num() <= 0)
-	{
-		ResetAllNodesUnrelatedStates();
-	}
 }
 
 void FAnimationBlueprintEditor::OnGraphEditorBackgrounded(const TSharedRef<SGraphEditor>& InGraphEditor)
@@ -454,12 +405,6 @@ void FAnimationBlueprintEditor::CreateDefaultCommands()
 	if (GetBlueprintObj())
 	{
 		FBlueprintEditor::CreateDefaultCommands();
-
-		ToolkitCommands->MapAction(
-			FAnimGraphCommands::Get().ToggleHideUnrelatedNodes,
-			FExecuteAction::CreateSP(this, &FBlueprintEditor::ToggleHideUnrelatedNodes),
-			FCanExecuteAction(),
-			FIsActionChecked::CreateSP(this, &FBlueprintEditor::IsToggleHideUnrelatedNodesChecked));
 	}
 	else
 	{
@@ -1447,11 +1392,6 @@ void FAnimationBlueprintEditor::HandleOpenNewAsset(UObject* InNewAsset)
 	FAssetEditorManager::Get().OpenEditorForAsset(InNewAsset);
 }
 
-void FAnimationBlueprintEditor::AddReferencedObjects( FReferenceCollector& Collector )
-{
-    Collector.AddReferencedObject( EditorOptions );
-}
-
 FAnimNode_Base* FAnimationBlueprintEditor::FindAnimNode(UAnimGraphNode_Base* AnimGraphNode) const
 {
 	FAnimNode_Base* AnimNode = nullptr;
@@ -1498,29 +1438,6 @@ void FAnimationBlueprintEditor::OnSelectedNodesChangedImpl(const TSet<class UObj
 			{
 				NewSelectedAnimGraphNode->OnNodeSelected(true, *PersonaEditorModeManager, PreviewNode);
 			}
-		}
-	}
-
-    bSelectRegularNode = false;
-	for (FGraphPanelSelectionSet::TConstIterator It(NewSelection); It; ++It)
-	{
-		UEdGraphNode_Comment* SeqNode = Cast<UEdGraphNode_Comment>(*It);
-		UAnimStateNodeBase* AnimGraphNodeBase = Cast<UAnimStateNodeBase>(*It);
-		UAnimStateEntryNode* AnimStateEntryNode = Cast<UAnimStateEntryNode>(*It);
-		if (!SeqNode && !AnimGraphNodeBase && !AnimStateEntryNode)
-		{
-			bSelectRegularNode = true;
-			break;
-		}
-	}
-
-    if (bHideUnrelatedNodes && !bLockNodeFadeState)
-	{
-		ResetAllNodesUnrelatedStates();
-
-		if ( bSelectRegularNode )
-		{
-			HideUnrelatedNodes();
 		}
 	}
 }
@@ -1748,25 +1665,6 @@ void FAnimationBlueprintEditor::HandleViewportCreated(const TSharedRef<IPersonaV
 			]
 		]
 	);
-}
-
-void FAnimationBlueprintEditor::LoadEditorSettings()
-{
-	EditorOptions = NewObject<UAnimationBlueprintEditorOptions>();
-
-	if (EditorOptions->bHideUnrelatedNodes)
-	{
-		ToggleHideUnrelatedNodes();
-	}
-}
-
-void FAnimationBlueprintEditor::SaveEditorSettings()
-{
-	if ( EditorOptions )
-	{
-		EditorOptions->bHideUnrelatedNodes = bHideUnrelatedNodes;
-		EditorOptions->SaveConfig();
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

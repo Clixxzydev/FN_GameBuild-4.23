@@ -62,11 +62,6 @@ void UMovieSceneEventTrack::RemoveSection(UMovieSceneSection& Section)
 	Sections.Remove(&Section);
 }
 
-void UMovieSceneEventTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	Sections.RemoveAt(SectionIndex);
-}
-
 FMovieSceneEvalTemplatePtr UMovieSceneEventTrack::CreateTemplateForSection(const UMovieSceneSection& InSection) const
 {
 	if (const UMovieSceneEventSection* LegacyEventSection = Cast<const UMovieSceneEventSection>(&InSection))

@@ -395,13 +395,6 @@ FReply UImage::HandleMouseButtonDown(const FGeometry& Geometry, const FPointerEv
 	return FReply::Unhandled();
 }
 
-#if WITH_ACCESSIBILITY
-TSharedPtr<SWidget> UImage::GetAccessibleWidget() const
-{
-	return MyImage;
-}
-#endif
-
 #if WITH_EDITOR
 
 const FText UImage::GetPaletteCategory()

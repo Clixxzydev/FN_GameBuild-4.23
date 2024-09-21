@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -63,6 +63,9 @@ static VideoBootStrap *bootstrap[] = {
 #endif
 #if SDL_VIDEO_DRIVER_X11
     &X11_bootstrap,
+#endif
+#if SDL_VIDEO_DRIVER_MIR
+    &MIR_bootstrap,
 #endif
 #if SDL_VIDEO_DRIVER_WAYLAND
     &Wayland_bootstrap,
@@ -652,7 +655,7 @@ SDL_GetNumVideoDisplays(void)
     return _this->num_displays;
 }
 
-int
+static int
 SDL_GetIndexOfDisplay(SDL_VideoDisplay *display)
 {
     int displayIndex;
@@ -748,17 +751,6 @@ SDL_GetDisplayDPI(int displayIndex, float * ddpi, float * hdpi, float * vdpi)
     }
 
     return -1;
-}
-
-SDL_DisplayOrientation
-SDL_GetDisplayOrientation(int displayIndex)
-{
-    SDL_VideoDisplay *display;
-
-    CHECK_DISPLAY_INDEX(displayIndex, SDL_ORIENTATION_UNKNOWN);
-
-    display = &_this->displays[displayIndex];
-    return display->orientation;
 }
 
 SDL_bool
@@ -1029,14 +1021,6 @@ SDL_SetDisplayModeForDisplay(SDL_VideoDisplay * display, const SDL_DisplayMode *
     }
     display->current_mode = display_mode;
     return 0;
-}
-
-SDL_VideoDisplay *
-SDL_GetDisplay(int displayIndex)
-{
-    CHECK_DISPLAY_INDEX(displayIndex, NULL);
-
-    return &_this->displays[displayIndex];
 }
 
 int
@@ -1551,13 +1535,11 @@ SDL_CreateWindow(const char *title, int x, int y, int w, int h, Uint32 flags)
         return NULL;
     }
 
-    /* Clear minimized if not on windows, only windows handles it at create rather than FinishWindowCreation,
-     * but it's important or window focus will get broken on windows!
-     */
+	// Clear minimized if not on windows, only windows handles it at create rather than FinishWindowCreation,
+	// but it's important or window focus will get broken on windows!
 #if !defined(__WIN32__)
-    if (window->flags & SDL_WINDOW_MINIMIZED) {
-        window->flags &= ~SDL_WINDOW_MINIMIZED;
-    }
+	if ( window->flags & SDL_WINDOW_MINIMIZED )
+		window->flags &= ~SDL_WINDOW_MINIMIZED;
 #endif
 
 #if __WINRT__ && (NTDDI_VERSION < NTDDI_WIN10)
@@ -1650,7 +1632,6 @@ SDL_RecreateWindow(SDL_Window * window, Uint32 flags)
         window->surface->flags &= ~SDL_DONTFREE;
         SDL_FreeSurface(window->surface);
         window->surface = NULL;
-        window->surface_valid = SDL_FALSE;
     }
     if (_this->DestroyWindowFramebuffer) {
         _this->DestroyWindowFramebuffer(_this, window);
@@ -1668,12 +1649,6 @@ SDL_RecreateWindow(SDL_Window * window, Uint32 flags)
         } else {
             SDL_GL_UnloadLibrary();
         }
-    } else if (window->flags & SDL_WINDOW_OPENGL) {
-        SDL_GL_UnloadLibrary();
-        if (SDL_GL_LoadLibrary(NULL) < 0) {
-            return -1;
-        }
-        loaded_opengl = SDL_TRUE;
     }
 
     if ((window->flags & SDL_WINDOW_VULKAN) != (flags & SDL_WINDOW_VULKAN)) {
@@ -1915,6 +1890,7 @@ SDL_SetWindowPosition(SDL_Window * window, int x, int y)
         if (_this->SetWindowPosition) {
             _this->SetWindowPosition(_this, window);
         }
+        SDL_SendWindowEvent(window, SDL_WINDOWEVENT_MOVED, x, y);
     }
 }
 
@@ -2243,25 +2219,12 @@ SDL_MaximizeWindow(SDL_Window * window)
 /* EG END */
 }
 
-static SDL_bool
-CanMinimizeWindow(SDL_Window * window)
-{
-    if (!_this->MinimizeWindow) {
-        return SDL_FALSE;
-    }
-    return SDL_TRUE;
-}
-
 void
 SDL_MinimizeWindow(SDL_Window * window)
 {
     CHECK_WINDOW_MAGIC(window,);
 
     if (window->flags & SDL_WINDOW_MINIMIZED) {
-        return;
-    }
-
-    if (!CanMinimizeWindow(window)) {
         return;
     }
 
@@ -2732,15 +2695,6 @@ ShouldMinimizeOnFocusLoss(SDL_Window * window)
 #ifdef __MACOSX__
     if (SDL_strcmp(_this->name, "cocoa") == 0) {  /* don't do this for X11, etc */
         if (Cocoa_IsWindowInFullscreenSpace(window)) {
-            return SDL_FALSE;
-        }
-    }
-#endif
-
-#ifdef __ANDROID__
-    {
-        extern SDL_bool Android_JNI_ShouldMinimizeOnFocusLoss(void);
-        if (! Android_JNI_ShouldMinimizeOnFocusLoss()) {
             return SDL_FALSE;
         }
     }
@@ -4045,7 +3999,7 @@ SDL_ShowSimpleMessageBox(Uint32 flags, const char *title, const char *message, S
     /* Web browsers don't (currently) have an API for a custom message box
        that can block, but for the most common case (SDL_ShowSimpleMessageBox),
        we can use the standard Javascript alert() function. */
-    EM_ASM_({
+    MAIN_THREAD_EM_ASM({
         alert(UTF8ToString($0) + "\n\n" + UTF8ToString($1));
     }, title, message);
     return 0;
@@ -4212,14 +4166,11 @@ void SDL_Vulkan_UnloadLibrary(void)
 
 SDL_bool SDL_Vulkan_GetInstanceExtensions(SDL_Window *window, unsigned *count, const char **names)
 {
-    if (window) {
-        CHECK_WINDOW_MAGIC(window, SDL_FALSE);
+    CHECK_WINDOW_MAGIC(window, SDL_FALSE);
 
-        if (!(window->flags & SDL_WINDOW_VULKAN))
-        {
-            SDL_SetError(NOT_A_VULKAN_WINDOW);
-            return SDL_FALSE;
-        }
+    if (!(window->flags & SDL_WINDOW_VULKAN)) {
+        SDL_SetError(NOT_A_VULKAN_WINDOW);
+        return SDL_FALSE;
     }
 
     if (!count) {

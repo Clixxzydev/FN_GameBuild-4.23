@@ -16,7 +16,6 @@
 #include "GlobalShader.h"
 #include "ScreenRendering.h"
 #include "PipelineStateCache.h"
-#include "RenderTargetPool.h"
 
 #include "instant_preview_server.h"
 #include "GoogleVRInstantPreviewGetServer.h"
@@ -283,10 +282,6 @@ FGoogleVRHMD::FGoogleVRHMD(const FAutoRegister& AutoRegister)
 	, ActiveViewportList(nullptr)
 	, ScratchViewport(nullptr)
 #endif
-#if GOOGLEVRHMD_SUPPORTED_INSTANT_PREVIEW_PLATFORMS
-	, RenderQueryPool(RHICreateRenderQueryPool(RQT_AbsoluteTime, kReadbackTextureCount + 1))
-	, ReadbackCopyQueries(new FRHIPooledRenderQuery[kReadbackTextureCount])
-#endif
 	, PosePitch(0.0f)
 	, PoseYaw(0.0f)
 	, DistortionPointsX(40)
@@ -480,30 +475,6 @@ FGoogleVRHMD::FGoogleVRHMD(const FAutoRegister& AutoRegister)
 
 FGoogleVRHMD::~FGoogleVRHMD()
 {
-#if GOOGLEVRHMD_SUPPORTED_INSTANT_PREVIEW_PLATFORMS
-	ENQUEUE_RENDER_COMMAND(ShutdownRenderThread)(
-		[this](FRHICommandListImmediate& RHICmdList)
-	{
-		if (ReadbackCopyQueries != nullptr)
-		{
-			//release any queries that are still active
-			for (int32 ClearIndex = 0; ClearIndex < kReadbackTextureCount; ClearIndex++)
-			{
-				if (ReadbackCopyQueries[ClearIndex].GetQuery() != nullptr)
-				{
-					ReadbackCopyQueries[ClearIndex].ReleaseQuery();
-				}
-			}
-
-			//make sure to deallocate on the render thread!
-			delete[] ReadbackCopyQueries;
-			ReadbackCopyQueries = nullptr;
-		}
-		RenderQueryPool.SafeRelease();
-	});
-	FlushRenderingCommands();
-#endif
-
 #if GOOGLEVRHMD_SUPPORTED_PLATFORMS
 	if (DistortedBufferViewportList)
 	{
@@ -1241,10 +1212,10 @@ void FGoogleVRHMD::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& R
 			check(ReadbackTextures[textureIndex].GetReference());
 			ReadbackTextureSizes[textureIndex] = renderSize;
 		}
-		ReadbackCopyQueries[ReadbackTextureCount % kReadbackTextureCount] = RenderQueryPool->AllocateQuery();
+		ReadbackCopyQueries[ReadbackTextureCount % kReadbackTextureCount] = RHICmdList.CreateRenderQuery(ERenderQueryType::RQT_AbsoluteTime);
 
 		// Absolute time query creation can fail on AMD hardware due to driver support
-		if (!ReadbackCopyQueries[ReadbackTextureCount % kReadbackTextureCount].GetQuery())
+		if (!ReadbackCopyQueries[ReadbackTextureCount % kReadbackTextureCount])
 		{
 			return;
 		}
@@ -1253,7 +1224,7 @@ void FGoogleVRHMD::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& R
 		FPooledRenderTargetDesc OutputDesc(FPooledRenderTargetDesc::Create2DDesc(ReadbackTextureSizes[textureIndex], PF_B8G8R8A8, FClearValueBinding::None, TexCreate_None, TexCreate_RenderTargetable, false));
 		const auto FeatureLevel = GMaxRHIFeatureLevel;
 		TRefCountPtr<IPooledRenderTarget> ResampleTexturePooledRenderTarget;
-		GRenderTargetPool.FindFreeElement(RHICmdList, OutputDesc, ResampleTexturePooledRenderTarget, TEXT("ResampleTexture"));
+		RendererModule->RenderTargetPoolFindFreeElement(RHICmdList, OutputDesc, ResampleTexturePooledRenderTarget, TEXT("ResampleTexture"));
 		check(ResampleTexturePooledRenderTarget);
 		const FSceneRenderTargetItem& DestRenderTarget = ResampleTexturePooledRenderTarget->GetRenderTargetItem();
 
@@ -1301,13 +1272,13 @@ void FGoogleVRHMD::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& R
 			ReadbackTextures[ReadbackTextureCount % kReadbackTextureCount],
 			FResolveParams());
 		ReadbackReferencePoses[ReadbackTextureCount % kReadbackTextureCount] = RenderReferencePose;
-		RHICmdList.EndRenderQuery(ReadbackCopyQueries[ReadbackTextureCount % kReadbackTextureCount].GetQuery());
+		RHICmdList.EndRenderQuery(ReadbackCopyQueries[ReadbackTextureCount % kReadbackTextureCount]);
 
 		ReadbackTextureCount++;
 	}
 
 	uint64 result = 0;
-	if (RHICmdList.GetRenderQueryResult(ReadbackCopyQueries[SentTextureCount % kReadbackTextureCount].GetQuery(), result, false))
+	if (RHICmdList.GetRenderQueryResult(ReadbackCopyQueries[SentTextureCount % kReadbackTextureCount], result, false))
 	{
 		int latestReadbackTextureIndex = SentTextureCount % kReadbackTextureCount;
 		GDynamicRHI->RHIReadSurfaceData(
@@ -1323,8 +1294,6 @@ void FGoogleVRHMD::PostRenderViewFamily_RenderThread(FRHICommandListImmediate& R
 			ReadbackTextureSizes[latestReadbackTextureIndex].X * 4,
 			instant_preview::PIXEL_FORMAT_BGRA,
 			ReadbackReferencePoses[latestReadbackTextureIndex]);
-
-		ReadbackCopyQueries[latestReadbackTextureIndex].ReleaseQuery();
 
 		SentTextureCount++;
 	}
@@ -2275,7 +2244,7 @@ void FGoogleVRHMD::SetTrackingOrigin(EHMDTrackingOrigin::Type InOrigin)
 	OnTrackingOriginChanged();
 }
 
-EHMDTrackingOrigin::Type FGoogleVRHMD::GetTrackingOrigin() const
+EHMDTrackingOrigin::Type FGoogleVRHMD::GetTrackingOrigin()
 {
 	return TrackingOrigin;
 }

@@ -46,8 +46,8 @@ TAutoConsoleVariable<int32> CVarDelayAcquireBackBuffer(
 	1,
 	TEXT("Whether to delay acquiring the back buffer \n")
 	TEXT(" 0: acquire next image on frame start \n")
-	TEXT(" 1: acquire next image just before presenting, rendering is done to intermediate image which is then copied to a real backbuffer (default) \n")
-	TEXT(" 2: acquire next image on first use"),
+	TEXT(" 1: acquire next image just before presenting, rendering is done to intermediate image which is then copied to real backbuffer (default) \n")
+	TEXT(" 2: acquire next image immediately after presenting current"),
 	ECVF_ReadOnly
 );
 
@@ -59,7 +59,7 @@ static EDelayAcquireImageType DelayAcquireBackBuffer()
 	case 1:
 		return EDelayAcquireImageType::DelayAcquire;
 	case 2:
-		return EDelayAcquireImageType::LazyAcquire;
+		return EDelayAcquireImageType::PreAcquire;
 	}
 	return EDelayAcquireImageType::None;
 }
@@ -356,7 +356,7 @@ void FVulkanDevice::CreateDevice()
 
 #if VULKAN_ENABLE_DRAW_MARKERS
 #if 0//VULKAN_SUPPORTS_DEBUG_UTILS
-	FVulkanDynamicRHI* RHI = GVulkanRHI;
+	FVulkanDynamicRHI* RHI = (FVulkanDynamicRHI*)GDynamicRHI;
 	if (RHI->SupportsDebugUtilsExt() && GRenderDocFound)
 	{
 		DebugMarkers.CmdBeginDebugLabel = (PFN_vkCmdBeginDebugUtilsLabelEXT)(void*)VulkanRHI::vkGetInstanceProcAddr(RHI->GetInstance(), "vkCmdBeginDebugUtilsLabelEXT");
@@ -396,11 +396,6 @@ void FVulkanDevice::CreateDevice()
 			UE_LOG(LogVulkanRHI, Warning, TEXT("Extension not found, but entry points for vkCmdDebugMarker(Begin|End)EXT found!"));
 			bDebugMarkersFound = true;
 		}
-	}
-	FVulkanDynamicRHI* RHI = GVulkanRHI;
-	if (RHI->SupportsDebugUtilsExt())
-	{
-		DebugMarkers.SetDebugName = (PFN_vkSetDebugUtilsObjectNameEXT)(void*)VulkanRHI::vkGetInstanceProcAddr(RHI->GetInstance(), "vkSetDebugUtilsObjectNameEXT");
 	}
 
 	if (bDebugMarkersFound)
@@ -538,9 +533,6 @@ void FVulkanDevice::SetupFormats()
 
 	MapFormatSupport(PF_R16G16B16A16_SINT, VK_FORMAT_R16G16B16A16_SINT);
 	SetComponentMapping(PF_R16G16B16A16_SINT, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A);
-
-	MapFormatSupport(PF_R32G32_UINT, VK_FORMAT_R32G32_UINT);
-	SetComponentMapping(PF_R32G32_UINT, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_ZERO, VK_COMPONENT_SWIZZLE_ZERO);
 
 	MapFormatSupport(PF_R32G32B32A32_UINT, VK_FORMAT_R32G32B32A32_UINT);
 	SetComponentMapping(PF_R32G32B32A32_UINT, VK_COMPONENT_SWIZZLE_R, VK_COMPONENT_SWIZZLE_G, VK_COMPONENT_SWIZZLE_B, VK_COMPONENT_SWIZZLE_A);
@@ -820,7 +812,7 @@ void FVulkanDevice::InitGPU(int32 DeviceIndex)
 			VulkanRHI::vkGetBufferMemoryRequirements(Device, CrashMarker.Buffer, &MemReq);
 
 			CrashMarker.Allocation = MemoryManager.Alloc(false, CreateInfo.size, MemReq.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, nullptr, VULKAN_MEMORY_MEDIUM_PRIORITY, __FILE__, __LINE__);
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, nullptr, __FILE__, __LINE__);
 
 			uint32* Entry = (uint32*)CrashMarker.Allocation->Map(VK_WHOLE_SIZE, 0);
 			check(Entry);
@@ -831,7 +823,7 @@ void FVulkanDevice::InitGPU(int32 DeviceIndex)
 		else if (OptionalDeviceExtensions.HasNVDiagnosticCheckpoints)
 		{
 			CrashMarker.Allocation = MemoryManager.Alloc(false, GMaxCrashBufferEntries * sizeof(uint32_t), UINT32_MAX, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, nullptr, VULKAN_MEMORY_MEDIUM_PRIORITY, __FILE__, __LINE__);
+				VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, nullptr, __FILE__, __LINE__);
 			uint32* Entry = (uint32*)CrashMarker.Allocation->Map(VK_WHOLE_SIZE, 0);
 			check(Entry);
 			// Start with 0 entries
@@ -852,16 +844,26 @@ void FVulkanDevice::InitGPU(int32 DeviceIndex)
 
 	PipelineStateCache = new FVulkanPipelineStateCacheManager(this);
 
-	TArray<FString> CacheFilenames = FVulkanPlatform::GetPSOCacheFilenames();
+	TArray<FString> CacheFilenames;
+	FString StagedCacheDirectory = FPaths::ProjectDir() / TEXT("Build") / TEXT("ShaderCaches") / FPlatformProperties::IniPlatformName();
+
+	// look for any staged caches
+	TArray<FString> StagedCaches;
+	IFileManager::Get().FindFiles(StagedCaches, *StagedCacheDirectory, TEXT("cache"));
+	// FindFiles returns the filenames without directory, so prepend the stage directory
+	for (const FString& Filename : StagedCaches)
+	{
+		CacheFilenames.Add(StagedCacheDirectory / Filename);
+	}
 
 	// always look in the saved directory (for the cache from previous run that wasn't moved over to stage directory)
 	CacheFilenames.Add(VulkanRHI::GetPipelineCacheFilename());
 
-	ImmediateContext = new FVulkanCommandListContextImmediate(GVulkanRHI, this, GfxQueue);
+	ImmediateContext = new FVulkanCommandListContextImmediate((FVulkanDynamicRHI*)GDynamicRHI, this, GfxQueue);
 
 	if (GfxQueue->GetFamilyIndex() != ComputeQueue->GetFamilyIndex() && GRHIAllowAsyncComputeCvar.GetValueOnAnyThread() != 0)
 	{
-		ComputeContext = new FVulkanCommandListContextImmediate(GVulkanRHI, this, ComputeQueue);
+		ComputeContext = new FVulkanCommandListContextImmediate((FVulkanDynamicRHI*)GDynamicRHI, this, ComputeQueue);
 		GEnableAsyncCompute = true;
 	}
 	else
@@ -875,7 +877,7 @@ void FVulkanDevice::InitGPU(int32 DeviceIndex)
 		int32 Num = FTaskGraphInterface::Get().GetNumWorkerThreads();
 		for (int32 Index = 0; Index < Num; Index++)
 		{
-			FVulkanCommandListContext* CmdContext = new FVulkanCommandListContext(GVulkanRHI, this, GfxQueue, ImmediateContext);
+			FVulkanCommandListContext* CmdContext = new FVulkanCommandListContext((FVulkanDynamicRHI*)GDynamicRHI, this, GfxQueue, ImmediateContext);
 			CommandContexts.Add(CmdContext);
 		}
 	}
@@ -895,7 +897,7 @@ void FVulkanDevice::InitGPU(int32 DeviceIndex)
 		DefaultSampler = ResourceCast(RHICreateSamplerState(Default).GetReference());
 
 		FRHIResourceCreateInfo CreateInfo;
-		DefaultImage = new FVulkanSurface(*this, VK_IMAGE_VIEW_TYPE_2D, PF_B8G8R8A8, 1, 1, 1, 1, 1, 1, TexCreate_RenderTargetable | TexCreate_ShaderResource, CreateInfo);
+		DefaultImage = new FVulkanSurface(*this, VK_IMAGE_VIEW_TYPE_2D, PF_B8G8R8A8, 1, 1, 1, false, 0, 1, 1, TexCreate_RenderTargetable | TexCreate_ShaderResource, CreateInfo);
 		DefaultTextureView.Create(*this, DefaultImage->Image, VK_IMAGE_VIEW_TYPE_2D, DefaultImage->GetFullAspectMask(), PF_B8G8R8A8, VK_FORMAT_B8G8R8A8_UNORM, 0, 1, 0, 1);
 	}
 }
@@ -1166,7 +1168,7 @@ FVulkanCommandListContext* FVulkanDevice::AcquireDeferredContext()
 	FScopeLock Lock(&GContextCS);
 	if (CommandContexts.Num() == 0)
 	{
-		return new FVulkanCommandListContext(GVulkanRHI, this, GfxQueue, ImmediateContext);
+		return new FVulkanCommandListContext((FVulkanDynamicRHI*)GDynamicRHI, this, GfxQueue, ImmediateContext);
 	}
 	return CommandContexts.Pop(false);
 }
@@ -1178,20 +1180,4 @@ void FVulkanDevice::ReleaseDeferredContext(FVulkanCommandListContext* InContext)
 		FScopeLock Lock(&GContextCS);
 		CommandContexts.Push(InContext);
 	}
-}
-
-void FVulkanDevice::VulkanSetObjectName(VkObjectType Type, uint64_t Handle, const TCHAR* Name)
-{
-#if VULKAN_ENABLE_DRAW_MARKERS
-	if(DebugMarkers.SetDebugName)
-	{
-		FTCHARToUTF8 Converter(Name);
-		VkDebugUtilsObjectNameInfoEXT Info;
-		ZeroVulkanStruct(Info, VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT);
-		Info.objectType = Type;
-		Info.objectHandle = Handle;
-		Info.pObjectName = Converter.Get();
-		DebugMarkers.SetDebugName(Device, &Info);
-	}
-#endif // VULKAN_ENABLE_DRAW_MARKERS
 }

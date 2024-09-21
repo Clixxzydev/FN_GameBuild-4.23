@@ -340,7 +340,6 @@ void SMeshInstancingDialog::CreateSettingsView()
 	DetailsViewArgs.bLockable = true;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::ComponentsAndActorsUseNameArea;
 	DetailsViewArgs.bCustomNameAreaLocation = false;
-	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::ENameAreaSettings::HideNameArea;
 	DetailsViewArgs.bCustomFilterAreaLocation = true;
 	DetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Hide;
 	

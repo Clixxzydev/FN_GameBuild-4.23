@@ -32,9 +32,6 @@ public:
 
 	/** @return The tooltip for the tree item label */
 	virtual FText GetLabelToolTipText() const { return FText::GetEmpty(); }
-	
-	/** @param OutStrings - Returns an array of strings used for filtering/searching this item. */
-	virtual void GetFilterStrings(TArray<FString>& OutStrings) const { OutStrings.Add(GetText().ToString()); }
 
 	virtual const FSlateBrush* GetImage() const = 0;
 
@@ -199,8 +196,6 @@ public:
 	virtual FText GetText() const override;
 	virtual FText GetImageToolTipText() const override;
 	virtual FText GetLabelToolTipText() const override;
-	
-	virtual void GetFilterStrings(TArray<FString>& OutStrings) const override;
 
 	virtual const FSlateBrush* GetImage() const override;
 

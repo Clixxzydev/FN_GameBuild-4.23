@@ -70,11 +70,6 @@ public class HTML5Platform : Platform
 		string UE4GameBasename = Path.Combine(PackagePath, _ProjectFilename);
 		string ProjectBasename = Path.Combine(PackagePath, Params.ShortProjectName + _ProjectNameExtra);
 
-		if (Params.IsCodeBasedProject && Params.HasClientCookedTargets)
-		{
-			UE4GameBasename = Params.ClientCookedTargets[0];
-		}
-
 		// ----------------------------------------
 		// packaging
 		if (HTMLPakAutomation.CanCreateMapPaks(Params))
@@ -154,13 +149,13 @@ public class HTML5Platform : Platform
 				File.Copy(      SrcUE4GameBasename + ".js.mem", UE4GameBasename + ".js.mem", true);
 				File.SetAttributes(UE4GameBasename + ".js.mem", FileAttributes.Normal);
 
-				File.Copy(      SrcUE4GameBasename + ".worker.js", UE4GameBasename + ".worker.js", true);
-				File.SetAttributes(UE4GameBasename + ".worker.js", FileAttributes.Normal);
+				File.Copy(Path.Combine(Path.GetDirectoryName(_ProjectFullpath), "pthread-main.js"), Path.Combine(PackagePath, "pthread-main.js"), true);
+				File.SetAttributes(Path.Combine(PackagePath, "pthread-main.js"), FileAttributes.Normal);
 			}
 			else
 			{
-				// nuke possibly old deployed .worker.js, which is not needed for singlethreaded build.
-				File.Delete(UE4GameBasename + ".worker.js");
+				// nuke possibly old deployed pthread-main.js, which is not needed for singlethreaded build.
+				File.Delete(Path.Combine(PackagePath, "pthread-main.js"));
 			}
 		}
 		// else, c++ projects will compile "to" PackagePath
@@ -181,18 +176,18 @@ public class HTML5Platform : Platform
 			BuildPath = LocalBuildPath;
 			TemplateFile = CombinePaths(BuildPath, "project_template.html");
 		}
-		GenerateFileFromTemplate(TemplateFile, ProjectBasename + ".html", Params, SC, ConfigCache);
+		GenerateFileFromTemplate(TemplateFile, ProjectBasename + ".html", Params, ConfigCache);
 
 		TemplateFile = CombinePaths(BuildPath, "project_template.js");
 		if ( File.Exists(TemplateFile) )
 		{
-			GenerateFileFromTemplate(TemplateFile, ProjectBasename + ".UE4.js", Params, SC, ConfigCache);
+			GenerateFileFromTemplate(TemplateFile, ProjectBasename + ".UE4.js", Params, ConfigCache);
 		}
 
 		TemplateFile = CombinePaths(BuildPath, "project_template.css");
 		if ( File.Exists(TemplateFile) )
 		{
-			GenerateFileFromTemplate(TemplateFile, ProjectBasename + ".css", Params, SC, ConfigCache);
+			GenerateFileFromTemplate(TemplateFile, ProjectBasename + ".css", Params, ConfigCache);
 		}
 
 
@@ -254,7 +249,7 @@ public class HTML5Platform : Platform
 			if (enableMultithreading)
 			{
 				CompressionTasks.Add(Task.Factory.StartNew(() => CompressFile(UE4GameBasename + ".js.mem", UE4GameBasename + ".js.memgz")));			// mem init file
-				CompressionTasks.Add(Task.Factory.StartNew(() => CompressFile(UE4GameBasename + ".worker.js", UE4GameBasename + ".worker.jsgz")));		// pthread file
+				CompressionTasks.Add(Task.Factory.StartNew(() => CompressFile(PackagePath + "/pthread-main.js", PackagePath + "/pthread-main.jsgz")));	// pthread file
 			}
 			Task.WaitAll(CompressionTasks.ToArray());
 		}
@@ -267,7 +262,7 @@ public class HTML5Platform : Platform
 			File.Delete(UE4GameBasename + ".jsgz");
 			File.Delete(UE4GameBasename + ".js.symbolsgz");
 			File.Delete(UE4GameBasename + ".js.memgz");
-			File.Delete(UE4GameBasename + ".worker.jsgz");
+			File.Delete(PackagePath + "/pthread-main.jsgz");
 			File.Delete(PackagePath + "/Utility.jsgz");
 			File.Delete(ProjectBasename + ".datagz");
 			File.Delete(ProjectBasename + ".data.jsgz");
@@ -315,12 +310,12 @@ public class HTML5Platform : Platform
 		}
 	}
 
-	protected void GenerateFileFromTemplate(string InTemplateFile, string InOutputFile, ProjectParams Params, DeploymentContext SC, ConfigHierarchy ConfigCache)
+	protected void GenerateFileFromTemplate(string InTemplateFile, string InOutputFile, ProjectParams Params, ConfigHierarchy ConfigCache)
 	{
 		bool IsContentOnly = !Params.IsCodeBasedProject;
 		string ProjectConfiguration = Params.ClientConfigsToBuild[0].ToString();
 
-		string UE4GameName = IsContentOnly ? "UE4Game" : (Params.HasClientCookedTargets ? Params.ClientCookedTargets[0] : Params.ShortProjectName);
+		string UE4GameName = IsContentOnly ? "UE4Game" : Params.ShortProjectName;
 		string ProjectName = Params.ShortProjectName;
 		if (ProjectConfiguration != "Development")
 		{
@@ -373,11 +368,6 @@ public class HTML5Platform : Platform
 				if (LineStr.Contains("%UE4CMDLINE%"))
 				{
 					string ArgumentString = "'../../../" + Params.ShortProjectName + "/" + Params.ShortProjectName + ".uproject',";
-
-					if ( Params.MapToRun.Length > 0 )
-					{
-						ArgumentString += "'" + Params.MapToRun + "',";
-					}
 					ArgumentString += "'-stdout',"; // suppress double printing to console.log
 					LineStr = LineStr.Replace("%UE4CMDLINE%", ArgumentString);
 				}
@@ -503,10 +493,6 @@ public class HTML5Platform : Platform
 		string UE4GameBasename = Path.GetFileNameWithoutExtension(Params.GetProjectExeForPlatform(UnrealTargetPlatform.HTML5).ToString());
 		string ProjectBasename = Params.ShortProjectName;
 		string ProjectConfiguration = Params.ClientConfigsToBuild[0].ToString();
-		if (Params.IsCodeBasedProject && Params.HasClientCookedTargets)
-		{
-			UE4GameBasename = Params.ClientCookedTargets[0];
-		}
 		if (ProjectConfiguration != "Development")
 		{
 			UE4GameBasename += "-HTML5-" + ProjectConfiguration;
@@ -530,7 +516,7 @@ public class HTML5Platform : Platform
 		if (enableMultithreading)
 		{
 			SC.ArchiveFiles(PackagePath, UE4GameBasename + ".js.mem");		// memory init file
-			SC.ArchiveFiles(PackagePath, UE4GameBasename + ".worker.js");
+			SC.ArchiveFiles(PackagePath, "pthread-main.js");
 		}
 
 		// Archive HTML5 Server and a Readme.
@@ -555,7 +541,7 @@ public class HTML5Platform : Platform
 			if (enableMultithreading)
 			{
 				SC.ArchiveFiles(PackagePath, UE4GameBasename + ".js.memgz");
-				SC.ArchiveFiles(PackagePath, UE4GameBasename + ".worker.jsgz");
+				SC.ArchiveFiles(PackagePath, "pthread-main.jsgz");
 			}
 		}
 		else
@@ -564,7 +550,7 @@ public class HTML5Platform : Platform
 			File.Delete(UE4GameBasename + ".wasmgz");
 			File.Delete(UE4GameBasename + ".jsgz");
 			File.Delete(UE4GameBasename + ".js.symbolsgz");
-			File.Delete(UE4GameBasename + ".worker.jsgz");
+			File.Delete("pthread-main.jsgz");
 			File.Delete("Utility.jsgz");
 			File.Delete(ProjectBasename + ".datagz");
 			File.Delete(ProjectBasename + ".data.jsgz");

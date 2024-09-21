@@ -496,6 +496,11 @@ void FMotionDelayClient::PostRenderViewFamily_RenderThread(FRHICommandListImmedi
 {
 	if (MotionDelayService_Impl::PostRenderCleanupId_RenderThread != ViewFamily.FrameNumber)
 	{
+		for (const FTargetTransform& Transform : TargetTransforms_RenderThread)
+		{
+			Transform.DelayTarget->LateUpdate.PostRender_RenderThread();
+		}
+
 		MotionDelayService_Impl::PostRenderCleanupId_RenderThread = ViewFamily.FrameNumber;
 	}
 }

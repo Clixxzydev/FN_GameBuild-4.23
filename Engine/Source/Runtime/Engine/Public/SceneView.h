@@ -28,6 +28,7 @@ class FSceneViewFamily;
 class FVolumetricFogViewResources;
 class FIESLightProfileResource;
 
+// #dxr_todo: share this enum with ray tracing shader code via RayTracingDefinitions.ush
 enum class ERayTracingRenderMode
 {
 	Disabled			= 0,
@@ -288,7 +289,7 @@ private:
 	// ----------------
 
 public:
-	ENGINE_API void UpdateViewMatrix(const FVector& ViewLocation, const FRotator& ViewRotation);
+	void UpdateViewMatrix(const FVector& ViewLocation, const FRotator& ViewRotation);
 
 	void UpdatePlanarReflectionViewMatrix(const FSceneView& SourceView, const FMirrorMatrix& MirrorMatrix);
 
@@ -666,8 +667,6 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(float, AtmosphericFogStartDistance, EShaderPrecisionModifier::Half) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(float, AtmosphericFogDistanceOffset, EShaderPrecisionModifier::Half) \
 	VIEW_UNIFORM_BUFFER_MEMBER_EX(float, AtmosphericFogSunDiscScale, EShaderPrecisionModifier::Half) \
-	VIEW_UNIFORM_BUFFER_MEMBER_EX(float, AtmosphericFogSunDiscHalfApexAngleRadian, EShaderPrecisionModifier::Half) \
-	VIEW_UNIFORM_BUFFER_MEMBER_EX(FLinearColor, AtmosphericFogSunDiscLuminance, EShaderPrecisionModifier::Half) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, AtmosphericFogRenderMask) \
 	VIEW_UNIFORM_BUFFER_MEMBER(uint32, AtmosphericFogInscatterAltitudeSampleNum) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FLinearColor, AtmosphericFogSunColor) \
@@ -691,7 +690,6 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(float, GlobalVolumeDimension) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, GlobalVolumeTexelSize) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, MaxGlobalDistance) \
-	VIEW_UNIFORM_BUFFER_MEMBER(FIntPoint, CursorPosition) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, bCheckerboardSubsurfaceProfileRendering) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector, VolumetricFogInvGridSize) \
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector, VolumetricFogGridZParams) \
@@ -704,10 +702,7 @@ enum ETranslucencyVolumeCascade
 	VIEW_UNIFORM_BUFFER_MEMBER(FVector, VolumetricLightmapBrickTexelSize) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, StereoIPD) \
 	VIEW_UNIFORM_BUFFER_MEMBER(float, IndirectLightingCacheShowFlag) \
-	VIEW_UNIFORM_BUFFER_MEMBER(float, EyeToPixelSpreadAngle) \
-	VIEW_UNIFORM_BUFFER_MEMBER(FMatrix, WorldToVirtualTexture) \
-	VIEW_UNIFORM_BUFFER_MEMBER(FVector4, VirtualTextureParams) \
-	VIEW_UNIFORM_BUFFER_MEMBER_ARRAY(FVector4, XRPassthroughCameraUVs, [2])
+	VIEW_UNIFORM_BUFFER_MEMBER(float, EyeToPixelSpreadAngle)
 
 #define VIEW_UNIFORM_BUFFER_MEMBER(type, identifier) \
 	SHADER_PARAMETER(type, identifier)
@@ -854,7 +849,6 @@ public:
 	FQuat		BaseHmdOrientation;
 	FVector		BaseHmdLocation;
 	float		WorldToMetersScale;
-	TOptional<FTransform> PreviousViewTransform;
 
 	// normally the same as ViewMatrices unless "r.Shadow.FreezeCamera" is activated
 	FViewMatrices ShadowViewMatrices;

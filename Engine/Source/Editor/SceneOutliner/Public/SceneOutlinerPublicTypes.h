@@ -18,9 +18,6 @@ enum class ESceneOutlinerMode : uint8
 
 	/** Sets the outliner to operate as an actor 'picker'. */
 	ActorPicker,
-
-	/** Sets the outliner to operate as a component 'picker'. */
-	ComponentPicker,
 };
 
 namespace SceneOutliner

@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -39,10 +39,7 @@
 
 #include <dlfcn.h>
 
-const char* defaultPaths[] = {
-    "libvulkan.dylib",
-};
-
+#define DEFAULT_MOLTENVK  "libMoltenVK.dylib"
 /* Since libSDL is static, could use RTLD_SELF. Using RTLD_DEFAULT is future
  * proofing. */
 #define DEFAULT_HANDLE RTLD_DEFAULT
@@ -56,7 +53,7 @@ int UIKit_Vulkan_LoadLibrary(_THIS, const char *path)
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = NULL;
 
     if (_this->vulkan_config.loader_handle) {
-        return SDL_SetError("Vulkan Portability library is already loaded.");
+        return SDL_SetError("MoltenVK/Vulkan already loaded");
     }
 
     /* Load the Vulkan loader library */
@@ -65,7 +62,9 @@ int UIKit_Vulkan_LoadLibrary(_THIS, const char *path)
     }
 
     if (!path) {
-        /* Handle the case where Vulkan Portability is linked statically. */
+        /* MoltenVK framework, currently, v0.17.0, has a static library and is
+         * the recommended way to use the package. There is likely no object to
+         * load. */
         vkGetInstanceProcAddr =
         (PFN_vkGetInstanceProcAddr)dlsym(DEFAULT_HANDLE,
                                          "vkGetInstanceProcAddr");
@@ -74,29 +73,15 @@ int UIKit_Vulkan_LoadLibrary(_THIS, const char *path)
     if (vkGetInstanceProcAddr) {
         _this->vulkan_config.loader_handle = DEFAULT_HANDLE;
     } else {
-        const char** paths;
-        const char *foundPath = NULL;
-        int numPaths;
-        int i;
-
-        if (path) {
-            paths = &path;
-            numPaths = 1;
-        } else {
+        if (!path) {
             /* Look for the .dylib packaged with the application instead. */
-            paths = defaultPaths;
-            numPaths = SDL_arraysize(defaultPaths);
+            path = DEFAULT_MOLTENVK;
         }
 
-        for (i = 0; i < numPaths && _this->vulkan_config.loader_handle == NULL; i++) {
-            foundPath = paths[i];
-            _this->vulkan_config.loader_handle = SDL_LoadObject(foundPath);
+        _this->vulkan_config.loader_handle = SDL_LoadObject(path);
+        if (!_this->vulkan_config.loader_handle) {
+            return -1;
         }
-
-        if (_this->vulkan_config.loader_handle == NULL) {
-            return SDL_SetError("Failed to load Vulkan Portability library");
-        }
-
         SDL_strlcpy(_this->vulkan_config.loader_path, path,
                     SDL_arraysize(_this->vulkan_config.loader_path));
         vkGetInstanceProcAddr =
@@ -108,7 +93,7 @@ int UIKit_Vulkan_LoadLibrary(_THIS, const char *path)
     if (!vkGetInstanceProcAddr) {
         SDL_SetError("Failed to find %s in either executable or %s: %s",
                      "vkGetInstanceProcAddr",
-                     "linked Vulkan Portability library",
+                     DEFAULT_MOLTENVK,
                      (const char *) dlerror());
         goto fail;
     }
@@ -143,11 +128,11 @@ int UIKit_Vulkan_LoadLibrary(_THIS, const char *path)
     SDL_free(extensions);
 
     if (!hasSurfaceExtension) {
-        SDL_SetError("Installed Vulkan Portability doesn't implement the "
+        SDL_SetError("Installed MoltenVK/Vulkan doesn't implement the "
                      VK_KHR_SURFACE_EXTENSION_NAME " extension");
         goto fail;
     } else if (!hasIOSSurfaceExtension) {
-        SDL_SetError("Installed Vulkan Portability doesn't implement the "
+        SDL_SetError("Installed MoltenVK/Vulkan doesn't implement the "
                      VK_MVK_IOS_SURFACE_EXTENSION_NAME "extension");
         goto fail;
     }

@@ -15,7 +15,9 @@ class UK2Node_FunctionTerminator : public UK2Node_EditablePinBase
 {
 	GENERATED_UCLASS_BODY()
 
-	/** Reference to the function signature. This is only resolvable by default if this is an inherited function */
+	/**
+	 * Reference to the function signature.
+	 */
 	UPROPERTY()
 	FMemberReference FunctionReference;
 
@@ -40,10 +42,7 @@ class UK2Node_FunctionTerminator : public UK2Node_EditablePinBase
 	//~ End UK2Node_EditablePinBase Interface
 
 	/** Promotes the node from being a part of an interface override to a full function that allows for parameter and result pin additions */
-	BLUEPRINTGRAPH_API virtual void PromoteFromInterfaceOverride(bool bIsPrimaryTerminator = true);
-
-	/** Returns the UFunction that this node actually represents, this will work for both inherited and newly created functions */
-	BLUEPRINTGRAPH_API UFunction* FindSignatureFunction() const;
+	virtual void PromoteFromInterfaceOverride(bool bIsPrimaryTerminator = true);
 
 private:
 	/** (DEPRECATED) Function signature class. Replaced by the 'FunctionReference' property. */

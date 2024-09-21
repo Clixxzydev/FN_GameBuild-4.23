@@ -1,4 +1,5 @@
-﻿Availability: Public
+Availability: Public
+Crumbs: 
 Title: Augmented Reality Development
 Description: Augmented Reality Development    
 Type: landing
@@ -16,5 +17,4 @@ The Unreal Engine AR framework provides a rich, unified framework for building
 ## Platforms
 
 %Platforms/AR/HandheldAR:topic%
-%Platforms/AR/HoloLens:topic%
 %Platforms/AR/MagicLeap:topic%

@@ -3,9 +3,9 @@
 #include "Input/Devices/VRPN/Tracker/DisplayClusterVrpnTrackerInputDevice.h"
 
 #include "Misc/DisplayClusterHelpers.h"
+#include "Misc/DisplayClusterLog.h"
 
 #include "DisplayClusterBuildConfig.h"
-#include "DisplayClusterLog.h"
 #include "DisplayClusterStrings.h"
 
 
@@ -51,7 +51,7 @@ void FDisplayClusterVrpnTrackerInputDevice::PostUpdate()
 bool FDisplayClusterVrpnTrackerInputDevice::Initialize()
 {
 	FString addr;
-	if (!DisplayClusterHelpers::str::ExtractValue(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Address, addr))
+	if (!DisplayClusterHelpers::str::ExtractParam(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Address, addr))
 	{
 		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - device address not found"), *ToString());
 		return false;
@@ -68,26 +68,43 @@ bool FDisplayClusterVrpnTrackerInputDevice::Initialize()
 	}
 
 	// Extract tracker location
-	if (!DisplayClusterHelpers::str::ExtractValue(ConfigData.Params, DisplayClusterStrings::cfg::data::Loc, OriginLoc, false))
+	FString loc;
+	if (!DisplayClusterHelpers::str::ExtractParam(ConfigData.Params, DisplayClusterStrings::cfg::data::Loc, loc, false))
 	{
-		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - tracker origin location not found or unable to parse the data"), *ToString());
+		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - tracker origin location not found"), *ToString());
 		return false;
 	}
 
 	// Extract tracker rotation
-	FRotator rot;
-	if (!DisplayClusterHelpers::str::ExtractValue(ConfigData.Params, DisplayClusterStrings::cfg::data::Rot, rot, false))
+	FString rot;
+	if (!DisplayClusterHelpers::str::ExtractParam(ConfigData.Params, DisplayClusterStrings::cfg::data::Rot, rot, false))
 	{
 		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - tracker origin rotation not found"), *ToString());
 		return false;
 	}
 
-	// Convert to quaternion
-	OriginQuat = rot.Quaternion();
+	// Parse location
+	if (!OriginLoc.InitFromString(loc))
+	{
+		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - unable to parse the tracker origin location"), *ToString());
+		return false;
+	}
+
+	// Parse rotation
+	FRotator originRot;
+	if (!originRot.InitFromString(rot))
+	{
+		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - unable to parse the tracker origin rotation"), *ToString());
+		return false;
+	}
+	else
+	{
+		OriginQuat = originRot.Quaternion();
+	}
 
 	// Parse 'right' axis mapping
 	FString right;
-	if (!DisplayClusterHelpers::str::ExtractValue(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Right, right))
+	if (!DisplayClusterHelpers::str::ExtractParam(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Right, right))
 	{
 		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - 'right' axis mapping not found"), *ToString());
 		return false;
@@ -95,7 +112,7 @@ bool FDisplayClusterVrpnTrackerInputDevice::Initialize()
 
 	// Parse 'forward' axis mapping
 	FString front;
-	if (!DisplayClusterHelpers::str::ExtractValue(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Front, front))
+	if (!DisplayClusterHelpers::str::ExtractParam(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Front, front))
 	{
 		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - 'front' axis mapping not found"), *ToString());
 		return false;
@@ -103,7 +120,7 @@ bool FDisplayClusterVrpnTrackerInputDevice::Initialize()
 
 	// Parse 'up' axis mapping
 	FString up;
-	if (!DisplayClusterHelpers::str::ExtractValue(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Up, up))
+	if (!DisplayClusterHelpers::str::ExtractParam(ConfigData.Params, DisplayClusterStrings::cfg::data::input::Up, up))
 	{
 		UE_LOG(LogDisplayClusterInputVRPN, Error, TEXT("%s - 'up' axis mapping not found"), *ToString());
 		return false;

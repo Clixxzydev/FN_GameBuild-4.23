@@ -1925,16 +1925,6 @@ void USkeletalMesh::InitMorphTargetsAndRebuildRenderData()
 	MarkPackageDirty();
 	// need to refresh the map
 	InitMorphTargets();
-
-	// reset all morphtarget for all components
-	for (TObjectIterator<USkeletalMeshComponent> It; It; ++It)
-	{
-		if (It->SkeletalMesh == this)
-		{
-			It->RefreshMorphTargets();
-		}
-	}
-
 	// invalidate render data
 	InvalidateRenderData();
 }
@@ -2199,32 +2189,6 @@ USkeletalMeshSocket* USkeletalMesh::GetSocketByIndex(int32 Index) const
 	}
 
 	return nullptr;
-}
-
-TMap<FVector, FColor> USkeletalMesh::GetVertexColorData(const uint32 PaintingMeshLODIndex) const
-{
-	TMap<FVector, FColor> VertexColorData;
-#if WITH_EDITOR
-	const FSkeletalMeshModel* SkeletalMeshModel = GetImportedModel();
-	if (bHasVertexColors && SkeletalMeshModel && SkeletalMeshModel->LODModels.IsValidIndex(PaintingMeshLODIndex))
-	{
-		const TArray<FSkelMeshSection>& Sections = SkeletalMeshModel->LODModels[PaintingMeshLODIndex].Sections;
-
-		for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); ++SectionIndex)
-		{
-			const TArray<FSoftSkinVertex>& SoftVertices = Sections[SectionIndex].SoftVertices;
-			
-			for (int32 VertexIndex = 0; VertexIndex < SoftVertices.Num(); ++VertexIndex)
-			{
-				FVector Position = SoftVertices[VertexIndex].Position;
-				FColor& Color = VertexColorData.FindOrAdd(Position);
-				Color = SoftVertices[VertexIndex].Color;
-			}
-		}
-	}
-#endif // #if WITH_EDITOR
-
-	return VertexColorData;
 }
 
 
@@ -3274,17 +3238,6 @@ FText USkeletalMesh::GetSourceFileLabelFromIndex(int32 SourceFileIndex)
 }
 #endif //WITH_EDITOR
 
-
-TArray<FString> USkeletalMesh::K2_GetAllMorphTargetNames() const
-{
-	TArray<FString> Names;
-	for (UMorphTarget* MorphTarget : MorphTargets)
-	{
-		Names.Add(MorphTarget->GetFName().ToString());
-	}
-	return Names;
-}
-
 /*-----------------------------------------------------------------------------
 USkeletalMeshSocket
 -----------------------------------------------------------------------------*/
@@ -3484,9 +3437,6 @@ const FQuat SphylBasis(FVector(1.0f / FMath::Sqrt(2.0f), 0.0f, 1.0f / FMath::Sqr
  */
 FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Component, FSkeletalMeshRenderData* InSkelMeshRenderData)
 		:	FPrimitiveSceneProxy(Component, Component->SkeletalMesh->GetFName())
-#if RHI_RAYTRACING
-		,	bAnySegmentUsesWorldPositionOffset(false)
-#endif
 		,	Owner(Component->GetOwner())
 		,	MeshObject(Component->MeshObject)
 		,	SkeletalMeshRenderData(InSkelMeshRenderData)
@@ -3600,11 +3550,6 @@ FSkeletalMeshSceneProxy::FSkeletalMeshSceneProxy(const USkinnedMeshComponent* Co
 				(Component->SkeletalMesh->Materials.IsValidIndex(UseMaterialIndex) == false || Section.bCastShadow);
 
 			bAnySectionCastsShadow |= bSectionCastsShadow;
-
-#if RHI_RAYTRACING
-			bAnySegmentUsesWorldPositionOffset |= MaterialRelevance.bUsesWorldPositionOffset;
-#endif
-
 			LODSection.SectionElements.Add(
 				FSectionElementInfo(
 					Material,
@@ -3716,7 +3661,7 @@ public:
 		} while (NotValidPreviewSection());
 		return *this;
 	}
-	FORCEINLINE explicit operator bool() const
+	FORCEINLINE operator bool() const
 	{
 		return ((SectionIndex < Sections.Num()) && LODSectionElements.SectionElements.IsValidIndex(GetSectionElementIndex()));
 	}
@@ -4017,8 +3962,7 @@ void FSkeletalMeshSceneProxy::CreateBaseMeshBatch(const FSceneView* View, const 
 	FMeshBatchElement& BatchElement = Mesh.Elements[0];
 	BatchElement.FirstIndex = LODData.RenderSections[SectionIndex].BaseIndex;
 	BatchElement.IndexBuffer = LODData.MultiSizeIndexContainer.GetIndexBuffer();
-	BatchElement.MinVertexIndex = LODData.RenderSections[SectionIndex].GetVertexBufferIndex();
-	BatchElement.MaxVertexIndex = LODData.RenderSections[SectionIndex].GetVertexBufferIndex() + LODData.RenderSections[SectionIndex].GetNumVertices();
+	BatchElement.MaxVertexIndex = LODData.GetNumVertices() - 1;
 	BatchElement.VertexFactoryUserData = FGPUSkinCache::GetFactoryUserData(MeshObject->SkinCacheEntry, SectionIndex);
 	BatchElement.PrimitiveUniformBuffer = GetUniformBuffer();
 	BatchElement.NumPrimitives = LODData.RenderSections[SectionIndex].NumTriangles;
@@ -4175,6 +4119,7 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 			
 			FRayTracingInstance RayTracingInstance;
 			RayTracingInstance.Geometry = MeshObject->GetRayTracingGeometry();
+			RayTracingInstance.InstanceTransforms.Add(GetLocalToWorld());
 
 			{
 				// Setup materials for each segment
@@ -4186,12 +4131,10 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 				const FLODSectionElements& LODSection = LODSections[LODIndex];
 				check(LODSection.SectionElements.Num() == LODData.RenderSections.Num());
 
-			#if WITH_EDITORONLY_DATA
 				int32 SectionIndexPreview = MeshObject->SectionIndexPreview;
 				int32 MaterialIndexPreview = MeshObject->MaterialIndexPreview;
 				MeshObject->SectionIndexPreview = INDEX_NONE;
 				MeshObject->MaterialIndexPreview = INDEX_NONE;
-			#endif
 				for (FSkeletalMeshSectionIter Iter(LODIndex, *MeshObject, LODData, LODSection); Iter; ++Iter)
 				{
 					const FSkelMeshRenderSection& Section = Iter.GetSection();
@@ -4203,10 +4146,10 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 
 					RayTracingInstance.Materials.Add(MeshBatch);
 				}
-			#if WITH_EDITORONLY_DATA
-				MeshObject->SectionIndexPreview = SectionIndexPreview;
+				
+                MeshObject->SectionIndexPreview = SectionIndexPreview;
 				MeshObject->MaterialIndexPreview = MaterialIndexPreview;
-			#endif
+
 				if (bAnySegmentUsesWorldPositionOffset)
 				{
 					RayTracingInstance.InstanceTransforms.Add(FMatrix::Identity);

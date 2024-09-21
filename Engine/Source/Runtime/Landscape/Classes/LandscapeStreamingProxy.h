@@ -23,8 +23,7 @@ public:
 
 	//~ Begin UObject Interface
 #if WITH_EDITOR
-	virtual bool ShouldExport() override { return false;  }
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject Interface
 

@@ -7,7 +7,6 @@
 #include "Engine/RendererSettings.h"
 #include "Engine/Blueprint.h"
 #include "GeneralProjectSettings.h"
-#include "AndroidRuntimeSettings.h"
 #include "EngineUtils.h"
 #include "Editor.h"
 #include "EditorStyleSet.h"
@@ -35,19 +34,17 @@ TSharedRef<SHorizontalBox> SOculusToolWidget::CreateSimpleSetting(SimpleSetting*
 		.Text(setting->description).AutoWrapText(true)
 		+ SRichTextBlock::HyperlinkDecorator(TEXT("HyperlinkDecorator"), this, &SOculusToolWidget::OnBrowserLinkClicked)
 		];
-
-	for (int i = 0; i < setting->actions.Num(); ++i)
+	if (setting->ClickFunc != NULL)
 	{
 		box.Get().AddSlot()
 			.AutoWidth().VAlign(VAlign_Top)
 			[
 				SNew(SButton)
-				.Text(setting->actions[i].buttonText)
-			.OnClicked(this, setting->actions[i].ClickFunc, true)
+				.Text(setting->buttonText)
+			.OnClicked(this, setting->ClickFunc, true)
 			.Visibility(this, &SOculusToolWidget::IsVisible, setting->tag)
 			];
 	}
-
 	box.Get().AddSlot().AutoWidth().VAlign(VAlign_Top)
 		[
 			SNew(SButton)
@@ -330,140 +327,103 @@ void SOculusToolWidget::Construct(const FArguments& InArgs)
 	SimpleSettings.Add(FName("StartInVR"), {
 		FName("StartInVR"),
 		LOCTEXT("StartInVRDescription", "Enable the \"Start in VR\" setting to ensure your app starts in VR. (You can also ignore this and pass -vr at the command line.)"),
+		LOCTEXT("StartInVRButtonText", "Enable Start in VR"),
 		&SOculusToolWidget::StartInVRVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::StartInVREnable,
 		(int)SupportFlags::SupportPC
 	});
-	SimpleSettings.Find(FName("StartInVR"))->actions.Add(
-		{ LOCTEXT("StartInVRButtonText", "Enable Start in VR"),
-		&SOculusToolWidget::StartInVREnable }
-	);
 
 	SimpleSettings.Add(FName("SupportDash"), {
 		FName("SupportDash"),
 		LOCTEXT("SupportDashDescription", "Dash support is not enabled. Click to enable it, but make sure to handle the appropriate focus events. <a href=\"https://developer.oculus.com/documentation/unreal/latest/concepts/unreal-dash/\" id=\"HyperlinkDecorator\">Read more.</>"),
+		LOCTEXT("SupportDashButtonText", "Enable Dash Support"),
 		&SOculusToolWidget::SupportDashVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::SupportDashEnable,
 		(int)SupportFlags::SupportPC
 	});
-	SimpleSettings.Find(FName("SupportDash"))->actions.Add(
-		{ LOCTEXT("SupportDashButtonText", "Enable Dash Support"),
-		&SOculusToolWidget::SupportDashEnable }
-	);
 
 	SimpleSettings.Add(FName("ForwardShading"), {
 		FName("ForwardShading"),
 		LOCTEXT("ForwardShadingDescription", "Forward shading is not enabled for this project. Forward shading is often better suited for VR rendering. <a href=\"https://docs.unrealengine.com/en-us/Engine/Performance/ForwardRenderer\" id=\"HyperlinkDecorator\">Read more.</>"),
+		LOCTEXT("ForwardShadingButtonText", "Enable Forward Shading"),
 		&SOculusToolWidget::ForwardShadingVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::ForwardShadingEnable,
 		(int)SupportFlags::SupportPC // | (int)SupportFlags::SupportMobile // not including mobile because mobile is forced to use forward regardless of this setting
 	});
-	SimpleSettings.Find(FName("ForwardShading"))->actions.Add(
-		{ LOCTEXT("ForwardShadingButtonText", "Enable Forward Shading"),
-		&SOculusToolWidget::ForwardShadingEnable }
-	);
 
 	SimpleSettings.Add(FName("InstancedStereo"), {
 		FName("InstancedStereo"),
 		LOCTEXT("InstancedStereoDescription", "Instanced stereo is not enabled for this project. Instanced stereo substantially reduces draw calls, and improves rendering performance."),
+		LOCTEXT("InstancedStereoButtonText", "Enable Instanced Stereo"),
 		&SOculusToolWidget::InstancedStereoVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::InstancedStereoEnable,
 		(int)SupportFlags::SupportPC
 	});
-	SimpleSettings.Find(FName("InstancedStereo"))->actions.Add(
-		{ LOCTEXT("InstancedStereoButtonText", "Enable Instanced Stereo"),
-		&SOculusToolWidget::InstancedStereoEnable }
-	);
 
 	SimpleSettings.Add(FName("MobileMultiView"), {
 		FName("MobileMultiView"),
 		LOCTEXT("MobileMultiViewDescription", "Enable mobile multi-view and direct mobile multi-view to significantly reduce CPU overhead."),
+		LOCTEXT("MobileMultiViewButton", "Enable Multi-View"),
 		&SOculusToolWidget::MobileMultiViewVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::MobileMultiViewEnable,
 		(int)SupportFlags::SupportMobile
 	});
-	SimpleSettings.Find(FName("MobileMultiView"))->actions.Add(
-		{ LOCTEXT("MobileMultiViewButton", "Enable Multi-View"),
-		&SOculusToolWidget::MobileMultiViewEnable }
-	);
 
 	SimpleSettings.Add(FName("MobileHDR"), {
 		FName("MobileHDR"),
 		LOCTEXT("MobileHDRDescription", "Mobile HDR has performance and stability issues in VR. We strongly recommend disabling it."),
+		LOCTEXT("MobileHDRButton", "Disable Mobile HDR"),
 		&SOculusToolWidget::MobileHDRVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::MobileHDRDisable,
 		(int)SupportFlags::SupportMobile
 	});
-	SimpleSettings.Find(FName("MobileHDR"))->actions.Add(
-		{ LOCTEXT("MobileHDRButton", "Disable Mobile HDR"),
-		&SOculusToolWidget::MobileHDRDisable }
-	);
 
 	SimpleSettings.Add(FName("AndroidManifest"), {
 		FName("AndroidManifest"),
-		LOCTEXT("AndroidManifestDescription", "You need to select a target device in \"Package for Oculus Mobile device\" for all mobile apps. <a href=\"https://developer.oculus.com/documentation/unreal/latest/concepts/unreal-quick-start-guide-go/\" id=\"HyperlinkDecorator\">Read more.</>"),
+		LOCTEXT("AndroidManifestDescription", "You need to enable \"Configure the AndroidManifest for deployment to Oculus Mobile\" for all mobile apps. <a href=\"https://developer.oculus.com/documentation/unreal/latest/concepts/unreal-quick-start-guide-go/\" id=\"HyperlinkDecorator\">Read more.</>"),
+		LOCTEXT("AndroidManifestButton", "Configure Android Manifest"),
 		&SOculusToolWidget::AndroidManifestVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::AndroidManifestEnable,
 		(int)SupportFlags::SupportMobile
 	});
-	SimpleSettings.Find(FName("AndroidManifest"))->actions.Add(
-		{ LOCTEXT("AndroidManifestButtonGearGo", "Select Oculus Go / Gear VR"),
-		&SOculusToolWidget::AndroidManifestGearGo }
-	);
-	SimpleSettings.Find(FName("AndroidManifest"))->actions.Add(
-		{ LOCTEXT("AndroidManifestButtonQuest", "Select Oculus Quest"),
-		&SOculusToolWidget::AndroidManifestQuest }
-	);
 
 	SimpleSettings.Add(FName("AndroidPackaging"), {
 		FName("AndroidPackaging"),
 		LOCTEXT("AndroidPackagingDescription", "Some mobile packaging settings need to be fixed. (SDK versions, and FullScreen Immersive settings.) <a href=\"https://developer.oculus.com/documentation/unreal/latest/concepts/unreal-quick-start-guide-go/\" id=\"HyperlinkDecorator\">Read more.</>"),
+		LOCTEXT("AndroidPackagingButton", "Configure Android Packaging"),
 		&SOculusToolWidget::AndroidPackagingVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::AndroidPackagingFix,
 		(int)SupportFlags::SupportMobile
 	});
-	SimpleSettings.Find(FName("AndroidPackaging"))->actions.Add(
-		{ LOCTEXT("AndroidPackagingButton", "Configure Android Packaging"),
-		&SOculusToolWidget::AndroidPackagingFix }
-	);
 
 	// Post-Processing Settings
 	SimpleSettings.Add(FName("LensFlare"), {
 		FName("LensFlare"),
 		LOCTEXT("LensFlareDescription", "Lens flare is enabled. It can be expensive, and exhibit visible artifacts in VR."),
+		LOCTEXT("LensFlareButton", "Disable Lens Flare"),
 		&SOculusToolWidget::LensFlareVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::LensFlareDisable,
 		(int)SupportFlags::SupportMobile | (int)SupportFlags::SupportPC
 	});
-	SimpleSettings.Find(FName("LensFlare"))->actions.Add(
-		{ LOCTEXT("LensFlareButton", "Disable Lens Flare"),
-		&SOculusToolWidget::LensFlareDisable }
-	);
 
 	// Only used for PC right now. Mobile MSAA is a separate setting.
 	SimpleSettings.Add(FName("AntiAliasing"), {
 		FName("AntiAliasing"),
 		LOCTEXT("AntiAliasingDescription", "The forward render supports MSAA and Temporal anti-aliasing. Enable one of these for the best VR visual-performance tradeoff. (This button will enable temporal anti-aliasing. You can enable MSAA instead in Edit -> Project Settings -> Rendering.)"),
+		LOCTEXT("AntiAliasingButton", "Enable Temporal AA"),
 		&SOculusToolWidget::AntiAliasingVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::AntiAliasingEnable,
 		(int)SupportFlags::SupportPC | (int)SupportFlags::ExcludeDeferred
 	});
-	SimpleSettings.Find(FName("AntiAliasing"))->actions.Add(
-		{ LOCTEXT("AntiAliasingButton", "Enable Temporal AA"),
-		&SOculusToolWidget::AntiAliasingEnable }
-	);
 
 	SimpleSettings.Add(FName("AllowStaticLighting"), {
 		FName("AllowStaticLighting"),
 		LOCTEXT("AllowStaticLightingDescription", "Your project does not allow static lighting. You should only disallow static lighting if you intend for your project to be 100% dynamically lit."),
+		LOCTEXT("AllowStaticLightingButton", "Allow Static Lighting"),
 		&SOculusToolWidget::AllowStaticLightingVisibility,
-		TArray<SimpleSettingAction>(),
+		&SOculusToolWidget::AllowStaticLightingEnable,
 		(int)SupportFlags::SupportMobile | (int)SupportFlags::SupportPC
 	});
-	SimpleSettings.Find(FName("AllowStaticLighting"))->actions.Add(
-		{ LOCTEXT("AllowStaticLightingButton", "Allow Static Lighting"),
-		&SOculusToolWidget::AllowStaticLightingEnable }
-	);
 
 	auto scroller = SNew(SScrollBox);
 	ScrollingContainer = scroller;
@@ -630,22 +590,15 @@ EVisibility SOculusToolWidget::MobileHDRVisibility(FName tag) const
 
 FString SOculusToolWidget::GetConfigPath() const
 {
-	return FString::Printf(TEXT("%sDefaultEngine.ini"), *FPaths::SourceConfigDir());
+	return GEngineIni;
+	//return FString::Printf(TEXT("%sDefaultEngine.ini"), *FPaths::SourceConfigDir());
 }
 
-FReply SOculusToolWidget::AndroidManifestGearGo(bool text)
+FReply SOculusToolWidget::AndroidManifestEnable(bool text)
 {
-	UAndroidRuntimeSettings* Settings = GetMutableDefault<UAndroidRuntimeSettings>();
-	Settings->PackageForOculusMobile.Add(EOculusMobileDevice::GearGo);
-	Settings->UpdateSinglePropertyInConfigFile(Settings->GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UAndroidRuntimeSettings, PackageForOculusMobile)), Settings->GetDefaultConfigFilename());
-	return FReply::Handled();
-}
-
-FReply SOculusToolWidget::AndroidManifestQuest(bool text)
-{
-	UAndroidRuntimeSettings* Settings = GetMutableDefault<UAndroidRuntimeSettings>();
-	Settings->PackageForOculusMobile.Add(EOculusMobileDevice::Quest);
-	Settings->UpdateSinglePropertyInConfigFile(Settings->GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UAndroidRuntimeSettings, PackageForOculusMobile)), Settings->GetDefaultConfigFilename());
+	const TCHAR* AndroidSettings = TEXT("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings");
+	GConfig->SetBool(AndroidSettings, TEXT("bPackageForGearVR"), true, GetConfigPath());
+	GConfig->Flush(0);
 	return FReply::Handled();
 }
 
@@ -653,8 +606,9 @@ const int MIN_SDK_VERSION = 23;
 
 EVisibility SOculusToolWidget::AndroidManifestVisibility(FName tag) const
 {
-	UAndroidRuntimeSettings* Settings = GetMutableDefault<UAndroidRuntimeSettings>();
-	return Settings->PackageForOculusMobile.Num() <= 0 ? EVisibility::Visible : EVisibility::Collapsed;
+	const TCHAR* AndroidSettings = TEXT("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings");
+	bool v = false;
+	return (GConfig->GetBool(AndroidSettings, TEXT("bPackageForGearVR"), v, GetConfigPath()) && v) ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 FReply SOculusToolWidget::AndroidPackagingFix(bool text)

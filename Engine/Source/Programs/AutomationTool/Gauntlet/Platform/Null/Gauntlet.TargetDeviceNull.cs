@@ -78,9 +78,9 @@ namespace Gauntlet
 
 	public class NullDeviceFactory : IDeviceFactory
 	{
-		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
+		public bool CanSupportPlatform(UnrealTargetPlatform Platform)
 		{
-			return Platform == null;
+			return Platform == UnrealTargetPlatform.Unknown;
 		}
 
 		public ITargetDevice CreateDevice(string InRef, string InParam)
@@ -159,7 +159,7 @@ namespace Gauntlet
 			return NullApp;
 		}
 
-		public UnrealTargetPlatform? Platform { get { return null; } }
+		public UnrealTargetPlatform Platform { get { return UnrealTargetPlatform.Unknown; } }
 
 		public bool IsAvailable { get { return true; } }
 		public bool IsConnected { get { return true; } }

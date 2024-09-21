@@ -79,9 +79,6 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Levels, Meta = (ClampMin = "0.0", ClampMax = "100.0"))
 	float PercentageThresholdForPrompt;
 
-	UPROPERTY(EditAnywhere, config, Category = Levels)
-	FVector MinimumBoundsForCheckingSize;
-
 public:
 
 	/** The save directory for newly created screenshots */

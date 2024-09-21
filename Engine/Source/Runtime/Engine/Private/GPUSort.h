@@ -15,25 +15,20 @@
 struct FGPUSortBuffers
 {
 	/** Shader resource views for vertex buffers containing the keys. */
-	FRHIShaderResourceView* RemoteKeySRVs[2];
+	FShaderResourceViewRHIParamRef RemoteKeySRVs[2];
 	/** Unordered access views for vertex buffers containing the keys. */
-	FRHIUnorderedAccessView* RemoteKeyUAVs[2];
+	FUnorderedAccessViewRHIParamRef RemoteKeyUAVs[2];
 
 	/** Shader resource views for vertex buffers containing the values. */
-	FRHIShaderResourceView* RemoteValueSRVs[2];
+	FShaderResourceViewRHIParamRef RemoteValueSRVs[2];
 	/** Unordered access views for vertex buffers containing the values. */
-	FRHIUnorderedAccessView* RemoteValueUAVs[2];
+	FUnorderedAccessViewRHIParamRef RemoteValueUAVs[2];
 
 	/** Default constructor. */
 	FGPUSortBuffers()
 	{
 	}
 };
-
-/**
- * Get the number of passes we will need to make in order to sort
- */
-int32 GetGPUSortPassCount(uint32 KeyMask);
 
 /**
  * Sort a buffer on the GPU.

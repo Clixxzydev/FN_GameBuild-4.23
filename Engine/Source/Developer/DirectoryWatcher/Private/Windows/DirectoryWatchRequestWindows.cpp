@@ -17,12 +17,11 @@ FDirectoryWatchRequestWindows::FDirectoryWatchRequestWindows(uint32 Flags)
 	DirectoryHandle = INVALID_HANDLE_VALUE;
 
 	BufferLength = sizeof(FILE_NOTIFY_INFORMATION) * MaxChanges;
-	Buffer = FMemory::Malloc(BufferLength, alignof(DWORD));
-	BackBuffer = FMemory::Malloc(BufferLength, alignof(DWORD));
+	Buffer = new uint8[BufferLength];
+	BackBuffer = new uint8[BufferLength];
 
 	FMemory::Memzero(&Overlapped, sizeof(Overlapped));
 	FMemory::Memzero(Buffer, BufferLength);
-	FMemory::Memzero(BackBuffer, BufferLength);
 
 	Overlapped.hEvent = this;
 }
@@ -31,12 +30,12 @@ FDirectoryWatchRequestWindows::~FDirectoryWatchRequestWindows()
 {
 	if (Buffer)
 	{
-		FMemory::Free(Buffer);
+		delete Buffer;
 	}
 
 	if (BackBuffer)
 	{
-		FMemory::Free(BackBuffer);
+		delete BackBuffer;
 	}
 
 	if ( DirectoryHandle != INVALID_HANDLE_VALUE )
@@ -191,11 +190,11 @@ void FDirectoryWatchRequestWindows::ProcessChange(uint32 Error, uint32 NumBytes)
 		bPendingDelete = true;
 	};
 
-	// Swap the pointer to the backbuffer so we can start a new read as soon as possible
+	// Copy the change to the backbuffer so we can start a new read as soon as possible
 	if ( bValidNotification )
-	{
-		Swap(Buffer, BackBuffer);
-		check(Buffer && BackBuffer);
+	{		
+		check(BackBuffer);
+		FMemory::Memcpy(BackBuffer, Buffer, NumBytes);
 	}
 
 	if ( !bValidNotification )
@@ -238,21 +237,16 @@ void FDirectoryWatchRequestWindows::ProcessChange(uint32 Error, uint32 NumBytes)
 	}
 
 	// Process the change
-	void* InfoBase = BackBuffer;
+	uint8* InfoBase = BackBuffer;
 	do
 	{
 		FILE_NOTIFY_INFORMATION* NotifyInfo = (FILE_NOTIFY_INFORMATION*)InfoBase;
 
 		// Copy the WCHAR out of the NotifyInfo so we can put a NULL terminator on it and convert it to a FString
-		FString LeafFilename;
-		{
-			// The Memcpy below assumes that WCHAR and TCHAR are equivalent (which they should be on Windows)
-			static_assert(sizeof(WCHAR) == sizeof(TCHAR), "WCHAR is assumed to be the same size as TCHAR on Windows!");
-
-			const int32 LeafFilenameLen = NotifyInfo->FileNameLength / sizeof(WCHAR);
-			LeafFilename.GetCharArray().AddZeroed(LeafFilenameLen + 1);
-			FMemory::Memcpy(LeafFilename.GetCharArray().GetData(), NotifyInfo->FileName, NotifyInfo->FileNameLength);
-		}
+		const int32 Len = NotifyInfo->FileNameLength / sizeof(WCHAR);
+		WCHAR* RawFilename = new WCHAR[Len + 1];
+		FMemory::Memcpy(RawFilename, NotifyInfo->FileName, NotifyInfo->FileNameLength);
+		RawFilename[Len] = 0;
 
 		FFileChangeData::EFileChangeAction Action;
 		switch(NotifyInfo->Action)
@@ -275,7 +269,13 @@ void FDirectoryWatchRequestWindows::ProcessChange(uint32 Error, uint32 NumBytes)
 				Action = FFileChangeData::FCA_Unknown;
 				break;
 		}
-		FileChanges.Emplace(Directory / LeafFilename, Action);
+
+		// WCHAR to TCHAR conversion. In windows this is probably okay.
+		const FString Filename = Directory / FString(RawFilename);
+		new (FileChanges) FFileChangeData(Filename, Action);
+
+		// Delete the scratch WCHAR*
+		delete[] RawFilename;
 
 		// If there is not another entry, break the loop
 		if ( NotifyInfo->NextEntryOffset == 0 )
@@ -284,7 +284,7 @@ void FDirectoryWatchRequestWindows::ProcessChange(uint32 Error, uint32 NumBytes)
 		}
 
 		// Adjust the offset and update the NotifyInfo pointer
-		InfoBase = (uint8*)InfoBase + NotifyInfo->NextEntryOffset;
+		InfoBase += NotifyInfo->NextEntryOffset;
 	}
 	while(true);
 }

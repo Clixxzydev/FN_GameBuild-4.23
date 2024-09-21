@@ -589,91 +589,76 @@ static FName FormatRemap[] =
 static FName NameBGRA8(TEXT("BGRA8"));
 static FName NameG8 = FName(TEXT("G8"));
 
-void FIOSTargetPlatform::GetTextureFormats( const UTexture* Texture, TArray< TArray<FName> >& OutFormats) const
+void FIOSTargetPlatform::GetTextureFormats( const UTexture* Texture, TArray<FName>& OutFormats ) const
 {
 	check(Texture);
 
 	static FName NamePOTERROR(TEXT("POTERROR"));
 
-	const int32 NumLayers = Texture->Source.GetNumLayers();
-
-	if (Texture->bForcePVRTC4 && CookPVRTC())
-	{
-		TArray<FName> NamesPVRTC4;
-		TArray<FName> NamesPVRTCN;
-		NamesPVRTC4.Init(FName(TEXT("PVRTC4")), NumLayers);
-		NamesPVRTCN.Init(FName(TEXT("PVRTCN")), NumLayers);
-
-		OutFormats.AddUnique(NamesPVRTC4);
-		OutFormats.AddUnique(NamesPVRTCN);
-		return;
-	}
-
-	TArray<FName> TextureFormatNames;
+	FName TextureFormatName = NAME_None;
 
 	// forward rendering only needs one channel for shadow maps
 	if (Texture->LODGroup == TEXTUREGROUP_Shadowmap && !SupportsMetalMRT())
 	{
-		TextureFormatNames.Init(NameG8, NumLayers);
+		TextureFormatName = NameG8;
 	}
 
 	// if we didn't assign anything specially, then use the defaults
     bool bIncludePVRTC = !bIsTVOS && CookPVRTC();
     bool bIncludeASTC = bIsTVOS || CookASTC();
-	if (TextureFormatNames.Num() == 0)
+	if (TextureFormatName == NAME_None)
 	{
         int32 BlockSize = 4;
         if (!Texture->bForcePVRTC4 && !bIncludePVRTC && bIncludeASTC)
         {
             BlockSize = 1;
         }
-		GetDefaultTextureFormatNamePerLayer(TextureFormatNames, this, Texture, EngineSettings, false, false, BlockSize);
+		TextureFormatName = GetDefaultTextureFormatName(this, Texture, EngineSettings, false, false, BlockSize);
 	}
 
-	// include the formats we want (use ASTC first so that it is preferred at runtime if they both exist and it's supported)
-	if (bIncludeASTC)
+	// perform any remapping away from defaults
+	bool bFoundRemap = false;
+
+	if (Texture->bForcePVRTC4 && CookPVRTC())
 	{
-		TArray<FName> TextureFormatNamesASTC(TextureFormatNames);
-		for (FName& TextureFormatName : TextureFormatNamesASTC)
+		OutFormats.AddUnique(FName(TEXT("PVRTC4")));
+		OutFormats.AddUnique(FName(TEXT("PVRTCN")));
+		return;
+	}
+
+	for (int32 RemapIndex = 0; RemapIndex < ARRAY_COUNT(FormatRemap); RemapIndex += 3)
+	{
+		if (TextureFormatName == FormatRemap[RemapIndex])
 		{
-			for (int32 RemapIndex = 0; RemapIndex < ARRAY_COUNT(FormatRemap); RemapIndex += 3)
+			// we found a remapping
+			bFoundRemap = true;
+			// include the formats we want (use ASTC first so that it is preferred at runtime if they both exist and it's supported)
+			if (bIncludeASTC)
 			{
-				if (TextureFormatName == FormatRemap[RemapIndex])
+				OutFormats.AddUnique(FormatRemap[RemapIndex + 2]);
+			}
+			if (bIncludePVRTC)
+			{
+				// handle non-power of 2 textures
+				if (!Texture->Source.IsPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None)
 				{
-					TextureFormatName = FormatRemap[RemapIndex + 2];
-					break;
+					// option 1: Uncompress, but users will get very large textures unknowningly
+					// OutFormats.AddUnique(NameBGRA8);
+					// option 2: Use an "error message" texture so they see it in game
+					OutFormats.AddUnique(NamePOTERROR);
+				}
+				else
+				{
+					OutFormats.AddUnique(FormatRemap[RemapIndex + 1]);
 				}
 			}
 		}
-		OutFormats.AddUnique(TextureFormatNamesASTC);
 	}
 
-	if (bIncludePVRTC)
+	// if we didn't already remap above, add it now
+	if (!bFoundRemap)
 	{
-		TArray<FName> TextureFormatNamesPVRTC(TextureFormatNames);
-		for (FName& TextureFormatName : TextureFormatNamesPVRTC)
-		{
-			for (int32 RemapIndex = 0; RemapIndex < ARRAY_COUNT(FormatRemap); RemapIndex += 3)
-			{
-				if (TextureFormatName == FormatRemap[RemapIndex])
-				{
-					// handle non-power of 2 textures
-					if (!Texture->Source.IsPowerOfTwo() && Texture->PowerOfTwoMode == ETexturePowerOfTwoSetting::None)
-					{
-						// option 1: Uncompress, but users will get very large textures unknowingly
-						// TextureFormatName = NameBGRA8;
-						// option 2: Use an "error message" texture so they see it in game
-						TextureFormatName = NamePOTERROR;
-					}
-					else
-					{
-						TextureFormatName = FormatRemap[RemapIndex + 1];
-					}
-					break;
-				}
-			}
-		}
-		OutFormats.AddUnique(TextureFormatNamesPVRTC);
+		OutFormats.Add(TextureFormatName);
 	}
 }
 

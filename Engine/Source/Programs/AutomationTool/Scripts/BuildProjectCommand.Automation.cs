@@ -107,7 +107,7 @@ public partial class Project : CommandUtils
 		UniquePlatforms.UnionWith(Params.ServerTargetPlatforms.Select(x => x.Type));
 		foreach (UnrealTargetPlatform TargetPlatform in UniquePlatforms)
 		{
-			Platform.GetPlatform(TargetPlatform).PreBuildAgenda(UE4Build, Agenda, Params);
+			Platform.GetPlatform(TargetPlatform).PreBuildAgenda(UE4Build, Agenda);
 		}
 
 		// Build any tools we need to stage

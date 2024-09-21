@@ -10,6 +10,7 @@ EditorLevelUtils.cpp: Editor-specific level management routines
 #include "UObject/GarbageCollection.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
+#include "Serialization/ArchiveTraceRoute.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "Engine/World.h"
@@ -22,7 +23,6 @@ EditorLevelUtils.cpp: Editor-specific level management routines
 #include "EngineGlobals.h"
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectIterator.h"
-#include "UObject/ReferenceChainSearch.h"
 #include "GameFramework/WorldSettings.h"
 #include "Engine/LevelStreaming.h"
 #include "Engine/Selection.h"
@@ -713,8 +713,10 @@ bool UEditorLevelUtils::RemoveLevelFromWorld(ULevel* InLevel)
 			UWorld* TheWorld = UWorld::FindWorldInPackage(LevelPackage->GetOutermost());
 			if (TheWorld != nullptr)
 			{
-				FReferenceChainSearch RefChainSearch(TheWorld, EReferenceChainSearchMode::Shortest | EReferenceChainSearchMode::PrintResults);
-				UE_LOG(LogStreaming, Fatal, TEXT("Removed world %s not cleaned up by garbage collection! Referenced by:") LINE_TERMINATOR TEXT("%s"), *TheWorld->GetPathName(), *RefChainSearch.GetRootPath());
+				StaticExec(NULL, *FString::Printf(TEXT("OBJ REFS CLASS=%s NAME=%s shortest"), *TheWorld->GetClass()->GetName(), *TheWorld->GetPathName()));
+				TMap<UObject*, UProperty*>	Route = FArchiveTraceRoute::FindShortestRootPath(TheWorld, true, GARBAGE_COLLECTION_KEEPFLAGS);
+				FString						ErrorString = FArchiveTraceRoute::PrintRootPath(Route, TheWorld);
+				UE_LOG(LogStreaming, Fatal, TEXT("%s didn't get garbage collected!") LINE_TERMINATOR TEXT("%s"), *TheWorld->GetFullName(), *ErrorString);
 			}
 		}
 	}
@@ -807,18 +809,9 @@ bool UEditorLevelUtils::EditorDestroyLevel(ULevel* InLevel)
 {
 	UWorld* World = InLevel->OwningWorld;
 
-	UObject* Outer = InLevel->GetOuter();
-
-	// Call cleanup on the outer world of the level so external hooks can be properly released, so that unloading the package isn't prevented.
-	UWorld* OuterWorld = Cast<UWorld>(Outer);
-	if (OuterWorld && OuterWorld != World)
-	{
-		OuterWorld->CleanupWorld();
-	}
-
-	Outer->MarkPendingKill();
+	InLevel->GetOuter()->MarkPendingKill();
 	InLevel->MarkPendingKill();
-	Outer->ClearFlags(RF_Public | RF_Standalone);
+	InLevel->GetOuter()->ClearFlags(RF_Public | RF_Standalone);
 
 	UPackage* Package = InLevel->GetOutermost();
 	// We want to unconditionally destroy the level, so clear the dirty flag here so it can be unloaded successfully

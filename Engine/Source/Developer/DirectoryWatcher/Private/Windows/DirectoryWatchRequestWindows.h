@@ -42,8 +42,8 @@ private:
 	bool bWatchSubtree;
 	uint32 NotifyFilter;
 	uint32 BufferLength;
-	void* Buffer;
-	void* BackBuffer;
+	uint8* Buffer;
+	uint8* BackBuffer;
 	OVERLAPPED Overlapped;
 
 	bool bPendingDelete;

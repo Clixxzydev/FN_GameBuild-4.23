@@ -183,11 +183,9 @@ void UMediaBundle::RefreshLensDisplacementMap()
 	}
 }
 
-#if WITH_EDITOR
-TArray<UPackage*> UMediaBundle::CreateInternalsEditor()
+void UMediaBundle::CreateInternalsEditor()
 {
-	TArray<UPackage*> Result;
-
+#if WITH_EDITOR && WITH_EDITORONLY_DATA
 	if (GIsEditor)
 	{
 		IAssetTools& AssetTools = FModuleManager::Get().LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
@@ -200,7 +198,6 @@ TArray<UPackage*> UMediaBundle::CreateInternalsEditor()
 		AssetTools.CreateUniqueAssetName(*(ParentName + TEXT("/MediaP_") + GetName()), TEXT(""), OutPackageName, OutAssetName);
 		MediaPlayer = Cast<UMediaPlayer>(AssetTools.CreateAsset(OutAssetName, ParentName, UMediaPlayer::StaticClass(), nullptr));
 		MediaPlayer->AffectedByPIEHandling = false;
-		Result.Add(MediaPlayer->GetOutermost());
 
 		//Create MediaTexture 
 		AssetTools.CreateUniqueAssetName(*(ParentName + TEXT("/T_") + GetName() + TEXT("_BC")), TEXT(""), OutPackageName, OutAssetName);
@@ -208,7 +205,6 @@ TArray<UPackage*> UMediaBundle::CreateInternalsEditor()
 		MediaTexture->SetDefaultMediaPlayer(MediaPlayer);
 		MediaTexture->SetMediaPlayer(MediaPlayer);
 		MediaTexture->UpdateResource();
-		Result.Add(MediaTexture->GetOutermost());
 
 		//Create LensDisplacementMap RenderTarget
 		AssetTools.CreateUniqueAssetName(*(ParentName + TEXT("/RT_") + GetName() + TEXT("_LensDisplacement")), TEXT(""), OutPackageName, OutAssetName);
@@ -216,7 +212,6 @@ TArray<UPackage*> UMediaBundle::CreateInternalsEditor()
 		LensDisplacementMap->RenderTargetFormat = RTF_RGBA16f;
 		LensDisplacementMap->InitAutoFormat(256, 256);
 		LensDisplacementMap->UpdateResource();
-		Result.Add(LensDisplacementMap->GetOutermost());
 
 		//Create MaterialInstanceConstant
 		UMaterialInstanceConstantFactoryNew* Factory = NewObject<UMaterialInstanceConstantFactoryNew>();
@@ -229,7 +224,6 @@ TArray<UPackage*> UMediaBundle::CreateInternalsEditor()
 		NewMaterial->SetTextureParameterValueEditorOnly(FMaterialParameterInfo(MediaBundleMaterialParametersName::LensDisplacementMapTextureName), LensDisplacementMap);
 		NewMaterial->PostEditChange();
 		Material = NewMaterial;
-		Result.Add(Material->GetOutermost());
 	}
 
 	//If we are creating a new object, set the default actor class. Duplicates won't change this.
@@ -237,10 +231,8 @@ TArray<UPackage*> UMediaBundle::CreateInternalsEditor()
 	{
 		MediaBundleActorClass = DefaultActorClass;
 	}
-
-	return Result;
+#endif // WITH_EDITOR && WITH_EDITORONLY_DATA
 }
-#endif // WITH_EDITOR
 
 void UMediaBundle::PostLoad()
 {
@@ -263,9 +255,7 @@ void UMediaBundle::PostDuplicate(bool bDuplicateForPIE)
 {
 	Super::PostDuplicate(bDuplicateForPIE);
 
-#if WITH_EDITOR
 	CreateInternalsEditor();
-#endif
 }
 
 #if WITH_EDITOR

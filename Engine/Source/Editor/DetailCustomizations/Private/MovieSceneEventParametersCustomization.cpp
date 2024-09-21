@@ -107,7 +107,7 @@ void FMovieSceneEventParametersCustomization::OnStructChanged(const FAssetData& 
 	FScopedTransaction Transaction(LOCTEXT("SetParameterStructText", "Set Parameter Structure"));
 
 	FEditPropertyChain PropertyChain;
-	PropertyChain.AddHead(PropertyHandle->GetProperty());
+	PropertyChain.SetActivePropertyNode(PropertyHandle->GetProperty());
 
 	// Fire off the pre-notify
 	FNotifyHook* Hook = PropertyUtilities->GetNotifyHook();

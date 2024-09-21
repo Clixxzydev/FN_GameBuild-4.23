@@ -67,7 +67,6 @@ private:
 	void ResumeRendering();
 	void PauseAudio();
 	void ResumeAudio();
-	void ReleaseMicrophone(bool shuttingDown);
 
 	void ExecWindowCreated();
 	void ExecWindowResized();

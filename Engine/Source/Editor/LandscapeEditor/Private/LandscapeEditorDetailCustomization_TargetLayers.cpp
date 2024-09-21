@@ -98,7 +98,7 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowTargetLayers()
 
 		//// Visible if there are possible choices
 		//if (bSupportsWeightmap || bSupportsHeightmap || bSupportsVisibility)
-		if (LandscapeEdMode->CurrentToolMode->SupportedTargetTypes != 0 && CurrentToolName != TEXT("BlueprintBrush"))
+		if (LandscapeEdMode->CurrentToolMode->SupportedTargetTypes != 0 && CurrentToolName != TEXT("BPCustom"))
 		{
 			return true;
 		}
@@ -115,7 +115,7 @@ bool FLandscapeEditorDetailCustomization_TargetLayers::ShouldShowPaintingRestric
 	{
 		const FName CurrentToolName = LandscapeEdMode->CurrentTool->GetToolName();
 
-		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap && CurrentToolName != TEXT("BlueprintBrush"))
+		if ((LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Weightmap && CurrentToolName != TEXT("BPCustom"))
 			|| LandscapeEdMode->CurrentToolTarget.TargetType == ELandscapeToolTargetType::Visibility)
 		{
 			return true;
@@ -888,11 +888,13 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetSelectionChanged(co
 		if (Target->TargetType == ELandscapeToolTargetType::Heightmap)
 		{
 			checkSlow(Target->LayerInfoObj == NULL);
-			LandscapeEdMode->SetCurrentTargetLayer(NAME_None, nullptr);
+			LandscapeEdMode->CurrentToolTarget.LayerInfo = NULL;
+			LandscapeEdMode->CurrentToolTarget.LayerName = NAME_None;
 		}
 		else
 		{
-			LandscapeEdMode->SetCurrentTargetLayer(Target->LayerName, Target->LayerInfoObj);
+			LandscapeEdMode->CurrentToolTarget.LayerInfo = Target->LayerInfoObj;
+			LandscapeEdMode->CurrentToolTarget.LayerName = Target->LayerName;
 		}
 	}
 }
@@ -914,7 +916,7 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLaye
 			MenuBuilder.AddMenuEntry(LOCTEXT("LayerContextMenu.Import", "Import from file"), FText(), FSlateIcon(), ImportAction);
 
 			// Reimport
-			const FString& ReimportPath = Target->GetReimportFilePath();
+			const FString& ReimportPath = Target->ReimportFilePath();
 
 			if (!ReimportPath.IsEmpty())
 			{
@@ -1012,7 +1014,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnExportLayer(const TShared
 				LandscapeInfo->ExportLayer(LayerInfoObj, SaveFilename);
 			}
 
-			Target->SetReimportFilePath(SaveFilename);
+			Target->ReimportFilePath() = SaveFilename;
 		}
 	}
 }
@@ -1067,7 +1069,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnImportLayer(const TShared
 			// Actually do the Import
 			LandscapeEdMode->ImportData(*Target, OpenFilename);
 
-			Target->SetReimportFilePath(OpenFilename);
+			Target->ReimportFilePath() = OpenFilename;
 		}
 	}
 }
@@ -1132,7 +1134,6 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnClearLayer(const TSharedR
 			FScopedSetLandscapeEditingLayer Scope(LandscapeEdMode->GetLandscape(), LandscapeEdMode->GetCurrentLayerGuid(), [&] { LandscapeEdMode->RequestLayersContentUpdateForceAll(); });
 			FLandscapeEditDataInterface LandscapeEdit(Target->LandscapeInfo.Get());
 			LandscapeEdit.DeleteLayer(Target->LayerInfoObj.Get());
-			LandscapeEdMode->RequestUpdateShownLayerList();
 		}
 	}
 }
@@ -1200,12 +1201,15 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerSetObject(cons
 					Target->LandscapeInfo->CreateLayerEditorSettingsFor(SelectedLayerInfo);
 				}
 			}
-						
+
 			FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 			if (LandscapeEdMode)
 			{
-				LandscapeEdMode->CurrentToolTarget.TargetType = Target->TargetType;
-				LandscapeEdMode->SetCurrentTargetLayer(Target->LayerName, SelectedLayerInfo);
+				if (LandscapeEdMode->CurrentToolTarget.LayerName == Target->LayerName
+					&& LandscapeEdMode->CurrentToolTarget.LayerInfo == Target->LayerInfoObj)
+				{
+					LandscapeEdMode->CurrentToolTarget.LayerInfo = SelectedLayerInfo;
+				}
 				LandscapeEdMode->UpdateTargetList();
 			}
 
@@ -1322,7 +1326,7 @@ void FLandscapeEditorCustomNodeBuilder_TargetLayers::OnTargetLayerCreateClicked(
 			if (LandscapeEdMode->CurrentToolTarget.LayerName == Target->LayerName
 				&& LandscapeEdMode->CurrentToolTarget.LayerInfo == Target->LayerInfoObj)
 			{
-				LandscapeEdMode->SetCurrentTargetLayer(Target->LayerName, Target->LayerInfoObj);
+				LandscapeEdMode->CurrentToolTarget.LayerInfo = LayerInfo;
 			}
 
 			Target->LayerInfoObj = LayerInfo;
@@ -1541,15 +1545,15 @@ FReply SLandscapeEditorSelectableBorder::OnMouseButtonUp(const FGeometry& MyGeom
 		}
 		else if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton &&
 			OnContextMenuOpening.IsBound())
+		{
+			TSharedPtr<SWidget> Content = OnContextMenuOpening.Execute();
+			if (Content.IsValid())
 			{
-				TSharedPtr<SWidget> Content = OnContextMenuOpening.Execute();
-				if (Content.IsValid())
-				{
-					FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
+				FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
 
-					FSlateApplication::Get().PushMenu(SharedThis(this), WidgetPath, Content.ToSharedRef(), MouseEvent.GetScreenSpacePosition(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
-				}
-			
+				FSlateApplication::Get().PushMenu(SharedThis(this), WidgetPath, Content.ToSharedRef(), MouseEvent.GetScreenSpacePosition(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
+			}
+
 			return FReply::Handled().ReleaseMouseCapture();
 		}
 	}

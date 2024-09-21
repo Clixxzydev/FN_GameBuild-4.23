@@ -11,14 +11,9 @@ class SHADERFORMATOPENGL_API FGlslLanguageSpec : public ILanguageSpec
 protected:
 	bool bIsES2;
 	bool bIsWebGL;
-	bool bIsES31;
 
 public:
-	FGlslLanguageSpec(bool bInIsES2, bool bInIsWebGL, bool bInIsES31) 
-		: bIsES2(bInIsES2)
-		, bIsWebGL(bInIsWebGL) 
-		, bIsES31(bInIsES31)
-	{}
+	FGlslLanguageSpec(bool bInIsES2, bool bInIsWebGL) : bIsES2(bInIsES2), bIsWebGL(bInIsWebGL) {}
 
 	virtual bool SupportsDeterminantIntrinsic() const override
 	{
@@ -43,8 +38,6 @@ public:
 	virtual void SetupLanguageIntrinsics(_mesa_glsl_parse_state* State, exec_list* ir) override;
 
 	virtual bool AllowsImageLoadsForNonScalar() const { return !bIsES2; }
-
-	virtual bool EmulateStructuredWithTypedBuffers() const override { return bIsES31; }
 };
 
 class ir_variable;

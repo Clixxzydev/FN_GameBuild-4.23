@@ -144,11 +144,6 @@ public:
 	 */
 	void Empty();
 
-	/**
-	 * Sorts the custom version container by key.
-	 */
-	void SortByKey();
-
 	/** Return a string representation of custom versions. Used for debug. */
 	FString ToString(const FString& Indent) const;
 

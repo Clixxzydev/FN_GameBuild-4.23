@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -41,33 +41,20 @@
 #include "SDL_kmsdrmopengles.h"
 #include "SDL_kmsdrmmouse.h"
 #include "SDL_kmsdrmdyn.h"
-#include <sys/stat.h>
-#include <dirent.h>
-#include <errno.h>
 
-#define KMSDRM_DRI_PATH "/dev/dri/"
+#define KMSDRM_DRI_CARD_0 "/dev/dri/card0"
 
 static int
-check_modestting(int devindex)
+KMSDRM_Available(void)
 {
-    SDL_bool available = SDL_FALSE;
-    char device[512];
-    int drm_fd;
+    int available = 0;
 
-    SDL_snprintf(device, sizeof (device), "%scard%d", KMSDRM_DRI_PATH, devindex);
-
-    drm_fd = open(device, O_RDWR | O_CLOEXEC);
+    int drm_fd = open(KMSDRM_DRI_CARD_0, O_RDWR | O_CLOEXEC);
     if (drm_fd >= 0) {
         if (SDL_KMSDRM_LoadSymbols()) {
             drmModeRes *resources = KMSDRM_drmModeGetResources(drm_fd);
             if (resources != NULL) {
-                SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "%scard%d connector, encoder and CRTC counts are: %d %d %d",
-                             KMSDRM_DRI_PATH, devindex,
-                             resources->count_connectors, resources->count_encoders, resources->count_crtcs);
-
-                if (resources->count_connectors > 0 && resources->count_encoders > 0 && resources->count_crtcs > 0) {
-                    available = SDL_TRUE;
-                }
+                available = 1;
                 KMSDRM_drmModeFreeResources(resources);
             }
             SDL_KMSDRM_UnloadSymbols();
@@ -76,67 +63,6 @@ check_modestting(int devindex)
     }
 
     return available;
-}
-
-static int get_dricount(void)
-{
-    int devcount = 0;
-    struct dirent *res;
-    struct stat sb;
-    DIR *folder;
-
-    if (!(stat(KMSDRM_DRI_PATH, &sb) == 0
-                && S_ISDIR(sb.st_mode))) {
-        printf("The path %s cannot be opened or is not available\n",
-               KMSDRM_DRI_PATH);
-        return 0;
-    }
-
-    if (access(KMSDRM_DRI_PATH, F_OK) == -1) {
-        printf("The path %s cannot be opened\n",
-               KMSDRM_DRI_PATH);
-        return 0;
-    }
-
-    folder = opendir(KMSDRM_DRI_PATH);
-    if (folder) {
-        while ((res = readdir(folder))) {
-            int len = SDL_strlen(res->d_name);
-            if (len > 4 && SDL_strncmp(res->d_name, "card", 4) == 0) {
-                devcount++;
-            }
-        }
-        closedir(folder);
-    }
-
-    return devcount;
-}
-
-static int
-get_driindex(void)
-{
-    const int devcount = get_dricount();
-    int i;
-
-    for (i = 0; i < devcount; i++) {
-        if (check_modestting(i)) {
-            return i;
-        }
-    }
-
-    return -ENOENT;
-}
-
-static int
-KMSDRM_Available(void)
-{
-    int ret = -ENOENT;
-
-    ret = get_driindex();
-    if (ret >= 0)
-        return 1;
-
-    return ret;
 }
 
 static void
@@ -157,11 +83,7 @@ KMSDRM_Create(int devindex)
     SDL_VideoDevice *device;
     SDL_VideoData *vdata;
 
-    if (!devindex || (devindex > 99)) {
-        devindex = get_driindex();
-    }
-
-    if (devindex < 0) {
+    if (devindex < 0 || devindex > 99) {
         SDL_SetError("devindex (%d) must be between 0 and 99.\n", devindex);
         return NULL;
     }
@@ -251,12 +173,12 @@ KMSDRM_FBDestroyCallback(struct gbm_bo *bo, void *data)
 {
     KMSDRM_FBInfo *fb_info = (KMSDRM_FBInfo *)data;
 
-    if (fb_info && fb_info->drm_fd >= 0 && fb_info->fb_id != 0) {
+    if (fb_info && fb_info->drm_fd > 0 && fb_info->fb_id != 0) {
         KMSDRM_drmModeRmFB(fb_info->drm_fd, fb_info->fb_id);
         SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "Delete DRM FB %u", fb_info->fb_id);
     }
 
-    SDL_free(fb_info);
+    free(fb_info);
 }
 
 KMSDRM_FBInfo *
@@ -288,7 +210,7 @@ KMSDRM_FBFromBO(_THIS, struct gbm_bo *bo)
 
     ret = KMSDRM_drmModeAddFB(vdata->drm_fd, w, h, 24, 32, stride, handle, &fb_info->fb_id);
     if (ret < 0) {
-       SDL_free(fb_info);
+       free(fb_info);
        return NULL;
     }
     SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "New DRM FB (%u): %ux%u, stride %u from BO %p", fb_info->fb_id, w, h, stride, (void *)bo);
@@ -340,8 +262,7 @@ KMSDRM_FlipHandler(int fd, unsigned int frame, unsigned int sec, unsigned int us
 int
 KMSDRM_VideoInit(_THIS)
 {
-    int i, j;
-    SDL_bool found;
+    int i;
     int ret = 0;
     char *devname;
     SDL_VideoData *vdata = ((SDL_VideoData *)_this->driverdata);
@@ -365,7 +286,6 @@ KMSDRM_VideoInit(_THIS)
         ret = SDL_OutOfMemory();
         goto cleanup;
     }
-    SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "Opening device /dev/dri/card%d", vdata->devindex);
     SDL_snprintf(devname, 16, "/dev/dri/card%d", vdata->devindex);
     vdata->drm_fd = open(devname, O_RDWR | O_CLOEXEC);
     SDL_free(devname);
@@ -411,8 +331,6 @@ KMSDRM_VideoInit(_THIS)
         goto cleanup;
     }
 
-    found = SDL_FALSE;
-
     for (i = 0; i < resources->count_encoders; i++) {
         encoder = KMSDRM_drmModeGetEncoder(vdata->drm_fd, resources->encoders[i]);
 
@@ -420,20 +338,8 @@ KMSDRM_VideoInit(_THIS)
             continue;
 
         if (encoder->encoder_id == connector->encoder_id) {
+            SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "Found encoder %d.", encoder->encoder_id);
             data->encoder_id = encoder->encoder_id;
-            found = SDL_TRUE;
-        } else {
-            for (j = 0; j < connector->count_encoders; j++) {
-                if (connector->encoders[j] == encoder->encoder_id) {
-                    data->encoder_id = encoder->encoder_id;
-                    found = SDL_TRUE;
-                    break;
-                }
-            }
-        }
-
-        if (found == SDL_TRUE) {
-            SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "Found encoder %d.", data->encoder_id);
             break;
         }
 
@@ -447,18 +353,6 @@ KMSDRM_VideoInit(_THIS)
     }
 
     vdata->saved_crtc = KMSDRM_drmModeGetCrtc(vdata->drm_fd, encoder->crtc_id);
-
-    if (vdata->saved_crtc == NULL) {
-        for (i = 0; i < resources->count_crtcs; i++) {
-            if (encoder->possible_crtcs & (1 << i)) {
-                encoder->crtc_id = resources->crtcs[i];
-                SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO, "Set encoder's CRTC to %d.", encoder->crtc_id);
-                vdata->saved_crtc = KMSDRM_drmModeGetCrtc(vdata->drm_fd, encoder->crtc_id);
-                break;
-            }
-        }
-    }
-
     if (vdata->saved_crtc == NULL) {
         ret = SDL_SetError("No CRTC found.");
         goto cleanup;
@@ -470,18 +364,11 @@ KMSDRM_VideoInit(_THIS)
     data->cur_mode = vdata->saved_crtc->mode;
     vdata->crtc_id = encoder->crtc_id;
 
-    // select default mode if this one is not valid
-    if (vdata->saved_crtc->mode_valid == 0) {
-        SDL_LogDebug(SDL_LOG_CATEGORY_VIDEO,
-            "Current mode is invalid, selecting connector's mode #0.");
-        data->cur_mode = connector->modes[0];
-    }
-
     SDL_zero(current_mode);
 
-    current_mode.w = data->cur_mode.hdisplay;
-    current_mode.h = data->cur_mode.vdisplay;
-    current_mode.refresh_rate = data->cur_mode.vrefresh;
+    current_mode.w = vdata->saved_crtc->mode.hdisplay;
+    current_mode.h = vdata->saved_crtc->mode.vdisplay;
+    current_mode.refresh_rate = vdata->saved_crtc->mode.vrefresh;
 
     /* FIXME ?
     drmModeFB *fb = drmModeGetFB(vdata->drm_fd, vdata->saved_crtc->buffer_id);
@@ -511,8 +398,6 @@ KMSDRM_VideoInit(_THIS)
 #endif
 
     KMSDRM_InitMouse(_this);
-
-    return ret;
 
 cleanup:
     if (encoder != NULL)
@@ -553,7 +438,7 @@ KMSDRM_VideoQuit(_THIS)
     }
 
     if(vdata->saved_crtc != NULL) {
-        if(vdata->drm_fd >= 0 && vdata->saved_conn_id > 0) {
+        if(vdata->drm_fd > 0 && vdata->saved_conn_id > 0) {
             /* Restore saved CRTC settings */
             drmModeCrtc *crtc = vdata->saved_crtc;
             if(KMSDRM_drmModeSetCrtc(vdata->drm_fd, crtc->crtc_id, crtc->buffer_id,
@@ -631,7 +516,6 @@ KMSDRM_CreateWindow(_THIS, SDL_Window * window)
             goto error;
         }
     }
-    SDL_EGL_SetRequiredVisualId(_this, surface_fmt);
     wdata->egl_surface = SDL_EGL_CreateSurface(_this, (NativeWindowType) wdata->gs);
 
     if (wdata->egl_surface == EGL_NO_SURFACE) {
@@ -682,10 +566,6 @@ KMSDRM_DestroyWindow(_THIS, SDL_Window * window)
     if(data) {
         /* Wait for any pending page flips and unlock buffer */
         KMSDRM_WaitPageFlip(_this, data, -1);
-        if (data->crtc_bo != NULL) {
-            KMSDRM_gbm_surface_release_buffer(data->gs, data->crtc_bo);
-            data->crtc_bo = NULL;
-        }
         if (data->next_bo != NULL) {
             KMSDRM_gbm_surface_release_buffer(data->gs, data->next_bo);
             data->next_bo = NULL;

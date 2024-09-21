@@ -23,8 +23,8 @@
 #include "DesktopPlatformModule.h"
 
 #if WITH_PHYSX
-#include "IPhysXCooking.h"
-#include "IPhysXCookingModule.h"
+#include "Physics/IPhysXCooking.h"
+#include "Physics/IPhysXCookingModule.h"
 #endif // WITH_PHYSX
 
 DEFINE_LOG_CATEGORY_STATIC(LogTargetPlatformManager, Log, All);
@@ -103,8 +103,11 @@ public:
 
 			// we have to setup our local environment according to AutoSDKs or the ITargetPlatform's IsSDkInstalled calls may fail
 			// before we get a change to setup for a given platform.  Use the platforminfo list to avoid any kind of interdependency.
-			for (const PlatformInfo::FPlatformInfo& PlatformInfo : PlatformInfo::GetPlatformInfoArray())
+			int32 NumPlatforms;
+			const PlatformInfo::FPlatformInfo* PlatformInfoArray = PlatformInfo::GetPlatformInfoArray(NumPlatforms);
+			for (int32 i = 0; i < NumPlatforms; ++i)
 			{
+				const PlatformInfo::FPlatformInfo& PlatformInfo = PlatformInfoArray[i];
 				if (PlatformInfo.AutoSDKPath.Len() > 0)
 				{
 					SetupAndValidateAutoSDK(PlatformInfo.AutoSDKPath);
@@ -1004,11 +1007,6 @@ RETRY_SETUPANDVALIDATE:
 				{
 					// since Desktop is just packaging, we don't need an SDK, and UBT will return INVALID, since it doesn't build for it
 					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, PlatformInfo::EPlatformSDKStatus::Installed);
-				}
-				else if (PlatformName == TEXT("HoloLens"))
-				{
-					PlatformName = TEXT("HoloLens");
-					PlatformInfo::UpdatePlatformSDKStatus(PlatformName, Status);
 				}
 				else
 				{

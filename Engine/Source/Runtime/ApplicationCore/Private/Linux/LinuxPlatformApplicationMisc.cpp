@@ -415,7 +415,6 @@ void FLinuxPlatformApplicationMisc::PumpMessages( bool bFromMainLoop )
 				LinuxApplication->AddPendingEvent( event );
 			}
 
-			LinuxApplication->CheckIfApplicatioNeedsDeactivation();
 			LinuxApplication->ClearWindowPropertiesAfterEventLoop();
 		}
 		else

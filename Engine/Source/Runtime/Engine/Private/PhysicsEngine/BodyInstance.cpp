@@ -43,6 +43,7 @@
 #include "Components/BrushComponent.h"
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsEngine/PhysicsSettings.h"
+#include "PhysicsEngine/PxQueryFilterCallback.h"
 
 DECLARE_CYCLE_STAT(TEXT("Init Body"), STAT_InitBody, STATGROUP_Physics);
 DECLARE_CYCLE_STAT(TEXT("Init Body Debug"), STAT_InitBodyDebug, STATGROUP_Physics);
@@ -459,7 +460,7 @@ void FBodyInstance::UpdatePhysicalMaterials()
 	UPhysicalMaterial* SimplePhysMat = GetSimplePhysicalMaterial();
 	TArray<UPhysicalMaterial*> ComplexPhysMats = GetComplexPhysicalMaterials();
 
-	FPhysicsCommand::ExecuteWrite(GetActorReferenceWithWelding(), [&](const FPhysicsActorHandle& Actor)
+	FPhysicsCommand::ExecuteWrite(ActorHandle, [&](const FPhysicsActorHandle& Actor)
 	{
 		ApplyMaterialToInstanceShapes_AssumesLocked(SimplePhysMat, ComplexPhysMats);
 	});
@@ -748,20 +749,20 @@ ECollisionEnabled::Type FBodyInstance::GetCollisionEnabled_CheckOwner() const
 	// Check actor override
 	const UPrimitiveComponent* OwnerComponentInst = OwnerComponent.Get();
 	AActor* Owner = OwnerComponentInst ? OwnerComponentInst->GetOwner() : nullptr;
-	if (Owner && !Owner->GetActorEnableCollision())
-	{
-		return ECollisionEnabled::NoCollision;
-	}
-	else if(const USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(OwnerComponentInst))
-	{
-		// Check component override (skel mesh case)
-		return SkelMeshComp->BodyInstance.CollisionEnabled;
-	}
+		if (Owner && !Owner->GetActorEnableCollision())
+		{
+			return ECollisionEnabled::NoCollision;
+		}
+		else if(const USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(OwnerComponentInst))
+{
+			// Check component override (skel mesh case)
+			return (ECollisionEnabled::Type)FMath::Max(SkelMeshComp->BodyInstance.CollisionEnabled, CollisionEnabled);
+}
 	else
 	{
 		return CollisionEnabled;
 	}
-}
+			}
 
 void FBodyInstance::SetMaskFilter(FMaskFilter InMaskFilter)
 {
@@ -1024,11 +1025,11 @@ struct FInitBodiesHelper
 		{
 			ActorParams.bStatic = true;
 
-			FPhysicsInterface::CreateActor(ActorParams, Instance->ActorHandle);
+			Instance->ActorHandle = FPhysicsInterface::CreateActor(ActorParams);
 		}
 		else
 		{
-			FPhysicsInterface::CreateActor(ActorParams, Instance->ActorHandle);
+			Instance->ActorHandle = FPhysicsInterface::CreateActor(ActorParams);
 
 			FPhysicsInterface::SetCcdEnabled_AssumesLocked(Instance->ActorHandle, Instance->bUseCCD);
 			FPhysicsInterface::SetIsKinematic_AssumesLocked(Instance->ActorHandle, !Instance->ShouldInstanceSimulatingPhysics());
@@ -1162,56 +1163,56 @@ struct FInitBodiesHelper
 
 
 	void InitBodies()
-	{
+				{
 		LLM_SCOPE(ELLMTag::PhysX);
 
 		check(IsInGameThread());
 
 		if(CreateShapesAndActors())
-		{
+					{
 			FPhysicsCommand::ExecuteWrite(PhysScene, [&]()
-			{
+	{
 				// If an aggregate present, add to that
 				if(Aggregate.IsValid())
-				{
+		{
 					for(FBodyInstance* BI : Bodies)
-					{
+			{
 						const FPhysicsActorHandle& ActorHandle = BI->GetPhysicsActorHandle();
 						if(ActorHandle.IsValid())
-						{
-							FPhysicsInterface::AddActorToAggregate_AssumesLocked(Aggregate, ActorHandle);
-						}
-					}
-				}
-				else if(PhysScene)
 				{
+							FPhysicsInterface::AddActorToAggregate_AssumesLocked(Aggregate, ActorHandle);
+				}
+			}
+		}
+				else if(PhysScene)
+		{
 					TArray<FPhysicsActorHandle> ActorHandles;
 					ActorHandles.Reserve(Bodies.Num());
 
 					for(FBodyInstance* BI : Bodies)
-					{
+			{
 						const FPhysicsActorHandle& ActorHandle = BI->GetPhysicsActorHandle();
 						if(ActorHandle.IsValid())
-						{
+			{
 							ActorHandles.Add(ActorHandle);
-						}
-					}
+			}
+		}
 
 					PhysScene->AddActorsToScene_AssumesLocked(ActorHandles);
 				}
-
+				
 				// Set up dynamic instance data
-				if(!IsStatic())
+				if (!IsStatic())
 				{
 					SCOPE_CYCLE_COUNTER(STAT_InitBodyPostAdd);
-					for(int32 BodyIdx = 0, NumBodies = Bodies.Num(); BodyIdx < NumBodies; ++BodyIdx)
+					for (int32 BodyIdx = 0, NumBodies = Bodies.Num(); BodyIdx < NumBodies; ++BodyIdx)
 					{
 						FBodyInstance* Instance = Bodies[BodyIdx];
 						Instance->InitDynamicProperties_AssumesLocked();
 					}
 				}
 			});
-		}
+			}
 	}
 };
 
@@ -1635,14 +1636,13 @@ bool FBodyInstance::UpdateBodyScale(const FVector& InScale3D, bool bForceUpdate)
 			FTransform LocalTransform = FPhysicsInterface::GetLocalTransform(Shape);
 
 			ECollisionShapeType GeomType = FPhysicsInterface::GetShapeType(Shape);
+			FPhysicsGeometryCollection GeoCollection = FPhysicsInterface::GetGeometryCollection(Shape);
 			FKShapeElem* ShapeElem = FPhysxUserData::Get<FKShapeElem>(FPhysicsInterface::GetUserData(Shape));
 			const FTransform& RelativeTM = GetRelativeBodyTransform(Shape);
 
 #if WITH_CHAOS
 			//check(false);
 #else
-			FPhysicsGeometryCollection GeoCollection = FPhysicsInterface::GetGeometryCollection(Shape);
-
 			switch (GeomType)
 			{
 				case ECollisionShapeType::Sphere:
@@ -1856,7 +1856,7 @@ void FBodyInstance::UpdateInstanceSimulatePhysics()
 		FPhysicsInterface::SetCcdEnabled_AssumesLocked(Actor, bUseCCD);
 
 		if(bSimulatePhysics && bStartAwake)
-		{
+				{
 			FPhysicsInterface::WakeUp_AssumesLocked(Actor);
 		}
 	});
@@ -2267,26 +2267,15 @@ void FBodyInstance::CopyRuntimeBodyInstancePropertiesFrom(const FBodyInstance* F
 	UpdatePhysicsFilterData();
 }
 
-const FPhysScene* FBodyInstance::GetPhysicsScene() const
+FPhysScene* FBodyInstance::GetPhysicsScene() const
 {
 	if(ActorHandle.IsValid())
-	{
+{
 		return FPhysicsInterface::GetCurrentScene(ActorHandle);
 	}
 	
 	return nullptr;
 }
-
-FPhysScene* FBodyInstance::GetPhysicsScene()
-{
-	if (ActorHandle.IsValid())
-	{
-		return FPhysicsInterface::GetCurrentScene(ActorHandle);
-	}
-
-	return nullptr;
-}
-
 
 FPhysicsActorHandle& FBodyInstance::GetPhysicsActorHandle()
 {
@@ -2424,13 +2413,7 @@ void FBodyInstance::GetComplexPhysicalMaterials(TArray<UPhysicalMaterial*>& Phys
 
 void FBodyInstance::GetComplexPhysicalMaterials(const FBodyInstance*, TWeakObjectPtr<UPrimitiveComponent> OwnerComp, TArray<UPhysicalMaterial*>& OutPhysicalMaterials)
 {
-	if(!GEngine || !GEngine->DefaultPhysMaterial)
-	{
-		UE_LOG(LogPhysics, Error, TEXT("FBodyInstance::GetComplexPhysicalMaterials : GEngine not initialized! Cannot call this during native CDO construction, wrap with if(!HasAnyFlags(RF_ClassDefaultObject)) or move out of constructor, material parameters will not be correct."));
-
-		return;
-	}
-
+	check(GEngine->DefaultPhysMaterial != NULL);
 	// See if the Material has a PhysicalMaterial
 	UPrimitiveComponent* PrimComp = OwnerComp.Get();
 	if (PrimComp)
@@ -2577,12 +2560,12 @@ void FBodyInstance::UpdateMassProperties()
 				//If we have welded children we must compute the mass properties of each individual body first and then combine them all together
 				TMap<FBodyInstance*, FWeldedBatch> BodyToShapes;
 
-				for (const FPhysicsShapeHandle& Shape : Shapes) //sort all welded children by their original bodies
+					for(const FPhysicsShapeHandle& Shape : Shapes) //sort all welded children by their original bodies
 				{
 					if (FWeldInfo* WeldInfo = ShapeToBodiesMap->Find(Shape))
 					{
 						FWeldedBatch* WeldedBatch = BodyToShapes.Find(WeldInfo->ChildBI);
-						if (!WeldedBatch)
+						if(!WeldedBatch)
 						{
 							WeldedBatch = &BodyToShapes.Add(WeldInfo->ChildBI);
 							WeldedBatch->RelTM = WeldInfo->RelativeTM;
@@ -2892,18 +2875,15 @@ void FBodyInstance::AddAngularImpulseInRadians(const FVector& AngularImpulse, bo
 {
 	FPhysicsCommand::ExecuteWrite(ActorHandle, [&](const FPhysicsActorHandle& Actor)
 	{
-		if (FPhysicsInterface::IsRigidBody(Actor) && FPhysicsInterface::IsInScene(Actor) && !IsRigidBodyKinematic_AssumesLocked(Actor))
+		if(FPhysicsInterface::IsRigidBody(Actor) && FPhysicsInterface::IsInScene(Actor) && !IsRigidBodyKinematic_AssumesLocked(Actor))
 		{
-			if (FPhysScene* PhysScene = GetPhysicsScene())
-			{
-				if (bVelChange)
-				{
-					FPhysicsInterface::AddAngularVelocityInRadians_AssumesLocked(Actor, AngularImpulse);
-				}
-				else
-				{
-					FPhysicsInterface::AddAngularImpulseInRadians_AssumesLocked(Actor, AngularImpulse);
-				}
+			if(bVelChange)
+	{
+				FPhysicsInterface::AddTorqueMassIndependent_AssumesLocked(Actor, AngularImpulse);
+			}
+			else
+		{
+				FPhysicsInterface::AddTorque_AssumesLocked(Actor, AngularImpulse);
 			}
 		}
 	});
@@ -2916,12 +2896,12 @@ void FBodyInstance::AddImpulse(const FVector& Impulse, bool bVelChange)
 		if(FPhysicsInterface::IsRigidBody(Actor) && FPhysicsInterface::IsInScene(Actor) && !IsRigidBodyKinematic_AssumesLocked(Actor))
 		{
 			if(bVelChange)
-			{
-				FPhysicsInterface::AddVelocity_AssumesLocked(Actor, Impulse);
+	{
+				FPhysicsInterface::AddForceMassIndependent_AssumesLocked(Actor, Impulse);
 			}
 			else
-			{
-				FPhysicsInterface::AddImpulse_AssumesLocked(Actor, Impulse);
+		{
+				FPhysicsInterface::AddForce_AssumesLocked(Actor, Impulse);
 			}
 		}
 	});
@@ -3140,19 +3120,13 @@ FTransform RootSpaceToWeldedSpace(const FBodyInstance* BI, const FTransform& Roo
 {
 	if (BI->WeldParent)
 	{
-		UPrimitiveComponent* Parent = BI->WeldParent->OwnerComponent.Get();
-		UPrimitiveComponent* Child = BI->OwnerComponent.Get();
-		if (Parent && Child)
+		UPrimitiveComponent* BIOwnerComponentInst = BI->OwnerComponent.Get();
+		if (BIOwnerComponentInst)
 		{
-			FTransform ParentT = Parent->GetComponentTransform();
-			FTransform ChildT = Child->GetComponentTransform();
-			FTransform RelativeT = ParentT.GetRelativeTransform(ChildT);
-			FTransform ScaledRoot = RootTM;
-			ScaledRoot.SetScale3D(BI->Scale3D);
-			FTransform FinalTM = RelativeT * ScaledRoot;
-			FinalTM.SetScale3D(FVector::OneVector);
+			FTransform RootToWelded = BIOwnerComponentInst->GetRelativeTransform().Inverse();
+			RootToWelded.ScaleTranslation(BI->Scale3D);
 
-			return FinalTM;
+			return RootToWelded * RootTM;
 		}
 	}
 
@@ -3546,11 +3520,13 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData)
 	//        should configure the bodies to reflect this desired behavior.
 	if(USkeletalMeshComponent* SkelMeshComp = Cast<USkeletalMeshComponent>(OwnerComponentInst))
 	{
+		UseChannel = SkelMeshComp->GetCollisionObjectType();
+
 		if (CVarEnableDynamicPerBodyFilterHacks.GetValueOnGameThread() && bHACK_DisableCollisionResponse)
 		{
 			UseResponse.SetAllChannels(ECR_Ignore);
 			UseCollisionEnabled = ECollisionEnabled::PhysicsOnly;
-		}
+			}
 		else if(BodySetup->CollisionReponse == EBodyCollisionResponse::BodyCollision_Enabled)
 		{
 			UseResponse.SetAllChannels(ECR_Block);
@@ -3562,16 +3538,9 @@ void FBodyInstance::BuildBodyFilterData(FBodyCollisionFilterData& OutFilterData)
 		}
 
 		const bool bDisableSkelComponentOverride = CVarEnableDynamicPerBodyFilterHacks.GetValueOnGameThread() && bHACK_DisableSkelComponentFilterOverriding;
-		if (bDisableSkelComponentOverride)
+		if(!bDisableSkelComponentOverride)
 		{
-			// if we are disabling the skeletal component override, we want the original body instance collision response
-			// this is to allow per body instance collision filtering instead of taking the data from the skeletal mesh
-			UseResponse = CollisionResponses.GetResponseContainer();
-		}
-		else
-		{
-			UseChannel = SkelMeshComp->GetCollisionObjectType();
-			UseResponse = FCollisionResponseContainer::CreateMinContainer(UseResponse, SkelMeshComp->BodyInstance.CollisionResponses.GetResponseContainer());
+		UseResponse = FCollisionResponseContainer::CreateMinContainer(UseResponse, SkelMeshComp->BodyInstance.CollisionResponses.GetResponseContainer());
 		}
 
 		bUseNotifyRBCollision = bUseNotifyRBCollision && SkelMeshComp->BodyInstance.bNotifyRigidBodyCollision;
@@ -3656,8 +3625,7 @@ void FBodyInstance::InitStaticBodies(const TArray<FBodyInstance*>& Bodies, const
 	TransformsStatic.Reset();
 }
 
-int32 SimCollisionEnabled = 1;
-FAutoConsoleVariableRef CVarSimCollisionEnabled(TEXT("p.SimCollisionEnabled"), SimCollisionEnabled, TEXT("If 0 no sim collision will be used"));
+
 
 void FBodyInstance::BuildBodyCollisionFlags(FBodyCollisionFlags& OutFlags, ECollisionEnabled::Type UseCollisionEnabled, bool bUseComplexAsSimple)
 	{
@@ -3667,7 +3635,7 @@ void FBodyInstance::BuildBodyCollisionFlags(FBodyCollisionFlags& OutFlags, EColl
 		OutFlags.bEnableQueryCollision = CollisionEnabledHasQuery(UseCollisionEnabled);
 
 		// Sim collision
-		const bool bSimCollision = SimCollisionEnabled && CollisionEnabledHasPhysics(UseCollisionEnabled);
+		const bool bSimCollision = CollisionEnabledHasPhysics(UseCollisionEnabled);
 
 		// Enable sim collision
 		if(bSimCollision)

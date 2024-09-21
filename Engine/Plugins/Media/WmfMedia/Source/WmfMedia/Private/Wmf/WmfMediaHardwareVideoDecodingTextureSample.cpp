@@ -2,18 +2,17 @@
 
 #include "WmfMediaHardwareVideoDecodingTextureSample.h"
 
-#include "WmfMediaCommon.h"
+#include "WmfMediaPrivate.h"
 
 #if WMFMEDIA_SUPPORTED_PLATFORM
 
-ID3D11Texture2D* FWmfMediaHardwareVideoDecodingTextureSample::InitializeSourceTexture(const TRefCountPtr<ID3D11Device>& InD3D11Device, FTimespan InTime, FTimespan InDuration, const FIntPoint& InDim, EPixelFormat InFormat, EMediaTextureSampleFormat InMediaTextureSampleFormat)
+ID3D11Texture2D* FWmfMediaHardwareVideoDecodingTextureSample::InitializeSourceTexture(const TRefCountPtr<ID3D11Device>& InD3D11Device, FTimespan InTime, FTimespan InDuration, const FIntPoint& InDim, uint8 InFormat, EMediaTextureSampleFormat InMediaTextureSampleFormat)
 {
 	Time = InTime;
 	Dim = InDim;
 	OutputDim = InDim;
 	Duration = InDuration;
 	SampleFormat = InMediaTextureSampleFormat;
-	Format = InFormat;
 
 	if (SourceTexture.IsValid())
 	{
@@ -54,10 +53,7 @@ void FWmfMediaHardwareVideoDecodingTextureSample::ShutdownPoolable()
 
 	// Correctly release the keyed mutex when the sample is returned to the pool
 	TComPtr<IDXGIResource> OtherResource(nullptr);
-	if (SourceTexture)
-	{
-		SourceTexture->QueryInterface(__uuidof(IDXGIResource), (void**)&OtherResource);
-	}
+	SourceTexture->QueryInterface(__uuidof(IDXGIResource), (void**)&OtherResource);
 
 	if (OtherResource)
 	{

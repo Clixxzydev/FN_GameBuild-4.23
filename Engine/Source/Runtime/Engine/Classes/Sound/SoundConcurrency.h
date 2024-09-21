@@ -100,13 +100,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume Scaling", meta = (DisplayName = "Release Time", EditCondition = "bVolumeScaleCanRelease", UIMin = "0.0", ClampMin = "0.0", UIMax = "10.0", ClampMax="1000000.0"))
 	float VolumeScaleReleaseTime;
 
-	/**
-	 * Time taken to fade out if voice is evicted or culled due to another voice in the group starting.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voice Stealing", meta = (UIMin = "0.0", ClampMin = "0.0", UIMax = "1.0", ClampMax="1000000.0"))
-	float VoiceStealReleaseTime;
-
-
 	FSoundConcurrencySettings()
 		: MaxCount(16)
 		, bLimitToOwner(0)
@@ -114,8 +107,7 @@ public:
 		, VolumeScale(1.0f)
 		, VolumeScaleAttackTime(0.01f)
 		, bVolumeScaleCanRelease(0)
-		, VolumeScaleReleaseTime(0.5f)
-		, VoiceStealReleaseTime(0.0f)
+		, VolumeScaleReleaseTime(0.0f)
 	{}
 
 	/**
@@ -184,7 +176,7 @@ public:
 	void Update(float InElapsed);
 
 	float GetVolume(bool bInDecibels = false) const;
-	float GetTargetVolume(bool bInDecibels = false) const;
+	float GetTargetVolume(bool bInDecibles = false) const;
 
 	void SetTarget(float InTargetVolume, float InLerpTime);
 };
@@ -275,7 +267,7 @@ typedef TMap<FSoundObjectID, FConcurrencyGroupID> FPerSoundToActiveSoundsMap;
 class FSoundConcurrencyManager
 {
 public:
-	FSoundConcurrencyManager(FAudioDevice* InAudioDevice);
+	FSoundConcurrencyManager(class FAudioDevice* InAudioDevice);
 	ENGINE_API ~FSoundConcurrencyManager();
 
 	/** Returns a newly allocated active sound given the input active sound struct. Will return nullptr if the active sound concurrency evaluation doesn't allow for it. */
@@ -283,9 +275,6 @@ public:
 
 	/** Removes the active sound from concurrency tracking when active sound is stopped. */
 	void RemoveActiveSound(FActiveSound& ActiveSound);
-
-	/** Stops sound, applying concurrency rules for how to stop. */
-	void StopDueToVoiceStealing(FActiveSound& ActiveSound);
 
 	/** Stops any active sounds due to max concurrency quietest sound resolution rule */
 	void UpdateQuietSoundsToStop();

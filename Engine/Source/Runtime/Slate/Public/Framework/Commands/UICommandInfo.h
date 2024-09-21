@@ -8,32 +8,33 @@
 #include "Layout/Visibility.h"
 #include "Textures/SlateIcon.h"
 #include "Framework/Commands/InputChord.h"
-#include "UICommandInfo.generated.h"
 
 class FBindingContext;
 class FUICommandInfo;
 
 /** Types of user interfaces that can be associated with a user interface action */
-UENUM(BlueprintType)
-enum class EUserInterfaceActionType : uint8
+namespace EUserInterfaceActionType
 {
-	/** An action which should not be associated with a user interface action */
-	None,
+	enum Type
+	{
+		/** An action which should not be associated with a user interface action */
+		None,
 
-	/** Momentary buttons or menu items.  These support enable state, and execute a delegate when clicked. */
-	Button,
+		/** Momentary buttons or menu items.  These support enable state, and execute a delegate when clicked. */
+		Button,
 
-	/** Toggleable buttons or menu items that store on/off state.  These support enable state, and execute a delegate when toggled. */
-	ToggleButton,
+		/** Toggleable buttons or menu items that store on/off state.  These support enable state, and execute a delegate when toggled. */
+		ToggleButton,
 		
-	/** Radio buttons are similar to toggle buttons in that they are for menu items that store on/off state.  However they should be used to indicate that menu items in a group can only be in one state */
-	RadioButton,
+		/** Radio buttons are similar to toggle buttons in that they are for menu items that store on/off state.  However they should be used to indicate that menu items in a group can only be in one state */
+		RadioButton,
 
-	/** Similar to Button but will display a readonly checkbox next to the item. */
-	Check,
+		/** Similar to Button but will display a readonly checkbox next to the item. */
+		Check,
 
-	/** Similar to Button but has the checkbox area collapsed */
-	CollapsedButton
+		/** Similar to Button but has the checkbox area collapsed */
+		CollapsedButton
+	};
 };
 
 UENUM()
@@ -57,7 +58,7 @@ class SLATE_API FUICommandInfoDecl
 public:
 
 	FUICommandInfoDecl& DefaultChord( const FInputChord& InDefaultChord, const EMultipleKeyBindingIndex InChordIndex = EMultipleKeyBindingIndex::Primary);
-	FUICommandInfoDecl& UserInterfaceType( EUserInterfaceActionType InType );
+	FUICommandInfoDecl& UserInterfaceType( EUserInterfaceActionType::Type InType );
 	FUICommandInfoDecl& Icon( const FSlateIcon& InIcon );
 	FUICommandInfoDecl& Description( const FText& InDesc );
 
@@ -222,7 +223,7 @@ public:
 	const FInputChord& GetDefaultChord(const EMultipleKeyBindingIndex InChordIndex) const { return DefaultChords[static_cast<uint8>(InChordIndex)]; }
 
 	/** Utility function to make an FUICommandInfo */
-	static void MakeCommandInfo( const TSharedRef<class FBindingContext>& InContext, TSharedPtr< FUICommandInfo >& OutCommand, const FName InCommandName, const FText& InCommandLabel, const FText& InCommandDesc, const FSlateIcon& InIcon, const EUserInterfaceActionType InUserInterfaceType, const FInputChord& InDefaultChord, const FInputChord& InAlternateDefaultChord = FInputChord());
+	static void MakeCommandInfo( const TSharedRef<class FBindingContext>& InContext, TSharedPtr< FUICommandInfo >& OutCommand, const FName InCommandName, const FText& InCommandLabel, const FText& InCommandDesc, const FSlateIcon& InIcon, const EUserInterfaceActionType::Type InUserInterfaceType, const FInputChord& InDefaultChord, const FInputChord& InAlternateDefaultChord = FInputChord());
 
 	/** Utility function to unregister an FUICommandInfo */
 	static void UnregisterCommandInfo(const TSharedRef<class FBindingContext>& InContext, const TSharedRef<FUICommandInfo>& InCommand);
@@ -237,7 +238,7 @@ public:
 	const FSlateIcon& GetIcon() const { return Icon; }
 
 	/** @return The type of command this is.  Used to determine what UI to create for it */
-	EUserInterfaceActionType GetUserInterfaceType() const { return UserInterfaceType; }
+	EUserInterfaceActionType::Type GetUserInterfaceType() const { return UserInterfaceType; }
 	
 	/** @return The name of the command */
 	FName GetCommandName() const { return CommandName; }
@@ -285,5 +286,5 @@ private:
 	FName BindingContext;
 
 	/** The type of user interface to associated with this action */
-	EUserInterfaceActionType UserInterfaceType;
+	EUserInterfaceActionType::Type UserInterfaceType;
 };

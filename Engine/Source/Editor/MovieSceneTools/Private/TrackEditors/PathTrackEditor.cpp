@@ -71,12 +71,9 @@ public:
 	
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) override
 	{
-		TArray<FGuid> ObjectBindings;
-		ObjectBindings.Add(ObjectBinding);
-
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("SetPath", "Path"), LOCTEXT("SetPathTooltip", "Set path"),
-			FNewMenuDelegate::CreateRaw(PathTrackEditor, &FActorPickerTrackEditor::ShowActorSubMenu, ObjectBindings, &Section));
+			FNewMenuDelegate::CreateRaw(PathTrackEditor, &FActorPickerTrackEditor::ShowActorSubMenu, ObjectBinding, &Section));
 	}
 
 private:
@@ -116,7 +113,7 @@ TSharedRef<ISequencerSection> F3DPathTrackEditor::MakeSectionInterface( UMovieSc
 }
 
 
-void F3DPathTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
+void F3DPathTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding, const UClass* ObjectClass)
 {
 	if (ObjectClass && ObjectClass->IsChildOf(AActor::StaticClass()))
 	{
@@ -124,7 +121,7 @@ void F3DPathTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, 
 
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("AddPath", "Path"), LOCTEXT("AddPathTooltip", "Adds a path track."),
-			FNewMenuDelegate::CreateRaw(this, &FActorPickerTrackEditor::ShowActorSubMenu, ObjectBindings, DummySection));
+			FNewMenuDelegate::CreateRaw(this, &FActorPickerTrackEditor::ShowActorSubMenu, ObjectBinding, DummySection));
 	}
 }
 
@@ -173,7 +170,7 @@ bool F3DPathTrackEditor::IsActorPickable(const AActor* const ParentActor, FGuid 
 }
 
 
-void F3DPathTrackEditor::ActorSocketPicked(const FName SocketName, USceneComponent* Component, FActorPickerID ActorPickerID, TArray<FGuid> ObjectGuids, UMovieSceneSection* Section)
+void F3DPathTrackEditor::ActorSocketPicked(const FName SocketName, USceneComponent* Component, FActorPickerID ActorPickerID, FGuid ObjectGuid, UMovieSceneSection* Section)
 {
 	if (Section != nullptr)
 	{
@@ -198,18 +195,13 @@ void F3DPathTrackEditor::ActorSocketPicked(const FName SocketName, USceneCompone
 			PathSection->SetConstraintBindingID(ConstraintBindingID);
 		}
 	}
-	else
+	else if (ObjectGuid.IsValid())
 	{
 		TArray<TWeakObjectPtr<>> OutObjects;
-
-		for (FGuid ObjectGuid : ObjectGuids)
+		for (TWeakObjectPtr<> Object : GetSequencer()->FindObjectsInCurrentSequence(ObjectGuid))
 		{
-			for (TWeakObjectPtr<> Object : GetSequencer()->FindObjectsInCurrentSequence(ObjectGuid))
-			{
-				OutObjects.Add(Object);
-			}
+			OutObjects.Add(Object);
 		}
-
 		AnimatablePropertyChanged( FOnKeyProperty::CreateRaw( this, &F3DPathTrackEditor::AddKeyInternal, OutObjects, ActorPickerID) );
 	}
 }

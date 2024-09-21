@@ -4,7 +4,7 @@ Crumbs: %ROOT%, Engine/Blueprints, Engine/Blueprints/UserGuide/Types
 Description:Blueprints used for scripting level-specific events within maps.
 Related: Engine/Blueprints/UserGuide/Types
 Related: Engine/Blueprints
-version: 4.22
+version: 4.9
 Parent:Engine/Blueprints
 type:overview
 tags:Blueprints
@@ -22,13 +22,11 @@ used to fire off sequences of actions in the form of Function Calls or Flow Cont
 Those familiar with Unreal Engine 3 should be very familiar with this concept as this is very similar 
 to how Kismet worked in Unreal Engine 3. 
 
-Level Blueprints also provide a control mechanism for level streaming and [Sequencer](Engine\Sequencer) as well 
+Level Blueprints also provide a control mechanism for level streaming and [Matinee](Engine/Matinee) as well 
 as for binding events to Actors placed within the level. 
 [/EXCERPT:Intro]
 
-[REGION:note]
 For more information about the Level Blueprint UI, see [](Engine/Blueprints/Editor/UIBreakdowns/LevelBPUI).
-[/REGION]
 
 
 ## Default Level Blueprint
@@ -62,8 +60,8 @@ Often, you will need to connect a reference to an Actor to a **Target** pin on a
 
 	![Level Blueprint Button](toolbar_level_editor.png)
 
-1. Right-click in the graph where you would like to add the node.
-1. Select **Create a reference to [SelectedActor]** in the context menu that appears.
+1. **Right-click** in the graph where you would like to add the node.
+1. Select **Add Reference to [SelectedActor]** in the context menu that appears.
 
 	![](add_reference_to.png)
 	
@@ -71,12 +69,7 @@ Alternatively:
 
 1.  Drag and drop an Actor from the **World Outliner** tab into a graph in the Level Blueprint.
 
-	[REGION:lightbox]
-	[![](add_reference_drag_drop.png)(w:900)](add_reference_drag_drop.png)
-	[/REGION]
-	[REGION:caption]
-	Click image for full view. 
-	[/REGION]
+	![](add_reference_drag_drop.png)
 
 The Actor reference node that appears can be connected to any compatible **Target** pin.
 
@@ -90,7 +83,11 @@ In some cases, you will not need a reference node, as you can connect an output 
 
 There are two ways that [](Engine/Blueprints/UserGuide/Events) for a specific Actor can be added to a Level Blueprint. 
 
-1. Right-click an Actor in the Level, then in the context menu under **Level Blueprint**, select the Event you wish to add. 
+1. Select the Actor in the **Level Viewport** or the **World Outliner**.
+
+	![](selected_actor.png)
+
+1. In the **Details** tab, under the **Blueprint** heading, there is a **Level Blueprint Events** dropdown. Expand that menu, then select your desired event from the list. 
 
 	![](add_event_details_tab.png)
 
@@ -100,13 +97,15 @@ Alternatively, once you have your Actor selected:
 
 	![Level Blueprint Button](toolbar_level_editor.png)
 
-1. Right-click in the graph where you would like to add the node.
+1. **Right-click** in the graph where you would like to add the node.
 
-1. In the context menu that appears, expand **Add Event for [ActorName]** and select your desired Event type. 
+1. In the context menu that appears, expand **Add Event for [ActorName]**.  
 
 	![](add_event_for_actor.png)
 
+1. Select your desired event from the list of events under **Add Event for [ActorName]**.
 
+	![](expanded_add_event_for_actor.png)
 
 
 

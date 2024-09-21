@@ -48,7 +48,6 @@
 #include "DebugViewModeRendering.h"
 #if RHI_RAYTRACING
 #include "RayTracing/RayTracingIESLightProfiles.h"
-#include "Halton.h"
 #endif
 
 /** Factor by which to grow occlusion tests **/
@@ -75,9 +74,7 @@ class UStaticMesh;
 class UStaticMeshComponent;
 class UTextureCube;
 class UWindDirectionalSourceComponent;
-class FRHIGPUBufferReadback;
-class FRHIGPUTextureReadback;
-class FRuntimeVirtualTextureSceneProxy;
+class FRHIGPUMemoryReadback;
 
 /** Holds information about a single primitive's occlusion. */
 class FPrimitiveOcclusionHistory
@@ -87,7 +84,7 @@ public:
 	FPrimitiveComponentId PrimitiveId;
 
 	/** The occlusion query which contains the primitive's pending occlusion results. */
-	FRefCountedRHIPooledRenderQuery PendingOcclusionQuery[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames];
+	FRenderQueryRHIRef PendingOcclusionQuery[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames];
 	uint32 PendingOcclusionQueryFrames[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames]; 
 
 	uint32 LastTestFrameNumber;
@@ -134,7 +131,7 @@ private:
 	 *	Conditions where this is needed to get a query for read-back are described for bNeedsScanOnRead.
 	 *	Returns -1 if no such query exists in the occlusion history.
 	 */
-	inline int32 ScanOldestNonStaleQueryIndex(uint32 FrameNumber, int32 NumBufferedFrames, int32 LagTolerance) const
+	FORCEINLINE int32 ScanOldestNonStaleQueryIndex(uint32 FrameNumber, int32 NumBufferedFrames, int32 LagTolerance) const
 	{
 		uint32 OldestFrame = UINT32_MAX;
 		int32 OldestQueryIndex = -1;
@@ -153,7 +150,7 @@ private:
 
 public:
 	/** Initialization constructor. */
-	inline FPrimitiveOcclusionHistory(FPrimitiveComponentId InPrimitiveId, int32 SubQuery)
+	FORCEINLINE FPrimitiveOcclusionHistory(FPrimitiveComponentId InPrimitiveId, int32 SubQuery)
 		: PrimitiveId(InPrimitiveId)
 		, LastTestFrameNumber(~0u)
 		, LastConsideredFrameNumber(~0u)
@@ -174,7 +171,7 @@ public:
 		}
 	}
 
-	inline FPrimitiveOcclusionHistory()
+	FORCEINLINE FPrimitiveOcclusionHistory()
 		: LastTestFrameNumber(~0u)
 		, LastConsideredFrameNumber(~0u)
 		, HZBTestIndex(0)
@@ -194,7 +191,8 @@ public:
 		}
 	}
 
-	inline void ReleaseStaleQueries(uint32 FrameNumber, int32 NumBufferedFrames)
+	template<class TOcclusionQueryPool> // here we use a template just to allow this to be inlined without sorting out the header order
+	FORCEINLINE void ReleaseStaleQueries(TOcclusionQueryPool& Pool, uint32 FrameNumber, int32 NumBufferedFrames)
 	{
 		for (uint32 DeltaFrame = NumBufferedFrames; DeltaFrame > 0; DeltaFrame--)
 		{
@@ -202,32 +200,35 @@ public:
 			{
 				uint32 TestFrame = FrameNumber - (DeltaFrame - 1);
 				const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(TestFrame, NumBufferedFrames);
-				if (PendingOcclusionQueryFrames[QueryIndex] != TestFrame)
+				if (PendingOcclusionQuery[QueryIndex].GetReference() && PendingOcclusionQueryFrames[QueryIndex] != TestFrame)
 				{
-					PendingOcclusionQuery[QueryIndex].ReleaseQuery();
+					Pool.ReleaseQuery(PendingOcclusionQuery[QueryIndex]);
 				}
 			}
 		}
 	}
-
-	inline void ReleaseQuery(uint32 FrameNumber, int32 NumBufferedFrames)
-	{
-		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(FrameNumber, NumBufferedFrames);
-		PendingOcclusionQuery[QueryIndex].ReleaseQuery();
-	}
-
-	inline FRHIRenderQuery* GetQueryForEviction(uint32 FrameNumber, int32 NumBufferedFrames) const
+	template<class TOcclusionQueryPool> // here we use a template just to allow this to be inlined without sorting out the header order
+	FORCEINLINE void ReleaseQuery(TOcclusionQueryPool& Pool, uint32 FrameNumber, int32 NumBufferedFrames)
 	{
 		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(FrameNumber, NumBufferedFrames);
 		if (PendingOcclusionQuery[QueryIndex].IsValid())
 		{
-			return PendingOcclusionQuery[QueryIndex].GetQuery();
+			Pool.ReleaseQuery(PendingOcclusionQuery[QueryIndex]);
+		}
+	}
+
+	FORCEINLINE FRenderQueryRHIParamRef GetQueryForEviction(uint32 FrameNumber, int32 NumBufferedFrames) const
+	{
+		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(FrameNumber, NumBufferedFrames);
+		if (PendingOcclusionQuery[QueryIndex].IsValid())
+		{
+			return PendingOcclusionQuery[QueryIndex].GetReference();
 		}
 		return nullptr;
 	}
 
 
-	inline FRHIRenderQuery* GetQueryForReading(uint32 FrameNumber, int32 NumBufferedFrames, int32 LagTolerance, bool& bOutGrouped) const
+	FORCEINLINE FRenderQueryRHIParamRef GetQueryForReading(uint32 FrameNumber, int32 NumBufferedFrames, int32 LagTolerance, bool& bOutGrouped) const
 	{
 		const int32 OldestQueryIndex = bNeedsScanOnRead ? ScanOldestNonStaleQueryIndex(FrameNumber, NumBufferedFrames, LagTolerance)
 														: FOcclusionQueryHelpers::GetQueryLookupIndex(FrameNumber, NumBufferedFrames);
@@ -238,21 +239,21 @@ public:
 			return nullptr;
 		}
 		bOutGrouped = bGroupedQuery[OldestQueryIndex];
-		return PendingOcclusionQuery[OldestQueryIndex].GetQuery();
+		return PendingOcclusionQuery[OldestQueryIndex];
 	}
 
-	inline void SetCurrentQuery(uint32 FrameNumber, FRefCountedRHIPooledRenderQuery&& NewQuery, int32 NumBufferedFrames, bool bGrouped, bool bNeedsScan)
+	FORCEINLINE void SetCurrentQuery(uint32 FrameNumber, FRenderQueryRHIParamRef NewQuery, int32 NumBufferedFrames, bool bGrouped, bool bNeedsScan)
 	{
 		// Get the current occlusion query
 		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryIssueIndex(FrameNumber, NumBufferedFrames);
-		PendingOcclusionQuery[QueryIndex] = MoveTemp(NewQuery);
+		PendingOcclusionQuery[QueryIndex] = NewQuery;
 		PendingOcclusionQueryFrames[QueryIndex] = FrameNumber;
 		bGroupedQuery[QueryIndex] = bGrouped;
 
 		bNeedsScanOnRead = bNeedsScan;
 	}
 
-	inline uint32 LastQuerySubmitFrame() const
+	FORCEINLINE uint32 LastQuerySubmitFrame() const
 	{
 		uint32 Result = 0;
 
@@ -309,12 +310,13 @@ struct FPrimitiveOcclusionHistoryKeyFuncs : BaseKeyFuncs<FPrimitiveOcclusionHist
 
 class FIndividualOcclusionHistory
 {
-	FRHIPooledRenderQuery PendingOcclusionQuery[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames];
+	FRenderQueryRHIRef PendingOcclusionQuery[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames];
 	uint32 PendingOcclusionQueryFrames[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames]; // not intialized...this is ok
 
 public:
 
-	inline void ReleaseStaleQueries(uint32 FrameNumber, int32 NumBufferedFrames)
+	template<class TOcclusionQueryPool> // here we use a template just to allow this to be inlined without sorting out the header order
+	FORCEINLINE void ReleaseStaleQueries(TOcclusionQueryPool& Pool, uint32 FrameNumber, int32 NumBufferedFrames)
 	{
 		for (uint32 DeltaFrame = NumBufferedFrames; DeltaFrame > 0; DeltaFrame--)
 		{
@@ -322,35 +324,39 @@ public:
 			{
 				uint32 TestFrame = FrameNumber - (DeltaFrame - 1);
 				const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(TestFrame, NumBufferedFrames);
-				if (PendingOcclusionQueryFrames[QueryIndex] != TestFrame)
+				if (PendingOcclusionQuery[QueryIndex].GetReference() && PendingOcclusionQueryFrames[QueryIndex] != TestFrame)
 				{
-					PendingOcclusionQuery[QueryIndex].ReleaseQuery();
+					Pool.ReleaseQuery(PendingOcclusionQuery[QueryIndex]);
 				}
 			}
 		}
 	}
-	inline void ReleaseQuery(uint32 FrameNumber, int32 NumBufferedFrames)
+	template<class TOcclusionQueryPool> // here we use a template just to allow this to be inlined without sorting out the header order
+	FORCEINLINE void ReleaseQuery(TOcclusionQueryPool& Pool, uint32 FrameNumber, int32 NumBufferedFrames)
 	{
 		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(FrameNumber, NumBufferedFrames);
-		PendingOcclusionQuery[QueryIndex].ReleaseQuery();
+		if (PendingOcclusionQuery[QueryIndex].GetReference())
+		{
+			Pool.ReleaseQuery(PendingOcclusionQuery[QueryIndex]);
+		}
 	}
 
-	inline FRHIRenderQuery* GetPastQuery(uint32 FrameNumber, int32 NumBufferedFrames)
+	FORCEINLINE FRenderQueryRHIParamRef GetPastQuery(uint32 FrameNumber, int32 NumBufferedFrames)
 	{
 		// Get the oldest occlusion query
 		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryLookupIndex(FrameNumber, NumBufferedFrames);
-		if (PendingOcclusionQuery[QueryIndex].GetQuery() && PendingOcclusionQueryFrames[QueryIndex] == FrameNumber - uint32(NumBufferedFrames))
+		if (PendingOcclusionQuery[QueryIndex].GetReference() && PendingOcclusionQueryFrames[QueryIndex] == FrameNumber - uint32(NumBufferedFrames))
 		{
-			return PendingOcclusionQuery[QueryIndex].GetQuery();
+			return PendingOcclusionQuery[QueryIndex].GetReference();
 		}
 		return nullptr;
 	}
 
-	inline void SetCurrentQuery(uint32 FrameNumber, FRHIPooledRenderQuery&& NewQuery, int32 NumBufferedFrames)
+	FORCEINLINE void SetCurrentQuery(uint32 FrameNumber, FRenderQueryRHIParamRef NewQuery, int32 NumBufferedFrames)
 	{
 		// Get the current occlusion query
 		const uint32 QueryIndex = FOcclusionQueryHelpers::GetQueryIssueIndex(FrameNumber, NumBufferedFrames);
-		PendingOcclusionQuery[QueryIndex] = MoveTemp(NewQuery);
+		PendingOcclusionQuery[QueryIndex] = NewQuery;
 		PendingOcclusionQueryFrames[QueryIndex] = FrameNumber;
 	}
 };
@@ -494,7 +500,7 @@ public:
 	}
 
 	/** @return A random number between 0 and 1. */
-	inline float GetFraction()
+	FORCEINLINE float GetFraction()
 	{
 		if (CurrentSample >= NumSamples)
 		{
@@ -520,15 +526,10 @@ Buffers multiple frames to avoid waiting on the GPU so times are a little lagged
 */
 class FLatentGPUTimer
 {
-	FRenderQueryPoolRHIRef TimerQueryPool;
-public:
 	static const int32 NumBufferedFrames = FOcclusionQueryHelpers::MaxBufferedOcclusionFrames + 1;
+public:
 
-	FLatentGPUTimer(FRenderQueryPoolRHIRef InTimerQueryPool, int32 InAvgSamples = 30);
-	~FLatentGPUTimer()
-	{
-		Release();
-	}
+	FLatentGPUTimer(int32 InAvgSamples = 30);
 
 	void Release();
 
@@ -555,9 +556,8 @@ private:
 	int32 SampleIndex;
 
 	int32 QueryIndex;
-	bool QueriesInFlight[NumBufferedFrames];
-	FRHIPooledRenderQuery StartQueries[NumBufferedFrames];
-	FRHIPooledRenderQuery EndQueries[NumBufferedFrames];
+	FRenderQueryRHIRef StartQueries[NumBufferedFrames];
+	FRenderQueryRHIRef EndQueries[NumBufferedFrames];
 	FGraphEventRef QuerySubmittedFences[NumBufferedFrames];
 };
 
@@ -633,7 +633,7 @@ struct FHLODSceneNodeVisibilityState
  * This class is associated with a particular camera across multiple frames by the game thread.
  * The game thread calls FRendererModule::AllocateViewState to create an instance of this private implementation.
  */
-class FSceneViewState : public FSceneViewStateInterface, public FRenderResource
+class FSceneViewState : public FSceneViewStateInterface, public FDeferredCleanupInterface, public FRenderResource
 {
 public:
 
@@ -641,7 +641,7 @@ public:
 	{
 	public:
 
-		inline bool operator == (const FProjectedShadowKey &Other) const
+		FORCEINLINE bool operator == (const FProjectedShadowKey &Other) const
 		{
 			return (PrimitiveId == Other.PrimitiveId && Light == Other.Light && ShadowSplitIndex == Other.ShadowSplitIndex && bTranslucentShadow == Other.bTranslucentShadow);
 		}
@@ -662,7 +662,7 @@ public:
 		{
 		}
 
-		friend inline uint32 GetTypeHash(const FSceneViewState::FProjectedShadowKey& Key)
+		friend FORCEINLINE uint32 GetTypeHash(const FSceneViewState::FProjectedShadowKey& Key)
 		{
 			return PointerHash(Key.Light,GetTypeHash(Key.PrimitiveId));
 		}
@@ -675,11 +675,11 @@ public:
 	};
 
 	uint32 UniqueID;
-	typedef TMap<FSceneViewState::FProjectedShadowKey, FRHIPooledRenderQuery> ShadowKeyOcclusionQueryMap;
+	typedef TMap<FSceneViewState::FProjectedShadowKey, FRenderQueryRHIRef> ShadowKeyOcclusionQueryMap;
 	TArray<ShadowKeyOcclusionQueryMap, TInlineAllocator<FOcclusionQueryHelpers::MaxBufferedOcclusionFrames> > ShadowOcclusionQueryMaps;
 
 	/** The view's occlusion query pool. */
-	FRenderQueryPoolRHIRef OcclusionQueryPool;
+	FRenderQueryPool OcclusionQueryPool;
 
 	FHZBOcclusionTester HZBOcclusionTests;
 
@@ -763,8 +763,7 @@ private:
 	{
 	public:
 
-		// Allows forward declaration of FRHIGPUTextureReadback
-		~FEyeAdaptationRTManager();
+		FEyeAdaptationRTManager() :	CurrentBuffer(0), LastExposure(0.f), CurrentStagingBuffer(0) {}
 
 		void SafeRelease();
 
@@ -801,14 +800,16 @@ private:
 
 	private:
 
-		int32 CurrentBuffer = 0;
+		int32 CurrentBuffer;
 
-		float LastExposure = 0;
+		float LastExposure;
 		float LastAverageSceneLuminance = 0; // 0 means invalid. Used for Exposure Compensation Curve.
 
-		TRefCountPtr<IPooledRenderTarget> PooledRenderTarget[2];
-		TUniquePtr<FRHIGPUTextureReadback> ExposureTextureReadback;
+		int32 CurrentStagingBuffer;
+		static const int32 NUM_STAGING_BUFFERS = 3;
 
+		TRefCountPtr<IPooledRenderTarget> PooledRenderTarget[2];
+		TRefCountPtr<IPooledRenderTarget> StagingBuffers[NUM_STAGING_BUFFERS];
 	} EyeAdaptationRTManager;
 
 	// eye adaptation is only valid after it has been computed, not on allocation of the RT
@@ -825,6 +826,14 @@ private:
 	TArray<UMaterialInstanceDynamic*> MIDPool;
 	uint32 MIDUsedCount;
 
+	// if TemporalAA is on this cycles through 0..TemporalAASampleCount-1, ResetViewState() puts it back to 0
+	uint8 TemporalAASampleIndex;
+	// >= 1, 1 means there is no TemporalAA
+	uint8 TemporalAASampleCount;
+
+	// counts up by one each frame, warped in 0..7 range, ResetViewState() puts it back to 0
+	uint32 FrameIndex;
+
 	// counts up by one each frame, warped in 0..3 range, ResetViewState() puts it back to 0
 	int32 DistanceFieldTemporalSampleIndex;
 
@@ -838,18 +847,18 @@ private:
 	bool bRoundRobinOcclusionEnabled;
 
 public:
-	
-	// if TemporalAA is on this cycles through 0..TemporalAASampleCount-1, ResetViewState() puts it back to 0
-	int8 TemporalAASampleIndex;
-
-	// counts up by one each frame, warped in 0..7 range, ResetViewState() puts it back to 0
-	uint32 FrameIndex;
 
 	// Previous frame's view info to use.
 	FPreviousViewInfo PrevFrameViewInfo;
 
 	FHeightfieldLightingAtlas* HeightfieldLightingAtlas;
 
+	// TODO: move these guys in FPreviousViewInfo.
+	// Temporal AA result for DOF of last frame
+	FTemporalAAHistory DOFHistory;
+	FTemporalAAHistory DOFHistory2;
+	// Temporal AA result for SSR
+	FTemporalAAHistory SSRHistory;
 	// Temporal AA result for light shafts of last frame
 	FTemporalAAHistory LightShaftOcclusionHistory;
 	// Temporal AA result for light shafts of last frame
@@ -909,14 +918,11 @@ public:
 	FRWBuffer* TotalRayCountBuffer;
 
 	// Ray Count readback:
-	FRHIGPUBufferReadback* RayCountGPUReadback;
+	FRHIGPUMemoryReadback* RayCountGPUReadback;
 	bool bReadbackInitialized = false;
 
 	// IES light profiles
 	FIESLightProfileResource IESLightProfileResources;
-
-	TRefCountPtr<FPooledRDGBuffer> GatherPointsBuffer;
-	FIntPoint GatherPointsResolution;
 #endif
 
 	// cache for stencil reads to a avoid reallocations of the SRV, Key is to detect if the object has changed
@@ -951,7 +957,6 @@ public:
 	FRWBufferStructured PrimitiveShaderDataBuffer;
 
 	/** Timestamp queries around separate translucency, used for auto-downsampling. */
-	FRenderQueryPoolRHIRef TimerQueryPool;
 	FLatentGPUTimer TranslucencyTimer;
 	FLatentGPUTimer SeparateTranslucencyTimer;
 
@@ -968,8 +973,8 @@ public:
 	// Is DOFHistoryRT2 set from DepthOfField?
 	bool bDOFHistory2;
 
-	// Sequencer state for view management
-	ESequencerState SequencerState;
+	// True when Sequencer has paused
+	bool bSequencerIsPaused;
 
 	FTemporalLODState TemporalLODState;
 
@@ -977,6 +982,12 @@ public:
 	virtual uint32 GetCurrentTemporalAASampleIndex() const
 	{
 		return TemporalAASampleIndex;
+	}
+
+	// call after OnFrameRenderingSetup()
+	uint32 GetCurrentTemporalAASampleCount() const
+	{
+		return TemporalAASampleCount;
 	}
 
 	// Returns the index of the frame with a desired power of two modulus.
@@ -1001,6 +1012,29 @@ public:
 		PreExposure = 1.f;
 
 		ReleaseDynamicRHI();
+	}
+
+	// @param SampleCount 0 or 1 for no TemporalAA 
+	void OnFrameRenderingSetup(uint32 SampleCount, const FSceneViewFamily& Family)
+	{
+		if(!SampleCount)
+		{
+			SampleCount = 1;
+		}
+
+		TemporalAASampleCount = FMath::Min(SampleCount, (uint32)255);
+
+		if (!Family.bWorldIsPaused)
+		{
+			TemporalAASampleIndex++;
+
+			FrameIndex++;
+		}
+
+		if(TemporalAASampleIndex >= TemporalAASampleCount)
+		{
+			TemporalAASampleIndex = 0;
+		}
 	}
 
 	void SetupDistanceFieldTemporalOffset(const FSceneViewFamily& Family)
@@ -1132,7 +1166,7 @@ public:
 	/** Swaps the double-buffer targets used in eye adaptation */
 	void SwapEyeAdaptationRTs()
 	{
-		EyeAdaptationRTManager.SwapRTs(bUpdateLastExposure && bValidEyeAdaptation);
+		EyeAdaptationRTManager.SwapRTs(bUpdateLastExposure);
 	}
 
 	bool HasValidEyeAdaptation() const
@@ -1165,36 +1199,9 @@ public:
 		bValidTonemappingLUT = bValid;
 	}
 
-	static FPooledRenderTargetDesc CreateLUTRenderTarget(const int32 LUTSize, const bool bUseVolumeLUT, const bool bNeedUAV, const bool bNeedFloatOutput)
-	{
-		// Create the texture needed for the tonemapping LUT in one place
-		EPixelFormat LUTPixelFormat = PF_A2B10G10R10;
-		if (!GPixelFormats[LUTPixelFormat].Supported)
-		{
-			LUTPixelFormat = PF_R8G8B8A8;
-		}
-		if (bNeedFloatOutput)
-		{
-			LUTPixelFormat = PF_FloatRGBA;
-		}
-
-		FPooledRenderTargetDesc Desc = FPooledRenderTargetDesc::Create2DDesc(FIntPoint(LUTSize * LUTSize, LUTSize), LUTPixelFormat, FClearValueBinding::Transparent, TexCreate_None, TexCreate_ShaderResource, false);
-		Desc.TargetableFlags |= bNeedUAV ? TexCreate_UAV : TexCreate_RenderTargetable;
-
-		if (bUseVolumeLUT)
-		{
-			Desc.Extent = FIntPoint(LUTSize, LUTSize);
-			Desc.Depth = LUTSize;
-		}
-
-		Desc.DebugName = TEXT("CombineLUTs");
-		Desc.Flags |= GFastVRamConfig.CombineLUTs;
-
-		return Desc;
-	}
 
 	// Returns a reference to the render target used for the LUT.  Allocated on the first request.
-	FSceneRenderTargetItem& GetTonemappingLUTRenderTarget(FRHICommandList& RHICmdList, const int32 LUTSize, const bool bUseVolumeLUT, const bool bNeedUAV, const bool bNeedFloatOutput)
+	FSceneRenderTargetItem& GetTonemappingLUTRenderTarget(FRHICommandList& RHICmdList, const int32 LUTSize, const bool bUseVolumeLUT, const bool bNeedUAV)
 	{
 		if (CombinedLUTRenderTarget.IsValid() == false || 
 			CombinedLUTRenderTarget->GetDesc().Extent.Y != LUTSize ||
@@ -1202,7 +1209,22 @@ public:
 			!!(CombinedLUTRenderTarget->GetDesc().TargetableFlags & TexCreate_UAV) != bNeedUAV)
 		{
 			// Create the texture needed for the tonemapping LUT
-			FPooledRenderTargetDesc Desc = CreateLUTRenderTarget(LUTSize, bUseVolumeLUT, bNeedUAV, bNeedFloatOutput);
+			EPixelFormat LUTPixelFormat = PF_A2B10G10R10;
+			if (!GPixelFormats[LUTPixelFormat].Supported)
+			{
+				LUTPixelFormat = PF_R8G8B8A8;
+			}
+
+			FPooledRenderTargetDesc Desc = FPooledRenderTargetDesc::Create2DDesc(FIntPoint(LUTSize * LUTSize, LUTSize), LUTPixelFormat, FClearValueBinding::Transparent, TexCreate_None, TexCreate_ShaderResource, false);
+			Desc.TargetableFlags |= bNeedUAV ? TexCreate_UAV : TexCreate_RenderTargetable;
+
+			if (bUseVolumeLUT)
+			{
+				Desc.Extent = FIntPoint(LUTSize, LUTSize);
+				Desc.Depth = LUTSize;
+			}
+
+			Desc.DebugName = TEXT("CombineLUTs");
 
 			GRenderTargetPool.FindFreeElement(RHICmdList, Desc, CombinedLUTRenderTarget, Desc.DebugName);
 		}
@@ -1228,7 +1250,72 @@ public:
 
 	virtual void ReleaseDynamicRHI() override
 	{
+		for (int i = 0; i < ShadowOcclusionQueryMaps.Num(); ++i)
+		{
+			ShadowOcclusionQueryMaps[i].Reset();
+		}
+		PrimitiveOcclusionHistorySet.Empty();
+		PrimitiveFadingStates.Empty();
+		OcclusionQueryPool.Release();
 		HZBOcclusionTests.ReleaseDynamicRHI();
+		EyeAdaptationRTManager.SafeRelease();
+		CombinedLUTRenderTarget.SafeRelease();
+		PrevFrameViewInfo.SafeRelease();
+		DOFHistory.SafeRelease();
+		DOFHistory2.SafeRelease();
+		SSRHistory.SafeRelease();
+		LightShaftOcclusionHistory.SafeRelease();
+		LightShaftBloomHistoryRTs.Empty();
+		DistanceFieldAOHistoryRT.SafeRelease();
+		DistanceFieldIrradianceHistoryRT.SafeRelease();
+		MobileAaBloomSunVignette0.SafeRelease();
+		MobileAaBloomSunVignette1.SafeRelease();
+		MobileAaColor0.SafeRelease();
+		MobileAaColor1.SafeRelease();
+		BloomFFTKernel.SafeRelease();
+		SelectionOutlineCacheKey.SafeRelease();
+		SelectionOutlineCacheValue.SafeRelease();
+
+		{
+			// Sets the mipbias that is normally <= 0 to invalid large number.
+			MaterialTextureCachedMipBias = BIG_NUMBER;
+			MaterialTextureBilinearWrapedSamplerCache.SafeRelease();
+			MaterialTextureBilinearClampedSamplerCache.SafeRelease();
+		}
+
+		for (int32 CascadeIndex = 0; CascadeIndex < ARRAY_COUNT(GlobalDistanceFieldClipmapState); CascadeIndex++)
+		{
+			for (int32 CacheType = 0; CacheType < ARRAY_COUNT(GlobalDistanceFieldClipmapState[CascadeIndex].Cache); CacheType++)
+			{
+				GlobalDistanceFieldClipmapState[CascadeIndex].Cache[CacheType].VolumeTexture.SafeRelease();
+			}
+		}
+
+		IndirectShadowCapsuleShapesVertexBuffer.SafeRelease();
+		IndirectShadowCapsuleShapesSRV.SafeRelease();
+		IndirectShadowMeshDistanceFieldCasterIndicesVertexBuffer.SafeRelease();
+		IndirectShadowMeshDistanceFieldCasterIndicesSRV.SafeRelease();
+		IndirectShadowLightDirectionVertexBuffer.SafeRelease();
+		IndirectShadowLightDirectionSRV.SafeRelease();
+		CapsuleTileIntersectionCountsBuffer.Release();
+		TranslucencyTimer.Release();
+		SeparateTranslucencyTimer.Release();
+		if (!!ForwardLightingResources)
+		{
+			ForwardLightingResources->Release();
+			ForwardLightingResources = nullptr;
+		}
+		ForwardLightingCullingResources.Release();
+		LightScatteringHistory.SafeRelease();
+		PrimitiveShaderDataBuffer.Release();
+#if RHI_RAYTRACING
+		PathTracingIrradianceRT.SafeRelease();
+		PathTracingSampleCountRT.SafeRelease();
+		VarianceMipTreeDimensions = FIntVector(0);
+		TotalRayCount = 0;
+		PathTracingRect = FIntRect(0, 0, 0, 0);
+		IESLightProfileResources.Release();
+#endif 
 	}
 
 	// FSceneViewStateInterface
@@ -1383,14 +1470,14 @@ public:
 
 	virtual SIZE_T GetSizeBytes() const override;
 
-	virtual void SetSequencerState(ESequencerState InSequencerState) override
+	virtual void SetSequencerState(const bool bIsPaused) override
 	{
-		SequencerState = InSequencerState;
+		bSequencerIsPaused = bIsPaused;
 	}
 
-	virtual ESequencerState GetSequencerState() override
+	virtual bool GetSequencerState() override
 	{
-		return SequencerState;
+		return bSequencerIsPaused;
 	}
 
 	/** Information about visibility/occlusion states in past frames for individual primitives. */
@@ -1780,14 +1867,8 @@ public:
 		return bCanUse16BitObjectIndices && (NumObjectsInBuffer < (1 << 16));
 	}
 
-	const class FDistanceFieldObjectBuffers* GetCurrentObjectBuffers() const
-	{
-		return ObjectBuffers[ObjectBufferIndex];
-	}
-
 	int32 NumObjectsInBuffer;
-	class FDistanceFieldObjectBuffers* ObjectBuffers[2];
-	int ObjectBufferIndex;
+	class FDistanceFieldObjectBuffers* ObjectBuffers;
 
 	/** Stores the primitive and instance index of every entry in the object buffer. */
 	TArray<FPrimitiveAndInstance> PrimitiveInstanceMapping;
@@ -1801,7 +1882,6 @@ public:
 
 	/** Pending operations on the object buffers to be processed next frame. */
 	TArray<FPrimitiveSceneInfo*> PendingAddOperations;
-	TArray<FPrimitiveSceneInfo*> PendingThrottledOperations;
 	TSet<FPrimitiveSceneInfo*> PendingUpdateOperations;
 	TArray<FPrimitiveRemoveInfo> PendingRemoveOperations;
 	TArray<FVector4> PrimitiveModifiedBounds[GDF_Num];
@@ -2120,7 +2200,7 @@ public:
 	/** 
 	 * Updates a primitives current LocalToWorld state.
 	 */
-	void UpdateTransform(FPrimitiveSceneInfo* PrimitiveSceneInfo, const FMatrix& LocalToWorld, const FMatrix& PreviousLocalToWorld)
+	void UpdateTransform(FPrimitiveSceneInfo* PrimitiveSceneInfo, FMatrix LocalToWorld, FMatrix PreviousLocalToWorld)
 	{
 		check(PrimitiveSceneInfo->Proxy->IsMovable());
 
@@ -2145,19 +2225,6 @@ public:
 		if (VelocityData)
 		{
 			VelocityData->PrimitiveSceneInfo = nullptr;
-		}
-	}
-
-	/** 
-	 * Overrides a primitive's previous LocalToWorld matrix for this frame only
-	 */
-	void OverridePreviousTransform(FPrimitiveComponentId PrimitiveComponentId, const FMatrix& PreviousLocalToWorld)
-	{
-		FComponentVelocityData* VelocityData = ComponentData.Find(PrimitiveComponentId);
-		if (VelocityData)
-		{
-			VelocityData->PreviousLocalToWorld = PreviousLocalToWorld;
-			VelocityData->bPreviousLocalToWorldValid = true;
 		}
 	}
 
@@ -2285,22 +2352,8 @@ public:
 	}
 
 	void Initialize();
-
-	/** Compares the provided view against the cached view and updates the view uniform buffer
-	 *  if the views differ. Returns whether uniform buffer was updated.
-	 */
+	// @return Whether uniform buffer was updated
 	bool UpdateViewUniformBuffer(const FViewInfo& View);
-
-	/** Updates view uniform buffer and invalidates the internally cached view instance. */
-	void UpdateViewUniformBufferImmediate(const FViewUniformShaderParameters& Parameters);
-
-	const FViewInfo& GetInstancedView(const FViewInfo& View)
-	{
-		// When drawing the left eye in a stereo scene, copy the right eye view values into the instanced view uniform buffer.
-		const EStereoscopicPass StereoPassIndex = (View.StereoPass != eSSP_FULL) ? eSSP_RIGHT_EYE : eSSP_FULL;
-
-		return static_cast<const FViewInfo&>(View.Family->GetStereoEyeView(StereoPassIndex));
-	}
 
 	TUniformBufferRef<FViewUniformShaderParameters> ViewUniformBuffer;
 	TUniformBufferRef<FInstancedViewUniformShaderParameters> InstancedViewUniformBuffer;
@@ -2322,8 +2375,6 @@ public:
 	TUniformBufferRef<FSceneTexturesUniformParameters> CustomDepthPassUniformBuffer;
 	TUniformBufferRef<FMobileSceneTextureUniformParameters> MobileCustomDepthPassUniformBuffer;
 	TUniformBufferRef<FViewUniformShaderParameters> CustomDepthViewUniformBuffer;
-	TUniformBufferRef<FInstancedViewUniformShaderParameters> InstancedCustomDepthViewUniformBuffer;
-	TUniformBufferRef<FViewUniformShaderParameters> VirtualTextureViewUniformBuffer;
 
 	TUniformBufferRef<FMobileBasePassUniformParameters> MobileOpaqueBasePassUniformBuffer;
 	TUniformBufferRef<FMobileBasePassUniformParameters> MobileTranslucentBasePassUniformBuffer;
@@ -2363,7 +2414,7 @@ struct MeshDrawCommandKeyFuncs : DefaultKeyFuncs<FMeshDrawCommandStateBucket,fal
 	/**
 	 * @return True if the keys match.
 	 */
-	static inline bool Matches(KeyInitType A,KeyInitType B)
+	static FORCEINLINE bool Matches(KeyInitType A,KeyInitType B)
 	{
 		return A.MatchesForDynamicInstancing(B);
 	}
@@ -2371,13 +2422,13 @@ struct MeshDrawCommandKeyFuncs : DefaultKeyFuncs<FMeshDrawCommandStateBucket,fal
 	/**
 	 * @return The key used to index the given element.
 	 */
-	static inline KeyInitType GetSetKey(ElementInitType Element)
+	static FORCEINLINE KeyInitType GetSetKey(ElementInitType Element)
 	{
 		return Element.MeshDrawCommand;
 	}
 
 	/** Calculates a hash index for a key. */
-	static inline uint32 GetKeyHash(KeyInitType Key)
+	static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
 	{
 		return Key.GetDynamicInstancingHash();
 	}
@@ -2391,8 +2442,8 @@ struct FMeshComputeDispatchCommand
 
 	uint32 NumMaxVertices;
 	uint32 NumCPUVertices;
-	uint32 MinVertexIndex;
 	FRWBuffer* TargetBuffer;
+	FRayTracingGeometry* TargetGeometry;
 };
 #endif
 
@@ -2446,10 +2497,6 @@ public:
 	TArray<FBoxSphereBounds> PrimitiveOcclusionBounds;
 	/** Packed array of primitive components associated with the primitive. */
 	TArray<FPrimitiveComponentId> PrimitiveComponentIds;
-	/** Packed array of runtime virtual texture flags. */
-	TArray<FPrimitiveVirtualTextureFlags> PrimitiveVirtualTextureFlags;
-	/** Packed array of runtime virtual texture lod info. */
-	TArray<FPrimitiveVirtualTextureLodInfo> PrimitiveVirtualTextureLod;
 
 	TBitArray<> PrimitivesNeedingStaticMeshUpdate;
 	TSet<FPrimitiveSceneInfo*> PrimitivesNeedingStaticMeshUpdateWithoutVisibilityCheck;
@@ -2607,9 +2654,6 @@ public:
 	/** LOD Tree Holder for massive LOD system */
 	FLODSceneTree SceneLODHierarchy;
 
-	/** The runtime virtual textures in the scene. */
-	TSparseArray<FRuntimeVirtualTextureSceneProxy*> RuntimeVirtualTextures;
-
 	float DefaultMaxDistanceFieldOcclusionDistance;
 
 	float GlobalDistanceFieldViewDistance;
@@ -2625,8 +2669,6 @@ public:
 
 #if RHI_RAYTRACING
 	class FRayTracingDynamicGeometryCollection* RayTracingDynamicGeometryCollection;
-	FHaltonSequence HaltonSequence;
-	FHaltonPrimesResource HaltonPrimesResource;
 #endif
 
 	/** Initialization constructor. */
@@ -2672,8 +2714,6 @@ public:
 	virtual bool HasPrecomputedVolumetricLightmap_RenderThread() const override;
 	virtual void AddPrecomputedVolumetricLightmap(const class FPrecomputedVolumetricLightmap* Volume) override;
 	virtual void RemovePrecomputedVolumetricLightmap(const class FPrecomputedVolumetricLightmap* Volume) override;
-	virtual void AddRuntimeVirtualTexture(class URuntimeVirtualTextureComponent* Component) override;
-	virtual void RemoveRuntimeVirtualTexture(class URuntimeVirtualTextureComponent* Component) override;
 	virtual void GetPrimitiveUniformShaderParameters_RenderThread(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool& bHasPrecomputedVolumetricLightmap, FMatrix& PreviousLocalToWorld, int32& SingleCaptureIndex, bool& bOutputVelocity) const override;
 	virtual void UpdateLightTransform(ULightComponent* Light) override;
 	virtual void UpdateLightColorAndBrightness(ULightComponent* Light) override;
@@ -2692,7 +2732,7 @@ public:
 	virtual void AddSpeedTreeWind(FVertexFactory* VertexFactory, const UStaticMesh* StaticMesh) override;
 	virtual void RemoveSpeedTreeWind_RenderThread(FVertexFactory* VertexFactory, const UStaticMesh* StaticMesh) override;
 	virtual void UpdateSpeedTreeWind(double CurrentTime) override;
-	virtual FRHIUniformBuffer* GetSpeedTreeUniformBuffer(const FVertexFactory* VertexFactory) const override;
+	virtual FUniformBufferRHIParamRef GetSpeedTreeUniformBuffer(const FVertexFactory* VertexFactory) const override;
 	virtual void DumpUnbuiltLightInteractions( FOutputDevice& Ar ) const override;
 	virtual void UpdateParameterCollections(const TArray<FMaterialParameterCollectionInstanceResource*>& InParameterCollections) override;
 
@@ -2783,7 +2823,7 @@ public:
 	 **/
 	virtual void Export( FArchive& Ar ) const override;
 
-	FRHIUniformBuffer* GetParameterCollectionBuffer(const FGuid& InId) const
+	FUniformBufferRHIParamRef GetParameterCollectionBuffer(const FGuid& InId) const
 	{
 		const FUniformBufferRHIRef* ExistingUniformBuffer = ParameterCollections.Find(InId);
 
@@ -2792,7 +2832,7 @@ public:
 			return *ExistingUniformBuffer;
 		}
 
-		return nullptr;
+		return FUniformBufferRHIParamRef();
 	}
 
 	virtual void ApplyWorldOffset(FVector InOffset) override;
@@ -2835,11 +2875,6 @@ public:
 	{
 		return PrimitiveComponentIds;
 	}
-
-	/** Get the scene index of the FRuntimeVirtualTextureSceneProxy associated with the producer. */
-	uint32 GetRuntimeVirtualTextureSceneIndex(uint32 ProducerId);
-	/** Build the mask used for filtering this Proxy against all of the runtime virtual textures in the scene. */
-	uint32 GetRuntimeVirtualTextureMask(FPrimitiveSceneProxy const* Proxy);
 
 #if WITH_EDITOR
 	virtual bool InitializePixelInspector(FRenderTarget* BufferFinalColor, FRenderTarget* BufferSceneColor, FRenderTarget* BufferDepth, FRenderTarget* BufferHDR, FRenderTarget* BufferA, FRenderTarget* BufferBCDE, int32 BufferIndex) override;
@@ -2934,15 +2969,6 @@ private:
 
 	/** Updates all static draw lists. */
 	void UpdateStaticDrawLists_RenderThread(FRHICommandListImmediate& RHICmdList);
-
-	/** Add a runtime virtual texture proxy to the scene. Called in the rendering thread by AddRuntimeVirtualTexture. */
-	void AddRuntimeVirtualTexture_RenderThread(FRuntimeVirtualTextureSceneProxy* SceneProxy);
-	/** Update a runtime virtual texture proxy to the scene. Called in the rendering thread by AddRuntimeVirtualTexture. */
-	void UpdateRuntimeVirtualTexture_RenderThread(FRuntimeVirtualTextureSceneProxy* SceneProxy, FRuntimeVirtualTextureSceneProxy* SceneProxyToReplace);
-	/** Remove a runtime virtual texture proxy from the scene. Called in the rendering thread by RemoveRuntimeVirtualTexture. */
-	void RemoveRuntimeVirtualTexture_RenderThread(FRuntimeVirtualTextureSceneProxy* SceneProxy);
-	/** Update the scene primitive data after completing operations that add or remove runtime virtual textures. This can be slow and should be called rarely. */
-	void UpdateRuntimeVirtualTextureForAllPrimitives_RenderThread();
 
 	/**
 	 * Shifts scene data by provided delta

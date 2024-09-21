@@ -210,9 +210,6 @@ FStaticMeshStaticLightingTextureMapping::FStaticMeshStaticLightingTextureMapping
 // FStaticLightingTextureMapping interface
 void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario)
 {
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
-	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIFeatureLevel);
-
 	UStaticMeshComponent* StaticMeshComponent = Primitive.Get();
 
 	if (StaticMeshComponent && StaticMeshComponent->GetOwner() && StaticMeshComponent->GetOwner()->GetLevel())
@@ -246,22 +243,20 @@ void FStaticMeshStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quan
 		if (bNeedsLightMap)
 		{
 			// Create a light-map for the primitive.
-			TMap<ULightComponent*, FShadowMapData2D*> EmptyShadowMapData;
 			MeshBuildData.LightMap = FLightMap2D::AllocateLightMap(
 				Registry,
 				QuantizedData,
-				bUseVirtualTextures ? ShadowMapData : EmptyShadowMapData,
 				StaticMeshComponent->Bounds,
 				PaddingType,
 				LMF_Streamed
-			);
+				);
 		}
 		else
 		{
 			MeshBuildData.LightMap = NULL;
 		}
 
-		if (ShadowMapData.Num() > 0 && !bUseVirtualTextures)
+		if (ShadowMapData.Num() > 0)
 		{
 			MeshBuildData.ShadowMap = FShadowMap2D::AllocateShadowMap(
 				Registry,

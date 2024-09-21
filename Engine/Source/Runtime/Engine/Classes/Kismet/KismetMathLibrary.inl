@@ -590,9 +590,9 @@ float UKismetMathLibrary::Atan(float A)
 }
 
 KISMET_MATH_FORCEINLINE
-float UKismetMathLibrary::Atan2(float Y, float X)
+float UKismetMathLibrary::Atan2(float A, float B)
 {
-	return FMath::Atan2(Y, X);
+	return FMath::Atan2(A, B);
 }	
 
 KISMET_MATH_FORCEINLINE
@@ -632,9 +632,9 @@ float UKismetMathLibrary::DegAtan(float A)
 }
 
 KISMET_MATH_FORCEINLINE
-float UKismetMathLibrary::DegAtan2(float Y, float X)
+float UKismetMathLibrary::DegAtan2(float A, float B)
 {
-	return (180.f)/PI * FMath::Atan2(Y, X);
+	return (180.f)/PI * FMath::Atan2(A, B);
 }
 
 KISMET_MATH_FORCEINLINE

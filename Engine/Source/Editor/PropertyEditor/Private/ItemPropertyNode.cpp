@@ -38,49 +38,47 @@ uint8* FItemPropertyNode::GetValueBaseAddress( uint8* StartAddress )
 
 		uint8* ValueBaseAddress = ParentNode->GetValueBaseAddress(StartAddress);
 
-		if (OuterArrayProp != nullptr)
+		if ( OuterArrayProp != NULL )
 		{
 			FScriptArrayHelper ArrayHelper(OuterArrayProp, ValueBaseAddress);
-			if (ValueBaseAddress != nullptr && ArrayHelper.IsValidIndex(ArrayIndex))
+			if ( ValueBaseAddress != NULL && ArrayIndex < ArrayHelper.Num() )
 			{
-				return ArrayHelper.GetRawPtr(ArrayIndex);
+				return ArrayHelper.GetRawPtr() + ArrayOffset;
 			}
+
+			return NULL;
 		}
-		else if (OuterSetProp != nullptr)
+		else if (OuterSetProp != NULL)
 		{
 			FScriptSetHelper SetHelper(OuterSetProp, ValueBaseAddress);
-			if (ValueBaseAddress != nullptr)
+			if (ValueBaseAddress != NULL && SetHelper.IsValidIndex(ArrayIndex))
 			{
-				int32 ActualIndex = SetHelper.FindInternalIndex(ArrayIndex);
-				if (ActualIndex != INDEX_NONE)
-				{
-					return SetHelper.GetElementPtr(ActualIndex);
-				}
+				return SetHelper.GetElementPtr(ArrayIndex);
 			}
+
+			return NULL;
 		}
-		else if (OuterMapProp != nullptr)
+		else if (OuterMapProp != NULL)
 		{
 			FScriptMapHelper MapHelper(OuterMapProp, ValueBaseAddress);
-			if (ValueBaseAddress != nullptr)
+			if (ValueBaseAddress != NULL && MapHelper.IsValidIndex(ArrayIndex))
 			{
-				int32 ActualIndex = MapHelper.FindInternalIndex(ArrayIndex);
-				if (ActualIndex != INDEX_NONE)
-				{
-					uint8* PairPtr = MapHelper.GetPairPtr(ActualIndex);
-					return MyProperty->ContainerPtrToValuePtr<uint8>(PairPtr);
-				}
+				uint8* PairPtr = MapHelper.GetPairPtr(ArrayIndex);
+
+				return MyProperty->ContainerPtrToValuePtr<uint8>(PairPtr);
 			}
+
+			return NULL;
 		}
 		else
 		{
 			uint8* ValueAddress = ParentNode->GetValueAddress(StartAddress);
-			if (ValueAddress != nullptr && ParentNode->GetProperty() != MyProperty)
+			if (ValueAddress != NULL && ParentNode->GetProperty() != MyProperty)
 			{
 				// if this is not a fixed size array (in which the parent property and this property are the same), we need to offset from the property (otherwise, the parent already did that for us)
 				ValueAddress = Property->ContainerPtrToValuePtr<uint8>(ValueAddress);
 			}
-
-			if (ValueAddress != nullptr)
+			if ( ValueAddress != NULL )
 			{
 				ValueAddress += ArrayOffset;
 			}
@@ -88,7 +86,7 @@ uint8* FItemPropertyNode::GetValueBaseAddress( uint8* StartAddress )
 		}
 	}
 
-	return nullptr;
+	return NULL;
 }
 
 /**
@@ -113,16 +111,6 @@ uint8* FItemPropertyNode::GetValueAddress( uint8* StartAddress )
 	{
 		FScriptArrayHelper ArrayHelper(ArrayProperty,Result);
 		Result = ArrayHelper.GetRawPtr();
-	}
-	else if (Result && SetProperty)
-	{
-		FScriptSetHelper SetHelper(SetProperty, Result);
-		Result = SetHelper.GetElementPtr(0);
-	}
-	else if (Result && MapProperty)
-	{
-		FScriptMapHelper MapHelper(MapProperty, Result);
-		Result = MapHelper.GetPairPtr(0);
 	}
 
 	return Result;
@@ -221,7 +209,7 @@ void FItemPropertyNode::InitChildNodes()
 				FPropertyNodeInitParams InitParams;
 				InitParams.ParentNode = SharedThis(this);
 				InitParams.Property = ArrayProperty->Inner;
-				InitParams.ArrayOffset = Index * ArrayProperty->Inner->ElementSize;
+				InitParams.ArrayOffset = Index*ArrayProperty->Inner->ElementSize;
 				InitParams.ArrayIndex = Index;
 				InitParams.bAllowChildren = true;
 				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
@@ -245,20 +233,25 @@ void FItemPropertyNode::InitChildNodes()
 		{
 			FScriptSetHelper SetHelper(SetProperty, Set);
 
-			for (int32 Index = 0; Index < SetHelper.Num(); ++Index)
+			for (int32 TrueIndex = 0, ItemsLeft = SetHelper.Num(); ItemsLeft > 0; ++TrueIndex)
 			{
-				TSharedPtr<FItemPropertyNode> NewItemNode(new FItemPropertyNode);
+				if (SetHelper.IsValidIndex(TrueIndex))
+				{
+					--ItemsLeft;
 
-				FPropertyNodeInitParams InitParams;
-				InitParams.ParentNode = SharedThis(this);
-				InitParams.Property = SetProperty->ElementProp;
-				InitParams.ArrayIndex = Index;
-				InitParams.bAllowChildren = true;
-				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
-				InitParams.bCreateDisableEditOnInstanceNodes = bShouldShowDisableEditOnInstance;
+					TSharedPtr<FItemPropertyNode> NewItemNode(new FItemPropertyNode);
 
-				NewItemNode->InitNode(InitParams);
-				AddChildNode(NewItemNode);
+					FPropertyNodeInitParams InitParams;
+					InitParams.ParentNode = SharedThis(this);
+					InitParams.Property = SetProperty->ElementProp;
+					InitParams.ArrayIndex = TrueIndex;
+					InitParams.bAllowChildren = true;
+					InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
+					InitParams.bCreateDisableEditOnInstanceNodes = bShouldShowDisableEditOnInstance;
+
+					NewItemNode->InitNode(InitParams);
+					AddChildNode(NewItemNode);
+				}
 			}
 		}
 	}
@@ -275,34 +268,39 @@ void FItemPropertyNode::InitChildNodes()
 		{
 			FScriptMapHelper MapHelper(MapProperty, Map);
 
-			for (int32 Index = 0; Index < MapHelper.Num(); ++Index)
+			for (int32 TrueIndex = 0, ItemsLeft = MapHelper.Num(); ItemsLeft > 0; ++TrueIndex)
 			{
-				// Construct the key node first
-				TSharedPtr<FPropertyNode> KeyNode(new FItemPropertyNode());
+				if ( MapHelper.IsValidIndex(TrueIndex) )
+				{
+					--ItemsLeft;
+
+					// Construct the key node first
+					TSharedPtr<FPropertyNode> KeyNode(new FItemPropertyNode());
 					
-				FPropertyNodeInitParams InitParams;
-				InitParams.ParentNode = SharedThis(this);	// Key Node needs to point to this node to ensure its data is set correctly
-				InitParams.Property = MapHelper.KeyProp;
-				InitParams.ArrayIndex = Index;
-				InitParams.ArrayOffset = 0;
-				InitParams.bAllowChildren = true;
-				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
-				InitParams.bCreateDisableEditOnInstanceNodes = bShouldShowDisableEditOnInstance;
+					FPropertyNodeInitParams InitParams;
+					InitParams.ParentNode = SharedThis(this);	// Key Node needs to point to this node to ensure its data is set correctly
+					InitParams.Property = MapHelper.KeyProp;
+					InitParams.ArrayIndex = TrueIndex;
+					InitParams.ArrayOffset = 0;
+					InitParams.bAllowChildren = true;
+					InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
+					InitParams.bCreateDisableEditOnInstanceNodes = bShouldShowDisableEditOnInstance;
 
-				KeyNode->InitNode(InitParams);
-				// Not adding the key node as a child, otherwise it'll show up in the wrong spot.
+					KeyNode->InitNode(InitParams);
+					// Not adding the key node as a child, otherwise it'll show up in the wrong spot.
 
-				// Then the value node
-				TSharedPtr<FPropertyNode> ValueNode(new FItemPropertyNode());
+					// Then the value node
+					TSharedPtr<FPropertyNode> ValueNode(new FItemPropertyNode());
 					
-				// Reuse the init params
-				InitParams.ParentNode = SharedThis(this);
-				InitParams.Property = MapHelper.ValueProp;
+					// Reuse the init params
+					InitParams.ParentNode = SharedThis(this);
+					InitParams.Property = MapHelper.ValueProp;
 
-				ValueNode->InitNode(InitParams);
-				AddChildNode(ValueNode);
+					ValueNode->InitNode(InitParams);
+					AddChildNode(ValueNode);
 
-				FPropertyNode::SetupKeyValueNodePair(KeyNode, ValueNode);
+					FPropertyNode::SetupKeyValueNodePair(KeyNode, ValueNode);
+				}
 			}
 		}
 	}

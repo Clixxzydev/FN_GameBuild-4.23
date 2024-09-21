@@ -2,7 +2,6 @@
 
 #include "Materials/MaterialExpressionLandscapeLayerSample.h"
 #include "Engine/Engine.h"
-#include "Engine/Texture.h"
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "Materials/Material.h"
@@ -57,7 +56,7 @@ int32 UMaterialExpressionLandscapeLayerSample::Compile(class FMaterialCompiler* 
 }
 #endif // WITH_EDITOR
 
-UObject* UMaterialExpressionLandscapeLayerSample::GetReferencedTexture() const
+UTexture* UMaterialExpressionLandscapeLayerSample::GetReferencedTexture()
 {
 	return GEngine->WeightMapPlaceholderTexture;
 }

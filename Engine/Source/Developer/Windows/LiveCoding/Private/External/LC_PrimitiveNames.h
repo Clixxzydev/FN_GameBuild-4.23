@@ -23,9 +23,4 @@ namespace primitiveNames
 	// heart beat
 	std::wstring HeartBeatMutex(const std::wstring& processGroupName, unsigned int processId);
 	std::wstring HeartBeatNamedSharedMemory(const std::wstring& processGroupName, unsigned int processId);
-
-	// restart
-	std::wstring RequestRestart(unsigned int processId);
-	std::wstring PreparedRestart(unsigned int processId);
-	std::wstring Restart(unsigned int processId);
 }

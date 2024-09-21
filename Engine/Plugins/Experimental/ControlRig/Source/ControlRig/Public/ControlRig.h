@@ -53,8 +53,6 @@ public:
 	static const FName PrototypeNameMetaName;
 	static const FName AnimationInputMetaName;
 	static const FName AnimationOutputMetaName;
-	static const FName ExpandPinByDefaultMetaName;
-	static const FName DefaultArraySizeMetaName;
 
 private:
 	/** Current delta time */
@@ -190,9 +188,6 @@ public:
 	/** Execute the rig unit */
 	void Execute(const EControlRigState State);
 
-	/** INodeMappingInterface implementation */
-	virtual void GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>& OutNodeItems) const override;
-
 private:
 	UPROPERTY(VisibleDefaultsOnly, Category = "Hierarchy")
 	FRigHierarchyContainer Hierarchy;
@@ -267,6 +262,9 @@ private:
 	/** Broadcasts a notification whenever the controlrig is executed / updated. */
 	FControlRigExecuteEvent ExecutedEvent;
 
+	/** INodeMappingInterface implementation */
+	virtual void GetMappableNodeData(TArray<FName>& OutNames, TArray<FNodeItem>& OutNodeItems) const override;
+	
 	void ResolveInputOutputProperties();
 
 	friend class FControlRigBlueprintCompilerContext;

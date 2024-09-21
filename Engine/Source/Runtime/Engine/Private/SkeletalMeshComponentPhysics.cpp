@@ -1317,7 +1317,7 @@ void USkeletalMeshComponent::OnUpdateTransform(EUpdateTransformFlags UpdateTrans
 	}
 }
 
-bool USkeletalMeshComponent::UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps, bool bDoNotifies, const TOverlapArrayView* OverlapsAtEndLocation)
+bool USkeletalMeshComponent::UpdateOverlapsImpl(TArray<FOverlapInfo> const* PendingOverlaps, bool bDoNotifies, const TArray<FOverlapInfo>* OverlapsAtEndLocation)
 {
 	// Parent class (USkinnedMeshComponent) routes only to children, but we really do want to test our own bodies for overlaps.
 	return UPrimitiveComponent::UpdateOverlapsImpl(PendingOverlaps, bDoNotifies, OverlapsAtEndLocation);
@@ -2192,26 +2192,17 @@ bool USkeletalMeshComponent::LineTraceComponent(struct FHitResult& OutHit, const
 	UWorld* const World = GetWorld();
 	bool bHaveHit = false;
 
-	if (bEnablePerPolyCollision)
+	float MinTime = MAX_FLT;
+	FHitResult Hit;
+	for (int32 BodyIdx=0; BodyIdx < Bodies.Num(); ++BodyIdx)
 	{
-		// Using PrimitiveComponent implementation
-		//as it intersects against mesh polys.
-		bHaveHit = UPrimitiveComponent::LineTraceComponent(OutHit, Start, End, Params);
-	}
-	else
-	{
-		float MinTime = MAX_FLT;
-		FHitResult Hit;
-		for (int32 BodyIdx = 0; BodyIdx < Bodies.Num(); ++BodyIdx)
+		if (Bodies[BodyIdx] && Bodies[BodyIdx]->LineTrace(Hit, Start, End, Params.bTraceComplex, Params.bReturnPhysicalMaterial))
 		{
-			if (Bodies[BodyIdx] && Bodies[BodyIdx]->LineTrace(Hit, Start, End, Params.bTraceComplex, Params.bReturnPhysicalMaterial))
+			bHaveHit = true;
+			if(MinTime > Hit.Time)
 			{
-				bHaveHit = true;
-				if (MinTime > Hit.Time)
-				{
-					MinTime = Hit.Time;
-					OutHit = Hit;
-				}
+				MinTime = Hit.Time;
+				OutHit = Hit;
 			}
 		}
 	}
@@ -2235,25 +2226,12 @@ bool USkeletalMeshComponent::SweepComponent( FHitResult& OutHit, const FVector S
 {
 	bool bHaveHit = false;
 
-	if (bEnablePerPolyCollision)
+	for (int32 BodyIdx=0; BodyIdx < Bodies.Num(); ++BodyIdx)
 	{
-		// Using PrimitiveComponent implementation
-		//as it intersects against mesh polys.
-		bHaveHit =  UPrimitiveComponent::SweepComponent(OutHit, Start, End, ShapeWorldRotation, CollisionShape, bTraceComplex);
-	}
-	else
-	{
-		FHitResult Hit;
-		for (int32 BodyIdx = 0; BodyIdx < Bodies.Num(); ++BodyIdx)
+		if (Bodies[BodyIdx]->Sweep(OutHit, Start, End, ShapeWorldRotation, CollisionShape, bTraceComplex))
 		{
-			if (Bodies[BodyIdx] && Bodies[BodyIdx]->Sweep(Hit, Start, End, ShapeWorldRotation, CollisionShape, bTraceComplex))
-			{
-				if (!bHaveHit || Hit.Time < OutHit.Time)
-				{
-					OutHit = Hit;
-				}
-				bHaveHit = true;
-			}
+			bHaveHit = true;
+			break;
 		}
 	}
 
@@ -2838,10 +2816,7 @@ void USkeletalMeshComponent::ProcessClothCollisionWithEnvironment()
 
 					if(SkelComp->ClothingSimulation)
 					{
-						// append skeletal component collisions
-						FClothCollisionData SkelCollisionData;
-						SkelComp->ClothingSimulation->GetCollisions(SkelCollisionData, false);
-						NewCollisionData.Append(SkelCollisionData);
+						SkelComp->ClothingSimulation->GetCollisions(NewCollisionData, false);
 					}
 				}
 			}

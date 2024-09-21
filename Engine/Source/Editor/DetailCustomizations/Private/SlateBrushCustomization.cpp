@@ -981,8 +981,6 @@ class SSlateBrushStaticPreview : public SCompoundWidget
 	{
 		ResourceObjectProperty = InResourceObjectProperty;
 
-		UpdateBrush();
-
 		ChildSlot
 		[
 			SNew(SHorizontalBox)
@@ -1016,7 +1014,19 @@ class SSlateBrushStaticPreview : public SCompoundWidget
 
 	void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 	{
-		UpdateBrush();
+		TArray<void*> RawData;
+
+		if (ResourceObjectProperty.IsValid() && ResourceObjectProperty->GetProperty())
+		{
+			ResourceObjectProperty->AccessRawData(RawData);
+
+			// RawData will be empty when creating a new Data Table, an idiosyncrasy
+			// of the Data Table Editor...
+			if (RawData.Num() > 0)
+			{
+				TemporaryBrush = *static_cast<FSlateBrush*>(RawData[0]);
+			}
+		}
 	}
 
 private:
@@ -1049,26 +1059,6 @@ private:
 	EVisibility GetPreviewVisibilityImage() const
 	{
 		return TemporaryBrush.DrawAs == ESlateBrushDrawType::Image ? EVisibility::Visible : EVisibility::Collapsed;
-	}
-
-	void UpdateBrush()
-	{
-		if (ResourceObjectProperty.IsValid() && ResourceObjectProperty->GetProperty())
-		{
-			TArray<void*> RawData;
-			ResourceObjectProperty->AccessRawData(RawData);
-
-			// RawData will be empty when creating a new Data Table, an idiosyncrasy
-			// of the Data Table Editor...
-			if (RawData.Num() > 0)
-			{
-				FSlateBrush* SlateBrush = static_cast<FSlateBrush*>(RawData[0]);
-				if (SlateBrush)
-				{
-					TemporaryBrush = *SlateBrush;
-				}
-			}
-		}
 	}
 
 private:
@@ -1164,13 +1154,43 @@ class SBrushResourceObjectBox : public SCompoundWidget
 				]
 			]
 		];
-
-		UpdateResourceError();
 	}
 
 	void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 	{
-		UpdateResourceError();
+		UObject* Resource = nullptr;
+
+		if( ResourceObjectProperty->GetValue(Resource) == FPropertyAccess::Success && Resource && Resource->IsA<UMaterialInterface>() )
+		{
+			UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>( Resource );
+			UMaterial* BaseMaterial = MaterialInterface->GetBaseMaterial();
+			if( BaseMaterial && !BaseMaterial->IsUIMaterial() )
+			{
+				ResourceError->SetVisibility( EVisibility::Visible );
+
+				// Special engine materials cannot change domain. This typically occurs when
+				// the user creates or assigns a material instance with no parent material.
+				// In this case, we warn the user rather than offer to change the domain.
+				if (BaseMaterial->bUsedAsSpecialEngineMaterial)
+				{
+					ChangeDomainLink->SetVisibility( EVisibility::Collapsed );
+					IsEngineMaterialError->SetVisibility( EVisibility::Visible );
+				}
+				else
+				{
+					ChangeDomainLink->SetVisibility( EVisibility::Visible );
+					IsEngineMaterialError->SetVisibility( EVisibility::Collapsed );
+				}
+			}
+			else
+			{
+				ResourceError->SetVisibility( EVisibility::Collapsed );
+			}
+		}
+		else if( ResourceError->GetVisibility() != EVisibility::Collapsed )
+		{
+			ResourceError->SetVisibility( EVisibility::Collapsed );
+		}
 	}
 
 private:
@@ -1235,43 +1255,6 @@ private:
 				FPropertyChangedEvent ChangeEvent( MaterialDomainProp );
 				BaseMaterial->PostEditChangeProperty( ChangeEvent );
 			}
-		}
-	}
-
-	void UpdateResourceError()
-	{
-		UObject* Resource = nullptr;
-
-		if( ResourceObjectProperty->GetValue(Resource) == FPropertyAccess::Success && Resource && Resource->IsA<UMaterialInterface>() )
-		{
-			UMaterialInterface* MaterialInterface = Cast<UMaterialInterface>( Resource );
-			UMaterial* BaseMaterial = MaterialInterface->GetBaseMaterial();
-			if( BaseMaterial && !BaseMaterial->IsUIMaterial() )
-			{
-				ResourceError->SetVisibility( EVisibility::Visible );
-
-				// Special engine materials cannot change domain. This typically occurs when
-				// the user creates or assigns a material instance with no parent material.
-				// In this case, we warn the user rather than offer to change the domain.
-				if (BaseMaterial->bUsedAsSpecialEngineMaterial)
-				{
-					ChangeDomainLink->SetVisibility( EVisibility::Collapsed );
-					IsEngineMaterialError->SetVisibility( EVisibility::Visible );
-				}
-				else
-				{
-					ChangeDomainLink->SetVisibility( EVisibility::Visible );
-					IsEngineMaterialError->SetVisibility( EVisibility::Collapsed );
-				}
-			}
-			else
-			{
-				ResourceError->SetVisibility( EVisibility::Collapsed );
-			}
-		}
-		else if( ResourceError->GetVisibility() != EVisibility::Collapsed )
-		{
-			ResourceError->SetVisibility( EVisibility::Collapsed );
 		}
 	}
 

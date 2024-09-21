@@ -125,16 +125,6 @@ bool FLayers::InitializeNewActorLayers( const TWeakObjectPtr< AActor >& Actor )
 		AddActorToStats( Layer, Actor);
 	}
 
-	// update per-view visibility info
-	UpdateActorAllViewsVisibility(Actor);
-
-	// update general actor visibility
-	bool bActorModified = false;
-	bool bActorSelectionChanged = false;
-	const bool bActorNotifySelectionChange = true;
-	const bool bActorRedrawViewports = false;
-	UpdateActorVisibility( Actor, bActorSelectionChanged, bActorModified, bActorNotifySelectionChange, bActorRedrawViewports );
-
 	return Actor->Layers.Num() > 0;
 }
 
@@ -767,6 +757,8 @@ bool FLayers::UpdateActorVisibility( const TWeakObjectPtr< AActor >& Actor, bool
 		// If the actor is also hidden
 		if( Actor->bHiddenEdLayer )
 		{
+			Actor->Modify();
+
 			// Actors that don't belong to any layer shouldn't be hidden
 			Actor->bHiddenEdLayer = false;
 			Actor->MarkComponentsRenderStateDirty();
@@ -790,6 +782,7 @@ bool FLayers::UpdateActorVisibility( const TWeakObjectPtr< AActor >& Actor, bool
 		{
 			if ( Actor->bHiddenEdLayer )
 			{
+				Actor->Modify();
 				Actor->bHiddenEdLayer = false;
 				Actor->MarkComponentsRenderStateDirty();
 				bOutActorModified = true;
@@ -812,6 +805,7 @@ bool FLayers::UpdateActorVisibility( const TWeakObjectPtr< AActor >& Actor, bool
 	{
 		if ( !Actor->bHiddenEdLayer )
 		{
+			Actor->Modify();
 			Actor->bHiddenEdLayer = true;
 			Actor->MarkComponentsRenderStateDirty();
 			bOutActorModified = true;

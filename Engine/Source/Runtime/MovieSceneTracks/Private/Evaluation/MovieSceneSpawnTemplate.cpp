@@ -47,7 +47,7 @@ struct FSpawnObjectToken : IMovieSceneExecutionToken
 	{
 		MOVIESCENE_DETAILED_SCOPE_CYCLE_COUNTER(MovieSceneEval_SpawnTrack_TokenExecute)
 
-		bool bHasSpawnedObject = Player.GetSpawnRegister().FindSpawnedObject(Operand.ObjectBindingID, Operand.SequenceID).Get() != nullptr;
+		bool bHasSpawnedObject = Player.GetSpawnRegister().FindSpawnedObject(Operand.ObjectBindingID, Operand.SequenceID) != nullptr;
 		
 		// Check binding overrides to see if this spawnable has been overridden, and whether it allows the default spawnable to exist
 		const IMovieScenePlaybackClient* PlaybackClient = Player.GetPlaybackClient();
@@ -71,10 +71,7 @@ struct FSpawnObjectToken : IMovieSceneExecutionToken
 				{
 					UObject* SpawnedObject = Player.GetSpawnRegister().SpawnObject(Operand.ObjectBindingID, *Sequence->GetMovieScene(), Operand.SequenceID, Player);
 
-					if (SpawnedObject)
-					{
-						Player.OnObjectSpawned(SpawnedObject, Operand);
-					}
+					Player.OnObjectSpawned(SpawnedObject, Operand);
 				}
 			}
 

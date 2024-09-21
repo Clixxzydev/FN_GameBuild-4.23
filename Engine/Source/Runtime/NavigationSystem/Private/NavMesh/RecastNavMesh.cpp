@@ -104,7 +104,6 @@ void FNavMeshTileData::MakeUnique()
 }
 
 float ARecastNavMesh::DrawDistanceSq = 0.0f;
-float ARecastNavMesh::MinimumSizeForChaosNavMeshInfluenceSq = 0.0f;
 #if !WITH_RECAST
 
 ARecastNavMesh::ARecastNavMesh(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -976,28 +975,26 @@ bool ARecastNavMesh::GetRandomReachablePointInRadius(const FVector& Origin, floa
 	if (QueryFilter)
 	{
 		// find starting poly
-		const FVector ProjectionExtent(NavDataConfig.DefaultQueryExtent.X, NavDataConfig.DefaultQueryExtent.Y, BIG_NUMBER);
-		const FVector RcExtent = Unreal2RecastPoint(ProjectionExtent).GetAbs();
 		// convert start/end pos to Recast coords
+		const float Extent[3] = { Radius, Radius, Radius };
 		const FVector RecastOrigin = Unreal2RecastPoint(Origin);
 		NavNodeRef OriginPolyID = INVALID_NAVNODEREF;
-		NavQuery.findNearestPoly(&RecastOrigin.X, &RcExtent.X, QueryFilter, &OriginPolyID, nullptr);
+		NavQuery.findNearestPoly(&RecastOrigin.X, Extent, QueryFilter, &OriginPolyID, nullptr);
 
-		if (OriginPolyID != INVALID_NAVNODEREF)
+		dtPolyRef Poly;
+		float RandPt[3];
+		dtStatus Status = NavQuery.findRandomPointAroundCircle(OriginPolyID, &RecastOrigin.X, Radius
+			, QueryFilter, FMath::FRand, &Poly, RandPt);
+
+		if (dtStatusSucceed(Status))
 		{
-			dtPolyRef Poly;
-			float RandPt[3];
-			dtStatus Status = NavQuery.findRandomPointAroundCircle(OriginPolyID, &RecastOrigin.X, Radius
-				, QueryFilter, FMath::FRand, &Poly, RandPt);
-
-			if (dtStatusSucceed(Status))
-			{
-				OutResult = FNavLocation(Recast2UnrealPoint(RandPt), Poly);
-				return true;
-			}
+			OutResult = FNavLocation(Recast2UnrealPoint(RandPt), Poly);
+			return true;
 		}
-
-		OutResult = FNavLocation(Origin, OriginPolyID);
+		else
+		{
+			OutResult = FNavLocation(Origin, OriginPolyID);
+		}
 	}
 
 	return false;
@@ -2396,6 +2393,7 @@ void ARecastNavMesh::ConditionalConstructGenerator()
 		if (Generator)
 		{
 			NavDataGenerator = MakeShareable(Generator);
+			Generator->Init();
 		}
 
 		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);

@@ -1,4 +1,4 @@
-Availability: Docs
+Availability:Public
 Title:1 - Required Setup
 Crumbs: %ROOT%, Engine, Engine/Animation, Engine/Animation/AnimHowTo, Engine/Animation/AnimHowTo/AnimDynamics
 Description:In this step we will set up the character we will use to apply dynamic animations to. 

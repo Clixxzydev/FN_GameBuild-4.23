@@ -35,11 +35,7 @@ class UNiagaraScriptSource : public UNiagaraScriptSourceBase
 
 	virtual FGuid GetChangeID();
 
-	virtual void ComputeVMCompilationId(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId, bool bForceRebuild = false) const override;
-
-	virtual FGuid GetCompileBaseId(ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
-
-	virtual FNiagaraCompileHash GetCompileHash(ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
+	virtual void ComputeVMCompilationId(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
 
 	virtual void PostLoadFromEmitter(UNiagaraEmitter& OwningEmitter) override;
 

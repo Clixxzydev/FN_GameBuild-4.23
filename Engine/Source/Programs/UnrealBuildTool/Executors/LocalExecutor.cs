@@ -434,11 +434,12 @@ namespace UnrealBuildTool
 
 				Log.WriteLineIf(bLogDetailedActionStats,
 					LogEventType.Console,
-					"^{0}^{1:0.00}^{2}^{3}",
+					"^{0}^{1:0.00}^{2}^{3}^{4}",
 					Action.ActionType.ToString(),
 					ThreadSeconds,
 					Action.CommandPath.GetFileName(),
-					Action.StatusDescription);
+					  Action.StatusDescription,
+					Action.bIsUsingPCH);
 
 				// Update statistics
 				switch (Action.ActionType)

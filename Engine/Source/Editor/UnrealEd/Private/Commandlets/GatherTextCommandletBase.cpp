@@ -38,16 +38,8 @@ void UGatherTextCommandletBase::Initialize( const TSharedRef< FLocTextHelper >& 
 		{
 			SplitPlatforms.Add(*SplitPlatformName, FString::Printf(TEXT("/%s/"), *SplitPlatformName));
 		}
-		SplitPlatforms.KeySort(FNameLexicalLess());
+		SplitPlatforms.KeySort(TLess<FName>());
 	}
-}
-
-void UGatherTextCommandletBase::BeginDestroy()
-{
-	Super::BeginDestroy();
-
-	GatherManifestHelper.Reset();
-	SourceControlInfo.Reset();
 }
 
 void UGatherTextCommandletBase::CreateCustomEngine(const FString& Params)

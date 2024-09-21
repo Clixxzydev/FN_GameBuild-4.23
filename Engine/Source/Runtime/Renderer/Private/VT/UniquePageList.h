@@ -6,81 +6,121 @@
 #include "VirtualTextureShared.h"
 #include "Containers/HashTable.h"
 
+// 4k x 4k virtual pages
+// 16 IDs
+FORCEINLINE uint32 EncodePage( uint32 ID, uint32 vLevel, uint32 vPosition )
+{
+	uint32 Page;
+	Page  = vPosition	<<  0;
+	Page |= vLevel		<< 24;
+	Page |= ID			<< 28;
+	return Page;
+}
+
+FORCEINLINE void DecodePage( uint32 Page, uint32& ID, uint32& vLevel, uint32& vPosition )
+{
+	vPosition	= ( Page >>  0 ) & 0xffffff;
+	vLevel		= ( Page >> 24 ) & 0xf;
+	ID			= ( Page >> 28 );
+}
+
+
 class FUniquePageList
 {
 public:
 			FUniquePageList();
 
-	void	Initialize();
-
 	void	Add( uint32 Page, uint32 Count );
+	void	ExpandByMips( uint32 NumMips );
 
 	uint32	GetNum() const					{ return NumPages; }
 	uint32	GetPage( uint32 Index ) const	{ return Pages[ Index ]; }
 	uint32	GetCount( uint32 Index ) const	{ return Counts[ Index ]; }
-
-	void	MergePages(const FUniquePageList* RESTRICT Other);
+	
+	uint8	NumLevels[16];
+	uint8	Dimensions[16];
 
 private:
 	enum
 	{
-		HashSize		= 8*1024,
-		MaxUniquePages	= 4*1024,
+		HashSize		= 1024,
+		MaxUniquePages	= 4096,
 	};
 
-	uint16 HashIndices[HashSize];
-	uint32 Pages[ MaxUniquePages ];
-	uint16 Counts[ MaxUniquePages ];
-	uint32 NumPages;
-	uint32 MaxNumCollisions;
+	uint32	NumPages;
+	uint32	Pages[ MaxUniquePages ];
+	uint16	Counts[ MaxUniquePages ];
+	
+	TStaticHashTable< HashSize, MaxUniquePages > HashTable;
 };
 
 FUniquePageList::FUniquePageList()
 	: NumPages( 0 )
-	, MaxNumCollisions(0u)
 {}
-
-void FUniquePageList::Initialize()
-{
-	FMemory::Memset(HashIndices, 0xff);
-}
 
 void FUniquePageList::Add( uint32 Page, uint32 Count )
 {
-	uint32 HashIndex = MurmurFinalize32(Page) & (HashSize - 1u);
-	uint32 NumCollisions = 0u;
-	while (true)
+	uint32 ID, vLevel, vPosition;
+	DecodePage( Page, ID, vLevel, vPosition );
+	uint32 vDimensions = Dimensions[ ID ];
+
+	// Search hash table
+	uint16 Hash = HashPage( vLevel, vPosition, vDimensions );
+	uint16 Index;
+	for( Index = HashTable.First( Hash ); HashTable.IsValid( Index ); Index = HashTable.Next( Index ) )
 	{
-		uint32 PageIndex = HashIndices[HashIndex];
-		if (PageIndex == 0xffff)
+		if( Page == Pages[ Index ] )
 		{
-			if (NumPages < MaxUniquePages)
-			{
-				PageIndex = NumPages++;
-				HashIndices[HashIndex] = PageIndex;
-				Pages[PageIndex] = Page;
-				Counts[PageIndex] = Count;
-			}
 			break;
 		}
-		else if (Pages[PageIndex] == Page)
-		{
-			const uint32 PrevCount = Counts[PageIndex];
-			Counts[PageIndex] = FMath::Min<uint32>(PrevCount + Count, 0xffff);
-			break;
-		}
-		HashIndex = (HashIndex + 1u) & (HashSize - 1u);
-		++NumCollisions;
 	}
-#if DO_GUARD_SLOW
-	MaxNumCollisions = FMath::Max(MaxNumCollisions, NumCollisions);
-#endif // DO_GUARD_SLOW
+	if( !HashTable.IsValid( Index ) )
+	{
+		if( NumPages == MaxUniquePages )
+		{
+			// Ran out of space
+			return;
+		}
+
+		// Add page
+		Index = NumPages++;
+		HashTable.Add( Hash, Index );
+
+		Pages[ Index ] = Page;
+		Counts[ Index ] = 0;
+	}
+	
+	// Add count
+	Counts[ Index ] += Count;
 }
 
-void FUniquePageList::MergePages(const FUniquePageList* RESTRICT Other)
+// Expanding the list by mips gives look ahead and faster time to first data when many high res pages are requested.
+void FUniquePageList::ExpandByMips( uint32 NumMips )
 {
-	for (uint32 Index = 0u; Index < Other->NumPages; ++Index)
+	// TODO cache parent page chains
+
+	for( uint32 i = 0, Num = NumPages; i < Num; i++ )
 	{
-		Add(Other->Pages[Index], Other->Counts[Index]);
+		uint64 Page = Pages[i];
+
+		uint32 ID, vLevel, vPosition;
+		DecodePage( Page, ID, vLevel, vPosition );
+		uint32 vDimensions = Dimensions[ ID ];
+		uint32 Count = Counts[i];
+
+		for( uint32 Mip = 0; Mip < NumMips; Mip++ )
+		{
+			vLevel++;
+			
+			if( vLevel >= NumLevels[ ID ] )
+			{
+				break;
+			}
+
+			// Mask out low bits
+			vPosition &= 0xffffffff << ( vDimensions * vLevel );
+
+			Add( EncodePage( ID, vLevel, vPosition ), Count );
+		}
 	}
 }

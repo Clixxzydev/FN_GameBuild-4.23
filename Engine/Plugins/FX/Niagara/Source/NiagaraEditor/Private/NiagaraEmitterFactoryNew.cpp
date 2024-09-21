@@ -31,7 +31,6 @@ UNiagaraEmitterFactoryNew::UNiagaraEmitterFactoryNew(const FObjectInitializer& O
 	bEditAfterNew = true;
 	bCreateNew = true;
 	EmitterToCopy = nullptr;
-	bUseInheritance = false;
 }
 
 bool UNiagaraEmitterFactoryNew::ConfigureProperties()
@@ -52,7 +51,6 @@ bool UNiagaraEmitterFactoryNew::ConfigureProperties()
 	if (SelectedEmitterAsset.IsSet())
 	{
 		EmitterToCopy = Cast<UNiagaraEmitter>(SelectedEmitterAsset->GetAsset());
-		bUseInheritance = NewEmitterDialog->GetUseInheritance();
 		if (EmitterToCopy == nullptr)
 		{
 			FText Title = LOCTEXT("FailedToLoadTitle", "Create Default?");
@@ -122,16 +120,7 @@ UObject* UNiagaraEmitterFactoryNew::FactoryCreateNew(UClass* Class, UObject* InP
 
 	if (EmitterToCopy != nullptr)
 	{
-		if (bUseInheritance && EmitterToCopy->bIsTemplateAsset == false)
-		{
-			NewEmitter = UNiagaraEmitter::CreateWithParentAndOwner(*EmitterToCopy, InParent, Name, Flags);
-		}
-		else
-		{
-			NewEmitter = Cast<UNiagaraEmitter>(StaticDuplicateObject(EmitterToCopy, InParent, Name, Flags, Class));
-			NewEmitter->SetUniqueEmitterName(Name.ToString());
-		}
-
+		NewEmitter = Cast<UNiagaraEmitter>(StaticDuplicateObject(EmitterToCopy, InParent, Name, Flags, Class));
 		NewEmitter->bIsTemplateAsset = false;
 		NewEmitter->TemplateAssetDescription = FText();
 	}

@@ -24,7 +24,6 @@
 #include "BehaviorTree/Tasks/BTTask_Wait.h"
 #include "BehaviorTreeGraphNode_SimpleParallel.h"
 #include "BehaviorTreeGraphNode_SubtreeTask.h"
-#include "BehaviorTreeDecoratorGraphNode_Decorator.h"
 
 //////////////////////////////////////////////////////////////////////////
 // BehaviorTreeGraph
@@ -943,27 +942,27 @@ void UBehaviorTreeGraph::CreateBTFromGraph(UBehaviorTreeGraphNode* RootEdNode)
 	RemoveOrphanedNodes();
 }
 
-void UBehaviorTreeGraph::CollectAllNodeInstances(TSet<UObject*>& NodeInstances)
+void UBehaviorTreeGraph::CollectAllNodeInstances(TSet<UObject*>& NodeInstance)
 {
-	Super::CollectAllNodeInstances(NodeInstances);
+	Super::CollectAllNodeInstances(NodeInstance);
 
-	for (UEdGraphNode* EdGraphNode : Nodes)
+	for (int32 Idx = 0; Idx < Nodes.Num(); Idx++)
 	{
-		UBehaviorTreeGraphNode* BTGraphNode = Cast<UBehaviorTreeGraphNode>(EdGraphNode);
-		if (BTGraphNode != nullptr)
+		UBehaviorTreeGraphNode* MyNode = Cast<UBehaviorTreeGraphNode>(Nodes[Idx]);
+		if (MyNode)
 		{
-			for (UBehaviorTreeGraphNode* BTDecoratorGraphNode : BTGraphNode->Decorators)
+			for (int32 SubIdx = 0; SubIdx < MyNode->Decorators.Num(); SubIdx++)
 			{
-				UEdGraph* EdSubGraph = BTDecoratorGraphNode->GetBoundGraph();
-				if (EdSubGraph != nullptr)
+				UBehaviorTreeGraphNode_CompositeDecorator* SubgraphNode = Cast<UBehaviorTreeGraphNode_CompositeDecorator>(MyNode->Decorators[SubIdx]);
+				if (SubgraphNode)
 				{
-					for (UEdGraphNode* SubGraphNode : EdSubGraph->Nodes)
+					TArray<UBTDecorator*> DecoratorInstances;
+					TArray<FBTDecoratorLogic> DummyOps;
+					SubgraphNode->CollectDecoratorData(DecoratorInstances, DummyOps);
+
+					for (int32 DecoratorIdx = 0; DecoratorIdx < DecoratorInstances.Num(); DecoratorIdx++)
 					{
-						const UBehaviorTreeDecoratorGraphNode_Decorator* DecoratorNode = Cast<const UBehaviorTreeDecoratorGraphNode_Decorator>(SubGraphNode);
-						if (DecoratorNode && DecoratorNode->NodeInstance)
-						{
-							NodeInstances.Add(DecoratorNode->NodeInstance);
-						}
+						NodeInstance.Add(DecoratorInstances[DecoratorIdx]);
 					}
 				}
 			}

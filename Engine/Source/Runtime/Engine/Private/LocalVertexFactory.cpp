@@ -94,11 +94,11 @@ void FLocalVertexFactoryShaderParametersBase::GetElementShaderBindingsBase(
 	const FSceneInterface* Scene,
 	const FSceneView* View,
 	const FMeshMaterialShader* Shader, 
-	const EVertexInputStreamType InputStreamType,
+	bool bShaderRequiresPositionOnlyStream,
 	ERHIFeatureLevel::Type FeatureLevel,
 	const FVertexFactory* VertexFactory, 
 	const FMeshBatchElement& BatchElement,
-	FRHIUniformBuffer* VertexFactoryUniformBuffer,
+	FUniformBufferRHIParamRef VertexFactoryUniformBuffer,
 	FMeshDrawSingleShaderBindings& ShaderBindings,
 	FVertexInputStreamArray& VertexStreams
 	) const
@@ -128,15 +128,15 @@ void FLocalVertexFactoryShaderParametersBase::GetElementShaderBindingsBase(
 		}	
 	}
 
-	if (bAnySpeedTreeParamIsBound)
+	if (bAnySpeedTreeParamIsBound && Scene)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FLocalVertexFactoryShaderParameters_SetMesh_SpeedTree);
-		FRHIUniformBuffer* SpeedTreeUniformBuffer = Scene? Scene->GetSpeedTreeUniformBuffer(VertexFactory) : nullptr;
-		if (SpeedTreeUniformBuffer == nullptr)
+		FUniformBufferRHIParamRef SpeedTreeUniformBuffer = Scene->GetSpeedTreeUniformBuffer(VertexFactory);
+		if (SpeedTreeUniformBuffer == NULL)
 		{
 			SpeedTreeUniformBuffer = GSpeedTreeWindNullUniformBuffer.GetUniformBufferRHI();
 		}
-		check(SpeedTreeUniformBuffer != nullptr);
+		check(SpeedTreeUniformBuffer != NULL);
 
 		ShaderBindings.Add(Shader->GetUniformBufferParameter<FSpeedTreeUniformParameters>(), SpeedTreeUniformBuffer);
 
@@ -152,7 +152,7 @@ void FLocalVertexFactoryShaderParameters::GetElementShaderBindings(
 	const FSceneInterface* Scene,
 	const FSceneView* View,
 	const FMeshMaterialShader* Shader,
-	const EVertexInputStreamType InputStreamType,
+	bool bShaderRequiresPositionOnlyStream,
 	ERHIFeatureLevel::Type FeatureLevel,
 	const FVertexFactory* VertexFactory,
 	const FMeshBatchElement& BatchElement,
@@ -161,13 +161,13 @@ void FLocalVertexFactoryShaderParameters::GetElementShaderBindings(
 ) const
 {
 	// Decode VertexFactoryUserData as VertexFactoryUniformBuffer
-	FRHIUniformBuffer* VertexFactoryUniformBuffer = static_cast<FRHIUniformBuffer*>(BatchElement.VertexFactoryUserData);
+	FUniformBufferRHIParamRef VertexFactoryUniformBuffer = static_cast<FUniformBufferRHIParamRef>(BatchElement.VertexFactoryUserData);
 
 	FLocalVertexFactoryShaderParametersBase::GetElementShaderBindingsBase(
 		Scene,
 		View,
 		Shader,
-		InputStreamType,
+		bShaderRequiresPositionOnlyStream,
 		FeatureLevel,
 		VertexFactory,
 		BatchElement,
@@ -257,32 +257,20 @@ void FLocalVertexFactory::InitRHI()
 
 	// If the vertex buffer containing position is not the same vertex buffer containing the rest of the data,
 	// then initialize PositionStream and PositionDeclaration.
-	if (Data.PositionComponent.VertexBuffer != Data.TangentBasisComponents[0].VertexBuffer)
+	if(Data.PositionComponent.VertexBuffer != Data.TangentBasisComponents[0].VertexBuffer)
 	{
-		auto AddDeclaration = [this, bCanUseGPUScene](EVertexInputStreamType InputStreamType, bool bAddNormal)
+		FVertexDeclarationElementList PositionOnlyStreamElements;
+		PositionOnlyStreamElements.Add(AccessPositionStreamComponent(Data.PositionComponent,0));
+
+		PositionOnlyPrimitiveIdStreamIndex = -1;
+		if (GetType()->SupportsPrimitiveIdStream() && bCanUseGPUScene)
 		{
-			FVertexDeclarationElementList StreamElements;
-			StreamElements.Add(AccessStreamComponent(Data.PositionComponent, 0, InputStreamType));
+			// When the VF is used for rendering in normal mesh passes, this vertex buffer and offset will be overridden
+			PositionOnlyStreamElements.Add(AccessPositionStreamComponent(FVertexStreamComponent(&GPrimitiveIdDummy, 0, 0, sizeof(uint32), VET_UInt, EVertexStreamUsage::Instancing), 1));
+			PositionOnlyPrimitiveIdStreamIndex = PositionOnlyStreamElements.Last().StreamIndex;
+		}
 
-			bAddNormal = bAddNormal && Data.TangentBasisComponents[1].VertexBuffer != NULL;
-			if (bAddNormal)
-			{
-				StreamElements.Add(AccessStreamComponent(Data.TangentBasisComponents[1], 2, InputStreamType));
-			}
-
-			const uint8 TypeIndex = static_cast<uint8>(InputStreamType);
-			PrimitiveIdStreamIndex[TypeIndex] = -1;
-			if (GetType()->SupportsPrimitiveIdStream() && bCanUseGPUScene)
-			{
-				// When the VF is used for rendering in normal mesh passes, this vertex buffer and offset will be overridden
-				StreamElements.Add(AccessStreamComponent(FVertexStreamComponent(&GPrimitiveIdDummy, 0, 0, sizeof(uint32), VET_UInt, EVertexStreamUsage::Instancing), 1, InputStreamType));
-				PrimitiveIdStreamIndex[TypeIndex] = StreamElements.Last().StreamIndex;
-			}
-
-			InitDeclaration(StreamElements, InputStreamType);
-		};
-		AddDeclaration(EVertexInputStreamType::PositionOnly, false);
-		AddDeclaration(EVertexInputStreamType::PositionAndNormalOnly, true);
+		InitPositionDeclaration(PositionOnlyStreamElements);
 	}
 
 	FVertexDeclarationElementList Elements;
@@ -291,15 +279,12 @@ void FLocalVertexFactory::InitRHI()
 		Elements.Add(AccessStreamComponent(Data.PositionComponent,0));
 	}
 
+	PrimitiveIdStreamIndex = -1;
+	if (GetType()->SupportsPrimitiveIdStream() && bCanUseGPUScene)
 	{
-		const uint8 Index = static_cast<uint8>(EVertexInputStreamType::Default);
-		PrimitiveIdStreamIndex[Index] = -1;
-		if (GetType()->SupportsPrimitiveIdStream() && bCanUseGPUScene)
-		{
-			// When the VF is used for rendering in normal mesh passes, this vertex buffer and offset will be overridden
-			Elements.Add(AccessStreamComponent(FVertexStreamComponent(&GPrimitiveIdDummy, 0, 0, sizeof(uint32), VET_UInt, EVertexStreamUsage::Instancing), 13));
-			PrimitiveIdStreamIndex[Index] = Elements.Last().StreamIndex;
-		}
+		// When the VF is used for rendering in normal mesh passes, this vertex buffer and offset will be overridden
+		Elements.Add(AccessStreamComponent(FVertexStreamComponent(&GPrimitiveIdDummy, 0, 0, sizeof(uint32), VET_UInt, EVertexStreamUsage::Instancing), 13));
+		PrimitiveIdStreamIndex = Elements.Last().StreamIndex;
 	}
 
 	// only tangent,normal are used by the stream. the binormal is derived in the shader

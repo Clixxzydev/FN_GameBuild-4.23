@@ -10,7 +10,7 @@
 //----------------------------------------------------------------------//
 // 
 //----------------------------------------------------------------------//
-TMap<FNameEntryId, FAISenseID> UAISense_Blueprint::BPSenseToSenseID;
+TMap<NAME_INDEX, FAISenseID> UAISense_Blueprint::BPSenseToSenseID;
 
 UAISense_Blueprint::UAISense_Blueprint(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -92,7 +92,7 @@ FAISenseID UAISense_Blueprint::UpdateSenseID()
 #endif
 	if (GetClass()->HasAnyClassFlags(CLASS_Abstract) == false)
 	{
-		const FNameEntryId NameIndex = GetClass()->GetFName().GetDisplayIndex();
+		const NAME_INDEX NameIndex = GetClass()->GetFName().GetDisplayIndex();
 		const FAISenseID* StoredID = BPSenseToSenseID.Find(NameIndex);
 		if (StoredID != nullptr)
 		{

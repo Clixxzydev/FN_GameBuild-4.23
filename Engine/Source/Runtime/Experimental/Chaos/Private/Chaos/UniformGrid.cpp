@@ -193,12 +193,6 @@ TVector<T, d> TUniformGrid<T, d>::ClampMinusHalf(const TVector<T, d>& X) const
 	return Result;
 }
 
-template<class T, int d>
-bool Chaos::TUniformGrid<T, d>::IsValid(const TVector<int32, d>& X) const
-{
-	return X == ClampIndex(X);
-}
-
 template<class T>
 TVector<int32, 3> TUniformGrid<T, 3>::GetIndex(const int32 Index) const
 {
@@ -270,14 +264,6 @@ TVector<T, 3> TUniformGrid<T, 3>::ClampMinusHalf(const TVector<T, 3>& X) const
 	Result[2] = X[2] > Max[2] ? Max[2] : (X[2] < Min[2] ? Min[2] : X[2]);
 	return Result;
 }
-
-
-template<class T>
-bool Chaos::TUniformGrid<T, 3>::IsValid(const TVector<int32, 3>& X) const
-{
-	return X == ClampIndex(X);
-}
-
 
 template class Chaos::TUniformGridBase<float, 3>;
 template class Chaos::TUniformGrid<float, 3>;

@@ -8,7 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "GenericTeamAgentInterface.generated.h"
 
-UENUM(BlueprintType)
+UENUM()
 namespace ETeamAttitude
 {
 	enum Type
@@ -49,19 +49,18 @@ public:
 	static ETeamAttitude::Type GetAttitude(const AActor* A, const AActor* B);
 	static ETeamAttitude::Type GetAttitude(FGenericTeamId TeamA, FGenericTeamId TeamB)
 	{
-		return AttitudeSolverImpl ? (AttitudeSolverImpl)(TeamA, TeamB) : ETeamAttitude::Neutral;
+		return AttitudeSolverImpl ? (*AttitudeSolverImpl)(TeamA, TeamB) : ETeamAttitude::Neutral;
 	}
 
-	typedef TFunction<ETeamAttitude::Type(FGenericTeamId, FGenericTeamId)> FAttitudeSolverFunction;
+	typedef ETeamAttitude::Type FAttitudeSolverFunction(FGenericTeamId, FGenericTeamId);
 	
-	static void SetAttitudeSolver(const FAttitudeSolverFunction& Solver);
-	static void ResetAttitudeSolver();
+	static void SetAttitudeSolver(FAttitudeSolverFunction* Solver);
 
 protected:
 	// the default implementation makes all teams hostile
 	// @note that for consistency IGenericTeamAgentInterface should be using the same function 
 	//	(by default it does)
-	static FAttitudeSolverFunction AttitudeSolverImpl;
+	static FAttitudeSolverFunction* AttitudeSolverImpl;
 
 public:
 	static const FGenericTeamId NoTeam;

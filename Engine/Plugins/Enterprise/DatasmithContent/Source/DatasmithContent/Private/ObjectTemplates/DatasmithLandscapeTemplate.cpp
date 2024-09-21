@@ -5,23 +5,23 @@
 #include "Landscape.h"
 #include "ObjectTemplates/DatasmithActorTemplate.h"
 
-UObject* UDatasmithLandscapeTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithLandscapeTemplate::Apply( UObject* Destination, bool bForce )
 {
+#if WITH_EDITORONLY_DATA
 	ALandscape* Landscape = UDatasmithActorTemplate::GetActor< ALandscape >( Destination );
 
 	if( !Landscape )
 	{
-		return nullptr;
+		return;
 	}
 
-#if WITH_EDITORONLY_DATA
 	UDatasmithLandscapeTemplate* PreviousTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithLandscapeTemplate >( Destination ) : nullptr;
 
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET(LandscapeMaterial, Landscape, PreviousTemplate);
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET(StaticLightingLOD, Landscape, PreviousTemplate);
-#endif // #if WITH_EDITORONLY_DATA
 
-	return Landscape->GetRootComponent();
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( Landscape->GetRootComponent(), this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithLandscapeTemplate::Load( const UObject* Source )

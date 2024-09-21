@@ -38,6 +38,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)
 	class UTextureRenderTarget2D* TextureTarget;
 
+	UPROPERTY(interp, Category=SceneCapture, meta=(DisplayName = "Capture Source"))
+	TEnumAsByte<enum ESceneCaptureSource> CaptureSource;
+
 	/** When enabled, the scene capture will composite into the render target instead of overwriting its contents. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)
 	TEnumAsByte<enum ESceneCaptureCompositeMode> CompositeMode;
@@ -119,9 +122,7 @@ public:
 
 	//~ End UObject Interface
 
-	void SetCameraView(const FMinimalViewInfo& DesiredView);
-
-	virtual void GetCameraView(float DeltaTime, FMinimalViewInfo& OutDesiredView);
+	virtual void GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredView);
 
 	/** Adds an Blendable (implements IBlendableInterface) to the array of Blendables (if it doesn't exist) and update the weight */
 	UFUNCTION(BlueprintCallable, Category="Rendering")

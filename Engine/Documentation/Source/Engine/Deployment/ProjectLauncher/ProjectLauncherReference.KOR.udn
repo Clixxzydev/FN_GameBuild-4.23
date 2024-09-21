@@ -1,7 +1,7 @@
-﻿INTSourceChangelist:0
-Availability:Public
+﻿INTSourceChangelist:3801260
+Availability:Docs
 Crumbs: %ROOT%
-Title: Project Launcher
+Title: Project Launcher Reference
 Description: A reference for the Project Launcher used to deploy projects using in Unreal Engine 4.
 Type: reference
 Version:4.18
@@ -314,3 +314,4 @@ The available settings you can use when selecting Copy Repository.
 
 -
 [/COMMENT]
+

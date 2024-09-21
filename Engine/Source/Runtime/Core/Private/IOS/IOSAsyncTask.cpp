@@ -90,31 +90,25 @@ NSMutableArray* RunningTasks;
  */
 + (void)ProcessAsyncTasks
 {
-	FIOSAsyncTask* CurrentTask = nil;
-
-	// grab one out of the queue to process outside of the lock
 	@synchronized(RunningTasks)
 	{
-		if ([RunningTasks count] > 0)
+		// check all outstanding tasks to see if they are done
+		// (we go backwards so we can remove as we go)
+		for (int32 TaskIndex = 0; TaskIndex < [RunningTasks count]; TaskIndex++)
 		{
-			CurrentTask = [RunningTasks objectAtIndex:0];
-			[RunningTasks removeObjectAtIndex:0];
-		}
-	}
-
-	if (CurrentTask != nil)
-	{
-		if ([CurrentTask CheckForCompletion])
-		{
-			// release the object count
-			[CurrentTask release];
-		}
-		else
-		{
-			// if it's not done, but it back in the list
-			@synchronized(RunningTasks)
+			FIOSAsyncTask* Task = [RunningTasks objectAtIndex:TaskIndex];
+			// if it finished, remove it from the list of running tasks
+			if ([Task CheckForCompletion])
 			{
-				[RunningTasks addObject:CurrentTask];
+				// release the object count
+				[Task release];
+
+				// and remove from the list
+				[RunningTasks removeObjectAtIndex:TaskIndex];
+				TaskIndex--;
+				
+				// do one at once
+				break;
 			}
 		}
 	}

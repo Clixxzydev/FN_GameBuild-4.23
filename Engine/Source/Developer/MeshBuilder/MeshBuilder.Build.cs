@@ -28,11 +28,6 @@ namespace UnrealBuildTool.Rules
             AddEngineThirdPartyPrivateStaticDependencies(Target, "ForsythTriOptimizer");
 	        AddEngineThirdPartyPrivateStaticDependencies(Target, "nvTessLib");
             AddEngineThirdPartyPrivateStaticDependencies(Target, "QuadricMeshReduction");
-
-			if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
-			{
-				PublicAdditionalLibraries.Add("stdc++");	// can be fixed, see UE-70769
-			}
-       }
+        }
 	}
 }

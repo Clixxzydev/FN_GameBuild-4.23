@@ -49,19 +49,15 @@ template <typename ItemType>
 class SListView : public STableViewBase, TListTypeTraits<ItemType>::SerializerType, public ITypedTableView< ItemType >
 {
 public:
-	using NullableItemType  = typename TListTypeTraits< ItemType >::NullableType;
-	using MapKeyFuncs       = typename TListTypeTraits<ItemType>::MapKeyFuncs;
-	using MapKeyFuncsSparse = typename TListTypeTraits<ItemType>::MapKeyFuncsSparse;
-	
-	using TItemSet          = TSet< ItemType, typename TListTypeTraits< ItemType >::SetKeyFuncs >;
+	typedef typename TListTypeTraits< ItemType >::NullableType NullableItemType;
 
-	using FOnGenerateRow            = typename TSlateDelegates< ItemType >::FOnGenerateRow;
-	using FOnItemScrolledIntoView   = typename TSlateDelegates< ItemType >::FOnItemScrolledIntoView;
-	using FOnSelectionChanged       = typename TSlateDelegates< NullableItemType >::FOnSelectionChanged;
-	using FOnMouseButtonClick       = typename TSlateDelegates< ItemType >::FOnMouseButtonClick ;
-	using FOnMouseButtonDoubleClick = typename TSlateDelegates< ItemType >::FOnMouseButtonDoubleClick ;
+	typedef typename TSlateDelegates< ItemType >::FOnGenerateRow FOnGenerateRow;
+	typedef typename TSlateDelegates< ItemType >::FOnItemScrolledIntoView FOnItemScrolledIntoView;
+	typedef typename TSlateDelegates< NullableItemType >::FOnSelectionChanged FOnSelectionChanged;
+	typedef typename TSlateDelegates< ItemType >::FOnMouseButtonClick FOnMouseButtonClick;
+	typedef typename TSlateDelegates< ItemType >::FOnMouseButtonDoubleClick FOnMouseButtonDoubleClick;
 
-	typedef typename TSlateDelegates< ItemType >::FOnItemToString_Debug FOnItemToString_Debug;
+	typedef typename TSlateDelegates< ItemType >::FOnItemToString_Debug FOnItemToString_Debug; 
 
 	DECLARE_DELEGATE_OneParam( FOnWidgetToBeRemoved, const TSharedRef<ITableRow>& );
 
@@ -507,7 +503,6 @@ private:
 		 */
 		void OnItemSeen( ItemType InItem, TSharedRef<ITableRow> InGeneratedWidget)
 		{
-			ensure(TListTypeTraits<ItemType>::IsPtrValid(InItem));
 			TSharedRef<ITableRow>* LookupResult = ItemToWidgetMap.Find( InItem );
 			const bool bWidgetIsNewlyGenerated = (LookupResult == nullptr);
 			if ( bWidgetIsNewlyGenerated )
@@ -574,26 +569,6 @@ private:
 					{
 						WidgetToCleanUp->ResetRow();
 						OwnerList->OnRowReleased.ExecuteIfBound(WidgetToCleanUp);
-					}
-				}
-				else if(!TListTypeTraits<ItemType>::IsPtrValid(ItemToBeCleanedUp))
-				{
-					// If we get here, it means we have an invalid object. We will need to remove that object from both maps.
-					// This may happen for example when ItemType is a UObject* and the object is garbage collected.
-					auto Widget = WidgetMapToItem.FindKey(ItemToBeCleanedUp);
-					if (Widget != nullptr)
-					{
-						for (auto WidgetItemPair = ItemToWidgetMap.CreateIterator(); WidgetItemPair; ++WidgetItemPair)
-						{
-							const ITableRow* Item = &(WidgetItemPair.Value().Get());
-							if (Item == *Widget)
-							{
-								WidgetItemPair.RemoveCurrent();
-								break;
-							}
-						}
-
-						WidgetMapToItem.Remove(*Widget);
 					}
 				}
 			}
@@ -663,7 +638,7 @@ private:
 		SListView<ItemType>* OwnerList;
 
 		/** Map of DataItems to corresponding SWidgets */
-		TMap< ItemType, TSharedRef<ITableRow>, FDefaultSetAllocator, MapKeyFuncs > ItemToWidgetMap;
+		TMap< ItemType, TSharedRef<ITableRow> > ItemToWidgetMap;
 
 		/** Map of SWidgets to DataItems from which they were generated */
 		TMap< const ITableRow*, ItemType > WidgetMapToItem;
@@ -765,7 +740,7 @@ public:
 		if( OnSelectionChanged.IsBound() )
 		{
 			NullableItemType SelectedItem = (SelectedItems.Num() > 0)
-				? (*typename TItemSet::TIterator(SelectedItems))
+				? (*typename TSet<ItemType>::TIterator(SelectedItems))
 				: TListTypeTraits< ItemType >::MakeNullPtr();
 
 			OnSelectionChanged.ExecuteIfBound(SelectedItem, SelectInfo );
@@ -793,11 +768,6 @@ public:
 		return nullptr != SelectedItems.Find(TheItem);
 	}
 
-	virtual bool Private_IsItemHighlighted(const ItemType& TheItem) const override
-	{
-		return nullptr != HighlightedItems.Find(TheItem);
-	}
-
 	virtual bool Private_IsItemExpanded( const ItemType& TheItem ) const override
 	{
 		// List View does not support item expansion.
@@ -823,23 +793,6 @@ public:
 	virtual int32 Private_GetNumSelectedItems() const override
 	{
 		return SelectedItems.Num();
-	}
-
-	virtual void Private_SetItemHighlighted(ItemType TheItem, bool bShouldBeHighlighted)
-	{
-		if (bShouldBeHighlighted)
-		{
-			HighlightedItems.Add(TheItem);
-		}
-		else
-		{
-			HighlightedItems.Remove(TheItem);
-		}
-	}
-
-	virtual void Private_ClearHighlightedItems()
-	{
-		HighlightedItems.Empty();
 	}
 
 	virtual int32 Private_GetNestingDepth( int32 ItemIndexInList ) const override
@@ -925,7 +878,7 @@ public:
 			{
 				// We are observing some items; they are potentially different.
 				// Unselect any that are no longer being observed.
-				TItemSet NewSelectedItems;
+				TSet< ItemType > NewSelectedItems;
 				for ( int32 ItemIndex = 0; ItemIndex < ItemsSource->Num(); ++ItemIndex )
 				{
 					ItemType CurItem = (*ItemsSource)[ItemIndex];
@@ -937,7 +890,7 @@ public:
 				}
 
 				// Look for items that were removed from the selection.
-				TItemSet SetDifference = SelectedItems.Difference( NewSelectedItems );
+				TSet< ItemType > SetDifference = SelectedItems.Difference( NewSelectedItems );
 				bSelectionChanged = (SetDifference.Num()) > 0;
 
 				// Update the selection to reflect the removal of any items from the ItemsSource.
@@ -992,12 +945,6 @@ public:
 			{
 				const ItemType& CurItem = (*SourceItems)[ItemIndex];
 
-				// We do not generatie a new widget if the CurItem is an invalid object.
-				if (!TListTypeTraits<ItemType>::IsPtrValid(CurItem))
-				{
-					continue;
-				}
-
 				const float ItemHeight = GenerateWidgetForItem(CurItem, ItemIndex, StartIndex, LayoutScaleMultiplier);
 
 				const bool bIsFirstItem = ItemIndex == StartIndex;
@@ -1051,16 +998,11 @@ public:
 			// But we may still have space to fill!
 			if (bAtEndOfList && ViewHeightUsedSoFar < MyGeometry.GetLocalSize().Y)
 			{
-				double NewScrollOffsetForBackfill = static_cast<double>(StartIndex) + (HeightGeneratedSoFar - MyGeometry.GetLocalSize().Y) / FirstItemHeight;
+				float NewScrollOffsetForBackfill = StartIndex + (HeightGeneratedSoFar - MyGeometry.GetLocalSize().Y) / FirstItemHeight;
 
 				for( int32 ItemIndex = StartIndex-1; HeightGeneratedSoFar < MyGeometry.GetLocalSize().Y && ItemIndex >= 0; --ItemIndex )
 				{
 					const ItemType& CurItem = (*SourceItems)[ItemIndex];
-					// When the item is not valid, we do not generate a widget for it.
-					if (!TListTypeTraits<ItemType>::IsPtrValid(CurItem))
-					{
-						continue;
-					}
 
 					const float ItemHeight = GenerateWidgetForItem(CurItem, ItemIndex, StartIndex, LayoutScaleMultiplier);
 
@@ -1068,7 +1010,7 @@ public:
 					{
 						// Generated the item that puts us over the top.
 						// Count the fraction of this item that will stick out above the list
-						NewScrollOffsetForBackfill = static_cast<double>(ItemIndex) + (HeightGeneratedSoFar + ItemHeight - MyGeometry.GetLocalSize().Y) / ItemHeight;
+						NewScrollOffsetForBackfill = ItemIndex + (HeightGeneratedSoFar + ItemHeight - MyGeometry.GetLocalSize().Y) / ItemHeight;
 					}
 
 					// The widget used up some of the available vertical space.
@@ -1082,11 +1024,11 @@ public:
 		}
 
 		return FReGenerateResults(0.0f, 0.0f, 0.0f, false);
+
 	}
 
 	float GenerateWidgetForItem( const ItemType& CurItem, int32 ItemIndex, int32 StartIndex, float LayoutScaleMultiplier )
 	{
-		ensure(TListTypeTraits<ItemType>::IsPtrValid(CurItem));
 		// Find a previously generated Widget for this item, if one exists.
 		TSharedPtr<ITableRow> WidgetForItem = WidgetGenerator.GetWidgetForItem( CurItem );
 		if ( !WidgetForItem.IsValid() )
@@ -1224,30 +1166,6 @@ public:
 	}
 
 	/**
-	 * Set the selection state of multiple items.
-	 *
-	 * @param InItems     The Items whose selection state to modify
-	 * @param bSelected   true to select the items; false to unselect
-	 * @param SelectInfo  Provides context on how the selection changed
-	 */
-	void SetItemSelection( const TArray<ItemType>& InItems, bool bSelected, ESelectInfo::Type SelectInfo = ESelectInfo::Direct )
-	{
-		if ( InItems.Num() == 0 || SelectionMode.Get() == ESelectionMode::None )
-		{
-			return;
-		}
-
-		for (const ItemType & Item : InItems)
-		{
-			Private_SetItemSelection(Item, bSelected, SelectInfo != ESelectInfo::Direct);
-
-			// Any item after the first one selected will be direct
-			SelectInfo = ESelectInfo::Direct;
-		}
-		Private_SignalSelectionChanged(SelectInfo);
-	}
-
-	/**
 	 * Empty the selection set.
 	 */
 	void ClearSelection()
@@ -1264,27 +1182,6 @@ public:
 
 		Private_ClearSelection();
 		Private_SignalSelectionChanged(ESelectInfo::Direct);
-	}
-
-
-
-	/**
-	* Set the highlighted state of an item.
-	*
-	* @param TheItem      The Item whose highlight state you wish to modify
-	* @param bHighlighted True to enable the soft parent highlight, false to disable it.
-	*/
-	void SetItemHighlighted(const ItemType& TheItem, bool bHighlighted)
-	{
-		Private_SetItemHighlighted(TheItem, bHighlighted);
-	}
-
-	/**
-	* Empty the highlighted item set.
-	*/
-	void ClearHighlightedItems()
-	{
-		Private_ClearHighlightedItems();
 	}
 
 	/**
@@ -1312,7 +1209,7 @@ public:
 	{
 		TArray< ItemType > SelectedItemArray;
 		SelectedItemArray.Empty( SelectedItems.Num() );
-		for( typename TItemSet::TConstIterator SelectedItemIt( SelectedItems ); SelectedItemIt; ++SelectedItemIt )
+		for( typename TSet< ItemType >::TConstIterator SelectedItemIt( SelectedItems ); SelectedItemIt; ++SelectedItemIt )
 		{
 			SelectedItemArray.Add( *SelectedItemIt );
 		}
@@ -1322,7 +1219,7 @@ public:
 	int32 GetSelectedItems(TArray< ItemType >&SelectedItemArray) const
 	{
 		SelectedItemArray.Empty(SelectedItems.Num());
-		for (typename TItemSet::TConstIterator SelectedItemIt(SelectedItems); SelectedItemIt; ++SelectedItemIt)
+		for (typename TSet< ItemType >::TConstIterator SelectedItemIt(SelectedItems); SelectedItemIt; ++SelectedItemIt)
 		{
 			SelectedItemArray.Add(*SelectedItemIt);
 		}
@@ -1452,7 +1349,7 @@ public:
 	 */
 	virtual void AddReferencedObjects( FReferenceCollector& Collector )
 	{
-		TListTypeTraits<ItemType>::AddReferencedObjects( Collector, WidgetGenerator.ItemsWithGeneratedWidgets, SelectedItems, WidgetGenerator.WidgetMapToItem );
+		TListTypeTraits<ItemType>::AddReferencedObjects( Collector, WidgetGenerator.ItemsWithGeneratedWidgets, SelectedItems );
 	}
 
 	/**
@@ -1484,9 +1381,20 @@ public:
 
 protected:
 
-	static FOnItemToString_Debug GetDefaultDebugDelegate()
+	FOnItemToString_Debug GetDefaultDebugDelegate()
 	{
-		return FOnItemToString_Debug::CreateStatic(TListTypeTraits<ItemType>::DebugDump);
+		return
+		FOnItemToString_Debug::CreateLambda([](ItemType InItem)
+		{
+			if (TListTypeTraits<ItemType>::IsPtrValid(InItem))
+			{
+				return FString::Printf(TEXT("0x%08x"), &(*InItem));
+			}
+			else
+			{
+				return FString(TEXT("nullptr"));
+			}
+		});
 	}
 
 	/**
@@ -1525,15 +1433,14 @@ protected:
 				{
 					// Scroll the top of the listview to the item in question
 					double NewScrollOffset = IndexOfItem;
-
 					// Center the list view on the item in question.
 					NewScrollOffset -= (NumLiveWidgets / 2);
+					//we also don't want the widget being chopped off if it is at the end of the list
+					const double MoveBackBy = FMath::Clamp<double>(IndexOfItem - (NewScrollOffset + NumLiveWidgets), 0, FLT_MAX);
+					//Move to the correct center spot
+					NewScrollOffset += MoveBackBy;
 
-					// Limit offset to top and bottom of the list.
-					const double MaxScrollOffset = FMath::Max(0.0, static_cast<double>(ItemsSource->Num()) - NumLiveWidgets);
-					NewScrollOffset = FMath::Clamp<double>(NewScrollOffset, 0.0, MaxScrollOffset);
-
-					SetScrollOffset(NewScrollOffset);
+					SetScrollOffset( NewScrollOffset );
 				}
 				else if (bNavigateOnScrollIntoView)
 				{
@@ -1544,9 +1451,7 @@ protected:
 						if (RowGeometry.GetAbsolutePositionAtCoordinates(FVector2D::ZeroVector).Y < ListViewGeometry.GetAbsolutePositionAtCoordinates(FVector2D::ZeroVector).Y)
 						{
 							// This row is clipped on the top, so simply set it as the new scroll offset target to bump it down a bit
-							const double MaxScrollOffset = FMath::Max(0.0, static_cast<double>(ItemsSource->Num()) - NumLiveWidgets);
-							double NewScrollOffset = FMath::Clamp<double>(static_cast<double>(IndexOfItem - NavigationScrollOffset), 0.0, MaxScrollOffset);
-							SetScrollOffset(NewScrollOffset);
+							SetScrollOffset(IndexOfItem - NavigationScrollOffset);
 						}
 						else
 						{
@@ -1575,9 +1480,7 @@ protected:
 									}
 								}
 
-								const double MaxScrollOffset = FMath::Max(0.0, static_cast<double>(ItemsSource->Num()) - NumLiveWidgets);
-								double NewScrollOffset = FMath::Clamp<double>(ScrollOffset + AdditionalOffset + NavigationScrollOffset, 0.0, MaxScrollOffset);
-								SetScrollOffset(NewScrollOffset);
+								SetScrollOffset(ScrollOffset + AdditionalOffset + NavigationScrollOffset);
 							}
 						}
 					}
@@ -1663,13 +1566,6 @@ protected:
 				while( AbsScrollByAmount != 0 && ItemIndex < SourceItems->Num() && ItemIndex >= 0 )
 				{
 					const ItemType CurItem = (*SourceItems)[ ItemIndex ];
-					// If the CurItem is not valid, we do not generate a new widget for it, we skip it.
-					if (!TListTypeTraits<ItemType>::IsPtrValid(CurItem))
-					{
-						++ItemIndex;
-						continue;
-					}
-
 					TSharedPtr<ITableRow> RowWidget = WidgetGenerator.GetWidgetForItem( CurItem );
 					if ( !RowWidget.IsValid() )
 					{
@@ -1832,16 +1728,13 @@ protected:
 	FOnItemScrolledIntoView OnItemScrolledIntoView;
 
 	/** A set of selected data items */
-	TItemSet SelectedItems;
+	TSet< ItemType > SelectedItems;
 
 	/** The item to manipulate selection for */
 	NullableItemType SelectorItem;
 
 	/** The item which was last manipulated; used as a start for shift-click selection */
 	NullableItemType RangeSelectionStart;
-
-	/** A set of which items should be highlighted */
-	TItemSet HighlightedItems;
 
 	/** Pointer to the array of data items that we are observing */
 	const TArray<ItemType>* ItemsSource;

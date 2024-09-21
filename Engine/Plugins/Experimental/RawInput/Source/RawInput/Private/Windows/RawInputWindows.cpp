@@ -94,19 +94,16 @@ FRawInputWindows::FRawInputWindows(const TSharedRef<FGenericApplicationMessageHa
 	WindowsApplication->AddMessageHandler(*this);
 	QueryConnectedDevices();
 
-	// Register a default device if desired
-	if (GetDefault<URawInputSettings>()->bRegisterDefaultDevice)
-	{
-		const uint32 Flags = 0;
-		const int32 PageID = 0x01;
-		int32 DeviceID = 0x04;
-		DefaultDeviceHandle = RegisterInputDevice(RIM_TYPEHID, Flags, DeviceID, PageID);
+	// Register a default device.
+	const uint32 Flags = 0;
+	const int32 PageID = 0x01;
+	int32 DeviceID = 0x04;
+	DefaultDeviceHandle = RegisterInputDevice(RIM_TYPEHID, Flags, DeviceID, PageID);
 
-		if (DefaultDeviceHandle == INDEX_NONE)
-		{
-			DeviceID = 0x05;
-			DefaultDeviceHandle = RegisterInputDevice(RIM_TYPEHID, Flags, DeviceID, PageID);
-		}
+	if(DefaultDeviceHandle==INDEX_NONE)
+	{
+		DeviceID = 0x05;
+		DefaultDeviceHandle = RegisterInputDevice(RIM_TYPEHID, Flags, DeviceID, PageID);
 	}
 
 	AHUD::OnShowDebugInfo.AddRaw(this, &FRawInputWindows::ShowDebugInfo);

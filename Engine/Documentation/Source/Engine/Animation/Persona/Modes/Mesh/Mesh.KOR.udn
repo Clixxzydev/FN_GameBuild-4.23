@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6409500
+﻿INTSourceChangelist:4326187
 Availability: Public
 Crumbs: %ROOT%, Engine, Engine/Animation, Engine/Animation/Persona, Engine/Animation/Persona/Modes
 Title: 스켈레탈 메시 에디터
@@ -12,7 +12,10 @@ tags:Skeletal Mesh
 tags:FBX Importing
 tags:Tools
 topic-image:skelMeshEditor_topic.png
-hero-image:SkeletalMeshEditorBanner.png
+
+[REGION:banner]
+![](SkeletalMeshEditorBanner.png)
+[/REGION]
 
 
 [EXCERPT:Overview]

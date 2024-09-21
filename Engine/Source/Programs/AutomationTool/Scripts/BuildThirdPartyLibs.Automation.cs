@@ -67,21 +67,19 @@ class BuildThirdPartyLibs : BuildCommand
 
 		// figure out what batch/script to run
 		string CompileScriptName;
-		if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
+		switch (UnrealBuildTool.BuildHostPlatform.Current.Platform)
 		{
-			CompileScriptName = WindowsCompileScript;
-		}
-		else if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Mac)
-		{
-			CompileScriptName = MacCompileScript;
-		}
-		else if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Linux)
-		{
-			CompileScriptName = LinuxCompileScript;
-		}
-		else
-		{
-			throw new AutomationException("Unknown runtime platform!");
+			case UnrealTargetPlatform.Win64:
+				CompileScriptName = WindowsCompileScript;
+				break;
+			case UnrealTargetPlatform.Mac:
+				CompileScriptName = MacCompileScript;
+				break;
+			case UnrealTargetPlatform.Linux:
+				CompileScriptName = LinuxCompileScript;
+				break;
+			default:
+				throw new AutomationException("Unknown runtime platform!");
 		}
 
 		// look for changelist on the command line

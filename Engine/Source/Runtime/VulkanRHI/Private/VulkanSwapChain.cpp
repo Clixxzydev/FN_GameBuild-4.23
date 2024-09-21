@@ -9,16 +9,7 @@
 #include "VulkanPlatform.h"
 #include "Engine/RendererSettings.h"
 #include "IHeadMountedDisplayModule.h"
-#include "IHeadMountedDisplayVulkanExtensions.h"
 
-
-int32 GVulkanKeepSwapChain = 1;
-static FAutoConsoleVariableRef CVarVulkanKeepSwapChain(
-	TEXT("r.Vulkan.KeepSwapChain"),
-	GVulkanKeepSwapChain,
-	TEXT("Whether to keep old swap chain to pass through when creating the next one"),
-	ECVF_RenderThreadSafe
-);
 
 int32 GShouldCpuWaitForFence = 1;
 static FAutoConsoleVariableRef CVarCpuWaitForFence(
@@ -117,7 +108,7 @@ extern TAutoConsoleVariable<int32> GAllowPresentOnComputeQueue;
 static TSet<EPixelFormat> GPixelFormatNotSupportedWarning;
 
 FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevice, void* WindowHandle, EPixelFormat& InOutPixelFormat, uint32 Width, uint32 Height,
-	uint32* InOutDesiredNumBackBuffers, TArray<VkImage>& OutImages, int8 InLockToVsync, FVulkanSwapChainRecreateInfo* RecreateInfo)
+	uint32* InOutDesiredNumBackBuffers, TArray<VkImage>& OutImages, int8 InLockToVsync)
 	: SwapChain(VK_NULL_HANDLE)
 	, Device(InDevice)
 	, Surface(VK_NULL_HANDLE)
@@ -132,17 +123,8 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 
 	NextPresentTargetTime = (FPlatformTime::Seconds() - GStartTime);
 
-	if(RecreateInfo != nullptr && RecreateInfo->SwapChain != VK_NULL_HANDLE)
-	{
-		check(RecreateInfo->Surface != VK_NULL_HANDLE);
-		Surface = RecreateInfo->Surface;
-		RecreateInfo->Surface = VK_NULL_HANDLE;
-	}
-	else
-	{
-		// let the platform create the surface
-		FVulkanPlatform::CreateSurface(WindowHandle, Instance, &Surface);
-	}
+	// let the platform create the surface
+	FVulkanPlatform::CreateSurface(WindowHandle, Instance, &Surface);
 
 	// Find Pixel format for presentable images
 	VkSurfaceFormatKHR CurrFormat;
@@ -403,6 +385,7 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 
 	uint32 SizeX = FVulkanPlatform::SupportsQuerySurfaceProperties() ? (SurfProperties.currentExtent.width == 0xFFFFFFFF ? Width : SurfProperties.currentExtent.width) : Width;
 	uint32 SizeY = FVulkanPlatform::SupportsQuerySurfaceProperties() ? (SurfProperties.currentExtent.height == 0xFFFFFFFF ? Height : SurfProperties.currentExtent.height) : Height;
+	//FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Create swapchain: %ux%u \n"), SizeX, SizeY);
 
 	VkSwapchainCreateInfoKHR SwapChainInfo;
 	ZeroVulkanStruct(SwapChainInfo, VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
@@ -422,12 +405,6 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 	SwapChainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	SwapChainInfo.presentMode = PresentMode;
 	SwapChainInfo.oldSwapchain = VK_NULL_HANDLE;
-	if(RecreateInfo != nullptr)
-	{
-		SwapChainInfo.oldSwapchain = RecreateInfo->SwapChain;
-	}
-	
-
 	SwapChainInfo.clipped = VK_TRUE;
 	SwapChainInfo.compositeAlpha = CompositeAlpha;
 
@@ -451,30 +428,8 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 
 	//ensure(SwapChainInfo.imageExtent.width >= SurfProperties.minImageExtent.width && SwapChainInfo.imageExtent.width <= SurfProperties.maxImageExtent.width);
 	//ensure(SwapChainInfo.imageExtent.height >= SurfProperties.minImageExtent.height && SwapChainInfo.imageExtent.height <= SurfProperties.maxImageExtent.height);
-	static bool bPrintSwapchainCreationInfo = true;
-	if (bPrintSwapchainCreationInfo)
-	{
-		UE_LOG(LogVulkanRHI, Log, TEXT("Creating new VK swapchain with format %d, color space %d, num images %d"), static_cast<uint32>(SwapChainInfo.imageFormat), static_cast<uint32>(SwapChainInfo.imageColorSpace), static_cast<uint32>(SwapChainInfo.minImageCount));
-#if WITH_EDITOR
-		bPrintSwapchainCreationInfo = false;
-#endif
-	}
 
 	VERIFYVULKANRESULT_EXPANDED(VulkanRHI::vkCreateSwapchainKHR(Device.GetInstanceHandle(), &SwapChainInfo, VULKAN_CPU_ALLOCATOR, &SwapChain));
-
-	if (RecreateInfo != nullptr)
-	{
-		if (RecreateInfo->SwapChain != VK_NULL_HANDLE)
-		{
-			VulkanRHI::vkDestroySwapchainKHR(Device.GetInstanceHandle(), RecreateInfo->SwapChain, VULKAN_CPU_ALLOCATOR);
-			RecreateInfo->SwapChain = VK_NULL_HANDLE;
-		}
-		if (RecreateInfo->Surface != VK_NULL_HANDLE)
-		{
-			VulkanRHI::vkDestroySurfaceKHR(Instance, RecreateInfo->Surface, VULKAN_CPU_ALLOCATOR);
-			RecreateInfo->Surface = VK_NULL_HANDLE;
-		}
-	}
 
 	InternalWidth = FMath::Min(Width, SwapChainInfo.imageExtent.width);
 	InternalHeight = FMath::Min(Height, SwapChainInfo.imageExtent.height);
@@ -512,7 +467,7 @@ FVulkanSwapChain::FVulkanSwapChain(VkInstance InInstance, FVulkanDevice& InDevic
 	PresentID = 0;
 }
 
-void FVulkanSwapChain::Destroy(FVulkanSwapChainRecreateInfo* RecreateInfo)
+void FVulkanSwapChain::Destroy()
 {
 	check(FVulkanPlatform::SupportsStandardSwapchain());
 
@@ -520,16 +475,7 @@ void FVulkanSwapChain::Destroy(FVulkanSwapChainRecreateInfo* RecreateInfo)
 	// Alternatively could also check on the fence(s) for the image(s) from the swapchain but then timing out/waiting could become an issue.
 	Device.WaitUntilIdle();
 
-	bool bRecreate = RecreateInfo && GVulkanKeepSwapChain;
-	if (bRecreate)
-	{
-		RecreateInfo->SwapChain = SwapChain;
-		RecreateInfo->Surface = Surface;
-	}
-	else
-	{
-		VulkanRHI::vkDestroySwapchainKHR(Device.GetInstanceHandle(), SwapChain, VULKAN_CPU_ALLOCATOR);
-	}
+	VulkanRHI::vkDestroySwapchainKHR(Device.GetInstanceHandle(), SwapChain, VULKAN_CPU_ALLOCATOR);
 	SwapChain = VK_NULL_HANDLE;
 
 #if VULKAN_USE_IMAGE_ACQUIRE_FENCES
@@ -546,10 +492,7 @@ void FVulkanSwapChain::Destroy(FVulkanSwapChainRecreateInfo* RecreateInfo)
 		ImageAcquiredSemaphore[BufferIndex]->Release();
 	}
 
-	if(!bRecreate)
-	{
-		VulkanRHI::vkDestroySurfaceKHR(Instance, Surface, VULKAN_CPU_ALLOCATOR);
-	}
+	VulkanRHI::vkDestroySurfaceKHR(Instance, Surface, VULKAN_CPU_ALLOCATOR);
 	Surface = VK_NULL_HANDLE;
 }
 
@@ -874,6 +817,7 @@ FVulkanSwapChain::EStatus FVulkanSwapChain::Present(FVulkanQueue* GfxQueue, FVul
 
 	const int32 SyncInterval = LockToVsync ? RHIGetSyncInterval() : 0;
 	ensureMsgf(SyncInterval <= 3 && SyncInterval >= 0, TEXT("Unsupported sync interval: %i"), SyncInterval);
+	FVulkanPlatform::EnablePresentInfoExtensions(Info);
 
 #if VULKAN_SUPPORTS_GOOGLE_DISPLAY_TIMING
 	if (GVulkanExtensionFramePacer && Device.GetOptionalExtensions().HasGoogleDisplayTiming)
@@ -927,7 +871,7 @@ FVulkanSwapChain::EStatus FVulkanSwapChain::Present(FVulkanQueue* GfxQueue, FVul
 	{
 		SCOPE_CYCLE_COUNTER(STAT_VulkanQueuePresent);
 		uint32 IdleStart = FPlatformTime::Cycles();
-		VkResult PresentResult = FVulkanPlatform::Present(PresentQueue->GetHandle(), Info);
+		VkResult PresentResult = VulkanRHI::vkQueuePresentKHR(PresentQueue->GetHandle(), &Info);
 		uint32 ThisCycles = FPlatformTime::Cycles() - IdleStart;
 		if (IsInRHIThread())
 		{

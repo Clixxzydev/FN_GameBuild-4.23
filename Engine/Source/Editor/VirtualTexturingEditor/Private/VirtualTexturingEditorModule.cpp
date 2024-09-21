@@ -1,51 +1,39 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "VirtualTexturingEditorModule.h"
+#include "Containers/Array.h"
+#include "ISettingsModule.h"
+#include "ISettingsSection.h"
+#include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
+#include "Templates/SharedPointer.h"
+#include "Toolkits/AssetEditorToolkit.h"
 
-#include "IPlacementModeModule.h"
-#include "PropertyEditorModule.h"
-#include "RuntimeVirtualTextureAssetTypeActions.h"
-#include "RuntimeVirtualTextureDetailsCustomization.h"
-#include "VT/RuntimeVirtualTextureVolume.h"
+#define LOCTEXT_NAMESPACE "FVirtualTexturingEditorModule"
 
-#define LOCTEXT_NAMESPACE "VirtualTexturingEditorModule"
+class FVirtualTexturingEditorModule
+	: public IModuleInterface
+{
+
+public:
+
+	virtual void StartupModule() override
+	{
+	}
+
+	virtual void ShutdownModule() override
+	{
+	}
+
+	virtual bool SupportsDynamicReloading() override
+	{
+		return false;
+	}
+
+protected:
+
+};
+
 
 IMPLEMENT_MODULE(FVirtualTexturingEditorModule, VirtualTexturingEditor);
-
-void FVirtualTexturingEditorModule::StartupModule()
-{
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
-	AssetTools.RegisterAssetTypeActions(MakeShareable(new FAssetTypeActions_RuntimeVirtualTexture));
-	
-	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomClassLayout("RuntimeVirtualTexture", FOnGetDetailCustomizationInstance::CreateStatic(&FRuntimeVirtualTextureDetailsCustomization::MakeInstance));
-	PropertyModule.RegisterCustomClassLayout("RuntimeVirtualTextureComponent", FOnGetDetailCustomizationInstance::CreateStatic(&FRuntimeVirtualTextureComponentDetailsCustomization::MakeInstance));
-
-	IPlacementModeModule& PlacementModeModule = IPlacementModeModule::Get();
-	PlacementModeModule.OnPlacementModeCategoryRefreshed().AddRaw(this, &FVirtualTexturingEditorModule::OnPlacementModeRefresh);
-}
-
-void FVirtualTexturingEditorModule::ShutdownModule()
-{
-	if (IPlacementModeModule::IsAvailable())
-	{
-		IPlacementModeModule::Get().OnPlacementModeCategoryRefreshed().RemoveAll(this);
-	}
-}
-
-bool FVirtualTexturingEditorModule::SupportsDynamicReloading()
-{
-	return false;
-}
-
-void FVirtualTexturingEditorModule::OnPlacementModeRefresh(FName CategoryName)
-{
-	static FName VolumeName = FName(TEXT("Volumes"));
-	if (CategoryName == VolumeName)
-	{
-		IPlacementModeModule& PlacementModeModule = IPlacementModeModule::Get();
-		PlacementModeModule.RegisterPlaceableItem(CategoryName, MakeShareable(new FPlaceableItem(nullptr, FAssetData(ARuntimeVirtualTextureVolume::StaticClass()))));
-	}
-}
 
 #undef LOCTEXT_NAMESPACE

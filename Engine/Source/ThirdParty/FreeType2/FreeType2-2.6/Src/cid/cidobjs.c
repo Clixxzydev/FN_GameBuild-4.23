@@ -113,16 +113,16 @@
     CID_Size  size = (CID_Size)cidsize;
 
 
-    if ( cidsize->_internal )
+    if ( cidsize->internal )
     {
       PSH_Globals_Funcs  funcs;
 
 
       funcs = cid_size_get_globals_funcs( size );
       if ( funcs )
-        funcs->destroy( (PSH_Globals)cidsize->_internal );
+        funcs->destroy( (PSH_Globals)cidsize->internal );
 
-      cidsize->_internal = NULL;
+      cidsize->internal = NULL;
     }
   }
 
@@ -145,7 +145,7 @@
 
       error = funcs->create( cidsize->face->memory, priv, &globals );
       if ( !error )
-        cidsize->_internal = (FT_Size_Internal)(void*)globals;
+        cidsize->internal = (FT_Size_Internal)(void*)globals;
     }
 
     return error;
@@ -164,7 +164,7 @@
     funcs = cid_size_get_globals_funcs( (CID_Size)size );
 
     if ( funcs )
-      funcs->set_scale( (PSH_Globals)size->_internal,
+      funcs->set_scale( (PSH_Globals)size->internal,
                         size->metrics.x_scale,
                         size->metrics.y_scale,
                         0, 0 );

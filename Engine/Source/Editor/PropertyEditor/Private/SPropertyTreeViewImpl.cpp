@@ -11,7 +11,6 @@
 #include "Presentation/PropertyEditor/PropertyEditor.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
-#include "EditConditionParser.h"
 
 #include "CategoryPropertyNode.h"
 #include "UserInterface/PropertyTree/PropertyTreeConstants.h"
@@ -32,7 +31,6 @@ public:
 	FPropertyUtilitiesTreeView( SPropertyTreeViewImpl& InView )
 		: View( InView )
 	{
-		EditConditionParser = MakeShareable(new FEditConditionParser());
 	}
 
 	virtual class FNotifyHook* GetNotifyHook() const override
@@ -97,14 +95,8 @@ public:
 	{
 		return false;
 	}
-
-	virtual TSharedPtr<FEditConditionParser> GetEditConditionParser() const
-	{
-		return EditConditionParser;
-	}
-
 private:
-	TSharedPtr<FEditConditionParser> EditConditionParser;
+
 	SPropertyTreeViewImpl& View;
 };
 

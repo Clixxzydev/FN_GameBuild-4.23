@@ -2,7 +2,6 @@
 
 #include "OnlineExternalUIInterfaceSteam.h"
 #include "Interfaces/OnlineSessionInterface.h"
-#include "OnlineSessionSettings.h"
 #include "OnlineSubsystemSteamTypes.h"
 
 // Other external UI possibilities in Steam
@@ -50,26 +49,9 @@ bool FOnlineExternalUISteam::ShowFriendsUI(int32 LocalUserNum)
 bool FOnlineExternalUISteam::ShowInviteUI(int32 LocalUserNum, FName SessionName)
 {
 	IOnlineSessionPtr SessionInt = SteamSubsystem->GetSessionInterface();
-	if (!SessionInt.IsValid())
+	if (SessionInt.IsValid() && SessionInt->HasPresenceSession())
 	{
-		return false;
-	}
-
-	const FNamedOnlineSession* const Session = SessionInt->GetNamedSession(SessionName);
-	if (Session && Session->SessionInfo.IsValid())
-	{
-		const FOnlineSessionInfoSteam* const SessionInfo = (FOnlineSessionInfoSteam*)(Session->SessionInfo.Get());
-		if (SessionInfo->SessionType == ESteamSession::LobbySession && SessionInfo->SessionId.IsValid())
-		{
-			// This can only invite to lobbies, does not work for dedicated servers.
-			SteamFriends()->ActivateGameOverlayInviteDialog(SessionInfo->SessionId);
-		}
-		else if(SessionInfo->SessionType == ESteamSession::AdvertisedSessionHost || SessionInfo->SessionType == ESteamSession::AdvertisedSessionClient)
-		{
-			// Invite people to start this game.
-			// To invite someone directly into the game, use SendSessionInviteToFriend
-			SteamFriends()->ActivateGameOverlay("LobbyInvite");
-		}
+		SteamFriends()->ActivateGameOverlay("LobbyInvite");
 		return true;
 	}
 

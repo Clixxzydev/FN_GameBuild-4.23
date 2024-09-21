@@ -9,7 +9,6 @@ using UnrealBuildTool;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
-using System.Net;
 
 namespace Gauntlet
 {
@@ -92,11 +91,12 @@ namespace Gauntlet
 	{
 		public static UnrealTargetPlatform GetPlatformFromString(string PlatformName)
 		{
-			UnrealTargetPlatform UnrealPlatform;
-			if (UnrealTargetPlatform.TryParse(PlatformName, out UnrealPlatform))
-            {
-	            return UnrealPlatform;
-            }
+			UnrealTargetPlatform UnrealPlatform = UnrealTargetPlatform.Unknown;
+
+			if (Enum.TryParse<UnrealTargetPlatform>(PlatformName, true, out UnrealPlatform))
+			{
+				return UnrealPlatform;
+			}
 			
 			throw new AutomationException("Unable convert platform {0} into a valid Unreal Platform", PlatformName);
 		}
@@ -165,40 +165,27 @@ namespace Gauntlet
 		/// <summary>
 		/// Gets the filehost IP to provide to devkits by examining our local adapters and
 		/// returning the one that's active and on the local LAN (based on DNS assignment)
-		/// AG-TODO: PreferredDomain should be in the master config
 		/// </summary>
 		/// <returns></returns>
-		public static string GetHostIpAddress(string PreferredDomain="epicgames.net")
+		public static string GetHostIpAddress()
 		{
-			// Default to the first address with a valid prefix
-			var LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList
-				.Where(o => o.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-					&& o.GetAddressBytes()[0] != 169)
-				.FirstOrDefault();
-
-			var ActiveInterfaces = NetworkInterface.GetAllNetworkInterfaces()
-				.Where(I => I.OperationalStatus == OperationalStatus.Up);
-
-			bool MultipleInterfaces = ActiveInterfaces.Count() > 1;
-
-			if (MultipleInterfaces)
+			NetworkInterface[] Interfaces = NetworkInterface.GetAllNetworkInterfaces();
+			foreach (NetworkInterface adapter in Interfaces)
 			{
-				// Now, lots of Epic PCs have virtual adapters etc, so see if there's one that's on our network and if so use that IP
-				var PreferredInterface = ActiveInterfaces
-					.Where(I => I.GetIPProperties().DnsSuffix.IndexOf(PreferredDomain, StringComparison.OrdinalIgnoreCase) >= 0)
-					.SelectMany(I => I.GetIPProperties().UnicastAddresses)
-					.Where(A => A.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-					.FirstOrDefault();
-
-				if (PreferredInterface != null)
+				if (adapter.OperationalStatus == OperationalStatus.Up)
 				{
-					LocalAddress = PreferredInterface.Address;
+					IPInterfaceProperties IP = adapter.GetIPProperties();
+					for (int Index = 0; Index < IP.UnicastAddresses.Count; ++Index)
+					{
+						if (IP.UnicastAddresses[Index].IsDnsEligible)
+						{
+							// use default port
+							return IP.UnicastAddresses[Index].Address.ToString();
+						}
+					}
 				}
 			}
-	
-			string HostIP = Globals.Params.ParseValue("hostip", "");
-			HostIP = string.IsNullOrEmpty(HostIP) ? LocalAddress.ToString() : HostIP;
-			return HostIP;
+			return "";
 		}
 
 		static public string GetExecutableName(string ProjectName, UnrealTargetPlatform Platform, UnrealTargetConfiguration Config, UnrealTargetRole Role, string Extension)
@@ -242,13 +229,14 @@ namespace Gauntlet
 		internal class ConfigInfo
 		{
 			public UnrealTargetRole 				RoleType;
-			public UnrealTargetPlatform? 		Platform;
+			public UnrealTargetPlatform 		Platform;
 			public UnrealTargetConfiguration 	Configuration;
 			public bool							SharedBuild;
 
 			public ConfigInfo()
 			{
 				RoleType = UnrealTargetRole.Unknown;
+				Platform = UnrealTargetPlatform.Unknown;
 				Configuration = UnrealTargetConfiguration.Unknown;
 			}
 		}
@@ -272,7 +260,7 @@ namespace Gauntlet
 			// FortniteGame, FortniteClient, FortniteServer
 			// Or EngineTest-WIn64-Shipping, FortniteClient-Win64-Shipping etc
 			// So we need to search for the project name minus 'Game', with the form, build-type, and platform all optional :(
-			string RegExMatch = string.Format(@"{0}(Game|Client|Server|)(?:-(.+?)-(Debug|Test|Shipping))?", ShortName);
+			string RegExMatch = string.Format(@"{0}(Game|Client|Server|)(?:-(.+?)-(Test|Shipping))?", ShortName);
 
 			// Format should be something like
 			// FortniteClient
@@ -310,11 +298,16 @@ namespace Gauntlet
 					Config.Configuration = UnrealTargetConfiguration.Development;   // Development has no string
 				}
 
-				UnrealTargetPlatform Platform;
-				if (PlatformName.Length > 0 && UnrealTargetPlatform.TryParse(PlatformName, out Platform))
+				if (PlatformName.Length > 0)
 				{
-					Config.Platform = Platform;
+					Enum.TryParse(ConfigType, true, out Config.Platform);
 				}
+				else
+				{
+					Config.Platform = UnrealTargetPlatform.Unknown;
+				}
+
+				
 			}
 
 			return Config;
@@ -328,6 +321,53 @@ namespace Gauntlet
 		static public UnrealTargetRole GetRoleFromExecutableName(string InProjectName, string InName)
 		{
 			return GetUnrealConfigFromFileName(InProjectName, InName).RoleType;
+		}
+
+		static public string GetProjectPath(string InProjectName)
+		{
+			if (File.Exists(InProjectName))
+			{
+				return InProjectName;
+			}
+
+			string ShortName = Path.GetFileNameWithoutExtension(InProjectName);
+		
+			var RootDirs = Directory.EnumerateDirectories(Environment.CurrentDirectory);
+
+			var ProjectDirs = "UE4Games.uprojectdirs";
+
+			if (File.Exists(ProjectDirs))
+			{
+				var ExtraPaths = File.ReadAllLines(ProjectDirs).AsEnumerable();
+
+				ExtraPaths = ExtraPaths.Where(P =>
+				{
+					string Trimmed = P.Trim();
+					Trimmed = Trimmed.Replace('/', Path.DirectorySeparatorChar);
+					Trimmed = Trimmed.Replace('\\', Path.DirectorySeparatorChar);
+					return Trimmed.StartsWith(";") == false && Trimmed.StartsWith(".") == false;
+				});
+
+				RootDirs = RootDirs.Union(ExtraPaths.Select(P => Path.Combine(Environment.CurrentDirectory, P)));
+			}
+
+			foreach (var Dir in RootDirs)
+			{
+				// check both this dir and a subdir with the project name
+				string ProjectName = Path.Combine(Dir, InProjectName) + ".uproject";
+				if (File.Exists(ProjectName))
+				{
+					return ProjectName;
+				}
+
+				ProjectName = Path.Combine(Dir, InProjectName, InProjectName) + ".uproject";
+				if (File.Exists(ProjectName))
+				{
+					return ProjectName;
+				}
+			}
+
+			return "";
 		}
 	}
 

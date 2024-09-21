@@ -16,7 +16,7 @@ typedef FName VREditorPanelID;
 /**
  * Represents an interactive floating UI camera preview panel in the VR Editor
  */
-UCLASS(Transient)
+UCLASS()
 class AVREditorFloatingCameraUI : public AVREditorFloatingUI
 {
 	GENERATED_BODY()
@@ -30,4 +30,5 @@ public:
 private:
 	UPROPERTY( )
 	TWeakObjectPtr<AActor> LinkedActor;
+
 };

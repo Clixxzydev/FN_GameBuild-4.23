@@ -4,14 +4,13 @@
 
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Misc/NotifyHook.h"
 
 class FPaintModePainter;
 class UPaintModeSettings;
 class IDetailsView;
 
 /** Widget representing the state / functionality and settings for PaintModePainter*/
-class SPaintModeWidget : public SCompoundWidget, public FNotifyHook
+class SPaintModeWidget : public SCompoundWidget
 {
 public:
 	SLATE_BEGIN_ARGS(SPaintModeWidget) {}
@@ -45,7 +44,4 @@ protected:
 	FPaintModePainter* MeshPainter;
 	/** Paint settings instance */
 	UPaintModeSettings* PaintModeSettings;
-
-private:
-	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, UProperty* PropertyThatChanged) override;
 };

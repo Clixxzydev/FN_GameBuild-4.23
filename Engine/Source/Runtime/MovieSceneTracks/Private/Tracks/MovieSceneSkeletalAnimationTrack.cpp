@@ -38,8 +38,7 @@ UMovieSceneSection* UMovieSceneSkeletalAnimationTrack::AddNewAnimationOnRow(FFra
 	UMovieSceneSkeletalAnimationSection* NewSection = Cast<UMovieSceneSkeletalAnimationSection>(CreateNewSection());
 	{
 		FFrameTime AnimationLength = AnimSequence->SequenceLength * GetTypedOuter<UMovieScene>()->GetTickResolution();
-		int32 IFrameNumber = AnimationLength.FrameNumber.Value + (int)(AnimationLength.GetSubFrame() + 0.5f) + 1;
-		NewSection->InitialPlacementOnRow(AnimationSections, KeyTime, IFrameNumber, RowIndex);
+		NewSection->InitialPlacementOnRow(AnimationSections, KeyTime, AnimationLength.FrameNumber.Value, RowIndex);
 		NewSection->Params.Animation = AnimSequence;
 	}
 
@@ -120,12 +119,6 @@ void UMovieSceneSkeletalAnimationTrack::AddSection(UMovieSceneSection& Section)
 void UMovieSceneSkeletalAnimationTrack::RemoveSection(UMovieSceneSection& Section)
 {
 	AnimationSections.Remove(&Section);
-}
-
-
-void UMovieSceneSkeletalAnimationTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	AnimationSections.RemoveAt(SectionIndex);
 }
 
 

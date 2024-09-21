@@ -16,7 +16,6 @@
 #include "Widgets/Docking/SDockTab.h"
 #include "ClassViewerProjectSettings.h"
 #include "ISettingsModule.h"
-#include "ClassViewerFilter.h"
 
 #define LOCTEXT_NAMESPACE "ClassViewer"
 
@@ -96,14 +95,5 @@ TSharedRef<SWidget> FClassViewerModule::CreateClassViewer(const FClassViewerInit
 			.OnClassPickedDelegate(OnClassPickedDelegate);
 }
 
-TSharedRef<IClassViewerFilter> FClassViewerModule::CreateClassFilter(const FClassViewerInitializationOptions& InitOptions)
-{
-	return TSharedRef<IClassViewerFilter>(new FClassViewerFilter(InitOptions));
-}
-
-TSharedRef<FClassViewerFilterFuncs> FClassViewerModule::CreateFilterFuncs()
-{
-	return TSharedRef<FClassViewerFilterFuncs>(new FClassViewerFilterFuncs());
-}
 
 #undef LOCTEXT_NAMESPACE

@@ -10,12 +10,29 @@
 
 UDatasmithAssetUserData* UDatasmithContentBlueprintLibrary::GetDatasmithUserData(UObject* Object)
 {
-	return UDatasmithAssetUserData::GetDatasmithUserData(Object);
+	if (AActor* Actor = Cast<AActor>(Object))
+	{
+		Object = Actor->GetRootComponent();
+	}
+
+	if (IInterface_AssetUserData* AssetUserData = Cast<IInterface_AssetUserData>(Object))
+	{
+		return Cast<UDatasmithAssetUserData>(AssetUserData->GetAssetUserDataOfClass(UDatasmithAssetUserData::StaticClass()));
+	}
+	return nullptr;
 }
 
 FString UDatasmithContentBlueprintLibrary::GetDatasmithUserDataValueForKey(UObject* Object, FName Key)
 {
-	return UDatasmithAssetUserData::GetDatasmithUserDataValueForKey(Object, Key);
+	if (Object)
+	{
+		if (UDatasmithAssetUserData* AssetUserData = GetDatasmithUserData(Object))
+		{
+			FString* Value = AssetUserData->MetaData.Find(Key);
+			return Value ? *Value : FString();
+		}
+	}
+	return FString();
 }
 
 void UDatasmithContentBlueprintLibrary::GetDatasmithUserDataKeysAndValuesForValue(UObject* Object, const FString& StringToMatch, TArray<FName>& OutKeys, TArray<FString>& OutValues)

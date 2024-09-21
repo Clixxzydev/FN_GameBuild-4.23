@@ -20,17 +20,16 @@ DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSpecificBone
 
 DEFINE_NDI_DIRECT_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSpecificSocketBoneAt)
 
-const FName FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataName("GetSkinnedBoneData");
-const FName FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataWSName("GetSkinnedBoneDataWS");
-const FName FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataInterpolatedName("GetSkinnedBoneDataInterpolated");
-const FName FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataWSInterpolatedName("GetSkinnedBoneDataWSInterpolated");
-const FName FSkeletalMeshInterfaceHelper::RandomSpecificBoneName("RandomSpecificBone");
-const FName FSkeletalMeshInterfaceHelper::IsValidBoneName("IsValidBoneName");
-const FName FSkeletalMeshInterfaceHelper::GetSpecificBoneCountName("GetSpecificBoneCount");
-const FName FSkeletalMeshInterfaceHelper::GetSpecificBoneAtName("GetSpecificBone");
-const FName FSkeletalMeshInterfaceHelper::RandomSpecificSocketBoneName("RandomSpecificSocketBone");
-const FName FSkeletalMeshInterfaceHelper::GetSpecificSocketCountName("GetSpecificSocketCount");
-const FName FSkeletalMeshInterfaceHelper::GetSpecificSocketBoneAtName("GetSpecificSocketBone");
+static const FName RandomSpecificBoneName("RandomSpecificBone");
+static const FName IsValidBoneName("IsValidBoneName");
+static const FName GetSkinnedBoneDataName("GetSkinnedBoneData");
+static const FName GetSkinnedBoneDataWSName("GetSkinnedBoneDataWS");
+static const FName GetSpecificBoneCountName("GetSpecificBoneCount");
+static const FName GetSpecificBoneAtName("GetSpecificBone");
+
+static const FName RandomSpecificSocketBoneName("RandomSpecificSocketBone");
+static const FName GetSpecificSocketCountName("GetSpecificSocketCount");
+static const FName GetSpecificSocketBoneAtName("GetSpecificSocketBone");
 
 void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
 {
@@ -39,7 +38,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::RandomSpecificBoneName;
+		Sig.Name = RandomSpecificBoneName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef() , TEXT("Bone")));
 		Sig.bMemberFunction = true;
@@ -49,7 +48,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::IsValidBoneName;
+		Sig.Name = IsValidBoneName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("IsValid")));
@@ -63,74 +62,37 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataName;
+		Sig.Name = GetSkinnedBoneDataName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetQuatDef(), TEXT("Rotation")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
 		Sig.bMemberFunction = true;
 		Sig.bRequiresContext = false;
 #if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("GetOptionalSkinnedBoneDataDesc", "Returns skinning dependant data for the pased bone in local space. All outputs are optional and you will incur zero to minimal cost if they are not connected.");
+		Sig.Description = LOCTEXT("GetSkinnedBoneDataDesc", "Returns skinning dependant data for the pased bone in local space. All outputs are optional and you will incur zero to minimal cost if they are not connected.");
 #endif
 		OutFunctions.Add(Sig);
 	}
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataWSName;
+		Sig.Name = GetSkinnedBoneDataWSName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetQuatDef(), TEXT("Rotation")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
 		Sig.bMemberFunction = true;
 		Sig.bRequiresContext = false;
 #if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("GetOptionalSkinnedBoneDataWSDesc", "Returns skinning dependant data for the pased bone in world space. All outputs are optional and you will incur zero to minimal cost if they are not connected.");
-#endif
-		OutFunctions.Add(Sig);
-	}
-
-
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataInterpolatedName;
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone")));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Interpolation")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetQuatDef(), TEXT("Rotation")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
-		Sig.bMemberFunction = true;
-		Sig.bRequiresContext = false;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("GetSkinnedBoneDataDesc", "Returns skinning dependant data for the pased bone in local space. Interpolated between this frame and the previous based on passed interpolation factor. All outputs are optional and you will incur zero to minimal cost if they are not connected.");
+		Sig.Description = LOCTEXT("GetSkinnedBoneDataWSDesc", "Returns skinning dependant data for the pased bone in world space. All outputs are optional and you will incur zero to minimal cost if they are not connected.");
 #endif
 		OutFunctions.Add(Sig);
 	}
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataWSInterpolatedName;
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone")));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("Interpolation")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetQuatDef(), TEXT("Rotation")));
-		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Velocity")));
-		Sig.bMemberFunction = true;
-		Sig.bRequiresContext = false;
-#if WITH_EDITORONLY_DATA
-		Sig.Description = LOCTEXT("GetSkinnedBoneDataWSDesc", "Returns skinning dependant data for the pased bone in world space. Interpolated between this frame and the previous based on passed interpolation factor. All outputs are optional and you will incur zero to minimal cost if they are not connected.");
-#endif
-		OutFunctions.Add(Sig);
-	}
-
-	{
-		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSpecificBoneCountName;
+		Sig.Name = GetSpecificBoneCountName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Count")));
 		Sig.bMemberFunction = true;
@@ -143,7 +105,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSpecificBoneAtName;
+		Sig.Name = GetSpecificBoneAtName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone Index")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Bone")));
@@ -160,7 +122,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::RandomSpecificSocketBoneName;
+		Sig.Name = RandomSpecificSocketBoneName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Socket Bone")));
 		Sig.bMemberFunction = true;
@@ -173,7 +135,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 	
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSpecificSocketCountName;
+		Sig.Name = GetSpecificSocketCountName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Count")));
 		Sig.bMemberFunction = true;
@@ -186,7 +148,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 
 	{
 		FNiagaraFunctionSignature Sig;
-		Sig.Name = FSkeletalMeshInterfaceHelper::GetSpecificSocketBoneAtName;
+		Sig.Name = GetSpecificSocketBoneAtName;
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("SkeletalMesh")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Socket Index")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Socket Bone")));
@@ -202,62 +164,52 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkeletonSamplingFunctions(TArray<FNia
 void UNiagaraDataInterfaceSkeletalMesh::BindSkeletonSamplingFunction(const FVMExternalFunctionBindingInfo& BindingInfo, FNDISkeletalMesh_InstanceData* InstanceData, FVMExternalFunction &OutFunc)
 {
 	//Bone Functions
-	if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::RandomSpecificBoneName)
+	if (BindingInfo.Name == RandomSpecificBoneName)
 	{
 		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
 		auto Lambda = [this](FVectorVMContext& Context) { this->RandomSpecificBone(Context); }; 
 		OutFunc = FVMExternalFunction::CreateLambda(Lambda); 
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::IsValidBoneName)
+	else if (BindingInfo.Name == IsValidBoneName)
 	{
 		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 1);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, IsValidBone)::Bind(this, OutFunc);
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataName)
+	else if (BindingInfo.Name == GetSkinnedBoneDataName)
 	{
-		ensure(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 10);
-		TSkinningModeBinder<TNDIExplicitBinder<FNDITransformHandlerNoop, TNDIExplicitBinder<TIntegralConstant<bool, false>, NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSkinnedBoneData)>>>::Bind(this, BindingInfo, InstanceData, OutFunc);
+		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 6);
+		TSkinningModeBinder<TNDIExplicitBinder<FNDITransformHandlerNoop, NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSkinnedBoneData)>>::Bind(this, BindingInfo, InstanceData, OutFunc);
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataWSName)
+	else if (BindingInfo.Name == GetSkinnedBoneDataWSName)
 	{
-		ensure(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 10);
-		TSkinningModeBinder<TNDIExplicitBinder<FNDITransformHandler, TNDIExplicitBinder<TIntegralConstant<bool, false>, NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSkinnedBoneData)>>>::Bind(this, BindingInfo, InstanceData, OutFunc);
+		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 6);
+		TSkinningModeBinder<TNDIExplicitBinder<FNDITransformHandler, NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSkinnedBoneData)>>::Bind(this, BindingInfo, InstanceData, OutFunc);
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataInterpolatedName)
-	{
-		ensure(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 10);
-		TSkinningModeBinder<TNDIExplicitBinder<FNDITransformHandlerNoop, TNDIExplicitBinder<TIntegralConstant<bool, true>, NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSkinnedBoneData)>>>::Bind(this, BindingInfo, InstanceData, OutFunc);
-	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSkinnedBoneDataWSInterpolatedName)
-	{
-		ensure(BindingInfo.GetNumInputs() == 3 && BindingInfo.GetNumOutputs() == 10);
-		TSkinningModeBinder<TNDIExplicitBinder<FNDITransformHandler, TNDIExplicitBinder<TIntegralConstant<bool, true>, NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSkinnedBoneData)>>>::Bind(this, BindingInfo, InstanceData, OutFunc);
-	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSpecificBoneCountName)
+	else if (BindingInfo.Name == GetSpecificBoneCountName)
 	{
 		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
 		auto Lambda = [this](FVectorVMContext& Context) { this->GetSpecificBoneCount(Context); };
 		OutFunc = FVMExternalFunction::CreateLambda(Lambda);
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSpecificBoneAtName)
+	else if (BindingInfo.Name == GetSpecificBoneAtName)
 	{
 		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 1);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSpecificBoneAt)::Bind(this, OutFunc);
 	}
 	//Socket Functions
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::RandomSpecificSocketBoneName)
+	else if (BindingInfo.Name == RandomSpecificSocketBoneName)
 	{
 		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
 		auto Lambda = [this](FVectorVMContext& Context) { this->RandomSpecificSocketBone(Context); };
 		OutFunc = FVMExternalFunction::CreateLambda(Lambda);
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSpecificSocketCountName)
+	else if (BindingInfo.Name == GetSpecificSocketCountName)
 	{
 		check(BindingInfo.GetNumInputs() == 1 && BindingInfo.GetNumOutputs() == 1);
 		auto Lambda = [this](FVectorVMContext& Context) { this->GetSpecificSocketCount(Context); };
 		OutFunc = FVMExternalFunction::CreateLambda(Lambda);
 	}
-	else if (BindingInfo.Name == FSkeletalMeshInterfaceHelper::GetSpecificSocketBoneAtName)
+	else if (BindingInfo.Name == GetSpecificSocketBoneAtName)
 	{
 		check(BindingInfo.GetNumInputs() == 2 && BindingInfo.GetNumOutputs() == 1);
 		NDI_FUNC_BINDER(UNiagaraDataInterfaceSkeletalMesh, GetSpecificSocketBoneAt)::Bind(this, OutFunc);
@@ -361,22 +313,18 @@ struct FBoneSocketSkinnedDataOutputHandler
 {
 	FBoneSocketSkinnedDataOutputHandler(FVectorVMContext& Context)
 		: PosX(Context), PosY(Context), PosZ(Context)
-		, RotX(Context), RotY(Context), RotZ(Context), RotW(Context)
 		, VelX(Context), VelY(Context), VelZ(Context)
 		, bNeedsPosition(PosX.IsValid() || PosY.IsValid() || PosZ.IsValid())
-		, bNeedsRotation(RotX.IsValid() || RotY.IsValid() || RotZ.IsValid() || RotW.IsValid())
 		, bNeedsVelocity(VelX.IsValid() || VelY.IsValid() || VelZ.IsValid())
 	{
 	}
 
 	VectorVM::FExternalFuncRegisterHandler<float> PosX; VectorVM::FExternalFuncRegisterHandler<float> PosY; VectorVM::FExternalFuncRegisterHandler<float> PosZ;
-	VectorVM::FExternalFuncRegisterHandler<float> RotX; VectorVM::FExternalFuncRegisterHandler<float> RotY; VectorVM::FExternalFuncRegisterHandler<float> RotZ; VectorVM::FExternalFuncRegisterHandler<float> RotW;
 	VectorVM::FExternalFuncRegisterHandler<float> VelX; VectorVM::FExternalFuncRegisterHandler<float> VelY; VectorVM::FExternalFuncRegisterHandler<float> VelZ;
 
 	//TODO: Rotation + Scale too? Use quats so we can get proper interpolation between bone and parent.
 
 	const bool bNeedsPosition;
-	const bool bNeedsRotation;
 	const bool bNeedsVelocity;
 
 	FORCEINLINE void SetPosition(FVector Position)
@@ -384,14 +332,6 @@ struct FBoneSocketSkinnedDataOutputHandler
 		*PosX.GetDestAndAdvance() = Position.X;
 		*PosY.GetDestAndAdvance() = Position.Y;
 		*PosZ.GetDestAndAdvance() = Position.Z;
-	}
-
-	FORCEINLINE void SetRotation(FQuat Rotation)
-	{
-		*RotX.GetDestAndAdvance() = Rotation.X;
-		*RotY.GetDestAndAdvance() = Rotation.Y;
-		*RotZ.GetDestAndAdvance() = Rotation.Z;
-		*RotW.GetDestAndAdvance() = Rotation.W;
 	}
 
 	FORCEINLINE void SetVelocity(FVector Velocity)
@@ -402,19 +342,13 @@ struct FBoneSocketSkinnedDataOutputHandler
 	}
 };
 
-template<typename SkinningHandlerType, typename TransformHandlerType, typename bInterpolated>
+template<typename SkinningHandlerType, typename TransformHandlerType>
 void UNiagaraDataInterfaceSkeletalMesh::GetSkinnedBoneData(FVectorVMContext& Context)
 {
 	SCOPE_CYCLE_COUNTER(STAT_NiagaraSkel_Bone_Sample);
 	SkinningHandlerType SkinningHandler;
 	TransformHandlerType TransformHandler;
 	VectorVM::FExternalFuncInputHandler<int32> BoneParam(Context);
-	VectorVM::FExternalFuncInputHandler<float> InterpParam;
-
-	if (bInterpolated::Value)
-	{
-		InterpParam.Init(Context);
-	}
 
 	VectorVM::FUserPtrHandler<FNDISkeletalMesh_InstanceData> InstData(Context);
 
@@ -436,13 +370,8 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkinnedBoneData(FVectorVMContext& Con
 
 	const FReferenceSkeleton& RefSkel = Accessor.Mesh->RefSkeleton;
 
-	const int32 BoneMax = RefSkel.GetNum() - 1;
-	const int32 BoneAndSocketMax = BoneMax + InstData->SpecificSockets.Num();
+	int32 BoneMax = RefSkel.GetNum() - 1;
 	float InvDt = 1.0f / InstData->DeltaSeconds;
-
-	const int32 SpecificSocketBoneOffset = InstData->SpecificSocketBoneOffset;
-	const TArray<FTransform>& SpecificSocketCurrTransforms = InstData->GetSpecificSocketsCurrBuffer();
-	const TArray<FTransform>& SpecificSocketPrevTransforms = InstData->GetSpecificSocketsPrevBuffer();
 
 	FVector BonePos;
 	FVector BonePrev;
@@ -453,76 +382,20 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSkinnedBoneData(FVectorVMContext& Con
 
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
-		const float Interp = bInterpolated::Value ? InterpParam.GetAndAdvance() : 1.0f;
+		int32 Bone = FMath::Clamp(BoneParam.GetAndAdvance(), 0, BoneMax);
 
-		// Determine bone or socket
-		int32 Bone = FMath::Clamp(BoneParam.GetAndAdvance(), 0, BoneAndSocketMax);
-		const bool bIsSocket = Bone > BoneMax;
-		if ( bIsSocket )
-		{
-			const int32 Socket = Bone - SpecificSocketBoneOffset;
-			FTransform CurrSocketTransform = SpecificSocketCurrTransforms[Socket];
-			FTransform PrevSocketTransform = SpecificSocketPrevTransforms[Socket];
-
-			Pos = CurrSocketTransform.GetLocation();
-			TransformHandler.TransformPosition(Pos, Transform);
-
-			if (Output.bNeedsVelocity || bInterpolated::Value)
-			{
-				Prev = PrevSocketTransform.GetLocation();
-				TransformHandler.TransformPosition(Prev, PrevTransform);
-			}
-
-			if (Output.bNeedsRotation)
-			{
-				FQuat Rotation = CurrSocketTransform.GetRotation();
-				if (bInterpolated::Value)
-				{
-					FQuat PrevRotation = PrevSocketTransform.GetRotation();
-					Rotation = FMath::Lerp(PrevRotation, Rotation, Interp);
-				}
-
-				Output.SetRotation(Rotation);
-			}
-		}
-		// Bone
-		else
+		//No parent bone, just spawn at bone.
+		if (Output.bNeedsPosition || Output.bNeedsVelocity)
 		{
 			Pos = SkinningHandler.GetSkinnedBonePosition(Accessor, Bone);
 			TransformHandler.TransformPosition(Pos, Transform);
-
-			if (Output.bNeedsVelocity || bInterpolated::Value)
-			{
-				Prev = SkinningHandler.GetSkinnedBonePreviousPosition(Accessor, Bone);
-				TransformHandler.TransformPosition(Prev, PrevTransform);
-			}
-
-			if (Output.bNeedsRotation)
-			{
-				FQuat Rotation = SkinningHandler.GetSkinnedBoneRotation(Accessor, Bone);
-				if (bInterpolated::Value)
-				{
-					FQuat PrevRotation = SkinningHandler.GetSkinnedBonePreviousRotation(Accessor, Bone);
-					Rotation = FMath::Lerp(PrevRotation, Rotation, Interp);
-				}
-
-				Output.SetRotation(Rotation);
-			}
-		}
-
-		if (Output.bNeedsVelocity || bInterpolated::Value)
-		{
-			Pos = FMath::Lerp(Prev, Pos, Interp);
-		}
-
-		if (Output.bNeedsPosition)
-		{
 			Output.SetPosition(Pos);
 		}
 
-		if(Output.bNeedsVelocity)
+		if (Output.bNeedsVelocity)
 		{
-			//Don't have enough information to get a better interpolated velocity.
+			Prev = SkinningHandler.GetSkinnedBonePreviousPosition(Accessor, Bone);
+			TransformHandler.TransformPosition(Prev, PrevTransform);
 			Velocity = (Pos - Prev) * InvDt;
 			Output.SetVelocity(Velocity);
 		}
@@ -539,7 +412,7 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSpecificSocketCount(FVectorVMContext&
 
 	VectorVM::FExternalFuncRegisterHandler<int32> OutCount(Context);
 
-	const int32 Num = InstData->SpecificSockets.Num();
+	int32 Num = SpecificSockets.Num();
 	for (int32 i = 0; i < Context.NumInstances; ++i)
 	{
 		*OutCount.GetDestAndAdvance() = Num;
@@ -554,16 +427,15 @@ void UNiagaraDataInterfaceSkeletalMesh::GetSpecificSocketBoneAt(FVectorVMContext
 	VectorVM::FUserPtrHandler<FNDISkeletalMesh_InstanceData> InstData(Context);
 
 	VectorVM::FExternalFuncRegisterHandler<int32> OutSocketBone(Context);
-	const TArray<FName>& SpecificSocketsArray = InstData->SpecificSockets;
-	const int32 SpecificSocketBoneOffset = InstData->SpecificSocketBoneOffset;
+	const TArray<int32>& SpecificSocketsArray = InstData->SpecificSocketBones;
 
 	int32 Max = SpecificSockets.Num() - 1;
 	if (Max != INDEX_NONE)
 	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)
 		{
-			const int32 SocketIndex = FMath::Clamp(SocketParam.GetAndAdvance(), 0, Max);
-			*OutSocketBone.GetDestAndAdvance() = SpecificSocketBoneOffset + SocketIndex;
+			int32 SocketIndex = FMath::Clamp(SocketParam.GetAndAdvance(), 0, Max);
+			*OutSocketBone.GetDestAndAdvance() = SpecificSocketsArray[SocketIndex];
 		}
 	}
 	else
@@ -579,16 +451,15 @@ void UNiagaraDataInterfaceSkeletalMesh::RandomSpecificSocketBone(FVectorVMContex
 	VectorVM::FUserPtrHandler<FNDISkeletalMesh_InstanceData> InstData(Context);
 
 	VectorVM::FExternalFuncRegisterHandler<int32> OutSocketBone(Context);
-	const TArray<FName>& SpecificSocketsArray = InstData->SpecificSockets;
-	const int32 SpecificSocketBoneOffset = InstData->SpecificSocketBoneOffset;
+	const TArray<int32>& SpecificSocketsArray = InstData->SpecificSocketBones;
 
 	int32 Max = SpecificSockets.Num() - 1;
 	if (Max != INDEX_NONE)
 	{
 		for (int32 i = 0; i < Context.NumInstances; ++i)
 		{
-			const int32 SocketIndex = Context.RandStream.RandRange(0, Max);
-			*OutSocketBone.GetDestAndAdvance() = SpecificSocketBoneOffset + SocketIndex;
+			int32 SocketIndex = Context.RandStream.RandRange(0, Max);
+			*OutSocketBone.GetDestAndAdvance() = SpecificSocketsArray[SocketIndex];
 		}
 	}
 	else

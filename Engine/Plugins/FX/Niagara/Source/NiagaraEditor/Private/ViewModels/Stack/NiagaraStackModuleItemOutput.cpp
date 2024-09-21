@@ -39,17 +39,17 @@ FText UNiagaraStackModuleItemOutput::GetTooltipText() const
 	{
 		UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(FunctionCallNode->FunctionScript->GetSource());
 		const UEdGraphSchema_Niagara* NiagaraSchema = GetDefault<UEdGraphSchema_Niagara>();
-		TOptional<FNiagaraVariableMetaData> MetaData;
+		const FNiagaraVariableMetaData* MetaData = nullptr;
 		if (FNiagaraConstants::IsNiagaraConstant(ValueVariable))
 		{
-			MetaData = *FNiagaraConstants::GetConstantMetaData(ValueVariable);
+			MetaData = FNiagaraConstants::GetConstantMetaData(ValueVariable);
 		}
 		else if (Source->NodeGraph != nullptr)
 		{
 			MetaData = Source->NodeGraph->GetMetaData(ValueVariable);
 		}
 
-		if (MetaData.IsSet())
+		if (MetaData != nullptr)
 		{
 			return MetaData->Description;
 		}

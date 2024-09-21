@@ -134,7 +134,7 @@ public:
 	/**
 	 * Check to see whether the specified section is highlighted
 	 */
-	static bool IsSectionHighlighted(UMovieSceneSection* InSection, const ISequencerHotspot* Hotspot);
+	static bool IsSectionHighlighted(FSectionHandle InSectionHandle, const ISequencerHotspot* Hotspot);
 
 private:
 	/** Interface to section data */

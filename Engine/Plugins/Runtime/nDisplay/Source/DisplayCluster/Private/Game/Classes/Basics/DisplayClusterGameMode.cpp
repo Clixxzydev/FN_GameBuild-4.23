@@ -6,13 +6,13 @@
 #include "Input/IPDisplayClusterInputManager.h"
 
 #include "Misc/DisplayClusterAppExit.h"
+#include "Misc/DisplayClusterLog.h"
 #include "Misc/DisplayClusterHelpers.h"
 #include "Misc/Paths.h"
 
 #include "DisplayClusterPawn.h"
 #include "DisplayClusterSettings.h"
 
-#include "DisplayClusterLog.h"
 #include "DisplayClusterStrings.h"
 #include "DisplayClusterPlayerController.h"
 #include "DisplayClusterHUD.h"
@@ -89,8 +89,8 @@ void ADisplayClusterGameMode::InitGame(const FString& MapName, const FString& Op
 			ConfigPath = DisplayClusterStrings::misc::DbgStubConfig;
 		}
 
-		DisplayClusterHelpers::str::TrimStringValue(ConfigPath);
-		DisplayClusterHelpers::str::TrimStringValue(NodeId);
+		DisplayClusterHelpers::str::DustCommandLineValue(ConfigPath);
+		DisplayClusterHelpers::str::DustCommandLineValue(NodeId);
 
 		// Check if config path is relative. In this case we have to build an absolute path from a project directory.
 		if (FPaths::IsRelative(ConfigPath))
@@ -191,16 +191,13 @@ void ADisplayClusterGameMode::Tick(float DeltaSeconds)
 	}
 
 #if WITH_EDITOR
-	if (GIsEditor)
+	IPDisplayClusterInputManager* const pInputMgr = GDisplayCluster->GetPrivateInputMgr();
+	if (pInputMgr)
 	{
-		IPDisplayClusterInputManager* const InputMgr = GDisplayCluster->GetPrivateInputMgr();
-		if (InputMgr)
-		{
-			InputMgr->Update();
-		}
-
-		GDisplayCluster->PreTick(DeltaSeconds);
+		pInputMgr->Update();
 	}
+
+	GDisplayCluster->PreTick(DeltaSeconds);
 #endif
 }
 

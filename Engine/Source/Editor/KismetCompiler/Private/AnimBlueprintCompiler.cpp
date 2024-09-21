@@ -913,34 +913,63 @@ int32 FAnimBlueprintCompilerContext::GetAllocationIndexOfNode(UAnimGraphNode_Bas
 
 void FAnimBlueprintCompilerContext::PruneIsolatedAnimationNodes(const TArray<UAnimGraphNode_Base*>& RootSet, TArray<UAnimGraphNode_Base*>& GraphNodes)
 {
-	struct FNodeVisitorDownPoseWires
+	struct FNodeVisitorDownWires
 	{
 		TSet<UEdGraphNode*> VisitedNodes;
+		TSet<UEdGraphNode*> VisitedNodesViaPropertyPins;
 		const UAnimationGraphSchema* Schema;
 
-		FNodeVisitorDownPoseWires()
+		FNodeVisitorDownWires()
 		{
 			Schema = GetDefault<UAnimationGraphSchema>();
 		}
 
-		void TraverseNodes(UEdGraphNode* Node)
+		void TraverseWires(UEdGraphNode* Node, bool bProperty = false)
 		{
-			VisitedNodes.Add(Node);
+			if(bProperty)
+			{
+				VisitedNodesViaPropertyPins.Add(Node);
+
+				// We only care about sub-inputs here
+				if(Node->IsA<UAnimGraphNode_SubInput>())
+				{
+					VisitedNodes.Add(Node);
+				}
+			}
+			else
+			{
+				VisitedNodes.Add(Node);
+			}
 
 			// Follow every exec output pin
 			for (int32 i = 0; i < Node->Pins.Num(); ++i)
 			{
 				UEdGraphPin* MyPin = Node->Pins[i];
 
-				if ((MyPin->Direction == EGPD_Input) && (Schema->IsPosePin(MyPin->PinType)))
+				if (MyPin->Direction == EGPD_Input)
 				{
-					for (int32 j = 0; j < MyPin->LinkedTo.Num(); ++j)
+					if(Schema->IsPosePin(MyPin->PinType))
 					{
-						UEdGraphPin* OtherPin = MyPin->LinkedTo[j];
-						UEdGraphNode* OtherNode = OtherPin->GetOwningNode();
-						if (!VisitedNodes.Contains(OtherNode))
+						for (int32 j = 0; j < MyPin->LinkedTo.Num(); ++j)
 						{
-							TraverseNodes(OtherNode);
+							UEdGraphPin* OtherPin = MyPin->LinkedTo[j];
+							UEdGraphNode* OtherNode = OtherPin->GetOwningNode();
+							if (!VisitedNodes.Contains(OtherNode))
+							{
+								TraverseWires(OtherNode, false);
+							}
+						}
+					}
+					else
+					{
+						for (int32 j = 0; j < MyPin->LinkedTo.Num(); ++j)
+						{
+							UEdGraphPin* OtherPin = MyPin->LinkedTo[j];
+							UEdGraphNode* OtherNode = OtherPin->GetOwningNode();
+							if (!VisitedNodesViaPropertyPins.Contains(OtherNode) && !VisitedNodes.Contains(OtherNode))
+							{
+								TraverseWires(OtherNode, true);
+							}
 						}
 					}
 				}
@@ -948,21 +977,19 @@ void FAnimBlueprintCompilerContext::PruneIsolatedAnimationNodes(const TArray<UAn
 		}
 	};
 
-	// Prune the nodes that aren't reachable via an animation pose link
-	FNodeVisitorDownPoseWires Visitor;
+	// Prune the nodes that aren't reachable via an animation pose link (or linked to a sub input node)
+	FNodeVisitorDownWires Visitor;
 
 	for (auto RootIt = RootSet.CreateConstIterator(); RootIt; ++RootIt)
 	{
 		UAnimGraphNode_Base* RootNode = *RootIt;
-		Visitor.TraverseNodes(RootNode);
+		Visitor.TraverseWires(RootNode);
 	}
 
 	for (int32 NodeIndex = 0; NodeIndex < GraphNodes.Num(); ++NodeIndex)
 	{
 		UAnimGraphNode_Base* Node = GraphNodes[NodeIndex];
-
-		// We cant prune sub-inputs as even if they are not linked to the root, they are needed for the dynamic link phase at runtime
-		if (!Visitor.VisitedNodes.Contains(Node) && !IsNodePure(Node) && !Node->IsA<UAnimGraphNode_SubInput>())
+		if (!Visitor.VisitedNodes.Contains(Node) && !IsNodePure(Node))
 		{
 			Node->BreakAllNodeLinks();
 			GraphNodes.RemoveAtSwap(NodeIndex);
@@ -2137,27 +2164,14 @@ void FAnimBlueprintCompilerContext::ProcessSubInput(UAnimGraphNode_SubInput* InS
 						VariableGetNode->SetFromProperty(NewSubInputProperty, true);
 						VariableGetNode->AllocateDefaultPins();
 
-						// Add pin to generated variable association, used for pin watching
-						UEdGraphPin* TrueSourcePin = MessageLog.FindSourcePin(Pin);
-						if (TrueSourcePin)
-						{
-							NewClass->GetDebugData().RegisterClassPropertyAssociation(TrueSourcePin, NewSubInputProperty);
-						}
+						// link up to new node
+						UEdGraphPin* VariablePin = VariableGetNode->FindPinChecked(NewSubInputProperty->GetFName());
+						TArray<UEdGraphPin*> Links = Pin->LinkedTo;
+						Pin->BreakAllPinLinks();
 
-						// link up to new node - note that this is not a FindPinChecked because if an interface changes without the
-						// implementing class being loaded, then its graphs will not be conformed until AFTER the skeleton class
-						// has been compiled, so the variable cannot be created. This also doesnt matter, as there wont be anything connected
-						// to the pin yet anyways.
-						UEdGraphPin* VariablePin = VariableGetNode->FindPin(NewSubInputProperty->GetFName());
-						if(VariablePin)
+						for(UEdGraphPin* LinkPin : Links)
 						{
-							TArray<UEdGraphPin*> Links = Pin->LinkedTo;
-							Pin->BreakAllPinLinks();
-
-							for(UEdGraphPin* LinkPin : Links)
-							{
-								VariablePin->MakeLinkTo(LinkPin);
-							}
+							VariablePin->MakeLinkTo(LinkPin);
 						}
 					}
 				}

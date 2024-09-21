@@ -213,8 +213,8 @@ struct F3DTransformChannelEditorData
 		FMovieSceneContext Context(FMovieSceneEvaluationRange(KeyTime, TickResolution));
 		EvalTrack.Interrogate(Context, InterrogationData, Object);
 
-		FVector CurrentPos(0.f); FRotator CurrentRot(0.f);
-		FVector CurrentScale(1.f);
+		FVector CurrentPos; FRotator CurrentRot;
+		FVector CurrentScale;
 		for (const FTransformData& Transform : InterrogationData.Iterate<FTransformData>(UMovieScene3DTransformSection::GetInterrogationKey()))
 		{
 			CurrentPos = Transform.Translation;
@@ -465,7 +465,7 @@ void UMovieScene3DTransformSection::SetMask(FMovieSceneTransformMask NewMask)
 
 FMovieSceneTransformMask UMovieScene3DTransformSection::GetMaskByName(const FName& InName) const
 {
-	if (InName.ToString() == NSLOCTEXT("MovieSceneTransformSection", "Location", "Location").ToString())
+	if (InName == TEXT("Location"))
 	{
 		return EMovieSceneTransformChannel::Translation;
 	}
@@ -481,7 +481,7 @@ FMovieSceneTransformMask UMovieScene3DTransformSection::GetMaskByName(const FNam
 	{
 		return EMovieSceneTransformChannel::TranslationZ;
 	}
-	else if (InName.ToString() == NSLOCTEXT("MovieSceneTransformSection", "Rotation", "Rotation").ToString())
+	else if (InName == TEXT("Rotation"))
 	{
 		return EMovieSceneTransformChannel::Rotation;
 	}
@@ -497,7 +497,7 @@ FMovieSceneTransformMask UMovieScene3DTransformSection::GetMaskByName(const FNam
 	{
 		return EMovieSceneTransformChannel::RotationZ;
 	}
-	else if (InName.ToString() == NSLOCTEXT("MovieSceneTransformSection", "Scale", "Scale").ToString())
+	else if (InName == TEXT("Scale"))
 	{
 		return EMovieSceneTransformChannel::Scale;
 	}
@@ -699,33 +699,22 @@ float UMovieScene3DTransformSection::GetTotalWeightValue(FFrameTime InTime) cons
 	return Weight;
 }
 
-void UMovieScene3DTransformSection::SetBlendType(EMovieSceneBlendType InBlendType)
+void UMovieScene3DTransformSection::SetBlendType(EMovieSceneBlendType InBlendType) 
 {
 	if (GetSupportedBlendTypes().Contains(InBlendType))
 	{
 		BlendType = InBlendType;
-		// Set Defaults based upon Type
+		//Set the Scale Default based upon the type that was Set
+		float DefaultVal = InBlendType == EMovieSceneBlendType::Absolute ? 1.0f : 0.0f;
 		TArrayView<FMovieSceneFloatChannel*> FloatChannels = ChannelProxy->GetChannels<FMovieSceneFloatChannel>();
+		// Set default scale and weight
+		for (int32 Index = 6; Index < 9; ++Index)
+		{
+			FloatChannels[Index]->SetDefault(DefaultVal);
+		}
 
-		if (InBlendType == EMovieSceneBlendType::Absolute)
-		{
-			//If Absolute just make sure scale default is 1.0f
-			for (int32 Index = 6; Index < 9; ++Index)
-			{
-				FloatChannels[Index]->SetDefault(1.0f);
-			}
-		}
-		else
-		{
-			//If Additive or Relative, zero out Pos/Rot/ and Scale.
-			for (int32 Index = 0; Index < 9; ++Index)
-			{
-				FloatChannels[Index]->SetDefault(0.0f);
-			}
-		}
 	}
 }
-
 FMovieSceneInterrogationKey UMovieScene3DTransformSection::GetInterrogationKey()
 {
 	static FMovieSceneAnimTypeID TypeID = FMovieSceneAnimTypeID::Unique();

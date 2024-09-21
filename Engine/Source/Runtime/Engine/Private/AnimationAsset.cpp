@@ -153,7 +153,7 @@ void FAnimGroupInstance::Prepare(const FAnimGroupInstance* PreviousGroup)
 
 		bCanUseMarkerSync = ValidMarkers.Num() > 0;
 
-		ValidMarkers.Sort(FNameLexicalLess());
+		ValidMarkers.Sort();
 
 		if (!PreviousGroup || (ValidMarkers != PreviousGroup->ValidMarkers))
 		{

@@ -129,11 +129,6 @@ void UVariantSet::AddVariants(const TArray<UVariant*>& NewVariants, int32 Index)
 	TSet<UVariantSet*> ParentsModified;
 	for (UVariant* NewVariant : NewVariants)
 	{
-		if (NewVariant == nullptr)
-		{
-			continue;
-		}
-
 		UVariantSet* OldParent = NewVariant->GetParent();
 
 		// We can't just RemoveBinding since that might remove the wrong item
@@ -200,11 +195,6 @@ void UVariantSet::AddVariants(const TArray<UVariant*>& NewVariants, int32 Index)
 
 int32 UVariantSet::GetVariantIndex(UVariant* Var)
 {
-	if (Var == nullptr)
-	{
-		return INDEX_NONE;
-	}
-
 	return Variants.Find(Var);
 }
 

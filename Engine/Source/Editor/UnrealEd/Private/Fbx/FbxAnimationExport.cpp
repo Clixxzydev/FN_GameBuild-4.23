@@ -23,43 +23,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogFbxAnimationExport, Log, All);
 namespace UnFbx
 {
 
-	bool FFbxExporter::SetupAnimStack(const UAnimSequence* AnimSeq)
-	{
-		if (AnimSeq->SequenceLength == 0.f)
-		{
-			// something is wrong
-			return false;
-		}
-
-		const float FrameRate = FMath::TruncToFloat(((AnimSeq->GetRawNumberOfFrames() - 1) / AnimSeq->SequenceLength) + 0.5f);
-		//Configure the scene time line
-		{
-			FbxGlobalSettings& SceneGlobalSettings = Scene->GetGlobalSettings();
-			double CurrentSceneFrameRate = FbxTime::GetFrameRate(SceneGlobalSettings.GetTimeMode());
-			if (!bSceneGlobalTimeLineSet || FrameRate > CurrentSceneFrameRate)
-			{
-				FbxTime::EMode ComputeTimeMode = FbxTime::ConvertFrameRateToTimeMode(FrameRate);
-				FbxTime::SetGlobalTimeMode(ComputeTimeMode, ComputeTimeMode == FbxTime::eCustom ? FrameRate : 0.0);
-				SceneGlobalSettings.SetTimeMode(ComputeTimeMode);
-				if (ComputeTimeMode == FbxTime::eCustom)
-				{
-					SceneGlobalSettings.SetCustomFrameRate(FrameRate);
-				}
-				bSceneGlobalTimeLineSet = true;
-			}
-		}
-
-		// set time correctly
-		FbxTime ExportedStartTime, ExportedStopTime;
-		ExportedStartTime.SetSecondDouble(0.f);
-		ExportedStopTime.SetSecondDouble(AnimSeq->SequenceLength);
-
-		FbxTimeSpan ExportedTimeSpan;
-		ExportedTimeSpan.Set(ExportedStartTime, ExportedStopTime);
-		AnimStack->SetLocalTimeSpan(ExportedTimeSpan);
-
-		return true;
-	}
 
 void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 									 const USkeletalMesh* SkelMesh,
@@ -75,14 +38,37 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 
 	USkeleton* Skeleton = AnimSeq->GetSkeleton();
 
-	if (Skeleton == nullptr || !SetupAnimStack(AnimSeq))
+	if (AnimSeq->SequenceLength == 0.f || Skeleton == nullptr)
 	{
 		// something is wrong
 		return;	
 	}
 
+	const float FrameRate = FMath::TruncToFloat(((AnimSeq->GetRawNumberOfFrames() - 1) / AnimSeq->SequenceLength) + 0.5f);
+
+	// set time correctly
+	FbxTime ExportedStartTime, ExportedStopTime;
+	if ( FMath::IsNearlyEqual(FrameRate, DEFAULT_SAMPLERATE, 1.f) )
+	{
+		ExportedStartTime.SetGlobalTimeMode(FbxTime::eFrames30);
+		ExportedStopTime.SetGlobalTimeMode(FbxTime::eFrames30);
+	}
+	else
+	{
+		ExportedStartTime.SetGlobalTimeMode(FbxTime::eCustom, FrameRate);
+		ExportedStopTime.SetGlobalTimeMode(FbxTime::eCustom, FrameRate);
+	}
+
+	ExportedStartTime.SetSecondDouble(0.f);
+	ExportedStopTime.SetSecondDouble(AnimSeq->SequenceLength);
+
+	FbxTimeSpan ExportedTimeSpan;
+	ExportedTimeSpan.Set(ExportedStartTime, ExportedStopTime);
+	AnimStack->SetLocalTimeSpan(ExportedTimeSpan);
+
 	//Prepare root anim curves data to be exported
 	TArray<FName> AnimCurveNames;
+	TArray<SmartName::UID_Type> AnimCurveUIDs;
 	TMap<FName, FbxAnimCurve*> CustomCurveMap;
 	if (BoneNodes.Num() > 0)
 	{
@@ -91,28 +77,22 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 		if (AnimCurveMapping)
 		{
 			AnimCurveMapping->FillNameArray(AnimCurveNames);
-
-			const UFbxExportOption* ExportOptions = GetExportOptions();
-			const bool bExportMorphTargetCurvesInMesh = ExportOptions && ExportOptions->bExportPreviewMesh && ExportOptions->bExportMorphTargets;
-
+			AnimCurveMapping->FillUidArray(AnimCurveUIDs);
+		}
+		
+		if (AnimCurveNames.Num() > 0)
+		{
 			for (auto AnimCurveName : AnimCurveNames)
 			{
-				const FCurveMetaData* CurveMetaData = AnimCurveMapping->GetCurveMetaData(AnimCurveName);
-
-				//Only export the custom curve if it is not used in a MorphTarget that will be exported latter on.
-				if(!(bExportMorphTargetCurvesInMesh && CurveMetaData && CurveMetaData->Type.bMorphtarget))
-				{
-					FbxProperty AnimCurveFbxProp = FbxProperty::Create(BoneNodes[0], FbxDoubleDT, TCHAR_TO_ANSI(*AnimCurveName.ToString()));
-					AnimCurveFbxProp.ModifyFlag(FbxPropertyFlags::eAnimatable, true);
-					AnimCurveFbxProp.ModifyFlag(FbxPropertyFlags::eUserDefined, true);
-					FbxAnimCurve* AnimFbxCurve = AnimCurveFbxProp.GetCurve(InAnimLayer, true);
-					CustomCurveMap.Add(AnimCurveName, AnimFbxCurve);
-				}
+				FbxProperty AnimCurveFbxProp = FbxProperty::Create(BoneNodes[0], FbxDoubleDT, TCHAR_TO_ANSI(*AnimCurveName.ToString()));
+				AnimCurveFbxProp.ModifyFlag(FbxPropertyFlags::eAnimatable, true);
+				AnimCurveFbxProp.ModifyFlag(FbxPropertyFlags::eUserDefined, true);
+				FbxAnimCurve* AnimFbxCurve = AnimCurveFbxProp.GetCurve(InAnimLayer, true);
+				CustomCurveMap.Add(AnimCurveName, AnimFbxCurve);
 			}
 		}
 	}
 
-	ExportCustomAnimCurvesToFbx(CustomCurveMap, AnimSeq, AnimStartOffset, AnimEndOffset, AnimPlayRate, StartTime);
 
 	// Add the animation data to the bone nodes
 	for(int32 BoneIndex = 0; BoneIndex < BoneNodes.Num(); ++BoneIndex)
@@ -136,6 +116,19 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 		Curves[7] = CurrentBoneNode->LclScaling.GetCurve(InAnimLayer, FBXSDK_CURVENODE_COMPONENT_Y, true);
 		Curves[8] = CurrentBoneNode->LclScaling.GetCurve(InAnimLayer, FBXSDK_CURVENODE_COMPONENT_Z, true);
 
+		float AnimTime					= AnimStartOffset;
+		float AnimEndTime				= (AnimSeq->SequenceLength - AnimEndOffset);
+		// Subtracts 1 because NumFrames includes an initial pose for 0.0 second
+		double TimePerKey				= (AnimSeq->SequenceLength / (AnimSeq->GetRawNumberOfFrames()-1));
+		const float AnimTimeIncrement	= TimePerKey * AnimPlayRate;
+		uint32 AnimFrameIndex = 0;
+
+		FbxTime ExportTime;
+		ExportTime.SetSecondDouble(StartTime);
+
+		FbxTime ExportTimeIncrement;
+		ExportTimeIncrement.SetSecondDouble( TimePerKey );
+
 		int32 BoneTreeIndex = Skeleton->GetSkeletonBoneIndexFromMeshBoneIndex(SkelMesh, BoneIndex);
 		int32 BoneTrackIndex = Skeleton->GetRawAnimationTrackIndex(BoneTreeIndex, AnimSeq);
 		if(BoneTrackIndex == INDEX_NONE)
@@ -149,7 +142,10 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 			Curve->KeyModifyBegin();
 		}
 
-		auto ExportLambda = [&](float AnimTime, FbxTime ExportTime, bool bLastKey) {
+		bool bLastKey = false;
+		// Step through each frame and add the bone's transformation data
+		while (!bLastKey)
+		{
 			FTransform BoneAtom;
 			AnimSeq->GetBoneTransform(BoneAtom, BoneTrackIndex, AnimTime, true);
 
@@ -157,7 +153,34 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 			FbxVector4 Rotation = Converter.ConvertToFbxRot(BoneAtom.GetRotation().Euler());
 			FbxVector4 Scale = Converter.ConvertToFbxScale(BoneAtom.GetScale3D());
 			FbxVector4 Vectors[3] = { Translation, Rotation, Scale };
+		
+			//Add custom curve keys only to the root bone
+			if (BoneIndex == 0 && CustomCurveMap.Num() > 0)
+			{
+				FBlendedCurve BlendedCurve;
+				BlendedCurve.InitFrom(&AnimCurveUIDs);
+				AnimSeq->EvaluateCurveData(BlendedCurve, AnimTime, true);
+				if (BlendedCurve.IsValid())
+				{
+					//Loop over the custom curves and add the actual keys
+					for (auto CustomCurve : CustomCurveMap)
+					{
+						CustomCurve.Value->KeyModifyBegin();
+						SmartName::UID_Type NameUID = Skeleton->GetUIDByName(USkeleton::AnimCurveMappingName, CustomCurve.Key);
+						if (NameUID != SmartName::MaxUID)
+						{
+							float CurveValueAtTime = BlendedCurve.Get(NameUID);
+							int32 KeyIndex = CustomCurve.Value->KeyAdd(ExportTime);
+							CustomCurve.Value->KeySetValue(KeyIndex, CurveValueAtTime);
+						}
+					}
 
+				}
+			}
+
+			int32 lKeyIndex;
+			bLastKey = (AnimTime + KINDA_SMALL_NUMBER) > AnimEndTime;
+			
 			// Loop over each curve and channel to set correct values
 			for (uint32 CurveIndex = 0; CurveIndex < 3; ++CurveIndex)
 			{
@@ -165,7 +188,7 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 				{
 					uint32 OffsetCurveIndex = (CurveIndex * 3) + ChannelIndex;
 
-					int32 lKeyIndex = Curves[OffsetCurveIndex]->KeyAdd(ExportTime);
+					lKeyIndex = Curves[OffsetCurveIndex]->KeyAdd(ExportTime);
 					Curves[OffsetCurveIndex]->KeySetValue(lKeyIndex, Vectors[CurveIndex][ChannelIndex]);
 					Curves[OffsetCurveIndex]->KeySetInterpolation(lKeyIndex, bLastKey ? FbxAnimCurveDef::eInterpolationConstant : FbxAnimCurveDef::eInterpolationCubic);
 
@@ -173,106 +196,29 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq,
 					{
 						Curves[OffsetCurveIndex]->KeySetConstantMode(lKeyIndex, FbxAnimCurveDef::eConstantStandard);
 					}
-				}
+				}				
 			}
-		};
 
-		IterateInsideAnimSequence(AnimSeq, AnimStartOffset, AnimEndOffset, AnimPlayRate, StartTime, ExportLambda);
+			ExportTime += ExportTimeIncrement;
+			AnimFrameIndex++;
+			AnimTime = AnimStartOffset + ((float)AnimFrameIndex * AnimTimeIncrement);
+		}
 
 		for (FbxAnimCurve* Curve : Curves)
 		{
 			Curve->KeyModifyEnd();
 		}
-	}
-}
 
-void FFbxExporter::ExportCustomAnimCurvesToFbx(const TMap<FName, FbxAnimCurve*>& CustomCurves, const UAnimSequence* AnimSeq, 
-	float AnimStartOffset, float AnimEndOffset, float AnimPlayRate, float StartTime, float ValueScale)
-{
-	// stack allocator for extracting curve
-	FMemMark Mark(FMemStack::Get());
-	const USkeleton* Skeleton = AnimSeq->GetSkeleton();
-	const FSmartNameMapping* SmartNameMapping = Skeleton ? Skeleton->GetSmartNameContainer(USkeleton::AnimCurveMappingName) : nullptr;
-
-	if (!Skeleton || !SmartNameMapping || !SetupAnimStack(AnimSeq))
-	{
-		//Something is wrong.
-		return;
-	}
-
-	TArray<SmartName::UID_Type> AnimCurveUIDs;
-	{
-		//We need to recreate the UIDs array manually so that we keep the empty entries otherwise the BlendedCurve won't have the correct mapping.
-		TArray<FName> UID_ToNameArray;
-		SmartNameMapping->FillUIDToNameArray(UID_ToNameArray);
-		AnimCurveUIDs.Reserve(UID_ToNameArray.Num());
-		for (int32 NameIndex = 0; NameIndex < UID_ToNameArray.Num(); ++NameIndex)
+		if (BoneIndex == 0 && CustomCurveMap.Num() > 0)
 		{
-			AnimCurveUIDs.Add(NameIndex);
-		}
-	}
-
-	for (auto CustomCurve : CustomCurves)
-	{
-		CustomCurve.Value->KeyModifyBegin();
-	}
-	
-	auto ExportLambda = [&](float AnimTime, FbxTime ExportTime, bool bLastKey) {
-		FBlendedCurve BlendedCurve;
-		BlendedCurve.InitFrom(&AnimCurveUIDs);
-		AnimSeq->EvaluateCurveData(BlendedCurve, AnimTime, true);
-		if (BlendedCurve.IsValid())
-		{
-			//Loop over the custom curves and add the actual keys
-			for (auto CustomCurve : CustomCurves)
+			for (auto CustomCurve : CustomCurveMap)
 			{
-				SmartName::UID_Type NameUID = Skeleton->GetUIDByName(USkeleton::AnimCurveMappingName, CustomCurve.Key);
-				if (NameUID != SmartName::MaxUID)
-				{
-					float CurveValueAtTime = BlendedCurve.Get(NameUID) * ValueScale;
-					int32 KeyIndex = CustomCurve.Value->KeyAdd(ExportTime);
-					CustomCurve.Value->KeySetValue(KeyIndex, CurveValueAtTime);
-				}
+				CustomCurve.Value->KeyModifyEnd();
 			}
 		}
-	};
-
-	IterateInsideAnimSequence(AnimSeq, AnimStartOffset, AnimEndOffset, AnimPlayRate, StartTime, ExportLambda);
-
-	for (auto CustomCurve : CustomCurves)
-	{
-		CustomCurve.Value->KeyModifyEnd();
 	}
 }
 
-void FFbxExporter::IterateInsideAnimSequence(const UAnimSequence* AnimSeq, float AnimStartOffset, float AnimEndOffset, float AnimPlayRate, float StartTime, TFunctionRef<void(float, FbxTime, bool)> IterationLambda)
-{
-	float AnimTime = AnimStartOffset;
-	float AnimEndTime = (AnimSeq->SequenceLength - AnimEndOffset);
-	// Subtracts 1 because NumFrames includes an initial pose for 0.0 second
-	double TimePerKey = (AnimSeq->SequenceLength / (AnimSeq->GetRawNumberOfFrames() - 1));
-	const float AnimTimeIncrement = TimePerKey * AnimPlayRate;
-	uint32 AnimFrameIndex = 0;
-
-	FbxTime ExportTime;
-	ExportTime.SetSecondDouble(StartTime);
-
-	FbxTime ExportTimeIncrement;
-	ExportTimeIncrement.SetSecondDouble(TimePerKey);
-
-	// Step through each frame and add custom curve data
-	bool bLastKey = false;
-	while (!bLastKey)
-	{
-		bLastKey = (AnimTime + KINDA_SMALL_NUMBER) > AnimEndTime;
-
-		IterationLambda(AnimTime, ExportTime, bLastKey);
-
-		ExportTime += ExportTimeIncrement;
-		AnimFrameIndex++;
-		AnimTime = AnimStartOffset + ((float)AnimFrameIndex * AnimTimeIncrement);
-	}
-}
 
 // The curve code doesn't differentiate between angles and other data, so an interpolation from 179 to -179
 // will cause the bone to rotate all the way around through 0 degrees.  So here we make a second pass over the 
@@ -397,7 +343,7 @@ FbxNode* FFbxExporter::ExportAnimSequence( const UAnimSequence* AnimSeq, const U
 					double LodScreenSize = (double)(10.0f / SkelMesh->GetLODInfo(CurrentLodIndex)->ScreenSize.Default);
 					FbxLodGroupAttribute->AddThreshold(LodScreenSize);
 				}
-				FbxNode* FbxActorLOD = CreateMesh(SkelMesh, *FbxLODNodeName, CurrentLodIndex, AnimSeq);
+				FbxNode* FbxActorLOD = CreateMesh(SkelMesh, *FbxLODNodeName, CurrentLodIndex);
 				if (FbxActorLOD)
 				{
 					MeshRootNode->AddChild(FbxActorLOD);
@@ -413,7 +359,7 @@ FbxNode* FFbxExporter::ExportAnimSequence( const UAnimSequence* AnimSeq, const U
 		}
 		else
 		{
-			MeshRootNode = CreateMesh(SkelMesh, *MeshNodeName, 0, AnimSeq);
+			MeshRootNode = CreateMesh(SkelMesh, *MeshNodeName, 0);
 			if (MeshRootNode)
 			{
 				TmpNodeNoTransform->AddChild(MeshRootNode);
@@ -559,6 +505,7 @@ void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* 
 	}
 
 	FTransform InitialInvParentTransform;
+	TArray<FTransform> LocalBoneTransforms = SkeletalMeshComponent->GetBoneSpaceTransforms();
 
 	float SampleTime;
 	for(SampleTime = AnimationStart; SampleTime <= AnimationEnd; SampleTime += SamplingRate)
@@ -592,8 +539,6 @@ void FFbxExporter::ExportAnimTrack(IAnimTrackAdapter& AnimTrackAdapter, AActor* 
 			NextUpdateTime = UpdateFrequency;
 			GWarn->StatusUpdate( FMath::RoundToInt( SampleTime ), FMath::RoundToInt(AnimationLength), NSLOCTEXT("FbxExporter", "ExportingToFbxStatus", "Exporting to FBX") );
 		}
-
-		TArray<FTransform> LocalBoneTransforms = SkeletalMeshComponent->GetBoneSpaceTransforms();
 
 		// Add the animation data to the bone nodes
 		for(int32 BoneIndex = 0; BoneIndex < BoneNodes.Num(); ++BoneIndex)

@@ -71,9 +71,8 @@ public class MovieSceneTools : ModuleRules
 				"SceneOutliner",
                 "MainFrame",
                 "UnrealEd",
-                "Analytics",
             }
-        );
+		);
 
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[] {

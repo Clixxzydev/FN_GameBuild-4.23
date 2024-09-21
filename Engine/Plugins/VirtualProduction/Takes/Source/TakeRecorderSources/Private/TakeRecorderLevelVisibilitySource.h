@@ -19,8 +19,7 @@ public:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
 	// UTakeRecorderSource Interface
-	virtual FString GetSubsceneTrackName(ULevelSequence* InSequence) const override;
-	virtual FString GetSubsceneAssetName(ULevelSequence* InSequence) const override;
+	virtual FString GetSubsceneName(ULevelSequence* InSequence) const override;
 	// ~UTakeRecorderSource Interface
 
 	/** Name of the recorded level visibility track name */

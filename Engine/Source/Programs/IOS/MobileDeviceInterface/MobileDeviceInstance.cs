@@ -185,7 +185,9 @@ namespace Manzana
 
         internal TypedPtr<AppleMobileDeviceConnection> iPhoneHandle;
         internal TypedPtr<AFCCommConnection> AFCCommsHandle;
-		internal IntPtr hSyslogService;
+        internal IntPtr hService;
+        internal IntPtr hSyslogService;
+		internal IntPtr hInstallService;
         public bool connected;
         private string current_directory;
         #endregion	// Locals
@@ -594,38 +596,11 @@ namespace Manzana
 			}
         }
 
-		/// <summary>
-		/// Tries to copy the specified file from the device to a specified file path on the PC.
-		/// (requires the bundle identifier to be able to mount that directory)
-		/// </summary>
-		public bool TryCopyFileOut(string BundleIdentifier, string SourceFileOnDevice, string TargetFileOnPC)
-		{
-			if (ConnectToBundle(BundleIdentifier))
-			{
-				WriteProgressLine("Connected to bundle '{0}'", 0, BundleIdentifier);
-				try
-				{
-					CopyFileFromPhone(TargetFileOnPC, SourceFileOnDevice, 1024 * 1024);
-					return true;
-				}
-				catch (Exception ex)
-				{
-					WriteProgressLine("Failed to transfer a file, extended error is '{0}'", 100, ex.Message);
-					return false;
-				}
-			}
-			else
-			{
-				WriteProgressLine("Error: Failed to connect to bundle '{0}'", 100, BundleIdentifier);
-				return false;
-			}
-		}
-
-		/// <summary>
-		/// Tries to copy all of the files in a particular directory on the PC to the phone directory
-		/// (requires the bundle identifier to be able to mount that directory)
-		/// </summary>
-		public bool TryCopy(string BundleIdentifier, string SourceFolderOnPC, string TargetFolderOnDevice)
+        /// <summary>
+        /// Tries to copy all of the files in a particular directory on the PC to the phone directory
+        /// (requires the bundle identifier to be able to mount that directory)
+        /// </summary>
+        public bool TryCopy(string BundleIdentifier, string SourceFolderOnPC, string TargetFolderOnDevice)
 		{
 			if (ConnectToBundle(BundleIdentifier))
 			{
@@ -1062,13 +1037,12 @@ namespace Manzana
         {
             if (AFCCommsHandle.Handle != IntPtr.Zero)
             {
-                MobileDevice.DeviceImpl.ConnectionClose(AFCCommsHandle);
+				MobileDevice.DeviceImpl.ConnectionClose(AFCCommsHandle);
+				MobileDevice.DeviceImpl.StopSession(iPhoneHandle);
+				MobileDevice.DeviceImpl.Disconnect(iPhoneHandle);
             }
 
             AFCCommsHandle = IntPtr.Zero;
-
-            MobileDevice.DeviceImpl.StopSession(iPhoneHandle);
-            MobileDevice.DeviceImpl.Disconnect(iPhoneHandle);
         }
 
         /// <summary>
@@ -1178,10 +1152,10 @@ namespace Manzana
             }
         }
 
-		/// <summary>
-		/// Copies a file from the phone to the PC
-		/// </summary>
-		void CopyFileFromPhone(string PathOnPC, string PathOnPhone, int ChunkSize)
+        /// <summary>
+        /// Copies a file from the phone to the PC
+        /// </summary>
+        void CopyFileFromPhone(string PathOnPC, string PathOnPhone, int ChunkSize)
         {
             DateTime StartTime = DateTime.Now;
 
@@ -1238,6 +1212,10 @@ namespace Manzana
         void ReconnectWithInstallProxy()
         {
             Reconnect();
+			if (MobileDevice.DeviceImpl.StartService(iPhoneHandle, MobileDevice.CFStringMakeConstantString("com.apple.mobile.installation_proxy"), ref hInstallService, IntPtr.Zero) != 0)
+            {
+                Console.WriteLine("Unable to start installation_proxy service!");
+            }
         }
 
         public delegate void ProgressCallback(string Message, int PercentDone);
@@ -1275,18 +1253,10 @@ namespace Manzana
             }
         }
 
-		/// <summary>
-		/// Progress callback for transferring
-		/// </summary>
-		void TransferProgressCallback(IntPtr UntypedSourceDict, IntPtr UserData)
-		{
-			HandleProgressCallback("Transfer", UntypedSourceDict);
-		}
-
-		/// <summary>
-		/// Progress callback for upgrading or installing
-		/// </summary>
-		void InstallProgressCallback(IntPtr UntypedSourceDict, IntPtr UserData)
+        /// <summary>
+        /// Progress callback for upgrading or installing
+        /// </summary>
+        void InstallProgressCallback(IntPtr UntypedSourceDict, IntPtr UserData)
         {
             HandleProgressCallback("Install", UntypedSourceDict);
         }
@@ -1389,15 +1359,10 @@ namespace Manzana
         /// <param name="SourceFile"></param>
         public void CopyFileToPublicStaging(string SourceFile)
         {
-			Reconnect();
-
-			IntPtr LiveConnection = IntPtr.Zero;
-			IntPtr ClientOptions = IntPtr.Zero;
-
-			TypedPtr<CFURL> UrlPath = MobileDevice.CreateFileUrlHelper(SourceFile, false);
-
-			MobileDevice.DeviceImpl.SecureTransferPath(LiveConnection, iPhoneHandle, UrlPath, ClientOptions, TransferProgressCallback, IntPtr.Zero);
-		}
+            string IpaFilename = Path.GetFileName(SourceFile);
+            CopyFileToPhone(SourceFile, "PublicStaging/" + IpaFilename);
+            //Dictionary<string, string> fi = GetFileInfo("/PublicStaging/" + IpaFilename);
+        }
 		
 		public bool StartSyslogService()
 		{
@@ -1530,6 +1495,20 @@ namespace Manzana
                 return false;
             }
 
+			if (MobileDevice.DeviceImpl.StartService(iPhoneHandle, MobileDevice.CFStringMakeConstantString("com.apple.afc"), ref hService, IntPtr.Zero) != 0)
+            {
+				Console.WriteLine("Connect: Couldn't Start AFC service");
+                return false;
+            }
+
+
+            // Open a file sharing connection
+			if (MobileDevice.DeviceImpl.ConnectionOpen(hService, 0, out AFCCommsHandle) != 0)
+            {
+				Console.WriteLine("Connect: Couldn't Open File Sharing Connection");
+                return false;
+            }
+
             connected = true;
             return true;
         }
@@ -1541,10 +1520,16 @@ namespace Manzana
             TypedPtr<CFString> CFBundleName = MobileDevice.CFStringMakeConstantString(BundleName);
 
             // Open the bundle
-			int Result = MobileDevice.DeviceImpl.CreateHouseArrestService(iPhoneHandle, CFBundleName, IntPtr.Zero, out AFCCommsHandle); 
+			int Result = MobileDevice.DeviceImpl.StartHouseArrestService(iPhoneHandle, CFBundleName, IntPtr.Zero, ref hService, 0); 
             if (Result != 0)
             {
                 Console.WriteLine("Failed to connect to bundle '{0}' with {1}", BundleName, MobileDevice.GetErrorString(Result));
+                return false;
+            }
+
+            // Open a file sharing connection
+			if (MobileDevice.DeviceImpl.ConnectionOpen(hService, 0, out AFCCommsHandle) != 0)
+            {
                 return false;
             }
 

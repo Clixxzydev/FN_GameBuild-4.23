@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Math/RandomStream.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "Engine/NetSerialization.h"
@@ -2126,8 +2125,6 @@ public:
 protected:
 	class FNetworkPredictionData_Client_Character* ClientPredictionData;
 	class FNetworkPredictionData_Server_Character* ServerPredictionData;
-
-	FRandomStream RandomStream;
 
 	/**
 	 * Smooth mesh location for network interpolation, based on values set up by SmoothCorrection.

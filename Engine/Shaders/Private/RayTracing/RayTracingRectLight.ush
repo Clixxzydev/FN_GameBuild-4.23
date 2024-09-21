@@ -18,12 +18,6 @@ bool GenerateRectLightOcclusionRay(
 	out float RayPdf
 )
 {
-	RayOrigin = WorldPosition;
-	RayDirection = 0;
-	RayTMin = 0.0;
-	RayTMax = 0.0;
-	RayPdf = 0.0;
-
 	float3 Tangent;
 	float3 BiTangent;
 	GetRectLightTangents(LightParameters, /* out */ Tangent, /* out */ BiTangent);
@@ -43,7 +37,9 @@ bool GenerateRectLightOcclusionRay(
 	}
 
 	// Apply normal perturbation when defining ray
+	RayOrigin = WorldPosition;
 	RayDirection = LightDirection;
+	RayTMin = 0.0;
 	RayTMax = length(LightSamplePosition - WorldPosition);
 
 	// Define rectangle

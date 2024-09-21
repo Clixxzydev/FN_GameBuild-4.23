@@ -35,11 +35,6 @@ struct FPoseContext;
 // Disable node logging for shipping and test builds
 #define ENABLE_ANIM_LOGGING (1 && !NO_LOGGING && !(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 
-extern const FName NAME_AnimBlueprintLog;
-extern const FName NAME_Evaluate;
-extern const FName NAME_Update;
-extern const FName NAME_AnimGraph;
-
 UENUM()
 namespace EDrawDebugItemType
 {
@@ -120,7 +115,6 @@ public:
 		, SyncGroupWriteIndex(0)
 		, RootMotionMode(ERootMotionMode::NoRootMotionExtraction)
 		, FrameCounterForUpdate(0)
-		, CacheBonesRecursionCounter(0)
 		, bUpdatingRoot(false)
 		, bBoneCachesInvalidated(false)
 		, bShouldExtractRootMotion(false)
@@ -142,7 +136,6 @@ public:
 		, SyncGroupWriteIndex(0)
 		, RootMotionMode(ERootMotionMode::NoRootMotionExtraction)
 		, FrameCounterForUpdate(0)
-		, CacheBonesRecursionCounter(0)
 		, bUpdatingRoot(false)
 		, bBoneCachesInvalidated(false)
 		, bShouldExtractRootMotion(false)
@@ -864,10 +857,7 @@ private:
 	FBoneContainer RequiredBones;
 
 	/** LODLevel used by RequiredBones */
-	int32 LODLevel = 0;
-
-	/** Counter used to control CacheBones recursion behavior - makes sure we cache bones correctly when recursing into different subgraphs */
-	int32 CacheBonesRecursionCounter;
+	int32 LODLevel;
 
 	/** Cached SkeletalMeshComponent LocalToWorld transform. */
 	FTransform SkelMeshCompLocalToWorld;

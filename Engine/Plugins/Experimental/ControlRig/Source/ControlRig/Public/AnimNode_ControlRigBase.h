@@ -31,7 +31,7 @@ struct CONTROLRIG_API FAnimNode_ControlRigBase : public FAnimNode_CustomProperty
 protected:
 	/** Rig Hierarchy node name mapping for the required bones array */
 	UPROPERTY(transient)
-	TArray<FName> ControlRigNodeMapping;
+	TArray<FName> ContolRigNodeMapping;
 
 	UPROPERTY(transient)
 	TMap<FName, uint16> CurveMappingUIDs;
@@ -40,17 +40,9 @@ protected:
 	UPROPERTY(transient)
 	TWeakObjectPtr<UNodeMappingContainer> NodeMappingContainer;
 
-	UPROPERTY(transient)
-	bool bUpdateInput;
-
-	UPROPERTY(transient)
-	bool bExecute;
-
 	// update input/output to control rig
 	virtual void UpdateInput(UControlRig* ControlRig, const FPoseContext& InOutput);
 	virtual void UpdateOutput(UControlRig* ControlRig, FPoseContext& InOutput);
 	virtual UClass* GetTargetClass() const override;
-
-	friend struct FControlRigSequencerAnimInstanceProxy;
 };
 

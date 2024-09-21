@@ -26,9 +26,9 @@ class FVolumetricFogLightFunctionPS : public FMaterialShader
 	DECLARE_SHADER_TYPE(FVolumetricFogLightFunctionPS,Material);
 public:
 
-	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material)
 	{
-		return Parameters.Material->IsLightFunction() && DoesPlatformSupportVolumetricFog(Parameters.Platform);
+		return Material->IsLightFunction() && DoesPlatformSupportVolumetricFog(Platform);
 	}
 
 	FVolumetricFogLightFunctionPS() {}
@@ -50,7 +50,7 @@ public:
 		FVector2D LightFunctionTexelSizeValue,
 		const FMatrix& ShadowToWorldValue)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		FMaterialShader::SetParameters(RHICmdList, ShaderRHI, MaterialProxy, *MaterialProxy->GetMaterial(View.GetFeatureLevel()), View, View.ViewUniformBuffer, ESceneTextureSetupMode::None);
 
@@ -103,7 +103,7 @@ void FDeferredShadingSceneRenderer::RenderLightFunctionForVolumetricFog(
 	FIntVector VolumetricFogGridSize,
 	float VolumetricFogMaxDistance,
 	FMatrix& OutLightFunctionWorldToShadow,
-	FRDGTexture*& OutLightFunctionTexture,
+	const FRDGTexture*& OutLightFunctionTexture,
 	bool& bOutUseDirectionalLightShadowing)
 {
 	OutLightFunctionWorldToShadow = FMatrix::Identity;
@@ -118,8 +118,6 @@ void FDeferredShadingSceneRenderer::RenderLightFunctionForVolumetricFog(
 
 		if (ViewFamily.EngineShowFlags.LightFunctions
 			&& LightSceneInfo->Proxy->GetLightType() == LightType_Directional
-			// Band-aid fix for extremely rare case that light scene proxy contains NaNs.
-			&& !LightSceneInfo->Proxy->GetDirection().ContainsNaN()
 			&& LightSceneInfo->ShouldRenderLightViewIndependent()
 			&& LightSceneInfo->ShouldRenderLight(View))
 		{
@@ -207,7 +205,7 @@ void FDeferredShadingSceneRenderer::RenderLightFunctionForVolumetricFog(
 			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("LightFunction"),
 				PassParameters,
-				ERDGPassFlags::Raster,
+				ERenderGraphPassFlags::None,
 				[PassParameters, &View, MaterialProxy, LightFunctionResolution, DirectionalLightSceneInfo, WorldToShadowValue, this](FRHICommandListImmediate& RHICmdList)
 			{
 				const FMaterial* Material = MaterialProxy->GetMaterial(Scene->GetFeatureLevel());

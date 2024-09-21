@@ -30,7 +30,7 @@ class FNiagaraEditorModule : public IModuleInterface,
 public:
 	DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<SWidget>, FOnCreateStackWidget, UNiagaraStackViewModel*);
 	DECLARE_DELEGATE_RetVal_OneParam(UMovieSceneNiagaraParameterTrack*, FOnCreateMovieSceneTrackForParameter, FNiagaraVariable);
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnCheckScriptToolkitsShouldFocusGraphElement, const FNiagaraScriptIDAndGraphFocusInfo*);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnCheckScriptToolkitsShouldFocusGraphElement, const INiagaraScriptGraphFocusInfo*);
 
 public:
 	FNiagaraEditorModule();
@@ -119,6 +119,7 @@ private:
 	FDelegateHandle CreateVectorParameterTrackEditorHandle;
 	FDelegateHandle CreateColorParameterTrackEditorHandle;
 
+	FDelegateHandle MergeEmitterHandle;
 	FDelegateHandle CreateDefaultScriptSourceHandle;
 	FDelegateHandle ScriptCompilerHandle;
 	FDelegateHandle PrecompilerHandle;
@@ -132,9 +133,6 @@ private:
 
 	IConsoleCommand* TestCompileScriptCommand;
 	IConsoleCommand* DumpRapidIterationParametersForAsset;
-	IConsoleCommand* PreventSystemRecompileCommand;
-	IConsoleCommand* PreventAllSystemRecompilesCommand;
-	IConsoleCommand* DumpCompileIdDataForAssetCommand;
 
 	FOnCheckScriptToolkitsShouldFocusGraphElement OnCheckScriptToolkitsShouldFocusGraphElement;
 };

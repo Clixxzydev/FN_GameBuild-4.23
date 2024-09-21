@@ -31,7 +31,7 @@ DECLARE_LOG_CATEGORY_EXTERN( LogReplicationGraph, Log, All );
 	#define repCheck(x) check(x)
 	#define repCheckf(expr, format, ...) checkf(expr, format, ##__VA_ARGS__ )
 	#define RG_QUICK_SCOPE_CYCLE_COUNTER(x) QUICK_SCOPE_CYCLE_COUNTER(x)
-	REPLICATIONGRAPH_API extern int32 CVar_RepGraph_Verify;
+	extern int32 CVar_RepGraph_Verify;
 #else 
 	#define REPGRAPH_DETAILS 0
 	#define DO_REPGRAPH_DETAILS(X) 0
@@ -1167,7 +1167,6 @@ struct FConnectionGatherActorListParameters
 
 
 	/** In: The Data the nodes have to work with */
-	UE_DEPRECATED(4.23, "Use the viewer arrays for support for subconnections")
 	FNetViewer& Viewer;
 
 	FNetViewerArray Viewers;

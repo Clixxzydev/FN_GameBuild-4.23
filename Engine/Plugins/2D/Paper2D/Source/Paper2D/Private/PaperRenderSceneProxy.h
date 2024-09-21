@@ -148,6 +148,8 @@ protected:
 
 	bool IsCollisionView(const FEngineShowFlags& EngineShowFlags, bool& bDrawSimpleCollision, bool& bDrawComplexCollision) const;
 
+	friend class FPaperBatchSceneProxy;
+
 	void ConvertBatchesToNewStyle(TArray<FSpriteDrawCallRecord>& SourceBatches);
 
 	virtual void DebugDrawCollision(const FSceneView* View, int32 ViewIndex, FMeshElementCollector& Collector, bool bDrawSolid) const;

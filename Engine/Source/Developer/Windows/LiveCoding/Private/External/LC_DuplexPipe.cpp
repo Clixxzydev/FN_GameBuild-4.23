@@ -29,9 +29,9 @@ bool DuplexPipe::IsValid(void) const volatile
 }
 
 
-bool DuplexPipe::ReceiveHeader(commands::Header* header) const
+bool DuplexPipe::ReceiveCommandId(uint32_t* id) const
 {
-	const bool success = Read(header, sizeof(commands::Header));
+	const bool success = Read(id, sizeof(uint32_t));
 	return success;
 }
 

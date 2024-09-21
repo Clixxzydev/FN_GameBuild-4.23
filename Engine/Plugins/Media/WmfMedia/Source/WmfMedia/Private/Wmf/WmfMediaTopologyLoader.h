@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "WmfMediaCommon.h"
+#include "WmfMediaPrivate.h"
 
 #if WMFMEDIA_SUPPORTED_PLATFORM
 
@@ -14,13 +14,12 @@ class WmfMediaTopologyLoader
 {
 public:
 
-	bool EnableHardwareAcceleration(const TComPtr<IMFTopology>& InTopology) const;
+	bool IsHardwareAccelerated(const TComPtr<IMFTopology>& InTopology) const;
 
 private:
 
 	bool ResolveActivationNode(const TComPtr<IMFTopology>& InTopology) const;
-	bool SetHardwareAccelerationOnTransformNode(const TComPtr<IMFTopology>& InTopology) const;
-	bool FindDeviceManager(const TComPtr<IMFTopology>& InTopology, TComPtr<IMFDXGIDeviceManager>& OutDeviceManager, TComPtr<IMFTopologyNode>& OutD3DManagerNode, TComPtr<IMFTransform>& OutTransformNode) const;
+	bool CheckTopologyForHardwareDecoding(const TComPtr<IMFTopology>& InTopology) const;
 };
 
 #endif

@@ -5,7 +5,7 @@
 #include "IMovieSceneTrackInstance.h"
 
 class UMovieSceneNiagaraEmitterTrack;
-class FNiagaraEmitterInstance;
+struct FNiagaraEmitterInstance;
 
 /**
 *	One instance of a UEmitterMovieSceneTrack

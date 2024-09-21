@@ -136,12 +136,8 @@ FNetworkFileServer::FNetworkFileServer( int32 InPort, FNetworkFileDelegateContai
 	}
 	else
 	{
-		// listen on any IP address
-		ListenAddr = SocketSubsystem->GetLocalBindAddr(*GLog);
-		ListenAddr->SetPort(InPort);
-
 		// create a server TCP socket
-		Socket = SocketSubsystem->CreateSocket(NAME_Stream, TEXT("FNetworkFileServer tcp-listen"), ListenAddr->GetProtocolType());
+		Socket = SocketSubsystem->CreateSocket(NAME_Stream, TEXT("FNetworkFileServer tcp-listen"));
 
 		if(!Socket)
 		{
@@ -149,6 +145,10 @@ FNetworkFileServer::FNetworkFileServer( int32 InPort, FNetworkFileDelegateContai
 		}
 		else
 		{
+			// listen on any IP address
+			ListenAddr = SocketSubsystem->GetLocalBindAddr(*GLog);
+
+			ListenAddr->SetPort(InPort);
 			Socket->SetReuseAddr();
 
 			// bind to the address

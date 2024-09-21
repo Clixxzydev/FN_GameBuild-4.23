@@ -92,7 +92,7 @@ struct StructDeserializerBackendUtilities
 	{
 		if (void* Ptr = GetPropertyValuePtr(Property, Outer, Data, ArrayIndex))
 		{
-			Property->SetPropertyValue(Ptr, Value);
+			*(ValueType*)Ptr = Value;
 			return true;
 		}
 

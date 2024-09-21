@@ -33,23 +33,23 @@ protected:
 	UMaterialInterface* Material_DEPRECATED;
 
 	/** Current play rate of the flipbook */
-	UPROPERTY(Category=Sprite, EditAnywhere)
+	UPROPERTY(Category=Sprite, EditAnywhere, Replicated)
 	float PlayRate;
 
 	/** Whether the flipbook should loop when it reaches the end, or stop */
-	UPROPERTY()
+	UPROPERTY(Replicated)
 	uint32 bLooping:1;
 
 	/** If playback should move the current position backwards instead of forwards */
-	UPROPERTY()
+	UPROPERTY(Replicated)
 	uint32 bReversePlayback:1;
 
 	/** Are we currently playing (moving Position) */
-	UPROPERTY()
+	UPROPERTY(Replicated)
 	uint32 bPlaying:1;
 
 	/** Current position in the timeline */
-	UPROPERTY()
+	UPROPERTY(Replicated)
 	float AccumulatedTime;
 
 	/** Last frame index calculated */

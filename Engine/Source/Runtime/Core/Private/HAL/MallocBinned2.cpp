@@ -13,7 +13,6 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/MemoryMisc.h"
 #include "HAL/PlatformMisc.h"
-#include "Misc/App.h"
 
 #if BINNED2_ALLOW_RUNTIME_TWEAKING
 
@@ -1097,14 +1096,7 @@ void FMallocBinned2::Trim(bool bTrimThreadCaches)
 			FlushCurrentThreadCache();
 		};
 		// Skip task threads on desktop platforms as it is too slow and they don't have much memory
-		if (PLATFORM_DESKTOP)
-		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(false, false, Broadcast);
-		}
-		else
-		{
-			FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(FPlatformProcess::SupportsMultithreading() && FApp::ShouldUseThreadingForPerformance(), false, Broadcast);
-		}
+		FTaskGraphInterface::BroadcastSlow_OnlyUseForSpecialPurposes(!PLATFORM_DESKTOP, false, Broadcast);
 		//UE_LOG(LogTemp, Display, TEXT("Trim Broadcast = %6.2fms"), 1000.0f * float(FPlatformTime::Seconds() - StartTime));
 	}
 	{

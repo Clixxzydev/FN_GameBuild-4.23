@@ -13,7 +13,9 @@ namespace
 {
 	static inline uint32_t Hash(const char* key, size_t length)
 	{
-		return XXH32(key, length * sizeof(char), 0u);
+		// need to cast here because the xxhash API returns an unsigned int, even though it calculates a
+		// 32-bit hash internally.
+		return static_cast<uint32_t>(XXH32(key, length * sizeof(char), 0u));
 	}
 
 	static inline const char* Clone(const char* str, size_t length)

@@ -37,19 +37,6 @@ namespace ESplineCoordinateSpace
 	};
 }
 
-UCLASS(Abstract)
-class ENGINE_API USplineMetadata : public UObject
-{
-	GENERATED_UCLASS_BODY()
-
-public:
-	virtual void InsertPoint(float InputKey, int32 Index) PURE_VIRTUAL(USplineMetadata::InsertPoint, );
-	virtual void AddPoint(float InputKey) PURE_VIRTUAL(USplineMetadata::AddPoint, );
-	virtual void RemovePoint(int32 Index) PURE_VIRTUAL(USplineMetadata::RemovePoint, );
-	virtual void DuplicatePoint(int32 Index) PURE_VIRTUAL(USplineMetadata::DuplicatePoint, );
-	virtual void Reset(int32 NumPoints) PURE_VIRTUAL(USplineMetadata::Reset, );
-};
-
 USTRUCT()
 struct ENGINE_API FSplineCurves
 {
@@ -70,9 +57,6 @@ struct ENGINE_API FSplineCurves
 	/** Input: distance along curve, output: parameter that puts you there. */
 	UPROPERTY()
 	FInterpCurveFloat ReparamTable;
-
-	UPROPERTY()
-	USplineMetadata* Metadata = nullptr;
 
 	bool operator==(const FSplineCurves& Other) const
 	{
@@ -186,9 +170,6 @@ UCLASS(ClassGroup=Utility, ShowCategories = (Mobility), HideCategories = (Physic
 class ENGINE_API USplineComponent : public UPrimitiveComponent
 {
 	GENERATED_UCLASS_BODY()
-    
-    /** Child class can optionally provide their metadata object through this constructor */
-	USplineComponent(const FObjectInitializer& ObjectInitializer, USplineMetadata* Metadata);
 
 	UPROPERTY(EditAnywhere, Category=Points)
 	FSplineCurves SplineCurves;
@@ -313,8 +294,6 @@ public:
 	const FInterpCurveQuat& GetSplinePointsRotation() const { return SplineCurves.Rotation; }
 	FInterpCurveVector& GetSplinePointsScale() { return SplineCurves.Scale; }
 	const FInterpCurveVector& GetSplinePointsScale() const { return SplineCurves.Scale; }
-	USplineMetadata* GetSplinePointsMetadata() { return SplineCurves.Metadata; }
-	const USplineMetadata* GetSplinePointsMetadata() const { return SplineCurves.Metadata; }
 
 	void ApplyComponentInstanceData(struct FSplineInstanceData* ComponentInstanceData, const bool bPostUCS);
 
@@ -514,10 +493,6 @@ public:
 	/** Get the distance along the spline at the spline point */
 	UFUNCTION(BlueprintCallable, Category=Spline)
 	float GetDistanceAlongSplineAtSplinePoint(int32 PointIndex) const;
-
-    /** Get a metadata property float value along the spline at spline point */
-	UFUNCTION(BlueprintCallable, Category = Spline)
-	float GetFloatPropertyAtSplinePoint(int32 Index, FName PropertyName) const;
 
 	/** Returns total length along this spline */
 	UFUNCTION(BlueprintCallable, Category=Spline) 

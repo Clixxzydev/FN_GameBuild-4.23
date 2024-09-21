@@ -54,9 +54,9 @@ namespace AutomationTool
 				CreatePlatformsFromAssembly(ScriptAssembly);
 			}
 			// Create dummy platforms for platforms we don't support
-			foreach (UnrealTargetPlatform PlatformType in UnrealTargetPlatform.GetValidPlatforms())
+			foreach (var PlatformType in Enum.GetValues(typeof(UnrealTargetPlatform)))
 			{
-				var TargetDesc = new TargetPlatformDescriptor(PlatformType);
+				var TargetDesc = new TargetPlatformDescriptor((UnrealTargetPlatform)PlatformType);
 				Platform ExistingInstance;
 				if (AllPlatforms.TryGetValue(TargetDesc, out ExistingInstance) == false)
 				{
@@ -111,10 +111,7 @@ namespace AutomationTool
 					}
 					else
 					{
-						if (ExistingInstance.GetType() != PlatformInstance.GetType())
-						{
-							LogWarning("Platform {0} already exists", PotentialPlatformType.Name);
-						}
+						LogWarning("Platform {0} already exists", PotentialPlatformType.Name);
 					}
 				}
 			}
@@ -122,8 +119,8 @@ namespace AutomationTool
 
 		#endregion
 
-		protected UnrealTargetPlatform TargetPlatformType;
-		protected UnrealTargetPlatform TargetIniPlatformType;
+		protected UnrealTargetPlatform TargetPlatformType = UnrealTargetPlatform.Unknown;
+		protected UnrealTargetPlatform TargetIniPlatformType = UnrealTargetPlatform.Unknown;
 
 		public Platform(UnrealTargetPlatform PlatformType)
 		{
@@ -561,7 +558,7 @@ namespace AutomationTool
 
 		#region Hooks
 
-		public virtual void PreBuildAgenda(UE4Build Build, UE4Build.BuildAgenda Agenda, ProjectParams Params)
+		public virtual void PreBuildAgenda(UE4Build Build, UE4Build.BuildAgenda Agenda)
 		{
 
 		}
@@ -637,29 +634,22 @@ namespace AutomationTool
 				return PlatformExeExtension;
 			}
 
-			if (Target == UnrealTargetPlatform.Win32 || Target == UnrealTargetPlatform.Win64 || Target == UnrealTargetPlatform.XboxOne|| Target == UnrealTargetPlatform.HoloLens)
+			switch (Target)
 			{
-				return ".exe";
-			}
-			if (Target == UnrealTargetPlatform.PS4)
-			{
-				return ".self";
-			}
-			if (Target == UnrealTargetPlatform.IOS)
-			{
-				return ".stub";
-			}
-			if (Target == UnrealTargetPlatform.Linux)
-			{
-				return "";
-			}
-			if (Target == UnrealTargetPlatform.HTML5)
-			{
-				return ".js";
-			}
-			if (Target == UnrealTargetPlatform.Mac)
-			{
-				return ".app";
+				case UnrealTargetPlatform.Win32:
+				case UnrealTargetPlatform.Win64:
+				case UnrealTargetPlatform.XboxOne:
+					return ".exe";
+				case UnrealTargetPlatform.PS4:
+					return ".self";
+				case UnrealTargetPlatform.IOS:
+					return ".stub";
+				case UnrealTargetPlatform.Linux:
+					return "";
+				case UnrealTargetPlatform.HTML5:
+					return ".js";
+				case UnrealTargetPlatform.Mac:
+					return ".app";
 			}
 
 			return String.Empty;

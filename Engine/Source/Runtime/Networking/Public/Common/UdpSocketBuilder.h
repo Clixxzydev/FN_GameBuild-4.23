@@ -275,15 +275,14 @@ public:
 		}
 
 		// create socket
-		TSharedRef<FInternetAddr> RemoteAddr = BoundEndpoint.ToInternetAddr();
-		FSocket* Socket = SocketSubsystem->CreateSocket(NAME_DGram, *Description, RemoteAddr->GetProtocolType());
+		FSocket* Socket = SocketSubsystem->CreateSocket(NAME_DGram, *Description, true);
 
 		if (Socket == nullptr)
 		{
 			GLog->Logf(TEXT("FUdpSocketBuilder: Failed to create socket %s"), *Description);
 			return nullptr;
 		}
-		
+
 		// configure socket
 		bool Error =
 			!Socket->SetNonBlocking(!Blocking) ||
@@ -298,7 +297,7 @@ public:
 		}
 		else
 		{
-			Error = Bound && !Socket->Bind(*RemoteAddr);
+			Error = Bound && !Socket->Bind(*BoundEndpoint.ToInternetAddr());
 		}
 
 		// configure multicast

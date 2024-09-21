@@ -473,12 +473,8 @@ static const TCHAR* ImportProperties(
 							UClass* ArchetypeClass = (UClass*)StaticFindObject(UClass::StaticClass(), ANY_PACKAGE, *ObjectClass);
 							if (ArchetypeClass)
 							{
-								ObjectPath = ObjectPath.TrimQuotes();
-
-								UPackage* FindInPackage = (FPackageName::IsShortPackageName(ObjectPath) ? ANY_PACKAGE : nullptr);
-
 								// if we had the class, find the archetype
-								Archetype = StaticFindObject(ArchetypeClass, FindInPackage, *ObjectPath);
+								Archetype = StaticFindObject(ArchetypeClass, ANY_PACKAGE, *ObjectPath);
 							}
 						}
 					}
@@ -543,7 +539,7 @@ static const TCHAR* ImportProperties(
 					if (!bIsOkToReuse)
 					{
 						UE_LOG(LogEditorObject, Log, TEXT("Could not reuse component instance %s, name clash?"), *ComponentTemplate->GetFullName());
-						ComponentTemplate->Rename(nullptr, nullptr, REN_DontCreateRedirectors); // just abandon the existing component, we are going to create
+						ComponentTemplate->Rename(); // just abandon the existing component, we are going to create
 						OldComponent = ComponentTemplate;
 						ComponentTemplate = NULL;
 					}

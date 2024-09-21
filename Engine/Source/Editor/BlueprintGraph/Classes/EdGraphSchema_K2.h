@@ -114,9 +114,6 @@ public:
 	// [FunctionMetadata] Indicates that the function should be drawn with this title over the function name
 	static const FName MD_DisplayName;
 
-	// [FunctionMetadata] Indicates the display name of the return value pin
-	static const FName MD_ReturnDisplayName;
-
 	// [FunctionMetadata] Indicates that a particular function parameter is for internal use only, which means it will be both hidden and not connectible.
 	static const FName MD_InternalUseParam;
 
@@ -551,9 +548,6 @@ public:
 	/** Returns true if the pin has a value field that can be edited inline */
 	bool PinDefaultValueIsEditable(const UEdGraphPin& InGraphPin) const;
 
-	/** Returns true if the pin has a custom default string format and it is not safe to use ExportText */
-	bool PinHasCustomDefaultFormat(const UEdGraphPin& InGraphPin) const;
-
 	struct FCreateSplitPinNodeParams
 	{
 		FCreateSplitPinNodeParams(const bool bInTransient)
@@ -578,7 +572,7 @@ public:
 	UK2Node* CreateSplitPinNode(UEdGraphPin* Pin, const FCreateSplitPinNodeParams& Params) const;
 
 	/** Reads in a FString and gets the values of the pin defaults for that type. This can be passed to DefaultValueSimpleValidation to validate. OwningObject can be null */
-	virtual void GetPinDefaultValuesFromString(const FEdGraphPinType& PinType, UObject* OwningObject, const FString& NewValue, FString& UseDefaultValue, UObject*& UseDefaultObject, FText& UseDefaultText, bool bPreserveTextIdentity = true) const;
+	virtual void GetPinDefaultValuesFromString(const FEdGraphPinType& PinType, UObject* OwningObject, const FString& NewValue, FString& UseDefaultValue, UObject*& UseDefaultObject, FText& UseDefaultText) const;
 
 	/** Do validation, that doesn't require a knowledge about actual pin */
 	virtual bool DefaultValueSimpleValidation(const FEdGraphPinType& PinType, const FName PinName, const FString& NewDefaultValue, UObject* NewDefaultObject, const FText& InText, FString* OutMsg = nullptr) const;
@@ -739,9 +733,6 @@ public:
 	 */
 	bool ConvertPropertyToPinType(const UProperty* Property, /*out*/ FEdGraphPinType& TypeOut) const;
 
-	/** Returns true if the function has wildcard parameters, e.g. uses runtime type information that may require safe failure handling */
-	static bool HasWildcardParams(const UFunction* Function);
-
 	/** Determines if the specified param property is intended to be used as a wildcard (for custom thunk functions, like in our array library, etc.)*/
 	static bool IsWildcardProperty(const UProperty* ParamProperty);
 
@@ -760,7 +751,7 @@ public:
 	 * @param	Function			The function to find a parent function for
 	 * @return	The UFunction parentfunction, if any.
 	 */
-	static UFunction* GetCallableParentFunction(UFunction* Function);
+	UFunction* GetCallableParentFunction(UFunction* Function) const;
 
 	/** Whether or not the specified actor is a valid target for bound events and literal references (in the right level, not a builder brush, etc */
 	bool IsActorValidForLevelScriptRefs(const AActor* TestActor, const UBlueprint* Blueprint) const;

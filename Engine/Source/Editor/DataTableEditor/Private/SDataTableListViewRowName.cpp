@@ -36,11 +36,9 @@ void SDataTableListViewRowName::Construct(const FArguments& InArgs, const TShare
 
 FReply SDataTableListViewRowName::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton && RowDataPtr.IsValid() && FEditorDelegates::OnOpenReferenceViewer.IsBound() && DataTableEditor.IsValid())
+	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton && RowDataPtr.IsValid() && FEditorDelegates::OnOpenReferenceViewer.IsBound())
 	{
-		FDataTableEditorUtils::SelectRow(DataTableEditor.Pin()->GetDataTable(), RowDataPtr->RowId);
-
-		TSharedRef<SWidget> MenuWidget = FDataTableRowUtils::MakeRowActionsMenu(DataTableEditor.Pin(), FExecuteAction::CreateSP(this, &SDataTableListViewRowName::OnSearchForReferences));
+		TSharedRef<SWidget> MenuWidget = FDataTableRowUtils::MakeRowActionsMenu(FExecuteAction::CreateSP(this, &SDataTableListViewRowName::OnSearchForReferences));
 		
 		FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
 

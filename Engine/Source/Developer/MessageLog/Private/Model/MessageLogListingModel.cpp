@@ -40,21 +40,11 @@ FText FMessageLogListingModel::GetAllMessagesAsText( const uint32 PageIndex ) co
 	return CompiledText;
 }
 
-void FMessageLogListingModel::AddMessageInternal( const TSharedRef<FTokenizedMessage>& NewMessage, bool bMirrorToOutputLog, bool bDiscardDuplicates )
+void FMessageLogListingModel::AddMessageInternal( const TSharedRef<FTokenizedMessage>& NewMessage, bool bMirrorToOutputLog )
 {
 	if (bIsPrintingToOutputLog)
 	{
 		return;
-	}
-
-	if (bDiscardDuplicates)
-	{
-		bool bIsAlreadyInSet;
-		CurrentPage().MessagesHashes.Add(GetTypeHash(NewMessage->ToText().ToString()), &bIsAlreadyInSet);
-		if (bIsAlreadyInSet)
-		{
-			return;
-		}
 	}
 
 	CurrentPage().Messages.Add( NewMessage );
@@ -76,22 +66,22 @@ void FMessageLogListingModel::AddMessageInternal( const TSharedRef<FTokenizedMes
 	}
 }
 
-void FMessageLogListingModel::AddMessage( const TSharedRef<FTokenizedMessage>& NewMessage, bool bMirrorToOutputLog, bool bDiscardDuplicates )
+void FMessageLogListingModel::AddMessage( const TSharedRef<FTokenizedMessage>& NewMessage, bool bMirrorToOutputLog )
 {
 	CreateNewPageIfRequired();
 
-	AddMessageInternal( NewMessage, bMirrorToOutputLog, bDiscardDuplicates );
+	AddMessageInternal( NewMessage, bMirrorToOutputLog );
 
 	Notify();
 }
 
-void FMessageLogListingModel::AddMessages( const TArray< TSharedRef<class FTokenizedMessage> >& NewMessages, bool bMirrorToOutputLog, bool bDiscardDuplicates )
+void FMessageLogListingModel::AddMessages( const TArray< TSharedRef<class FTokenizedMessage> >& NewMessages, bool bMirrorToOutputLog )
 {
 	CreateNewPageIfRequired();
 
 	for( int32 MessageIdx = 0; MessageIdx < NewMessages.Num(); MessageIdx++ )
 	{
-		AddMessageInternal( NewMessages[MessageIdx], bMirrorToOutputLog, bDiscardDuplicates );
+		AddMessageInternal( NewMessages[MessageIdx], bMirrorToOutputLog );
 	}
 	Notify();
 }
@@ -99,7 +89,6 @@ void FMessageLogListingModel::AddMessages( const TArray< TSharedRef<class FToken
 void FMessageLogListingModel::ClearMessages()
 {
 	CurrentPage().Messages.Empty();
-	CurrentPage().MessagesHashes.Empty();
 	Notify();
 }
 
@@ -245,14 +234,6 @@ void FMessageLogListingModel::RemoveDuplicates(uint32 PageIndex)
 	{
 		TSet<TSharedRef<FTokenizedMessage>, FTokenizedMessageKeyFunc> MessageSet(Page->Messages);
 		Page->Messages = MessageSet.Array();
-
-		// Also needs to rebuild array of hashes
-		Page->MessagesHashes.Empty(Page->Messages.Num());
-		for(int32 MessageID = 0; MessageID < Page->Messages.Num(); MessageID++)
-		{
-			const TSharedPtr< FTokenizedMessage > Message = Page->Messages[MessageID];
-			Page->MessagesHashes.Add(GetTypeHash(Message->ToText().ToString()));
-		}
 	}
 }
 

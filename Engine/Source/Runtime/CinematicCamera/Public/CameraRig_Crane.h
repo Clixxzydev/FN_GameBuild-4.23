@@ -77,16 +77,16 @@ private:
 
 #if WITH_EDITORONLY_DATA
 	/** Preview meshes for visualization */
-	UPROPERTY(Transient)
+	UPROPERTY()
 	UStaticMeshComponent* PreviewMesh_CraneArm;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	UStaticMeshComponent* PreviewMesh_CraneBase;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	UStaticMeshComponent* PreviewMesh_CraneMount;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	UStaticMeshComponent* PreviewMesh_CraneCounterWeight;
 #endif
 };

@@ -59,6 +59,11 @@ static void ConvertToLightSampleHelper(const FGatheredLightSample& InGatheredLig
 
 FLightSample FGatheredLightMapSample::ConvertToLightSample(bool bDebugThisSample) const
 {
+	if (bDebugThisSample)
+	{
+		int32 asdf = 0;
+	}
+
 	FLightSample NewSample;
 	NewSample.bIsMapped = bIsMapped;
 
@@ -1585,64 +1590,17 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 	while (!bIsDone)
 	{
 		const double StartLoopTime = FPlatformTime::Seconds();
-
-		bool bAnyTaskProcessedByThisThread = false;
-
-		// Process any existing local tasks before fetching new tasks from Swarm
+		
+		if (NumOutstandingVolumeDataLayers > 0)
 		{
-			while (FCacheIndirectTaskDescription * NextCacheTask = CacheIndirectLightingTasks.Pop())
+			const int32 ThreadZ = FPlatformAtomics::InterlockedIncrement(&OutstandingVolumeDataLayerIndex);
+			if (ThreadZ < VolumeSizeZ)
 			{
-				//UE_LOG(LogLightmass, Warning, TEXT("Thread %u picked up Cache Indirect task for %u"), ThreadIndex, NextCacheTask->TextureMapping->Guid.D);
-				ProcessCacheIndirectLightingTask(NextCacheTask, false);
-				NextCacheTask->TextureMapping->CompletedCacheIndirectLightingTasks.Push(NextCacheTask);
-				FPlatformAtomics::InterlockedDecrement(&NextCacheTask->TextureMapping->NumOutstandingCacheTasks);
-
-				bAnyTaskProcessedByThisThread = true;
-			}
-
-			while (FInterpolateIndirectTaskDescription * NextInterpolateTask = InterpolateIndirectLightingTasks.Pop())
-			{
-				//UE_LOG(LogLightmass, Warning, TEXT("Thread %u picked up Interpolate indirect task for %u"), ThreadIndex, NextInterpolateTask->TextureMapping->Guid.D);
-				ProcessInterpolateTask(NextInterpolateTask, false);
-				NextInterpolateTask->TextureMapping->CompletedInterpolationTasks.Push(NextInterpolateTask);
-				FPlatformAtomics::InterlockedDecrement(&NextInterpolateTask->TextureMapping->NumOutstandingInterpolationTasks);
-
-				bAnyTaskProcessedByThisThread = true;
-			}
-
-			bAnyTaskProcessedByThisThread |= ProcessVolumetricLightmapTaskIfAvailable();
-
-			while (NumOutstandingVolumeDataLayers > 0)
-			{
-				const int32 ThreadZ = FPlatformAtomics::InterlockedIncrement(&OutstandingVolumeDataLayerIndex);
-				if (ThreadZ < VolumeSizeZ)
+				CalculateVolumeDistanceFieldWorkRange(ThreadZ);
+				const int32 NumTasksRemaining = FPlatformAtomics::InterlockedDecrement(&NumOutstandingVolumeDataLayers);
+				if (NumTasksRemaining == 0)
 				{
-					CalculateVolumeDistanceFieldWorkRange(ThreadZ);
-					const int32 NumTasksRemaining = FPlatformAtomics::InterlockedDecrement(&NumOutstandingVolumeDataLayers);
-					if (NumTasksRemaining == 0)
-					{
-						FPlatformAtomics::InterlockedExchange(&bShouldExportVolumeDistanceField, true);
-					}
-
-					bAnyTaskProcessedByThisThread = true;
-				}
-			}
-
-			while (NumVolumeSampleTasksOutstanding > 0)
-			{
-				const int32 TaskIndex = FPlatformAtomics::InterlockedIncrement(&NextVolumeSampleTaskIndex);
-
-				if (TaskIndex < VolumeSampleTasks.Num())
-				{
-					ProcessVolumeSamplesTask(VolumeSampleTasks[TaskIndex]);
-					const int32 NumTasksRemaining = FPlatformAtomics::InterlockedDecrement(&NumVolumeSampleTasksOutstanding);
-
-					if (NumTasksRemaining == 0)
-					{
-						FPlatformAtomics::InterlockedExchange(&bShouldExportVolumeSampleData, true);
-					}
-
-					bAnyTaskProcessedByThisThread = true;
+					FPlatformAtomics::InterlockedExchange(&bShouldExportVolumeDistanceField, true);
 				}
 			}
 		}
@@ -1719,15 +1677,56 @@ void FStaticLightingSystem::ThreadLoop(bool bIsMainThread, int32 ThreadIndex, FT
 		}
 		else
 		{
-			if (!bAnyTaskProcessedByThisThread && TasksInProgressThatWillNeedHelp <= 0 && NumOutstandingVolumeDataLayers <= 0 && NumVolumeSampleTasksOutstanding <= 0)
+			if (!bSignaledMappingsComplete && NumOutstandingVolumeDataLayers <= 0)
 			{
-				if (!bSignaledMappingsComplete)
-				{
-					bSignaledMappingsComplete = true;
-					GSwarm->SendMessage(NSwarm::FTimingMessage(NSwarm::PROGSTATE_Processing0, ThreadIndex));
-				}
+				bSignaledMappingsComplete = true;
+				GSwarm->SendMessage( NSwarm::FTimingMessage( NSwarm::PROGSTATE_Processing0, ThreadIndex ) );
+			}
 
-				if (!bRequestForTaskTimedOut)
+			FCacheIndirectTaskDescription* NextCacheTask = CacheIndirectLightingTasks.Pop();
+
+			if (NextCacheTask)
+			{
+				//UE_LOG(LogLightmass, Warning, TEXT("Thread %u picked up Cache Indirect task for %u"), ThreadIndex, NextCacheTask->TextureMapping->Guid.D);
+				ProcessCacheIndirectLightingTask(NextCacheTask, false);
+				NextCacheTask->TextureMapping->CompletedCacheIndirectLightingTasks.Push(NextCacheTask);
+				FPlatformAtomics::InterlockedDecrement(&NextCacheTask->TextureMapping->NumOutstandingCacheTasks);
+			}
+
+			FInterpolateIndirectTaskDescription* NextInterpolateTask = InterpolateIndirectLightingTasks.Pop();
+
+			if (NextInterpolateTask)
+			{
+				//UE_LOG(LogLightmass, Warning, TEXT("Thread %u picked up Interpolate indirect task for %u"), ThreadIndex, NextInterpolateTask->TextureMapping->Guid.D);
+				ProcessInterpolateTask(NextInterpolateTask, false);
+				NextInterpolateTask->TextureMapping->CompletedInterpolationTasks.Push(NextInterpolateTask);
+				FPlatformAtomics::InterlockedDecrement(&NextInterpolateTask->TextureMapping->NumOutstandingInterpolationTasks);
+			}
+
+			ProcessVolumetricLightmapTaskIfAvailable();
+			
+			if (NumVolumeSampleTasksOutstanding > 0)
+			{
+				const int32 TaskIndex = FPlatformAtomics::InterlockedIncrement(&NextVolumeSampleTaskIndex);
+
+				if (TaskIndex < VolumeSampleTasks.Num())
+				{
+					ProcessVolumeSamplesTask(VolumeSampleTasks[TaskIndex]);
+					const int32 NumTasksRemaining = FPlatformAtomics::InterlockedDecrement(&NumVolumeSampleTasksOutstanding);
+
+					if (NumTasksRemaining == 0)
+					{
+						FPlatformAtomics::InterlockedExchange(&bShouldExportVolumeSampleData, true);
+					}
+				}
+			}
+
+			if (!NextCacheTask 
+				&& !NextInterpolateTask
+				&& NumVolumeSampleTasksOutstanding <= 0
+				&& NumOutstandingVolumeDataLayers <= 0)
+			{
+				if (TasksInProgressThatWillNeedHelp <= 0 && !bRequestForTaskTimedOut)
 				{
 					// All mappings have been processed, so end this thread.
 					bIsDone = true;

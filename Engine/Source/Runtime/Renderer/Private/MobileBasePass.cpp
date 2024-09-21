@@ -261,7 +261,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 		{
 			// Lightmap path
 			const FShadowMapInteraction ShadowMapInteraction = (Mesh.LCI && bIsLitMaterial)
-				? Mesh.LCI->GetShadowMapInteraction(FeatureLevel)
+				? Mesh.LCI->GetShadowMapInteraction()
 				: FShadowMapInteraction();
 
 			if (bUseMovableLight)
@@ -402,10 +402,6 @@ void MobileBasePass::SetTranslucentRenderState(FMeshPassProcessorRenderState& Dr
 			// Blend with existing scene color. New color is already pre-multiplied by alpha.
 			DrawRenderState.SetBlendState(TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI());
 			break;
-		case BLEND_AlphaHoldout:
-			// Blend by holding out the matte shape of the source alpha
-			DrawRenderState.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI());
-			break;
 		default:
 			check(0);
 		};
@@ -473,7 +469,7 @@ void TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>::GetShaderBindings
 						{
 							ReflectionCubemapTextures[i] = PrimitiveSceneInfo->CachedReflectionCaptureProxies[i]->EncodedHDRCubemap;
 						}
-						ReflectionParams[i] = FMath::Max(FMath::Min(1.0f / ReflectionProxy->EncodedHDRAverageBrightness, 65504.f), -65504.f);
+						ReflectionParams.X = FMath::Max(FMath::Min(1.0f / ReflectionProxy->EncodedHDRAverageBrightness, 65504.f), -65504.f);
 					}
 				}
 			}
@@ -486,21 +482,21 @@ void TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>::GetShaderBindings
 		}
 		else if (ReflectionParameter.IsBound())
 		{
-			FRHIUniformBuffer* ReflectionUB = GDefaultMobileReflectionCaptureUniformBuffer.GetUniformBufferRHI();
+			FUniformBufferRHIParamRef RelfectionUB = GDefaultMobileReflectionCaptureUniformBuffer.GetUniformBufferRHI();
 			// If no reflection captures are available then attempt to use sky light's texture.
 			if (UseSkyReflectionCapture(Scene) && FeatureLevel > ERHIFeatureLevel::ES2) // not-supported on ES2 at the moment
 			{
-				ReflectionUB = Scene->UniformBuffers.MobileSkyReflectionUniformBuffer;
+				RelfectionUB = Scene->UniformBuffers.MobileSkyReflectionUniformBuffer;
 			}
 			else
 			{
 				FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy ? PrimitiveSceneProxy->GetPrimitiveSceneInfo() : nullptr;
 				if (PrimitiveSceneInfo && PrimitiveSceneInfo->CachedReflectionCaptureProxy)
 				{
-					ReflectionUB = PrimitiveSceneInfo->CachedReflectionCaptureProxy->MobileUniformBuffer;
+					RelfectionUB = PrimitiveSceneInfo->CachedReflectionCaptureProxy->MobileUniformBuffer;
 				}
 			}
-			ShaderBindings.Add(ReflectionParameter, ReflectionUB);
+			ShaderBindings.Add(ReflectionParameter, RelfectionUB);
 		}
 		
 		if (LightPositionAndInvRadiusParameter.IsBound() || SpotLightDirectionParameter.IsBound())

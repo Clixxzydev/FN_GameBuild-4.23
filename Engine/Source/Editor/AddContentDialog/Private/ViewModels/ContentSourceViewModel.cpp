@@ -10,6 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "ContentSourceViewModel"
 
+const FString DefaultLanguageCode = "en";
 uint32 FContentSourceViewModel::ImageID = 0;
 
 
@@ -27,35 +28,33 @@ TSharedPtr<IContentSource> FContentSourceViewModel::GetContentSource()
 
 FText FContentSourceViewModel::GetName()
 {
-	const FString CurrentLanguage = FInternationalization::Get().GetCurrentLanguage()->GetName();
-	if (CachedNameText.Language != CurrentLanguage)
+	FString CurrentLanguage = FInternationalization::Get().GetCurrentCulture()->GetTwoLetterISOLanguageName();
+	if (NameText.GetTwoLetterLanguage() != CurrentLanguage)
 	{
-		CachedNameText.Language = CurrentLanguage;
-		CachedNameText.Text = ChooseLocalizedText(ContentSource->GetLocalizedNames(), CurrentLanguage);
+		NameText = ChooseLocalizedText(ContentSource->GetLocalizedNames(), CurrentLanguage);
 	}
-	return CachedNameText.Text;
+	return NameText.GetText();
 }
 
 FText FContentSourceViewModel::GetDescription()
 {
-	const FString CurrentLanguage = FInternationalization::Get().GetCurrentLanguage()->GetName();
-	if (CachedDescriptionText.Language != CurrentLanguage)
+	FString CurrentLanguage = FInternationalization::Get().GetCurrentCulture()->GetTwoLetterISOLanguageName();
+	if (DescriptionText.GetTwoLetterLanguage() != CurrentLanguage)
 	{
-		CachedDescriptionText.Language = CurrentLanguage;
-		CachedDescriptionText.Text = ChooseLocalizedText(ContentSource->GetLocalizedDescriptions(), CurrentLanguage);
+		DescriptionText = ChooseLocalizedText(ContentSource->GetLocalizedDescriptions(), CurrentLanguage);
 	}
-	return CachedDescriptionText.Text;
+	return DescriptionText.GetText();
 }
 
 FText FContentSourceViewModel::GetAssetTypes()
 {
-	const FString CurrentLanguage = FInternationalization::Get().GetCurrentLanguage()->GetName();
-	if (CachedAssetTypeText.Language != CurrentLanguage)
+	FString CurrentLanguage = FInternationalization::Get().GetCurrentCulture()->GetTwoLetterISOLanguageName();
+	if (AssetTypeText.GetTwoLetterLanguage() != CurrentLanguage)
 	{
-		CachedAssetTypeText.Language = CurrentLanguage;
-		CachedAssetTypeText.Text = ChooseLocalizedText(ContentSource->GetLocalizedAssetTypes(), CurrentLanguage);
+		AssetTypeText = ChooseLocalizedText(ContentSource->GetLocalizedAssetTypes(), CurrentLanguage);
 	}
-	return CachedAssetTypeText.Text;
+	return AssetTypeText.GetText();
+
 }
 
 FString FContentSourceViewModel::GetClassTypes()
@@ -131,44 +130,22 @@ TSharedPtr<FSlateDynamicImageBrush> FContentSourceViewModel::CreateBrushFromRawD
 	return Brush;
 }
 
-FText FContentSourceViewModel::ChooseLocalizedText(const TArray<FLocalizedText>& Choices, const FString& InCurrentLanguage)
+FLocalizedText FContentSourceViewModel::ChooseLocalizedText(TArray<FLocalizedText> Choices, FString LanguageCode)
 {
-	auto FindLocalizedTextForCulture = [&Choices](const FString& InCulture)
+	FLocalizedText Default;
+	for (const FLocalizedText& Choice : Choices)
 	{
-		return Choices.FindByPredicate([&InCulture](const FLocalizedText& LocalizedText)
+		if (Choice.GetTwoLetterLanguage() == LanguageCode)
 		{
-			return InCulture == LocalizedText.GetTwoLetterLanguage();
-		});
-	};
-
-	// Try and find a prioritized localized translation
-	{
-		const TArray<FString> PrioritizedCultureNames = FInternationalization::Get().GetPrioritizedCultureNames(InCurrentLanguage);
-		for (const FString& CultureName : PrioritizedCultureNames)
+			return Choice;
+			break;
+		}
+		else if (Choice.GetTwoLetterLanguage() == DefaultLanguageCode)
 		{
-			if (const FLocalizedText* LocalizedTextForCulture = FindLocalizedTextForCulture(CultureName))
-			{
-				return LocalizedTextForCulture->GetText();
-			}
+			Default = Choice;
 		}
 	}
-
-	// We failed to find a localized translation, see if we have English text available to use
-	if (InCurrentLanguage != TEXT("en"))
-	{
-		if (const FLocalizedText* LocalizedTextForEnglish = FindLocalizedTextForCulture(TEXT("en")))
-		{
-			return LocalizedTextForEnglish->GetText();
-		}
-	}
-
-	// We failed to find English, see if we have any translations available to use
-	if (Choices.Num() > 0)
-	{
-		return Choices[0].GetText();
-	}
-
-	return FText();
+	return Default;
 }
 
 #undef LOCTEXT_NAMESPACE

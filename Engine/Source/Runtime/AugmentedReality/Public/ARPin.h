@@ -81,10 +81,6 @@ public:
 	/** Notify the UARPin that the AlignmentTransform has changing. */
 	void UpdateAlignmentTransform( const FTransform& NewAlignmentTransform );
 	
-	void SetPinnedComponent(USceneComponent* InComponentToPin)
-	{
-		PinnedComponent = InComponentToPin;
-	}
 	
 protected:
 	TSharedPtr<FARSupportInterface , ESPMode::ThreadSafe> GetARSystem() const;

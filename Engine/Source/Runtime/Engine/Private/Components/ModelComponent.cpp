@@ -662,35 +662,26 @@ bool UModelComponent::GetPhysicsTriMeshData(struct FTriMeshCollisionData* Collis
 	for(int32 ElementIndex = 0;ElementIndex < Elements.Num();ElementIndex++)
 	{
 		FModelElement& Element = Elements[ElementIndex];
-		if (Element.NumTriangles == 0)
-		{
-			// CSG can produce empty elements, just ignore them.
-			continue;
-		}
-
 		FRawIndexBuffer16or32* IndexBuffer = Element.IndexBuffer;
-		if (IndexBuffer == nullptr)
+		int32 IndexBufferSize = 0;
+
+		if (IndexBuffer == nullptr || IndexBuffer->Indices.Num() == 0)
 		{
-			UE_LOG(LogPhysics, Warning, TEXT("Found NULL index buffer when cooking UModelComponent physics data! Component: %s, Element: %d, NumTriangles: %d."), *GetPathName(), ElementIndex, Element.NumTriangles);
+			UE_LOG(LogPhysics, Warning, TEXT("Found bad index buffer when cooking UModelComponent physics data! Component: %s, Buffer: %x, Buffer Size: %d, Element: %d"), *GetPathName(), IndexBuffer, IndexBufferSize, ElementIndex);
+			verify(IndexBufferSize >= 0);
 			continue;
 		}
 
-		int32 NumIndices = IndexBuffer->Indices.Num();
 		int32 NumVertices = Model->VertexBuffer.Vertices.Num();
 
 		if (NumVertices < (int32)Element.MaxVertexIndex)
 		{
-			UE_LOG(LogPhysics, Warning, TEXT("Found bad vertex buffer when cooking UModelComponent physics data! Component: %s, Element: %d. Expected Vertex Count: %d, Actual Vertex Count: %d"),
+			UE_LOG(LogPhysics, Warning, TEXT("Found bad vertex buffer when cooking UModelComponent physics data! Component: %s, Element: %d. Verts Exected: %d, Actual: %d"), 
 				*GetPathName(), ElementIndex, Element.MaxVertexIndex, NumVertices);
 			continue;
 		}
 
-		if (NumIndices < (int32)(Element.FirstIndex + Element.NumTriangles * 3 - 1))
-		{
-			UE_LOG(LogPhysics, Warning, TEXT("Found bad index buffer when cooking UModelComponent physics data! Not enough indices in buffer for Element triangles. Component: %s, Element: %d, Index Start: %d, Tri Count: %d, Index Count: %d"),
-				*GetPathName(), ElementIndex, Element.FirstIndex, Element.NumTriangles, NumIndices);
-			continue;
-		}
+		IndexBufferSize = IndexBuffer->Indices.Num();
 
 		for (uint32 TriIdx = 0; TriIdx < Element.NumTriangles; TriIdx++)
 		{

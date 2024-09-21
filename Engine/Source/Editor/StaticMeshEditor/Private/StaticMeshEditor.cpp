@@ -108,8 +108,6 @@ void FStaticMeshEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>&
 	// Hide the menu item by default. It will be enabled only if the secondary toolbar is populated with extensions
 	SecondaryToolbarEntry = &MenuEntry;
 	SecondaryToolbarEntry->SetMenuType( ETabSpawnerMenuType::Hidden );
-
-	OnRegisterTabSpawners().Broadcast(InTabManager);
 }
 
 void FStaticMeshEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -122,15 +120,11 @@ void FStaticMeshEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager
 	InTabManager->UnregisterTabSpawner( CollisionTabId );
 	InTabManager->UnregisterTabSpawner( PreviewSceneSettingsTabId );
 	InTabManager->UnregisterTabSpawner( SecondaryToolbarTabId );
-
-	OnUnregisterTabSpawners().Broadcast(InTabManager);
 }
 
 
 FStaticMeshEditor::~FStaticMeshEditor()
 {
-	OnStaticMeshEditorClosed().Broadcast();
-
 #if USE_ASYNC_DECOMP
 	/** If there is an active instance of the asynchronous convex decomposition interface, release it here. */
 	if (GConvexDecompositionNotificationState)
@@ -148,7 +142,7 @@ FStaticMeshEditor::~FStaticMeshEditor()
 	GEditor->GetEditorSubsystem<UImportSubsystem>()->OnAssetReimport.RemoveAll(this);
 }
 
-void FStaticMeshEditor::InitEditorForStaticMesh(UStaticMesh* ObjectToEdit)
+void FStaticMeshEditor::InitStaticMeshEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UStaticMesh* ObjectToEdit )
 {
 	FReimportManager::Instance()->OnPostReimport().AddRaw(this, &FStaticMeshEditor::OnPostReimport);
 
@@ -184,28 +178,10 @@ void FStaticMeshEditor::InitEditorForStaticMesh(UStaticMesh* ObjectToEdit)
 	StaticMeshDetailsView->RegisterInstancedCustomPropertyLayout( UStaticMesh::StaticClass(), LayoutCustomStaticMeshProperties );
 
 	SetEditorMesh(ObjectToEdit);
-}
-
-void FStaticMeshEditor::InitStaticMeshEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UStaticMesh* ObjectToEdit )
-{
-	if (StaticMesh != ObjectToEdit)
-	{
-		// InitEditorForStaticMesh() should always be called first, otherwise plugins can't register themselved before the editor is built.
-		check(false);
-		InitEditorForStaticMesh(ObjectToEdit);
-	}
 
 	BuildSubTools();
 
-	TSharedRef<FTabManager::FStack> ExtentionTabStack(
-		FTabManager::NewStack()
-		->SetSizeCoefficient(0.3f)
-		->AddTab(SocketManagerTabId, ETabState::OpenedTab)
-		->AddTab(CollisionTabId, ETabState::ClosedTab));
-	//Let additional extensions dock themselves to this TabStack of tools
-	OnStaticMeshEditorDockingExtentionTabs().Broadcast(ExtentionTabStack);
-
-	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_StaticMeshEditor_Layout_v4.2" )
+	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_StaticMeshEditor_Layout_v4.1" )
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea() ->SetOrientation(Orient_Vertical)
@@ -242,7 +218,10 @@ void FStaticMeshEditor::InitStaticMeshEditor( const EToolkitMode::Type Mode, con
 				)
 				->Split
 				(
-					ExtentionTabStack
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.3f)
+					->AddTab(SocketManagerTabId, ETabState::OpenedTab)
+					->AddTab(CollisionTabId, ETabState::ClosedTab)
 				)
 			)
 		)
@@ -756,8 +735,7 @@ void FStaticMeshEditor::ExtendToolBar()
 	AddToolbarExtender(ToolbarExtender);
 
 	IStaticMeshEditorModule* StaticMeshEditorModule = &FModuleManager::LoadModuleChecked<IStaticMeshEditorModule>( "StaticMeshEditor" );
-	EditorToolbarExtender = StaticMeshEditorModule->GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects());
-	AddToolbarExtender(EditorToolbarExtender);
+	AddToolbarExtender(StaticMeshEditorModule->GetToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
 	AddSecondaryToolbarExtender(StaticMeshEditorModule->GetSecondaryToolBarExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
 }
 
@@ -1281,7 +1259,8 @@ void FStaticMeshEditor::RefreshViewport()
 
 TSharedRef<SWidget> FStaticMeshEditor::GenerateUVChannelComboList()
 {
-	FMenuBuilder MenuBuilder(true, nullptr, EditorToolbarExtender);
+	FMenuBuilder MenuBuilder(true, nullptr);
+
 	FUIAction DrawUVsAction;
 
 	FStaticMeshEditorViewportClient& ViewportClient = Viewport->GetViewportClient();
@@ -1290,47 +1269,45 @@ TSharedRef<SWidget> FStaticMeshEditor::GenerateUVChannelComboList()
 
 	// Note, the logic is inversed here.  We show the radio button as checked if no uv channels are being shown
 	DrawUVsAction.GetActionCheckState = FGetActionCheckState::CreateLambda([&ViewportClient]() {return ViewportClient.IsDrawUVOverlayChecked() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked; });
-	
-	// Add UV display functions
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ShowUVSToggle", "None"),
+		LOCTEXT("ShowUVSToggle_Tooltip", "Toggles display of the static mesh's UVs."),
+		FSlateIcon(),
+		DrawUVsAction,
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+
+	MenuBuilder.AddMenuSeparator();
+
+	// Fill out the UV channels combo.
+	int32 MaxUVChannels = FMath::Max<int32>(GetNumUVChannels(),1);
+	for(int32 UVChannelID = 0; UVChannelID < MaxUVChannels; ++UVChannelID)
 	{
-		MenuBuilder.BeginSection("UVDisplayOptions");
+		FUIAction MenuAction;
+		MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::SetCurrentViewedUVChannel, UVChannelID);
+		MenuAction.GetActionCheckState.BindSP(this, &FStaticMeshEditor::GetUVChannelCheckState, UVChannelID);
+
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("ShowUVSToggle", "None"),
-			LOCTEXT("ShowUVSToggle_Tooltip", "Toggles display of the static mesh's UVs."),
+			FText::Format(LOCTEXT("UVChannel_ID", "UV Channel {0}"), FText::AsNumber(UVChannelID)),
+			FText::Format(LOCTEXT("UVChannel_ID_ToolTip", "Overlay UV Channel {0} on the viewport"), FText::AsNumber(UVChannelID)),
 			FSlateIcon(),
-			DrawUVsAction,
+			MenuAction,
 			NAME_None,
 			EUserInterfaceActionType::RadioButton
 		);
-
-		MenuBuilder.AddMenuSeparator();
-		// Fill out the UV channels combo.
-		int32 MaxUVChannels = FMath::Max<int32>(GetNumUVChannels(), 1);
-		for (int32 UVChannelID = 0; UVChannelID < MaxUVChannels; ++UVChannelID)
-		{
-			FUIAction MenuAction;
-			MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::SetCurrentViewedUVChannel, UVChannelID);
-			MenuAction.GetActionCheckState.BindSP(this, &FStaticMeshEditor::GetUVChannelCheckState, UVChannelID);
-
-			MenuBuilder.AddMenuEntry(
-				FText::Format(LOCTEXT("UVChannel_ID", "UV Channel {0}"), FText::AsNumber(UVChannelID)),
-				FText::Format(LOCTEXT("UVChannel_ID_ToolTip", "Overlay UV Channel {0} on the viewport"), FText::AsNumber(UVChannelID)),
-				FSlateIcon(),
-				MenuAction,
-				NAME_None,
-				EUserInterfaceActionType::RadioButton
-			);
-		}
-		MenuBuilder.EndSection();
 	}
 
 	// Add UV editing functions
 	{
-		MenuBuilder.BeginSection("UVActionOptions");
+		MenuBuilder.AddMenuSeparator();
 
 		FUIAction MenuAction;
 		MenuAction.ExecuteAction.BindSP(this, &FStaticMeshEditor::RemoveCurrentUVChannel);
 		MenuAction.CanExecuteAction.BindSP(this, &FStaticMeshEditor::CanRemoveUVChannel);
+
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("Remove_UVChannel", "Remove Selected"),
 			LOCTEXT("Remove_UVChannel_ToolTip", "Remove currently selected UV channel from the static mesh"),
@@ -1339,8 +1316,9 @@ TSharedRef<SWidget> FStaticMeshEditor::GenerateUVChannelComboList()
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
-		MenuBuilder.EndSection();
 	}
+
+	MenuBuilder.EndSection();
 
 	return MenuBuilder.MakeWidget();
 }
@@ -1388,7 +1366,7 @@ void FStaticMeshEditor::HandleReimportAllMesh()
 		//Reimport base LOD, generated mesh will be rebuild here, the static mesh is always using the base mesh to reduce LOD
 		if (FReimportManager::Instance()->Reimport(StaticMesh, true))
 		{
-			TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->GetSourceModels();
+			TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->SourceModels;
 			//Reimport all custom LODs
 			for (int32 LodIndex = 1; LodIndex < StaticMesh->GetNumLODs(); ++LodIndex)
 			{
@@ -2162,19 +2140,6 @@ void FStaticMeshEditor::NotifyPostChange( const FPropertyChangedEvent& PropertyC
 		{
 			RefreshTool();
 		}
-		else if (PropertyChangedEvent.GetPropertyName() == TEXT("CollisionResponses"))
-		{
-			for (FObjectIterator Iter(UStaticMeshComponent::StaticClass()); Iter; ++Iter)
-			{
-				UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(*Iter);
-				if (StaticMeshComponent->GetStaticMesh() == StaticMesh)
-				{
-					StaticMeshComponent->UpdateCollisionFromStaticMesh();
-					StaticMeshComponent->MarkRenderTransformDirty();
-				}
-			}
-		}
-
 	}
 }
 
@@ -2267,10 +2232,8 @@ TStatId FStaticMeshEditor::GetStatId() const
 
 bool FStaticMeshEditor::CanRemoveUVChannel()
 {
-	// Can remove UV channel if there's one that is currently being selected and displayed, 
-	// and the current LOD has more than one UV channel
-	return Viewport->GetViewportClient().IsDrawUVOverlayChecked() && 
-		StaticMesh->GetNumUVChannels(GetCurrentLODIndex()) > 1;
+	// Can remove UV channel if there's one that is currently being selected and displayed
+	return Viewport->GetViewportClient().IsDrawUVOverlayChecked();
 }
 
 void FStaticMeshEditor::RemoveCurrentUVChannel()
@@ -2286,7 +2249,7 @@ void FStaticMeshEditor::RemoveCurrentUVChannel()
 	FText RemoveUVChannelText = FText::Format(LOCTEXT("ConfirmRemoveUVChannel", "Please confirm removal of UV Channel {0} from LOD {1} of {2}?"), UVChannelIndex, LODIndex, FText::FromString(StaticMesh->GetName()));
 	if (FMessageDialog::Open(EAppMsgType::YesNo, RemoveUVChannelText) == EAppReturnType::Yes)
 	{
-		FMeshBuildSettings& LODBuildSettings = StaticMesh->GetSourceModel(LODIndex).BuildSettings;
+		FMeshBuildSettings& LODBuildSettings = StaticMesh->SourceModels[LODIndex].BuildSettings;
 
 		if (LODBuildSettings.bGenerateLightmapUVs)
 		{

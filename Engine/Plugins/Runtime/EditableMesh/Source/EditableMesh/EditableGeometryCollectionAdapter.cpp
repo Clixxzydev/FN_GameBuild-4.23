@@ -26,7 +26,7 @@ UEditableGeometryCollectionAdapter::UEditableGeometryCollectionAdapter()
 
 void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditableMesh* EditableMesh, class UPrimitiveComponent& Component, const FEditableMeshSubMeshAddress& InitSubMeshAddress )
 {
-	EditableMesh->SetSubMeshAddress(InitSubMeshAddress);
+	EditableMesh->SetSubMeshAddress( InitSubMeshAddress );
 	GeometryCollectionLODIndex = InitSubMeshAddress.LODIndex;
 
 	RenderingPolygons.Reset();
@@ -36,10 +36,10 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 	GeometryCollectionComponent = Cast<UGeometryCollectionComponent>( &Component );
 	if( GeometryCollectionComponent != nullptr )
 	{
-		FGeometryCollectionEdit GeometryCollectionEdit = GeometryCollectionComponent->EditRestCollection(GeometryCollection::EEditUpdate::None);
+		FGeometryCollectionEdit GeometryCollectionEdit = GeometryCollectionComponent->EditRestCollection();
 		if( UGeometryCollection* GeometryCollectionObject = GeometryCollectionEdit.GetRestCollection() )
 		{
-			TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
+			TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollectionObject->GetGeometryCollection();
 			if (FGeometryCollection* GeometryCollectionSource = GeometryCollectionPtr.Get())
 			{
 				//LogGeometryCollectionStats(FString(TEXT("Source Geometry Collection")));
@@ -56,21 +56,29 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 				TVertexInstanceAttributesRef<FVector4> VertexInstanceColors = MeshDescription->VertexInstanceAttributes().GetAttributesRef<FVector4>(MeshAttribute::VertexInstance::Color);
 				TVertexInstanceAttributesRef<FVector2D> VertexInstanceUVs = MeshDescription->VertexInstanceAttributes().GetAttributesRef<FVector2D>(MeshAttribute::VertexInstance::TextureCoordinate);
 
-				TManagedArray<FVector>& GCVertices = GeometryCollectionSource->Vertex;
-				TManagedArray<FVector>& GCNormals = GeometryCollectionSource->Normal;
-				TManagedArray<FVector>& GCTangents = GeometryCollectionSource->TangentU;
-				TManagedArray<FVector2D>& GCUVs = GeometryCollectionSource->UV;
-				TManagedArray<FLinearColor>& GCColors = GeometryCollectionSource->Color;
-				TManagedArray<int32>& GCBoneMap = GeometryCollectionSource->BoneMap;
-				TManagedArray<FIntVector>&  GCIndices = GeometryCollectionSource->Indices;
-				TManagedArray<bool>&  GCVisible = GeometryCollectionSource->Visible;
+				// The source Geometry Collection
+				TSharedRef<TManagedArray<FVector> > GCVerticesArray = GeometryCollectionSource->GetAttribute<FVector>("Vertex", FGeometryCollection::VerticesGroup);
+				TSharedRef<TManagedArray<FVector> > GCNormalsArray = GeometryCollectionSource->GetAttribute<FVector>("Normal", FGeometryCollection::VerticesGroup);
+				TSharedRef<TManagedArray<FVector> > GCTangentsArray = GeometryCollectionSource->GetAttribute<FVector>("TangentU", FGeometryCollection::VerticesGroup);
+				TSharedRef<TManagedArray<FVector2D> > GCUVsArray = GeometryCollectionSource->GetAttribute<FVector2D>("UV", FGeometryCollection::VerticesGroup);
+				TSharedRef<TManagedArray<FLinearColor> > GCColorsArray = GeometryCollectionSource->GetAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+				TSharedRef<TManagedArray<int32> > GCBoneMapArray = GeometryCollectionSource->GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
+				TSharedRef<TManagedArray<FIntVector> > GCIndicesArray = GeometryCollectionSource->GetAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+				TSharedRef<TManagedArray<bool> > GCVisibleArray = GeometryCollectionSource->GetAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
 
-				const int32* GCBoneMapPtr = GCBoneMap.GetData();
-				const FIntVector* GCIndicesPtr = GCIndices.GetData();
+
+				TManagedArray<FVector>& GCVertices = *GCVerticesArray;
+				TManagedArray<FVector>& GCNormals = *GCNormalsArray;
+				TManagedArray<FVector>& GCTangents = *GCTangentsArray;
+				TManagedArray<FVector2D>& GCUVs = *GCUVsArray;
+				TManagedArray<FLinearColor>& GCColors = *GCColorsArray;
+				TManagedArray<int32>& GCBoneMap = *GCBoneMapArray;
+				TManagedArray<FIntVector>&  GCIndices = *GCIndicesArray;
+				TManagedArray<bool>&  GCVisible = *GCVisibleArray;
 
 				TArray<FTransform> GCTransforms;
-				GeometryCollectionAlgo::GlobalMatrices(GeometryCollectionSource->Transform, GeometryCollectionSource->Parent, GCTransforms);
-				checkSlow(GeometryCollectionSource->Transform.Num() == GCTransforms.Num());
+				GeometryCollectionAlgo::GlobalMatrices(GeometryCollectionSource, GCTransforms);
+				checkSlow(GeometryCollectionSource->Transform->Num() == GCTransforms.Num());
 
 
 				TArray<int32> BoneTriangleCount;
@@ -130,15 +138,15 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 				}
 
 				// one group per bone in the Geometry Collection
-				const int32 NumBones = BoneTriangleCount.Num();
-				const int32 NumTotalTriangles = GCIndices.Num();
+				const uint32 NumBones = BoneTriangleCount.Num();
+				const uint32 NumTotalTriangles = GCIndices.Num();
 
 				// Polygon Groups
 				MeshDescription->ReserveNewPolygonGroups(NumBones);
-				int32 NumSections = NumBones;
+				uint32 NumSections = NumBones;
 
 				// Add all polygon groups from the mesh sections
-				for (int32 RenderingSectionIndex = 0; RenderingSectionIndex < NumSections; ++RenderingSectionIndex)
+				for (uint32 RenderingSectionIndex = 0; RenderingSectionIndex < NumSections; ++RenderingSectionIndex)
 				{
 					// Create a new polygon group
 					const FPolygonGroupID NewPolygonGroupID = MeshDescription->CreatePolygonGroup();
@@ -148,7 +156,7 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 					RenderingPolygonGroups.Insert(NewPolygonGroupID);
 					FAdaptorPolygon2Group& NewRenderingPolygonGroup = RenderingPolygonGroups[NewPolygonGroupID];
 
-					const int32 NumSectionTriangles = BoneTriangleCount[RenderingSectionIndex];
+					const uint32 NumSectionTriangles = BoneTriangleCount[RenderingSectionIndex];
 					NewRenderingPolygonGroup.Triangles.Reserve(NumSectionTriangles);
 					NewRenderingPolygonGroup.MaxTriangles = NumSectionTriangles;
 					NewRenderingPolygonGroup.RenderingSectionIndex = RenderingSectionIndex;
@@ -158,23 +166,21 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 					MeshDescription->ReserveNewEdges(NumSectionTriangles * 3);	// more than required, but not a problem
 
 					int32 TriangleGroupIndex = 0;
-					for (int32 TriangleIndex = 0; TriangleIndex < NumTotalTriangles; ++TriangleIndex)
+					for (uint32 TriangleIndex = 0; TriangleIndex < NumTotalTriangles; ++TriangleIndex)
 					{
-						const FIntVector& Indices = GCIndicesPtr[TriangleIndex];
+						FIntVector Indices = GCIndices[TriangleIndex];
 
-						check(GCBoneMapPtr[Indices[0]] == GCBoneMapPtr[Indices[1]]);
-						check(GCBoneMapPtr[Indices[0]] == GCBoneMapPtr[Indices[2]]);
+						check(GCBoneMap[Indices[0]] == GCBoneMap[Indices[1]]);
+						check(GCBoneMap[Indices[0]] == GCBoneMap[Indices[2]]);
 						// only select those triangles that are associated with the currently selected MeshIndex/BoneIndex
-						if ((GCBoneMapPtr[Indices[0]] != RenderingSectionIndex) || GCVisible[TriangleIndex] == false)
-						{
+						if ((GCBoneMap[Indices[0]] != RenderingSectionIndex) || GCVisible[TriangleIndex] == false)
 							continue;
-						}
 
 						TArray<FVertexInstanceID> TriangleVertexInstanceIDs;
 						TriangleVertexInstanceIDs.SetNum(3);
 
 						FVertexID TriangleVertexIDs[3];
-						for (int32 TriangleVertexIndex = 0; TriangleVertexIndex < 3; ++TriangleVertexIndex)
+						for (uint32 TriangleVertexIndex = 0; TriangleVertexIndex < 3; ++TriangleVertexIndex)
 						{
 							TriangleVertexInstanceIDs[TriangleVertexIndex] = FVertexInstanceID(Indices[TriangleVertexIndex]);
 							TriangleVertexIDs[TriangleVertexIndex] = MeshDescription->GetVertexInstanceVertex(TriangleVertexInstanceIDs[TriangleVertexIndex]);
@@ -190,34 +196,13 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 
 						if (bIsValidTriangle)
 						{
-							FEdgeID NewEdgeIDs[3];
-
-							// Connect edges
-							{
-								// Add the edges of this triangle
-								for (uint32 TriangleEdgeNumber = 0; TriangleEdgeNumber < 3; ++TriangleEdgeNumber)
-								{
-									const FVertexID VertexID0 = TriangleVertexIDs[TriangleEdgeNumber];
-									const FVertexID VertexID1 = TriangleVertexIDs[(TriangleEdgeNumber + 1) % 3];
-
-									FEdgeID NewEdgeID = MeshDescription->GetVertexPairEdge(VertexID0, VertexID1);
-
-									if (NewEdgeID == FEdgeID::Invalid)
-									{
-										NewEdgeID = MeshDescription->CreateEdge(VertexID0, VertexID1);
-									}
-
-									NewEdgeIDs[TriangleEdgeNumber] = NewEdgeID;
-								}
-							}
-
 							// Geometry Collections only support triangles, so there's no need to triangulate anything yet.  We'll make both
 							// a triangle and a polygon here.
 							const FAdaptorTriangleID NewTriangleID = FAdaptorTriangleID(TriangleGroupIndex++);
 
 							NewRenderingPolygonGroup.Triangles.Insert(NewTriangleID);
 							FMeshTriangle& NewTriangle = NewRenderingPolygonGroup.Triangles[NewTriangleID];
-							for (int32 TriangleVertexIndex = 0; TriangleVertexIndex < 3; ++TriangleVertexIndex)
+							for (uint32 TriangleVertexIndex = 0; TriangleVertexIndex < 3; ++TriangleVertexIndex)
 							{
 								NewTriangle.SetVertexInstanceID(TriangleVertexIndex, TriangleVertexInstanceIDs[TriangleVertexIndex]);
 							}
@@ -244,35 +229,35 @@ void UEditableGeometryCollectionAdapter::InitEditableGeometryCollection( UEditab
 							// @todo mesheditor: This can cause vertex instances to be orphaned.  Should we delete them?
 						}
 					}
-				}
-				MeshDescription->DetermineEdgeHardnessesFromVertexInstanceNormals();
 
-				// Determine UV seams
-				CA_SUPPRESS(6326);
-				if (NumUVs > 0)
-				{
-					MeshDescription->DetermineUVSeamsFromUVs(0);
-				}
+					// Determine edge hardnesses
+					MeshDescription->DetermineEdgeHardnessesFromVertexInstanceNormals();
 
-				// Cache polygon tangent bases
-				static TArray<FPolygonID> PolygonIDs;
-				PolygonIDs.Reset();
-				for (const FPolygonID PolygonID : EditableMesh->GetMeshDescription()->Polygons().GetElementIDs())
-				{
-					PolygonIDs.Add(PolygonID);
-				}
+					// Determine UV seams
+					CA_SUPPRESS(6326);
+					if (NumUVs > 0)
+					{
+						MeshDescription->DetermineUVSeamsFromUVs(0);
+					}
 
- 				EditableMesh->GeneratePolygonTangentsAndNormals(PolygonIDs);
+					// Cache polygon tangent bases
+					static TArray<FPolygonID> PolygonIDs;
+					PolygonIDs.Reset();
+					for (const FPolygonID PolygonID : EditableMesh->GetMeshDescription()->Polygons().GetElementIDs())
+					{
+						PolygonIDs.Add(PolygonID);
+					}
+
+					EditableMesh->GeneratePolygonTangentsAndNormals(PolygonIDs);
+
+				}
 			}
 		}
-	}
-
-	// must calc bounds after rest collection edit scope has closed
-	if (GeometryCollectionComponent != nullptr)
-	{
+		
 		FTransform LocalToWorld = FTransform::Identity;
 		this->CachedBoundingBoxAndSphere = GeometryCollectionComponent->CalcBounds(LocalToWorld);
 	}
+
 
 #if EDITABLE_MESH_USE_OPENSUBDIV
 	EditableMesh->RefreshOpenSubdiv();
@@ -363,7 +348,7 @@ void UEditableGeometryCollectionAdapter::OnRebuildRenderMesh(const UEditableMesh
 	// Clear Geometry Collection
 	if (GeometryCollection)
 	{
-		TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
+		TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 		if (FGeometryCollection* Collection = GeometryCollectionPtr.Get())
 		{
 			GeometryCollection->Modify();
@@ -373,17 +358,29 @@ void UEditableGeometryCollectionAdapter::OnRebuildRenderMesh(const UEditableMesh
 			//GeometryCollection->Resize(0, FGeometryCollection::TransformGroup);
 
 			// Destination is the Geometry Collection
-			TManagedArray<FVector>& GCVertices = Collection->Vertex;
-			TManagedArray<FVector>& GCNormals = Collection->Normal;
-			TManagedArray<FVector>& GCTangents = Collection->TangentU;
-			TManagedArray<FVector2D>& GCUVs = Collection->UV;
-			TManagedArray<FLinearColor>& GCColors = Collection->Color;
-			TManagedArray<int32>& GCBoneMap = Collection->BoneMap;
+			TSharedRef<TManagedArray<FVector> > GCVerticesArray = Collection->GetAttribute<FVector>("Vertex", FGeometryCollection::VerticesGroup);
+			TSharedRef<TManagedArray<FVector> >  GCNormalsArray = Collection->GetAttribute<FVector>("Normal", FGeometryCollection::VerticesGroup);
+			TSharedRef<TManagedArray<FVector> >  GCTangentsArray = Collection->GetAttribute<FVector>("TangentU", FGeometryCollection::VerticesGroup);
+			TSharedRef<TManagedArray<FVector2D> >  GCUVsArray = Collection->GetAttribute<FVector2D>("UV", FGeometryCollection::VerticesGroup);
+			TSharedRef<TManagedArray<FLinearColor> >  GCColorsArray = Collection->GetAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+			TSharedRef<TManagedArray<int32> >  GCBoneMapArray = Collection->GetAttribute<int32>("BoneMap", FGeometryCollection::VerticesGroup);
 
-			TManagedArray<FIntVector>&  GCIndices = Collection->Indices;
-			TManagedArray<bool>&  GCVisible = Collection->Visible;
+			TSharedRef<TManagedArray<FIntVector> > GCIndicesArray = Collection->GetAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+			TSharedRef<TManagedArray<bool> > GCVisibleArray = Collection->GetAttribute<bool>("Visible", FGeometryCollection::FacesGroup);
 
-			TManagedArray<FTransform> & GCTransforms = Collection->Transform;
+			TSharedRef<TManagedArray<FTransform> > GCTransformsArray = Collection->GetAttribute<FTransform>("Transform", FGeometryCollection::TransformGroup);
+
+			TManagedArray<FVector>& GCVertices = *GCVerticesArray;
+			TManagedArray<FVector>& GCNormals = *GCNormalsArray;
+			TManagedArray<FVector>& GCTangents = *GCTangentsArray;
+			TManagedArray<FVector2D>& GCUVs = *GCUVsArray;
+			TManagedArray<FLinearColor>& GCColors = *GCColorsArray;
+			TManagedArray<int32>& GCBoneMap = *GCBoneMapArray;
+
+			TManagedArray<FIntVector>&  GCIndices = *GCIndicesArray;
+			TManagedArray<bool>&  GCVisible = *GCVisibleArray;
+
+			TManagedArray<FTransform> & GCTransforms = *GCTransformsArray;
 
 
 			Collection->AddElements(VertexPositions.GetNumElements(), FGeometryCollection::VerticesGroup);
@@ -641,11 +638,12 @@ void UEditableGeometryCollectionAdapter::OnSetVertexAttribute(const UEditableMes
 {
 	if (GeometryCollection)
 	{
-		TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
+		TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 		if (FGeometryCollection* Collection = GeometryCollectionPtr.Get())
 		{
 
-			TManagedArray<FVector>& GCVertices = Collection->Vertex;
+			TSharedRef<TManagedArray<FVector> > GCVerticesArray = Collection->GetAttribute<FVector>("Vertex", FGeometryCollection::VerticesGroup);
+			TManagedArray<FVector>& GCVertices = *GCVerticesArray;
 
 			const FMeshDescription* MeshDescription = EditableMesh->GetMeshDescription();
 
@@ -702,13 +700,17 @@ void UEditableGeometryCollectionAdapter::OnSetEdgeAttribute( const UEditableMesh
 
 void UEditableGeometryCollectionAdapter::OnSetVertexInstanceAttribute( const UEditableMesh* EditableMesh, const FVertexInstanceID VertexInstanceID, const FMeshElementAttributeData& Attribute )
 {
-	TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
+	TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 	FGeometryCollection* Collection = GeometryCollectionPtr.Get();
 
-	TManagedArray<FVector>& GCNormals = Collection->Normal;
-	TManagedArray<FVector>& GCTangents = Collection->TangentU;
-	TManagedArray<FVector2D>& GCUVs = Collection->UV;
-	TManagedArray<FLinearColor>& GCColors = Collection->Color;
+	TSharedRef<TManagedArray<FVector> > GCNormalsArray = Collection->GetAttribute<FVector>("Normal", FGeometryCollection::VerticesGroup);
+	TSharedRef<TManagedArray<FVector> > GCTangentsArray = Collection->GetAttribute<FVector>("TangentU", FGeometryCollection::VerticesGroup);
+	TSharedRef<TManagedArray<FVector2D> > GCUVsArray = Collection->GetAttribute<FVector2D>("UV", FGeometryCollection::VerticesGroup);
+	TSharedRef<TManagedArray<FLinearColor> > GCColorsArray = Collection->GetAttribute<FLinearColor>("Color", FGeometryCollection::VerticesGroup);
+	TManagedArray<FVector>& GCNormals = *GCNormalsArray;
+	TManagedArray<FVector>& GCTangents = *GCTangentsArray;
+	TManagedArray<FVector2D>& GCUVs = *GCUVsArray;
+	TManagedArray<FLinearColor>& GCColors = *GCColorsArray;
 
 	const TAttributesSet<FVertexInstanceID>& VertexInstanceAttributes = EditableMesh->GetMeshDescription()->VertexInstanceAttributes();
 
@@ -865,11 +867,12 @@ void UEditableGeometryCollectionAdapter::DeletePolygonTriangles( const UEditable
 	{
 		if (GeometryCollection)
 		{
-			TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
+			TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 			if (FGeometryCollection* Collection = GeometryCollectionPtr.Get())
 			{
 
-				TManagedArray<FIntVector>& GCIndices = Collection->Indices;
+				TSharedRef<TManagedArray<FIntVector> > GCIndicesArray = Collection->GetAttribute<FIntVector>("Indices", FGeometryCollection::FacesGroup);
+				TManagedArray<FIntVector>& GCIndices = *GCIndicesArray;
 
 				// Remove all of the polygon's triangles from our editable mesh's triangle list.  While doing this, we'll keep
 				// track of all of the rendering mesh triangles that we'll need to remove later on.  We'll also figure out which
@@ -951,7 +954,7 @@ void UEditableGeometryCollectionAdapter::LogGeometryCollectionStats(const FStrin
 {
 	if (GeometryCollection != nullptr)
 	{
-		TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
+		TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 		if (FGeometryCollection* Collection = GeometryCollectionPtr.Get())
 		{
 			int32 NumVertices = Collection->NumElements(FGeometryCollection::VerticesGroup);
@@ -972,12 +975,12 @@ void UEditableGeometryCollectionAdapter::GeometryHitTest(const FHitParamsIn& InP
 	TArray<FTransform> Transforms;
 	if (GeometryCollection)
 	{
-		TSharedPtr<FGeometryCollection, ESPMode::ThreadSafe> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
+		TSharedPtr<FGeometryCollection> GeometryCollectionPtr = GeometryCollection->GetGeometryCollection();
 		if (FGeometryCollection* Collection = GeometryCollectionPtr.Get())
 		{
 
-			GeometryCollectionAlgo::GlobalMatrices(Collection->Transform, Collection->Parent, Transforms);
-			checkSlow(Collection->Transform.Num() == Transforms.Num());
+			GeometryCollectionAlgo::GlobalMatrices(Collection, Transforms);
+			checkSlow(Collection->Transform->Num() == Transforms.Num());
 
 			for (int PolyGroupID = 0; PolyGroupID < Transforms.Num(); PolyGroupID++)
 			{

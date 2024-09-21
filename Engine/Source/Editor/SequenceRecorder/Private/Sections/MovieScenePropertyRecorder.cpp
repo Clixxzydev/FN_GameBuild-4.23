@@ -33,6 +33,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<bool>::AddSection(UObject* InObj
 		return nullptr;
 	}
 
+	FString TrackDisplayName = *Binding.GetProperty(*InObjectToRecord)->GetDisplayNameText().ToString();
 	FName TrackName = *Binding.GetPropertyPath();
 	UMovieSceneBoolTrack* Track = InMovieScene->FindTrack<UMovieSceneBoolTrack>(InGuid, TrackName);
 	if (!Track)
@@ -46,7 +47,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<bool>::AddSection(UObject* InObj
 
 	if (Track)
 	{
-		Track->SetPropertyNameAndPath(Binding.GetPropertyName(), Binding.GetPropertyPath());
+		Track->SetPropertyNameAndPath(*TrackDisplayName, Binding.GetPropertyPath());
 
 		UMovieSceneBoolSection* Section         = Cast<UMovieSceneBoolSection>(Track->CreateNewSection());
 
@@ -94,6 +95,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<uint8>::AddSection(UObject* InOb
 		return nullptr;
 	}
 
+	FString TrackDisplayName = *Binding.GetProperty(*InObjectToRecord)->GetDisplayNameText().ToString();
 	FName TrackName = *Binding.GetPropertyPath();
 	UMovieSceneByteTrack* Track = InMovieScene->FindTrack<UMovieSceneByteTrack>(InGuid, TrackName);
 	if (!Track)
@@ -107,7 +109,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<uint8>::AddSection(UObject* InOb
 
 	if (Track)
 	{
-		Track->SetPropertyNameAndPath(Binding.GetPropertyName(), Binding.GetPropertyPath());
+		Track->SetPropertyNameAndPath(*TrackDisplayName, Binding.GetPropertyPath());
 
 		UMovieSceneByteSection* Section = Cast<UMovieSceneByteSection>(Track->CreateNewSection());
 
@@ -153,6 +155,7 @@ UMovieSceneSection* FMovieScenePropertyRecorderEnum::AddSection(UObject* InObjec
 		return nullptr;
 	}
 
+	FString TrackDisplayName = *Binding.GetProperty(*InObjectToRecord)->GetDisplayNameText().ToString();
 	FName TrackName = *Binding.GetPropertyPath();
 	UMovieSceneEnumTrack* Track = InMovieScene->FindTrack<UMovieSceneEnumTrack>(InGuid, TrackName);
 	if (!Track)
@@ -166,7 +169,7 @@ UMovieSceneSection* FMovieScenePropertyRecorderEnum::AddSection(UObject* InObjec
 
 	if (Track)
 	{
-		Track->SetPropertyNameAndPath(Binding.GetPropertyName(), Binding.GetPropertyPath());
+		Track->SetPropertyNameAndPath(*TrackDisplayName, Binding.GetPropertyPath());
 
 		UMovieSceneEnumSection* Section = Cast<UMovieSceneEnumSection>(Track->CreateNewSection());
 
@@ -212,6 +215,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<float>::AddSection(UObject* InOb
 		return nullptr;
 	}
 
+	FString TrackDisplayName = *Binding.GetProperty(*InObjectToRecord)->GetDisplayNameText().ToString();
 	FName TrackName = *Binding.GetPropertyPath();
 	UMovieSceneFloatTrack* Track = InMovieScene->FindTrack<UMovieSceneFloatTrack>(InGuid, TrackName);
 	if (!Track)
@@ -225,7 +229,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<float>::AddSection(UObject* InOb
 
 	if (Track)
 	{
-		Track->SetPropertyNameAndPath(Binding.GetPropertyName(), Binding.GetPropertyPath());
+		Track->SetPropertyNameAndPath(*TrackDisplayName, Binding.GetPropertyPath());
 
 		UMovieSceneFloatSection* Section = Cast<UMovieSceneFloatSection>(Track->CreateNewSection());
 
@@ -276,6 +280,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<FColor>::AddSection(UObject* InO
 		return nullptr;
 	}
 
+	FString TrackDisplayName = *Binding.GetProperty(*InObjectToRecord)->GetDisplayNameText().ToString();
 	FName TrackName = *Binding.GetPropertyPath();
 	UMovieSceneColorTrack* Track = InMovieScene->FindTrack<UMovieSceneColorTrack>(InGuid, TrackName);
 	if (!Track)
@@ -289,7 +294,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<FColor>::AddSection(UObject* InO
 
 	if (Track)
 	{
-		Track->SetPropertyNameAndPath(Binding.GetPropertyName(), Binding.GetPropertyPath());
+		Track->SetPropertyNameAndPath(*TrackDisplayName, Binding.GetPropertyPath());
 
 		UMovieSceneColorSection* Section = Cast<UMovieSceneColorSection>(Track->CreateNewSection());
 
@@ -360,6 +365,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<FVector>::AddSection(UObject* In
 		return nullptr;
 	}
 
+	FString TrackDisplayName = *Binding.GetProperty(*InObjectToRecord)->GetDisplayNameText().ToString();
 	FName TrackName = *Binding.GetPropertyPath();
 	UMovieSceneVectorTrack* Track = InMovieScene->FindTrack<UMovieSceneVectorTrack>(InGuid, TrackName);
 	if (!Track)
@@ -374,7 +380,7 @@ UMovieSceneSection* FMovieScenePropertyRecorder<FVector>::AddSection(UObject* In
 	if (Track)
 	{
 		Track->SetNumChannelsUsed(3);
-		Track->SetPropertyNameAndPath(Binding.GetPropertyName(), Binding.GetPropertyPath());
+		Track->SetPropertyNameAndPath(*TrackDisplayName, Binding.GetPropertyPath());
 
 		UMovieSceneVectorSection* Section = Cast<UMovieSceneVectorSection>(Track->CreateNewSection());
 

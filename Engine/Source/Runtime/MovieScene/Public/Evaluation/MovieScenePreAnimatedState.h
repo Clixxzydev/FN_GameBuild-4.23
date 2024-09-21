@@ -267,8 +267,6 @@ public:
 
 	MOVIESCENE_API void RestorePreAnimatedState(IMovieScenePlayer& Player, UObject& Object);
 
-	MOVIESCENE_API void RestorePreAnimatedState(IMovieScenePlayer& Player, UClass* GeneratedClass);
-
 	MOVIESCENE_API void RestorePreAnimatedState(IMovieScenePlayer& Player, UObject& Object, TFunctionRef<bool(FMovieSceneAnimTypeID)> InFilter);
 
 	/**

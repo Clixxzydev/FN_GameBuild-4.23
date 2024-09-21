@@ -27,7 +27,7 @@ class ENGINE_API UAnimCurveCompressionCodec_UniformlySampled : public UAnimCurve
 
 	//////////////////////////////////////////////////////////////////////////
 
-#if WITH_EDITORONLY_DATA
+	#if WITH_EDITORONLY_DATA
 	// UAnimCurveCompressionCodec overrides
 	virtual bool Compress(const FCompressibleAnimData& AnimSeq, FAnimCurveCompressionResult& OutResult) override;
 	virtual void PopulateDDCKey(FArchive& Ar) override;

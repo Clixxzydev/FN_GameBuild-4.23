@@ -103,8 +103,6 @@ class ENGINE_API UAudioSettings : public UDeveloperSettings
 	virtual void PostEditChangeChainProperty( struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 
-	virtual void Serialize(FArchive& Ar) override;
-
 	/** The SoundClass assigned to newly created sounds */
 	UPROPERTY(config, EditAnywhere, Category="Audio", meta=(AllowedClasses="SoundClass", DisplayName="Default Sound Class"))
 	FSoftObjectPath DefaultSoundClassName;
@@ -117,7 +115,7 @@ class ENGINE_API UAudioSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = "Audio", meta = (AllowedClasses = "SoundConcurrency", DisplayName = "Default Sound Concurrency"))
 	FSoftObjectPath DefaultSoundConcurrencyName;
 
-	/** The SoundMix to use as base when no other system has specified a Base SoundMix */
+	/** The SoundMix to use as base when no other system has speciicefied a Base SoundMix */
 	UPROPERTY(config, EditAnywhere, Category="Audio", meta=(AllowedClasses="SoundMix"))
 	FSoftObjectPath DefaultBaseSoundMix;
 
@@ -134,8 +132,8 @@ class ENGINE_API UAudioSettings : public UDeveloperSettings
 	float VoipBufferingDelay;
 
 	/** The amount of audio to send to reverb submixes if no reverb send is setup for the source through attenuation settings. Only used in audio mixer. */
-	UPROPERTY(config)
-	float DefaultReverbSendLevel_DEPRECATED;
+	UPROPERTY(config, EditAnywhere, Category = "Audio", AdvancedDisplay)
+	float DefaultReverbSendLevel;
 
 	/** Enables legacy version of reverb. The legacy reverb runs more slowly, but by most other measures is functionally equivalent. It has a slight perceptual difference. */
 	UPROPERTY(config, EditAnywhere, Category = "Audio", AdvancedDisplay)
@@ -158,7 +156,7 @@ class ENGINE_API UAudioSettings : public UDeveloperSettings
 
 	/** Allows sounds to play at 0 volume. */
 	UPROPERTY(config, EditAnywhere, Category = "Quality", AdvancedDisplay)
-	uint32 bAllowPlayWhenSilent:1;
+	uint32 bAllowVirtualizedSounds:1;
 
 	/** Disables master EQ effect in the audio DSP graph. */
 	UPROPERTY(config, EditAnywhere, Category = "Quality", AdvancedDisplay)

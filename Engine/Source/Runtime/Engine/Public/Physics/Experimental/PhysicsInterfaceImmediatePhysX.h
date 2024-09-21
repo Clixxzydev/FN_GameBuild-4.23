@@ -233,7 +233,7 @@ struct ENGINE_API FPhysicsInterface_ImmediatePhysX
 	// Actor interface functions
 
 	// #PHYS2 - These should be on the scene, but immediate mode stops us for now, eventually that should spawn its own minimal IM scene and these should move
-	static void CreateActor(const FActorCreationParams& Params, FPhysicsActorHandle& Handle);
+	static FPhysicsActorHandle CreateActor(const FActorCreationParams& Params);
 	static void ReleaseActor(FPhysicsActorReference_ImmediatePhysX& InActorReference, FPhysScene* InScene = nullptr);
 	//////////////////////////////////////////////////////////////////////////
 

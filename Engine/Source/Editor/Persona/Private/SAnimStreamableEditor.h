@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 
 #pragma once
@@ -16,7 +16,6 @@ class SAnimNotifyPanel;
 // SAnimCompositeEditor
 
 /** Overall animation composite editing widget. This mostly contains functions for editing the UAnimComposite.
-
 	SAnimCompositeEditor will create the SAnimCompositePanel which is mostly responsible for setting up the UI 
 	portion of the composite tool and registering callbacks to the SAnimCompositeEditor to do the actual editing.
 	
@@ -61,7 +60,7 @@ public:
 private:
 	/** Pointer to the animation composite being edited */
 	UAnimStreamable* StreamableAnim;
-	
+
 	/** FEditorUndoClient interface */
 	virtual void PostUndo( bool bSuccess ) override;
 	virtual void PostRedo( bool bSuccess ) override;

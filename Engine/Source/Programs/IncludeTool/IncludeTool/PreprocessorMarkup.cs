@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 using IncludeTool.Support;
 using System;
@@ -391,11 +391,7 @@ namespace IncludeTool
 				{
 					continue;
 				}
-				if(Reader.Current.Text == "PRAGMA_DEFAULT_VISIBILITY_START" || Reader.Current.Text == "PRAGMA_DEFAULT_VISIBILITY_END")
-				{
-					continue;
-				}
-				if (Reader.Current.Text == "OPENCV_INCLUDES_START" || Reader.Current.Text == "OPENCV_INCLUDES_END")
+                if(Reader.Current.Text == "OPENCV_INCLUDES_START" || Reader.Current.Text == "OPENCV_INCLUDES_END")
                 {
                     continue;
                 }

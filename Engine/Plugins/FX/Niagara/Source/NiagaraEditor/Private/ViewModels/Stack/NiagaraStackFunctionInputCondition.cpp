@@ -93,9 +93,9 @@ bool FNiagaraStackFunctionInputCondition::GetConditionIsEnabled() const
 	if (IsValid())
 	{
 		TArray<uint8> InputValue = InputBinder.GetData();
-		return nullptr != TargetValuesData.FindByPredicate([&InputValue](const TArray<uint8>& TargetValueData) 
-			{ return FMemory::Memcmp(TargetValueData.GetData(), InputValue.GetData(), TargetValueData.Num()) == 0; }
-		);
+		bool bMatchFound = TargetValuesData.FindByPredicate([&InputValue](const TArray<uint8>& TargetValueData) {
+			return FMemory::Memcmp(TargetValueData.GetData(), InputValue.GetData(), TargetValueData.Num()) == 0; }) != nullptr;
+		return bMatchFound;
 	}
 	return false;
 }
@@ -123,7 +123,7 @@ FNiagaraTypeDefinition FNiagaraStackFunctionInputCondition::GetConditionInputTyp
 	return InputBinder.GetInputType();
 }
 
-TOptional<FNiagaraVariableMetaData> FNiagaraStackFunctionInputCondition::GetConditionInputMetaData() const
+FNiagaraVariableMetaData* FNiagaraStackFunctionInputCondition::GetConditionInputMetaData() const
 {
 	checkf(IsValid(), TEXT("Can not get the input metadata for an invalid input condition"));
 	FNiagaraVariable InputVariable(InputBinder.GetInputType(), InputBinder.GetInputName());

@@ -145,14 +145,6 @@ FName FPackageLocalizationManager::FindLocalizedPackageNameNoCache(const FName I
 	return NAME_None;
 }
 
-void FPackageLocalizationManager::ConditionalUpdateCache()
-{
-	if (ActiveCache.IsValid())
-	{
-		ActiveCache->ConditionalUpdateCache();
-	}
-}
-
 FPackageLocalizationManager& FPackageLocalizationManager::Get()
 {
 	static FPackageLocalizationManager PackageLocalizationManager;

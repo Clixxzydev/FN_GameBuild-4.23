@@ -10,6 +10,7 @@
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/MetaData.h"
+#include "Serialization/ArchiveTraceRoute.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Application/ThrottleManager.h"
 #include "Framework/Application/SlateApplication.h"
@@ -86,7 +87,6 @@
 #include "Net/NetworkProfiler.h"
 #include "Interfaces/IPluginManager.h"
 #include "UObject/PackageReload.h"
-#include "UObject/ReferenceChainSearch.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IMediaModule.h"
 
@@ -210,8 +210,6 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
 #include "ComponentRecreateRenderStateContext.h"
-#include "RenderTargetPool.h"
-#include "RenderGraphBuilder.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogEditor, Log, All);
 
@@ -700,84 +698,6 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 	IBookmarkTypeTools& BookmarkTools = IBookmarkTypeTools::Get();
 	BookmarkTools.RegisterBookmarkTypeActions(MakeShared<FBookMark2DTypeActions>());
 	BookmarkTools.RegisterBookmarkTypeActions(MakeShared<FBookMarkTypeActions>());
-	
-	{
-		FAssetData NoAssetData;
-
-		TArray<UClass*> VolumeClasses;
-		TArray<UClass*> VolumeFactoryClasses;
-
-		// Create array of ActorFactory instances.
-		for (TObjectIterator<UClass> ObjectIt; ObjectIt; ++ObjectIt)
-		{
-			UClass* TestClass = *ObjectIt;
-			if (TestClass->IsChildOf(UActorFactory::StaticClass()))
-			{
-				if (!TestClass->HasAnyClassFlags(CLASS_Abstract))
-				{
-					// if the factory is a volume shape factory we create an instance for all volume types
-					if (TestClass->IsChildOf(UActorFactoryVolume::StaticClass()))
-					{
-						VolumeFactoryClasses.Add(TestClass);
-					}
-					else
-					{
-						UActorFactory* NewFactory = NewObject<UActorFactory>(GetTransientPackage(), TestClass);
-						check(NewFactory);
-						ActorFactories.Add(NewFactory);
-					}
-				}
-			}
-			else if (TestClass->IsChildOf(AVolume::StaticClass()) && TestClass != AVolume::StaticClass())
-			{
-				// we want classes derived from AVolume, but not AVolume itself
-				VolumeClasses.Add(TestClass);
-			}
-		}
-
-		ActorFactories.Reserve(ActorFactories.Num() + (VolumeFactoryClasses.Num() * VolumeClasses.Num()));
-		for (UClass* VolumeFactoryClass : VolumeFactoryClasses)
-		{
-			for (UClass* VolumeClass : VolumeClasses)
-			{
-				UActorFactory* NewFactory = NewObject<UActorFactory>(GetTransientPackage(), VolumeFactoryClass);
-				check(NewFactory);
-				NewFactory->NewActorClass = VolumeClass;
-				ActorFactories.Add(NewFactory);
-			}
-		}
-
-		FCoreUObjectDelegates::RegisterHotReloadAddedClassesDelegate.AddUObject(this, &UEditorEngine::CreateVolumeFactoriesForNewClasses);
-	}
-
-	// Used for sorting ActorFactory classes.
-	struct FCompareUActorFactoryByMenuPriority
-	{
-		FORCEINLINE bool operator()(const UActorFactory& A, const UActorFactory& B) const
-		{
-			if (B.MenuPriority == A.MenuPriority)
-			{
-				if (A.GetClass() != UActorFactory::StaticClass() && B.IsA(A.GetClass()))
-				{
-					return false;
-				}
-				else if (B.GetClass() != UActorFactory::StaticClass() && A.IsA(B.GetClass()))
-				{
-					return true;
-				}
-				else
-				{
-					return A.GetClass()->GetName() < B.GetClass()->GetName();
-				}
-			}
-			else
-			{
-				return B.MenuPriority < A.MenuPriority;
-			}
-		}
-	};
-	// Sort by menu priority.
-	ActorFactories.Sort(FCompareUActorFactoryByMenuPriority());
 }
 
 bool UEditorEngine::HandleOpenAsset(UObject* Asset)
@@ -941,7 +861,6 @@ void UEditorEngine::Init(IEngineLoop* InEngineLoop)
 			TEXT("ModuleUI"),
 			TEXT("Toolbox"),
 			TEXT("ClassViewer"),
-			TEXT("StructViewer"),
 			TEXT("ContentBrowser"),
 			TEXT("AssetTools"),
 			TEXT("GraphEditor"),
@@ -1050,6 +969,84 @@ void UEditorEngine::Init(IEngineLoop* InEngineLoop)
 	UModel::SetGlobalBSPTexelScale(BSPTexelScale);
 
 	GLog->EnableBacklog( false );
+
+	{
+		FAssetData NoAssetData;
+
+		TArray<UClass*> VolumeClasses;
+		TArray<UClass*> VolumeFactoryClasses;
+
+		// Create array of ActorFactory instances.
+		for (TObjectIterator<UClass> ObjectIt; ObjectIt; ++ObjectIt)
+		{
+			UClass* TestClass = *ObjectIt;
+			if (TestClass->IsChildOf(UActorFactory::StaticClass()))
+			{
+				if (!TestClass->HasAnyClassFlags(CLASS_Abstract))
+				{
+					// if the factory is a volume shape factory we create an instance for all volume types
+					if (TestClass->IsChildOf(UActorFactoryVolume::StaticClass()))
+					{
+						VolumeFactoryClasses.Add(TestClass);
+					}
+					else
+					{
+						UActorFactory* NewFactory = NewObject<UActorFactory>(GetTransientPackage(), TestClass);
+						check(NewFactory);
+						ActorFactories.Add(NewFactory);
+					}
+				}
+			}
+			else if (TestClass->IsChildOf(AVolume::StaticClass()) && TestClass != AVolume::StaticClass() )
+			{
+				// we want classes derived from AVolume, but not AVolume itself
+				VolumeClasses.Add( TestClass );
+			}
+		}
+
+		ActorFactories.Reserve(ActorFactories.Num() + (VolumeFactoryClasses.Num() * VolumeClasses.Num()));
+		for (UClass* VolumeFactoryClass : VolumeFactoryClasses)
+		{
+			for (UClass* VolumeClass : VolumeClasses)
+			{
+				UActorFactory* NewFactory = NewObject<UActorFactory>(GetTransientPackage(), VolumeFactoryClass);
+				check(NewFactory);
+				NewFactory->NewActorClass = VolumeClass;
+				ActorFactories.Add(NewFactory);
+			}
+		}
+
+		FCoreUObjectDelegates::RegisterHotReloadAddedClassesDelegate.AddUObject(this, &UEditorEngine::CreateVolumeFactoriesForNewClasses);
+	}
+
+	// Used for sorting ActorFactory classes.
+	struct FCompareUActorFactoryByMenuPriority
+	{
+		FORCEINLINE bool operator()(const UActorFactory& A, const UActorFactory& B) const
+		{
+			if (B.MenuPriority == A.MenuPriority)
+			{
+				if ( A.GetClass() != UActorFactory::StaticClass() && B.IsA(A.GetClass()) )
+				{
+					return false;
+				}
+				else if ( B.GetClass() != UActorFactory::StaticClass() && A.IsA(B.GetClass()) )
+				{
+					return true;
+				}
+				else
+				{
+					return A.GetClass()->GetName() < B.GetClass()->GetName();
+				}
+			}
+			else 
+			{
+				return B.MenuPriority < A.MenuPriority;
+			}
+		}
+	};
+	// Sort by menu priority.
+	ActorFactories.Sort( FCompareUActorFactoryByMenuPriority() );
 
 	// Load game user settings and apply
 	UGameUserSettings* MyGameUserSettings = GetGameUserSettings();
@@ -1895,8 +1892,7 @@ void UEditorEngine::Tick( float DeltaSeconds, bool bIdleMode )
 					// Tick the GRenderingRealtimeClock, unless it's paused
 					GRenderingRealtimeClock.Tick(DeltaTime);
 				}
-				GRenderTargetPool.TickPoolElements();
-				FRDGBuilder::TickPoolElements();
+				GetRendererModule().TickRenderTargetPool();
 			});
 	}
 
@@ -2158,12 +2154,6 @@ void UEditorEngine::Cleanse( bool ClearSelection, bool Redraw, const FText& Tran
 		for (TObjectIterator<UObjectRedirector> RedirIt; RedirIt; ++RedirIt)
 		{
 			UPackage* RedirectorPackage = RedirIt->GetOutermost();
-
-			if (PackagesToUnload.Find(RedirectorPackage))
-			{
-				// Package was already marked to unload
-				continue;
-			}
 
 			if (RedirectorPackage == GetTransientPackage())
 			{
@@ -6929,11 +6919,14 @@ void UEditorEngine::VerifyLoadMapWorldCleanup()
 
 			if (!ValidWorld)
 			{
-				UE_LOG(LogLoad, Error, TEXT("Previously active world %s not cleaned up by garbage collection!"), *World->GetPathName());
-				UE_LOG(LogLoad, Error, TEXT("Once a world has become active, it cannot be reused and must be destroyed and reloaded. World referenced by:"));
-			
-				FReferenceChainSearch RefChainSearch(World, EReferenceChainSearchMode::Shortest | EReferenceChainSearchMode::PrintResults);
-				UE_LOG(LogLoad, Fatal, TEXT("Previously active world %s not cleaned up by garbage collection! Referenced by:") LINE_TERMINATOR TEXT("%s"), *World->GetPathName(), *RefChainSearch.GetRootPath());
+				// Print some debug information...
+				UE_LOG(LogLoad, Log, TEXT("%s not cleaned up by garbage collection! "), *World->GetFullName());
+				StaticExec(World, *FString::Printf(TEXT("OBJ REFS CLASS=WORLD NAME=%s"), *World->GetPathName()));
+				TMap<UObject*,UProperty*>	Route		= FArchiveTraceRoute::FindShortestRootPath( World, true, GARBAGE_COLLECTION_KEEPFLAGS );
+				FString						ErrorString	= FArchiveTraceRoute::PrintRootPath( Route, World );
+				UE_LOG(LogLoad, Log, TEXT("%s"),*ErrorString);
+				// before asserting.
+				UE_LOG(LogLoad, Fatal, TEXT("%s not cleaned up by garbage collection!") LINE_TERMINATOR TEXT("%s") , *World->GetFullName(), *ErrorString );
 			}
 		}
 	}

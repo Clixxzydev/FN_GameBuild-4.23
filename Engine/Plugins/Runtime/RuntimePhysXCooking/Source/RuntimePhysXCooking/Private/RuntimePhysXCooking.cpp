@@ -1,7 +1,5 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#if WITH_PHYSX
-
 #include "Modules/ModuleManager.h"
 #include "PhysXCooking.h"
 
@@ -25,14 +23,3 @@ class FRuntimePhysXPlatformModule : public FPhysXPlatformModule
 };
 
 IMPLEMENT_MODULE(FRuntimePhysXPlatformModule, RuntimePhysXCooking );
-
-#else
-
-class FRuntimePhysXPlatformModule : public IModuleInterface
-{
-
-};
-
-IMPLEMENT_MODULE(FRuntimePhysXPlatformModule, RuntimePhysXCooking);
-
-#endif

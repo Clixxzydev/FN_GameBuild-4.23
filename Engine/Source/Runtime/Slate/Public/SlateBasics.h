@@ -36,6 +36,7 @@ MONOLITHIC_HEADER_BOILERPLATE()
 
 // Legacy
 #include "Widgets/SWeakWidget.h"
+#include "Framework/Text/TextRange.h"
 #include "Framework/Text/TextRunRenderer.h"
 #include "Framework/Text/TextLineHighlight.h"
 #include "Framework/Text/TextHitPoint.h"

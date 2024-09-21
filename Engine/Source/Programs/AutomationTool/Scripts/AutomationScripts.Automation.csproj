@@ -42,6 +42,7 @@
     </Reference>
     <Reference Include="OneSky">
       <HintPath>..\..\..\..\Binaries\DotNET\OneSky.dll</HintPath>
+      <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
     <Reference Include="System" />
@@ -61,8 +62,6 @@
     </Compile>
     <Compile Include="AnalyzeThirdPartyLibs.Automation.cs" />
     <Compile Include="ArchiveCommand.Automation.cs" />
-    <Compile Include="FinalizeInstalledBuild.cs" />
-    <Compile Include="BuildHlslcc.Automation.cs" />
     <Compile Include="ParseMsvcTimingInfo.cs" />
     <Compile Include="StashTarget.cs" />
     <Compile Include="BlameKeyword.Automation.cs" />
@@ -94,6 +93,7 @@
     <Compile Include="RebasePublicIncludePaths.cs" />
     <Compile Include="FixupRedirects.Automation.cs" />
     <Compile Include="GenerateDSYM.Automation.cs" />
+    <Compile Include="InstalledBuild.cs" />
     <Compile Include="ListThirdPartySoftware.Automation.cs" />
     <Compile Include="RebuildHLODCommand.Automation.cs" />
     <Compile Include="RebuildLightMapsCommand.Automation.cs" />
@@ -121,15 +121,11 @@
     <Compile Include="UE4BuildUtils.cs" />
     <Compile Include="UpdateLocalVersion.Automation.cs" />
     <Compile Include="ZipUtils.Automation.cs" />
-    <Compile Include="SyncProject.Automation.cs" />
-    <Compile Include="BuildTarget.Automation.cs" />
-    <Compile Include="OpenEditor.Automation.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\DotNETCommon\DotNETUtilities\DotNETUtilities.csproj">
       <Project>{5d7d66e8-8c76-4af9-b3ec-2ef03421d730}</Project>
       <Name>DotNETUtilities</Name>
-      <Private>False</Private>
     </ProjectReference>
     <ProjectReference Include="..\..\UnrealBuildTool\UnrealBuildTool.csproj">
       <Project>{fd7c5e1a-cfe4-4fd5-a525-1eb1599a39ac}</Project>

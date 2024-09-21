@@ -1,5 +1,5 @@
-﻿INTSourceChangelist:6093519
-Availability: docs
+﻿INTSourceChangelist:3782314
+Availability:Public
 Title:4.On Drop
 Crumbs: %ROOT%, Engine, Engine/UMG, Engine/UMG/HowTo
 Description:在这步中我们将配置玩家放下拖拽控件后发生的情况。
@@ -14,7 +14,6 @@ tags:UMG UI Designer
 tags:UI
 type:how-to
 
-## 页面已被合并，标记为docs。 
 
 [VAR:Steps]
 [OBJECT:Navigation]

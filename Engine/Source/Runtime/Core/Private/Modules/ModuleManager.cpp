@@ -10,7 +10,6 @@
 #include "Misc/ScopeExit.h"
 #include "Modules/ModuleManifest.h"
 #include "Misc/ScopeLock.h"
-#include "Misc/DataDrivenPlatformInfoRegistry.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogModuleManager, Log, All);
 
@@ -72,11 +71,9 @@ FModuleManager& FModuleManager::Get()
 			//temp workaround for IPlatformFile being used for FPaths::DirectoryExists before main() sets up the commandline.
 #if PLATFORM_DESKTOP && !IS_MONOLITHIC
 		// Ensure that dependency dlls can be found in restricted sub directories
-			TArray<FString> RestrictedFolderNames = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
-			RestrictedFolderNames.Append(FDataDrivenPlatformInfoRegistry::GetConfidentialPlatforms());
-
+			const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist"), TEXT("Switch") };
 			FString ModuleDir = FPlatformProcess::GetModulesDirectory();
-			for (const FString& RestrictedFolderName : RestrictedFolderNames)
+			for (const TCHAR* RestrictedFolderName : RestrictedFolderNames)
 			{
 				FString RestrictedFolder = ModuleDir / RestrictedFolderName;
 				if (FPaths::DirectoryExists(RestrictedFolder))
@@ -680,8 +677,6 @@ void FModuleManager::AbandonModule( const FName InModuleName )
 void FModuleManager::UnloadModulesAtShutdown()
 {
 	ensure(IsInGameThread());
-
-	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(TEXT("UnloadModulesAtShutdown"));
 
 	struct FModulePair
 	{

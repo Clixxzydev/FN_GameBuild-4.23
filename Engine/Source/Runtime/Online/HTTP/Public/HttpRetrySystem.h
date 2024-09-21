@@ -63,7 +63,7 @@ namespace FHttpRetrySystem
     /**
      * class FRequest is what the retry system accepts as inputs
      */
-    class HTTP_VTABLE FRequest 
+    class FRequest 
 		: public FHttpRequestAdapterBase
     {
     public:

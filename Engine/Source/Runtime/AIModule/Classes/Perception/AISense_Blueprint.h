@@ -79,5 +79,5 @@ protected:
 	void OnListenerRemovedImpl(const FPerceptionListener& UpdatedListener);
 
 private:
-	static TMap<FNameEntryId, FAISenseID> BPSenseToSenseID;
+	static TMap<NAME_INDEX, FAISenseID> BPSenseToSenseID;
 };

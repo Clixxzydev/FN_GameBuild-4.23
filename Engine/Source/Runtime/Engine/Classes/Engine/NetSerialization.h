@@ -27,8 +27,6 @@ DECLARE_CYCLE_STAT_EXTERN(TEXT("NetSerializeFast Array"), STAT_NetSerializeFastA
 DECLARE_CYCLE_STAT_EXTERN(TEXT("NetSerializeFast Array BuildMap"), STAT_NetSerializeFastArray_BuildMap, STATGROUP_ServerCPU, ENGINE_API);
 DECLARE_CYCLE_STAT_EXTERN(TEXT("NetSerializeFast Array Delta Struct"), STAT_NetSerializeFastArray_DeltaStruct, STATGROUP_ServerCPU, ENGINE_API);
 
-extern ENGINE_API TAutoConsoleVariable<int32> CVarNetEnableDetailedScopeCounters;
-
 /**
  *	===================== NetSerialize and NetDeltaSerialize customization. =====================
  *
@@ -965,23 +963,19 @@ void FFastArraySerializer::TFastArraySerializeHelper<Type, SerializerType>::Post
 	// Look for implicit deletes that would happen due to Naks
 	// ---------------------------------------------------------
 
-	// If we're sending data completely reliably, there's no need to do this.
-	if (!Parms.bInternalAck)
+	for (int32 idx = 0; idx < Items.Num(); ++idx)
 	{
-		for (int32 idx = 0; idx < Items.Num(); ++idx)
+		Type& Item = Items[idx];
+		if (Item.MostRecentArrayReplicationKey < Header.ArrayReplicationKey && Item.MostRecentArrayReplicationKey > Header.BaseReplicationKey)
 		{
-			Type& Item = Items[idx];
-			if (Item.MostRecentArrayReplicationKey < Header.ArrayReplicationKey && Item.MostRecentArrayReplicationKey > Header.BaseReplicationKey)
+			// Make sure this wasn't an explicit delete in this bunch (otherwise we end up deleting an extra element!)
+			if (!Header.DeletedIndices.Contains(idx))
 			{
-				// Make sure this wasn't an explicit delete in this bunch (otherwise we end up deleting an extra element!)
-				if (!Header.DeletedIndices.Contains(idx))
-				{
-					// This will happen in normal conditions in network replays.
-					UE_LOG(LogNetFastTArray, Log, TEXT("Adding implicit delete for ElementID: %d. MostRecentArrayReplicationKey: %d. Current Payload: [%d/%d]"),
-						Item.ReplicationID, Item.MostRecentArrayReplicationKey, Header.ArrayReplicationKey, Header.BaseReplicationKey);
+				// This will happen in normal conditions in network replays.
+				UE_LOG(LogNetFastTArray, Log, TEXT("Adding implicit delete for ElementID: %d. MostRecentArrayReplicationKey: %d. Current Payload: [%d/%d]"),
+					Item.ReplicationID, Item.MostRecentArrayReplicationKey, Header.ArrayReplicationKey, Header.BaseReplicationKey);
 
-					Header.DeletedIndices.Add(idx);
-				}
+				Header.DeletedIndices.Add(idx);
 			}
 		}
 	}
@@ -1072,7 +1066,7 @@ bool FFastArraySerializer::FastArrayDeltaSerialize(TArray<Type> &Items, FNetDelt
 		return FastArrayDeltaSerialize_DeltaSerializeStructs(Items, Parms, ArraySerializer);
 	}
 
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_NetSerializeFastArray, CVarNetEnableDetailedScopeCounters.GetValueOnAnyThread() > 0);
+	SCOPE_CYCLE_COUNTER(STAT_NetSerializeFastArray);
 	class UScriptStruct* InnerStruct = Type::StaticStruct();
 
 	UE_LOG(LogNetFastTArray, Log, TEXT("FastArrayDeltaSerialize for %s. %s. %s"), *InnerStruct->GetName(), *InnerStruct->GetOwnerStruct()->GetName(), Parms.Reader ? TEXT("Reading") : TEXT("Writing"));
@@ -1500,8 +1494,7 @@ bool FFastArraySerializer::FastArrayDeltaSerialize_DeltaSerializeStructs(TArray<
 		}
 	};
 
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_NetSerializeFastArray_DeltaStruct, CVarNetEnableDetailedScopeCounters.GetValueOnAnyThread() > 0);
-
+	SCOPE_CYCLE_COUNTER(STAT_NetSerializeFastArray_DeltaStruct);
 	class UScriptStruct* InnerStruct = Type::StaticStruct();
 
 	TFastArraySerializeHelper<Type, SerializerType> Helper{

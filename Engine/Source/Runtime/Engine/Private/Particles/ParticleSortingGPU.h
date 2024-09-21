@@ -43,20 +43,18 @@ public:
 	/**
 	 * Retrieve the UAV for writing particle sort keys.
 	 */
-	FRHIUnorderedAccessView* GetKeyBufferUAV(int32 BufferIndex)
+	FUnorderedAccessViewRHIParamRef GetKeyBufferUAV()
 	{
-		check((BufferIndex & 0xFFFFFFFE) == 0);
-		return KeyBufferUAVs[BufferIndex];
+		return KeyBufferUAVs[0];
 	}
 
 	/**
 	 * Retrieve the UAV for writing particle vertices.
 	 * bAsUint : whether to return a G16R16 view or a Uint32 view.
 	 */
-	FORCEINLINE FRHIUnorderedAccessView* GetVertexBufferUAV(int32 BufferIndex)
+	FORCEINLINE FUnorderedAccessViewRHIParamRef GetVertexBufferUAV()
 	{
-		check((BufferIndex & 0xFFFFFFFE) == 0);
-		return VertexBufferUAVs[BufferIndex];
+		return VertexBufferUAVs[0];
 	}
 
 	/**
@@ -65,18 +63,18 @@ public:
 	FGPUSortBuffers GetSortBuffers();
 
 	/**
-	 * Retrieve the sorted vertex buffer that results will always be located at.
+	 * Retrieve the sorted vertex buffer at the given index.
 	 */
-	FRHIVertexBuffer* GetSortedVertexBufferRHI(int32 BufferIndex)
+	FVertexBufferRHIParamRef GetSortedVertexBufferRHI(int32 BufferIndex)
 	{
 		check((BufferIndex & 0xFFFFFFFE) == 0);
 		return VertexBuffers[BufferIndex];
 	}
 
 	/**
-	 * Retrieve the SRV that sort results will always be located at.
+	 * Retrieve the SRV for the sorted vertex buffer at the given index.
 	 */
-	FRHIShaderResourceView* GetSortedVertexBufferSRV(int32 BufferIndex)
+	FShaderResourceViewRHIParamRef GetSortedVertexBufferSRV(int32 BufferIndex)
 	{
 		check((BufferIndex & 0xFFFFFFFE) == 0);
 		return VertexBufferSRVs[BufferIndex];
@@ -85,7 +83,7 @@ public:
 	/**
 	 * Retrieve the UAV for the sorted vertex buffer at the given index.
 	 */
-	FRHIUnorderedAccessView* GetSortedVertexBufferUAV(int32 BufferIndex)
+	FUnorderedAccessViewRHIParamRef GetSortedVertexBufferUAV(int32 BufferIndex)
 	{
 		check((BufferIndex & 0xFFFFFFFE) == 0);
 		return VertexBufferUAVs[BufferIndex];
@@ -129,7 +127,7 @@ private:
 struct FParticleSimulationSortInfo
 {
 	/** Vertex buffer containing indices in to the particle state texture. */
-	FRHIShaderResourceView* VertexBufferSRV;
+	FShaderResourceViewRHIParamRef VertexBufferSRV;
 	/** World space position from which to sort. */
 	FVector ViewOrigin;
 	/** The number of particles in the simulation. */
@@ -141,11 +139,12 @@ struct FParticleSimulationSortInfo
  * @param ParticleSortBuffers - Buffers to use while sorting GPU particles.
  * @param PositionTextureRHI - Texture containing world space position for all particles.
  * @param SimulationsToSort - A list of simulations that must be sorted.
+ * @returns the buffer index in which sorting results are stored.
  */
-void SortParticlesGPU(
+int32 SortParticlesGPU(
 	FRHICommandListImmediate& RHICmdList,
 	FParticleSortBuffers& ParticleSortBuffers,
-	FRHITexture2D* PositionTextureRHI,
+	FTexture2DRHIParamRef PositionTextureRHI,
 	const TArray<FParticleSimulationSortInfo>& SimulationsToSort,
 	ERHIFeatureLevel::Type FeatureLevel
 	);

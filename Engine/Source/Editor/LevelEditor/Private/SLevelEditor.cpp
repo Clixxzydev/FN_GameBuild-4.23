@@ -260,19 +260,12 @@ void SLevelEditor::ConstructNotificationBar()
 
 	// developer tools
 	const IMainFrameModule& MainFrameModule = FModuleManager::GetModuleChecked<IMainFrameModule>(MainFrameModuleName);
-	const FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked< FLevelEditorModule >(LevelEditorModuleName);
-	
-	TArray<FMainFrameDeveloperTool> Tools;
-	for (const TTuple<FName, FLevelEditorModule::FStatusBarItem>& Item : LevelEditorModule.GetStatusBarItems())
-	{
-		Tools.Add({Item.Value.Visibility, Item.Value.Label, Item.Value.Value});
-	}
 
 	NotificationBarBox->AddSlot()
 		.AutoWidth()
 		.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 		[
-			MainFrameModule.MakeDeveloperTools( Tools )
+			MainFrameModule.MakeDeveloperTools()
 		];
 }
 
@@ -639,10 +632,6 @@ TSharedRef<SDockTab> SLevelEditor::SpawnLevelEditorTab( const FSpawnTabArgs& Arg
 			];
 
 	}
-	else if (TabIdentifier == FEditorModeTools::EditorModeToolbarTabName)
-	{
-		return GLevelEditorModeTools().MakeModeToolbarTab();
-	}
 	else if( TabIdentifier == TEXT("LevelEditorSelectionDetails") || TabIdentifier == TEXT("LevelEditorSelectionDetails2") || TabIdentifier == TEXT("LevelEditorSelectionDetails3") || TabIdentifier == TEXT("LevelEditorSelectionDetails4") )
 	{
 		TSharedRef<SDockTab> DetailsPanel = SummonDetailsPanel( TabIdentifier );
@@ -682,7 +671,6 @@ TSharedRef<SDockTab> SLevelEditor::SpawnLevelEditorTab( const FSpawnTabArgs& Arg
 	else if( TabIdentifier == TEXT("LevelEditorSceneOutliner") )
 	{
 		SceneOutliner::FInitializationOptions InitOptions;
-		InitOptions.bShowTransient = true;
 		InitOptions.Mode = ESceneOutlinerMode::ActorBrowsing;
 		{
 			TWeakPtr<SLevelEditor> WeakLevelEditor = SharedThis(this);
@@ -792,17 +780,6 @@ TSharedRef<SDockTab> SLevelEditor::SpawnLevelEditorTab( const FSpawnTabArgs& Arg
 				];
 		}
 	}
-	else if( TabIdentifier == TEXT("SequencerGraphEditor") )
-	{
-		const FSlateIcon SequencerGraphIcon = FSlateIcon(FEditorStyle::GetStyleSetName(), "GenericCurveEditor.TabIcon");
-		// @todo sequencer: remove when world-centric mode is added
-		return SNew(SDockTab)
-			.Icon(SequencerGraphIcon.GetIcon())
-			.Label(NSLOCTEXT("Sequencer", "SequencerMainGraphEditorTitle", "Sequencer Curves"))
-			[
-				SNullWidget::NullWidget
-			];
-	}
 	else if( TabIdentifier == LevelEditorStatsViewerTab )
 	{
 		FStatsViewerModule& StatsViewerModule = FModuleManager::Get().LoadModuleChecked<FStatsViewerModule>( "StatsViewer" );
@@ -836,11 +813,6 @@ TSharedRef<SDockTab> SLevelEditor::SpawnLevelEditorTab( const FSpawnTabArgs& Arg
 	}
 	
 	return SNew(SDockTab);
-}
-
-bool SLevelEditor::CanSpawnEditorModeToolbarTab(const FSpawnTabArgs& Args) const
-{
-	return GLevelEditorModeTools().ShouldShowModeToolbar();
 }
 
 TSharedRef<SDockTab> SLevelEditor::InvokeTab( FName TabID )
@@ -1051,7 +1023,7 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 
 		{
 			const FSlateIcon ToolbarIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Toolbar");
-			LevelEditorTabManager->RegisterTabSpawner( "LevelEditorToolBar", FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>(this, &SLevelEditor::SpawnLevelEditorTab, FName("LevelEditorToolBar"), FString()))
+			LevelEditorTabManager->RegisterTabSpawner( "LevelEditorToolBar", FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>(this, &SLevelEditor::SpawnLevelEditorTab, FName("LevelEditorToolBar"), FString()) )
 				.SetDisplayName(NSLOCTEXT("LevelEditorTabs", "LevelEditorToolBar", "Toolbar"))
 				.SetTooltipText(NSLOCTEXT("LevelEditorTabs", "LevelEditorToolBarTooltipText", "Open the Toolbar tab, which provides access to the most common / important actions."))
 				.SetGroup( MenuStructure.GetLevelEditorCategory() )
@@ -1087,22 +1059,12 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 				.SetIcon( DetailsIcon );
 		}
 
-		{
-		
-			const FSlateIcon ToolsIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Modes");
-			LevelEditorTabManager->RegisterTabSpawner("LevelEditorToolBox", FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>(this, &SLevelEditor::SpawnLevelEditorTab, FName("LevelEditorToolBox"), FString()))
-				.SetDisplayName(NSLOCTEXT("LevelEditorTabs", "LevelEditorToolBox", "Modes Panel"))
-				.SetTooltipText(NSLOCTEXT("LevelEditorTabs", "LevelEditorToolBoxTooltipText", "Open the Modes tab, which specifies all the available editing modes."))
-				.SetGroup(MenuStructure.GetLevelEditorModesCategory())
-				.SetIcon(ToolsIcon);
-
-			FCanSpawnTab CanSpawnTabDelegate = FCanSpawnTab::CreateSP(this, &SLevelEditor::CanSpawnEditorModeToolbarTab);
-			LevelEditorTabManager->RegisterTabSpawner(FEditorModeTools::EditorModeToolbarTabName, FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>(this, &SLevelEditor::SpawnLevelEditorTab, FEditorModeTools::EditorModeToolbarTabName, FString()), CanSpawnTabDelegate)
-				.SetDisplayName(NSLOCTEXT("LevelEditorTabs", "LevelEditorModesTab", "Active Mode Tools"))
-				.SetTooltipText(NSLOCTEXT("LevelEditorTabs", "LevelEditorModesTabTooltipText", "Open the modes toolbar which has the active mode's tools"))
-				.SetGroup(MenuStructure.GetLevelEditorModesCategory())
-				.SetIcon(ToolsIcon);
-		}
+		const FSlateIcon ToolsIcon( FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Modes" );
+		LevelEditorTabManager->RegisterTabSpawner( "LevelEditorToolBox", FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>( this, &SLevelEditor::SpawnLevelEditorTab, FName( "LevelEditorToolBox" ), FString() ) )
+			.SetDisplayName( NSLOCTEXT( "LevelEditorTabs", "LevelEditorToolBox", "Modes" ) )
+			.SetTooltipText( NSLOCTEXT( "LevelEditorTabs", "LevelEditorToolBoxTooltipText", "Open the Modes tab, which specifies all the available editing modes." ) )
+			.SetGroup( MenuStructure.GetLevelEditorCategory() )
+			.SetIcon( ToolsIcon );
 
 		{
 			const FSlateIcon OutlinerIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Outliner");
@@ -1170,13 +1132,6 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 		}
 
 		{
-			// @todo remove when world-centric mode is added
-			const FSlateIcon SequencerGraphIcon = FSlateIcon(FEditorStyle::GetStyleSetName(), "GenericCurveEditor.TabIcon");
-			LevelEditorTabManager->RegisterTabSpawner("SequencerGraphEditor", FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>(this, &SLevelEditor::SpawnLevelEditorTab, FName("SequencerGraphEditor"), FString()))
-				.SetMenuType(ETabSpawnerMenuType::Type::Hidden);
-		}
-
-		{
 			const FSlateIcon WorldPropertiesIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.WorldProperties.Tab");
 			LevelEditorTabManager->RegisterTabSpawner( "WorldSettingsTab", FOnSpawnTab::CreateSP<SLevelEditor, FName, FString>(this, &SLevelEditor::SpawnLevelEditorTab, FName("WorldSettingsTab"), FString()) )
 				.SetDisplayName(NSLOCTEXT("LevelEditorTabs", "WorldSettings", "World Settings"))
@@ -1233,12 +1188,6 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 						(
 							FTabManager::NewStack()
 							->SetHideTabWell(true)
-							->AddTab(FEditorModeTools::EditorModeToolbarTabName, ETabState::ClosedTab)
-						)
-						->Split
-						(
-							FTabManager::NewStack()
-							->SetHideTabWell(true)
 							->SetSizeCoefficient( 1.0f )
 							->AddTab("LevelEditorViewport", ETabState::OpenedTab)
 						)
@@ -1277,10 +1226,6 @@ TSharedRef<SWidget> SLevelEditor::RestoreContentArea( const TSharedRef<SDockTab>
 		));
 	
 	FLayoutExtender LayoutExtender;
-
-	// Make a layout extension for the mode toolbar.  This avoids bumping level editor layout version to add a mandatory tab
-	LayoutExtender.ExtendLayout(FName("LevelEditorToolBar"), ELayoutExtensionPosition::Below, FTabManager::FTab(FEditorModeTools::EditorModeToolbarTabName, ETabState::ClosedTab));
-
 	LevelEditorModule.OnRegisterLayoutExtensions().Broadcast(LayoutExtender);
 	Layout->ProcessExtensions(LayoutExtender);
 

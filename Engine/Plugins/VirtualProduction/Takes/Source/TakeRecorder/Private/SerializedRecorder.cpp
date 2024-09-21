@@ -236,7 +236,7 @@ bool FSerializedRecorder::LoadSubSequenceFile(UMovieSceneSequence* InMovieSceneS
 
 			ULevelSequence* TargetSequence = InMasterSequence;
 			const FString& SubSequenceName = Header.Name;
-			TargetSequence = UTakeRecorderSources::CreateSubSequenceForSource(InMasterSequence, SubSequenceName, SubSequenceName);
+			TargetSequence = UTakeRecorderSources::CreateSubSequenceForSource(InMasterSequence, SubSequenceName);
 			if (TargetSequence)
 			{
 				TargetSequence->GetMovieScene()->TimecodeSource = FApp::GetTimecode();

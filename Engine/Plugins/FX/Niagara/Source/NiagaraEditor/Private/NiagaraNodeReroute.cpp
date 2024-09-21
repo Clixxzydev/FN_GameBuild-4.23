@@ -117,7 +117,7 @@ void UNiagaraNodeReroute::PinConnectionListChanged(UEdGraphPin* Pin)
 	Super::PinConnectionListChanged(Pin);
 }
 
-void UNiagaraNodeReroute::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive /*= true*/, bool bFilterForCompilation /*= true*/) const
+void UNiagaraNodeReroute::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive)
 {
 	// Should never hit here...
 	check(false);

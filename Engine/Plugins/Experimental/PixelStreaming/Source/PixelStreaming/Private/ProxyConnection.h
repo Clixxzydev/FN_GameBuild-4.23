@@ -66,7 +66,6 @@ private:
 		}
 	};
 	TArray<FReceiveHandler> ReceiveHandlers;
-	uint16 ReceiveStringMaxAcceptedLength;
 
 	FThreadSafeBool ExitRequested;
 	// should be the last thing declared, otherwise the thread func can access other members that are not

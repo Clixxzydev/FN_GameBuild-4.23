@@ -34,10 +34,10 @@ namespace VivoxClientApi {
 		m_deviceId = StrDup(other.m_deviceId);
 		m_displayName = StrDup(other.m_displayName);
 	}
-    const char* AudioDeviceId::GetAudioDeviceId() const {
+    const char* const AudioDeviceId::GetAudioDeviceId() const {
         return m_deviceId;
     }
-    const char* AudioDeviceId::GetAudioDeviceDisplayName() const {
+    const char* const AudioDeviceId::GetAudioDeviceDisplayName() const {
         return m_displayName;
     }
     bool AudioDeviceId::operator==(const AudioDeviceId &RHS) const {

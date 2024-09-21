@@ -93,10 +93,7 @@ class USCS_Node : public UObject
 
 	/** Make sure, the guid is proper - backward compatibility */
 	ENGINE_API void ValidateGuid();
-
-	/** Returns Valid if this object has data validation rules set up for it and the data for this object is valid. Returns Invalid if it does not pass the rules. Returns NotValidated if no rules are set for this object. */
-	virtual EDataValidationResult IsDataValid(TArray<FText>& ValidationErrors) override;
-#endif // WITH_EDITOR
+#endif
 
 	/**
 	 * Create the specified component on the actor, then call action on children

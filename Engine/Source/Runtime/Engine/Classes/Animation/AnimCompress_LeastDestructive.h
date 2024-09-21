@@ -20,11 +20,10 @@ class UAnimCompress_LeastDestructive : public UAnimCompress
 
 protected:
 	//~ Begin UAnimCompress Interface
-#if WITH_EDITOR
+	#if WITH_EDITOR
 	virtual void DoReduction(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult) override;
 #endif // WITH_EDITOR
 	//~ Begin UAnimCompress Interface
 };
-
 
 

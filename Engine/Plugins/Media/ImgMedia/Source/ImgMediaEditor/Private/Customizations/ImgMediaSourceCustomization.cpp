@@ -152,7 +152,7 @@ EVisibility FImgMediaSourceCustomization::HandleSequencePathWarningIconVisibilit
 {
 	FString FilePath;
 
-	if ((SequencePathProperty->GetChildHandle("Path")->GetValue(FilePath) != FPropertyAccess::Success) || FilePath.IsEmpty() || FilePath.Contains(TEXT("://")))
+	if ((SequencePathProperty->GetValue(FilePath) != FPropertyAccess::Success) || FilePath.IsEmpty() || FilePath.Contains(TEXT("://")))
 	{
 		return EVisibility::Hidden;
 	}
@@ -162,7 +162,7 @@ EVisibility FImgMediaSourceCustomization::HandleSequencePathWarningIconVisibilit
 
 	if (FullPath.StartsWith(FullMoviesPath))
 	{
-		if (FPaths::DirectoryExists(FullPath))
+		if (FPaths::FileExists(FullPath))
 		{
 			return EVisibility::Hidden;
 		}

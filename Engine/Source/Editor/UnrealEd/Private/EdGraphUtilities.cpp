@@ -16,68 +16,6 @@
 #include "K2Node_Composite.h"
 
 /////////////////////////////////////////////////////
-// Local namespace
-
-namespace
-{
-	// Reconcile other pin links:
-	//   - Links between nodes within the copied set are fine
-	//   - Links to nodes that were not copied need to be fixed up if the copy-paste was in the same graph or broken completely
-	void PostProcessPastedNodePinLinks(TSet<UEdGraphNode*>& InNodes)
-	{
-		for (TSet<UEdGraphNode*>::TIterator It(InNodes); It; ++It)
-		{
-			UEdGraphNode* Node = *It;
-			UEdGraph* CurrentGraph = Node->GetGraph();
-
-			for (int32 PinIndex = 0; PinIndex < Node->Pins.Num(); ++PinIndex)
-			{
-				UEdGraphPin* ThisPin = Node->Pins[PinIndex];
-
-				// Ensure on any NULL entry, as it means there was a problem importing the pin from text, and we should be alerted to that.
-				if (ensure(ThisPin))
-				{
-					for (int32 LinkIndex = 0; LinkIndex < ThisPin->LinkedTo.Num(); )
-					{
-						UEdGraphPin* OtherPin = ThisPin->LinkedTo[LinkIndex];
-
-						if (OtherPin == nullptr)
-						{
-							// Totally bogus link
-							ThisPin->LinkedTo.RemoveAtSwap(LinkIndex);
-						}
-						else if (!InNodes.Contains(OtherPin->GetOwningNode()))
-						{
-							// It's a link across the selection set, so it should be broken
-							OtherPin->LinkedTo.RemoveSwap(ThisPin);
-							ThisPin->LinkedTo.RemoveAtSwap(LinkIndex);
-						}
-						else if (!OtherPin->LinkedTo.Contains(ThisPin))
-						{
-							// The link needs to be reciprocal
-							check(OtherPin->GetOwningNode()->GetGraph() == CurrentGraph);
-							OtherPin->LinkedTo.Add(ThisPin);
-							++LinkIndex;
-						}
-						else
-						{
-							// Everything seems fine but sanity check the graph
-							check(OtherPin->GetOwningNode()->GetGraph() == CurrentGraph);
-							++LinkIndex;
-						}
-					}
-				}
-				else
-				{
-					// Remove NULL entries; these will be replaced with a default value when the node is reconstructed below.
-					Node->Pins.RemoveAt(PinIndex--);
-				}
-			}
-		}
-	}
-}
-
-/////////////////////////////////////////////////////
 // FGraphObjectTextFactory
 
 /** Helper class used to paste a buffer of text and create nodes and pins from it */
@@ -88,7 +26,7 @@ public:
 	TSet<UEdGraphNode*> SubstituteNodes;
 	const UEdGraph* DestinationGraph;
 	TSet<FName> ExtraNamesInUse;
-	TSet<UEdGraphNode*> NodesToDestroy;
+	TArray<UEdGraphNode*> NodesToDestroy;
 public:
 	FGraphObjectTextFactory(const UEdGraph* InDestinationGraph)
 		: FCustomizableTextObjectFactory(GWarn)
@@ -154,25 +92,8 @@ protected:
 	{
 		if (SubstituteNodes.Num() > 0)
 		{
-			FText NotificationText;
-			if (SubstituteNodes.Contains(nullptr))
-			{
-				if (SubstituteNodes.Num() > 1)
-				{
-					NotificationText = NSLOCTEXT("EdGraphUtilities", "SubstituteAndSkippedNodesWarning", "One or more copied nodes were substituted and/or could not be pasted into this graph!");
-				}
-				else
-				{
-					NotificationText = NSLOCTEXT("EdGraphUtilities", "SkippedNodesWarning", "One or more copied nodes could not be pasted into this graph!");
-				}
-			}
-			else
-			{
-				NotificationText = NSLOCTEXT("EdGraphUtilities", "SubstituteNodesWarning", "One or more copied nodes were substituted during paste!");
-			}
-
-			// Display a notification to inform the user that one or more nodes were substituted rather than pasted into the new graph.
-			FNotificationInfo Info(NotificationText);
+			// Display a notification to inform the user that the variable type was invalid (likely due to corruption), it should no longer appear in the list.
+			FNotificationInfo Info(NSLOCTEXT("EdGraphUtilities", "SubstituteNodesWarning", "Conflicting nodes substituted during paste!"));
 			Info.ExpireDuration = 3.0f;
 			Info.bUseLargeFont = false;
 			Info.Image = FCoreStyle::Get().GetBrush(TEXT("MessageLog.Warning"));
@@ -182,9 +103,6 @@ protected:
 				Notification->SetCompletionState(SNotificationItem::CS_None);
 			}
 		}
-
-		// Fix up pin cross-links, etc. before removing incompatible nodes below. Otherwise, BreakAllNodeLinks() will complain about non-reciprocating pin links.
-		PostProcessPastedNodePinLinks(NodesToDestroy);
 
 		for (UEdGraphNode* Node : NodesToDestroy)
 		{
@@ -203,11 +121,62 @@ TArray< TSharedPtr<FGraphPanelNodeFactory> > FEdGraphUtilities::VisualNodeFactor
 TArray< TSharedPtr<FGraphPanelPinFactory> > FEdGraphUtilities::VisualPinFactories;
 TArray< TSharedPtr<FGraphPanelPinConnectionFactory> > FEdGraphUtilities::VisualPinConnectionFactories;
 
+// Reconcile other pin links:
+//   - Links between nodes within the copied set are fine
+//   - Links to nodes that were not copied need to be fixed up if the copy-paste was in the same graph or broken completely
 // Call PostPasteNode on each node
 void FEdGraphUtilities::PostProcessPastedNodes(TSet<UEdGraphNode*>& SpawnedNodes)
 {
 	// Run thru and fix up the node's pin links; they may point to invalid pins if the paste was to another graph
-	PostProcessPastedNodePinLinks(SpawnedNodes);
+	for (TSet<UEdGraphNode*>::TIterator It(SpawnedNodes); It; ++It)
+	{
+		UEdGraphNode* Node = *It;
+		UEdGraph* CurrentGraph = Node->GetGraph();
+
+		for (int32 PinIndex = 0; PinIndex < Node->Pins.Num(); ++PinIndex)
+		{
+			UEdGraphPin* ThisPin = Node->Pins[PinIndex];
+
+			// Ensure on any NULL entry, as it means there was a problem importing the pin from text, and we should be alerted to that.
+			if (ensure(ThisPin))
+			{
+				for (int32 LinkIndex = 0; LinkIndex < ThisPin->LinkedTo.Num(); )
+				{
+					UEdGraphPin* OtherPin = ThisPin->LinkedTo[LinkIndex];
+
+					if (OtherPin == nullptr)
+					{
+						// Totally bogus link
+						ThisPin->LinkedTo.RemoveAtSwap(LinkIndex);
+					}
+					else if (!SpawnedNodes.Contains(OtherPin->GetOwningNode()))
+					{
+						// It's a link across the selection set, so it should be broken
+						OtherPin->LinkedTo.RemoveSwap(ThisPin);
+						ThisPin->LinkedTo.RemoveAtSwap(LinkIndex);
+					}
+					else if (!OtherPin->LinkedTo.Contains(ThisPin))
+					{
+						// The link needs to be reciprocal
+						check(OtherPin->GetOwningNode()->GetGraph() == CurrentGraph);
+						OtherPin->LinkedTo.Add(ThisPin);
+						++LinkIndex;
+					}
+					else
+					{
+						// Everything seems fine but sanity check the graph
+						check(OtherPin->GetOwningNode()->GetGraph() == CurrentGraph);
+						++LinkIndex;
+					}
+				}
+			}
+			else
+			{
+				// Remove NULL entries; these will be replaced with a default value when the node is reconstructed below.
+				Node->Pins.RemoveAt(PinIndex--);
+			}
+		}
+	}
 
 	// Give every node a chance to deep copy associated resources, etc...
 	for (TSet<UEdGraphNode*>::TIterator It(SpawnedNodes); It; ++It)
@@ -411,9 +380,6 @@ void FEdGraphUtilities::ImportNodesFromText(UEdGraph* DestinationGraph, const FS
 
 	// Fix up pin cross-links, etc...
 	FEdGraphUtilities::PostProcessPastedNodes(Factory.SpawnedNodes);
-
-	// If a pin link wasn't resolved by now it was connected to something outside the clipboard and should be cleared:
-	UEdGraphPin::ResolveAllPinReferences();
 
 	ImportedNodeSet.Append(Factory.SpawnedNodes);
 }

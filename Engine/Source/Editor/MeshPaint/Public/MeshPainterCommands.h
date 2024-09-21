@@ -9,8 +9,9 @@
 /** Base set of mesh painter commands */
 class MESHPAINT_API FMeshPainterCommands : public TCommands<FMeshPainterCommands>
 {
+
 public:
-	FMeshPainterCommands();
+	FMeshPainterCommands() : TCommands<FMeshPainterCommands>("MeshPainter", NSLOCTEXT("Contexts", "MeshPainter", "Mesh Painter"), NAME_None, FEditorStyle::GetStyleSetName()) {}
 
 	/**
 	* Initialize commands
@@ -18,14 +19,7 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
-	TSharedPtr<FUICommandInfo> IncreaseBrushRadius;
-	TSharedPtr<FUICommandInfo> DecreaseBrushRadius;
-
-	TSharedPtr<FUICommandInfo> IncreaseBrushStrength;
-	TSharedPtr<FUICommandInfo> DecreaseBrushStrength;
-
-	TSharedPtr<FUICommandInfo> IncreaseBrushFalloff;
-	TSharedPtr<FUICommandInfo> DecreaseBrushFalloff;
-
+	TSharedPtr<FUICommandInfo> IncreaseBrushSize;
+	TSharedPtr<FUICommandInfo> DecreaseBrushSize;
 	TArray<TSharedPtr<FUICommandInfo>> Commands;
 };

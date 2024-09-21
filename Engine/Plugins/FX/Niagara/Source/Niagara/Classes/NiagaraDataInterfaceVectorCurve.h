@@ -58,6 +58,7 @@ public:
 	virtual int32 GetCurveNumElems()const { return CurveLUTNumElems; }
 
 	virtual bool GetFunctionHLSL(const FName&  DefinitionFunctionName, FString InstanceFunctionName, FNiagaraDataInterfaceGPUParamInfo& ParamInfo, FString& OutHLSL) override;
+
 protected:
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 

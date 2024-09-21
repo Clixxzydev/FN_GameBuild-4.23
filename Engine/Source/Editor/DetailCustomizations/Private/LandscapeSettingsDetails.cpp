@@ -20,14 +20,14 @@ FLandscapeSettingsDetails::~FLandscapeSettingsDetails()
 
 TSharedRef<IDetailCustomization> FLandscapeSettingsDetails::MakeInstance()
 {
-	return MakeShareable(new FLandscapeSettingsDetails);
+	return MakeShareable( new FLandscapeSettingsDetails);
 }
 
-void FLandscapeSettingsDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+void FLandscapeSettingsDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
 {
 	TArray<TWeakObjectPtr<UObject>> EditingObjects;
 	DetailBuilder.GetObjectsBeingCustomized(EditingObjects);
-
+	
 	if (!DetailLayoutBuilder)
 	{
 		DetailLayoutBuilder = &DetailBuilder;

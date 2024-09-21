@@ -17,18 +17,6 @@ struct FDynamicMeshVertex;
 DECLARE_STATS_GROUP(TEXT("MRMesh"), STATGROUP_MRMESH, STATCAT_Advanced);
 DEFINE_LOG_CATEGORY_STATIC(LogMrMesh, Warning, All);
 
-
-//@todo JoeG - remove
-#ifndef PLATFORM_HOLOLENS
-#define PLATFORM_HOLOLENS 0
-#endif
-
-#if (PLATFORM_HOLOLENS || PLATFORM_IOS)
-	#define MRMESH_INDEX_TYPE uint16
-#else
-	#define MRMESH_INDEX_TYPE uint32
-#endif
-
 class IMRMesh
 {
 public:
@@ -47,8 +35,7 @@ public:
 		const TArray<FVector2D>& UVData;
 		const TArray<FPackedNormal>& TangentXZData;
 		const TArray<FColor>& ColorData;
-		const TArray<MRMESH_INDEX_TYPE>& Indices;
-		const FBox Bounds;
+		const TArray<uint32>& Indices;
 	};
 
 	virtual void SetConnected(bool value) = 0;
@@ -87,16 +74,6 @@ public:
 
 	// UPrimitiveComponent.. public BP function needs to stay public to avoid nativization errors. (RR)
 	virtual void SetMaterial(int32 ElementIndex, class UMaterialInterface* InMaterial) override;
-
-	/** Updates from HoloLens or iOS */
-	void UpdateMesh(const FVector& InLocation, const FQuat& InRotation, const FVector& Scale, TArray<FVector>& Vertices, TArray<MRMESH_INDEX_TYPE>& Indices);
-
-	void SetEnableMeshOcclusion(bool bEnable) { bEnableOcclusion = bEnable; }
-	bool GetEnableMeshOcclusion() const { return bEnableOcclusion; }
-	void SetUseWireframe(bool bUseWireframe) { bUseWireframeForNoMaterial = bUseWireframe; }
-	bool GetUseWireframe() const { return bUseWireframeForNoMaterial; }
-
-
 protected:
 	virtual void OnActorEnableCollisionChanged() override;
 	virtual void UpdatePhysicsToRBChannels() override;
@@ -109,13 +86,6 @@ public:
 	virtual void SetCollisionProfileName(FName InCollisionProfileName) override;
 
 	virtual void SetWalkableSlopeOverride(const FWalkableSlopeOverride& NewOverride) override;
-
-	void SetNeverCreateCollisionMesh(bool bNeverCreate) { bNeverCreateCollisionMesh = bNeverCreate; }
-	void SetEnableNavMesh(bool bEnable) { bUpdateNavMeshOnMeshUpdate = bEnable;  }
-
-	/** Trackers feeding mesh data to this component may want to know when we clear our mesh data */
-	DECLARE_EVENT(UMRMeshComponent, FOnClear);
-	FOnClear& OnClear() { return OnClearEvent; }
 
 private:
 	//~ UPrimitiveComponent
@@ -168,16 +138,6 @@ private:
 	UPROPERTY(Transient)
 	TArray<UBodySetup*> BodySetups;
 
-	UPROPERTY()
-	UMaterialInterface* WireframeMaterial;
-
-	/** Whether this mesh should write z-depth to occlude meshes or not */
-	bool bEnableOcclusion;
-	/** Whether this mesh should draw using the wireframe material when no material is set or not */
-	bool bUseWireframeForNoMaterial;
-
 	TArray<FBodyInstance*> BodyInstances;
 	TArray<IMRMesh::FBrickId> BodyIds;
-
-	FOnClear OnClearEvent;
 };

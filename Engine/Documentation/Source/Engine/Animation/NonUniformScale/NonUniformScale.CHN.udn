@@ -1,10 +1,9 @@
-﻿INTSourceChangelist:6412342
+﻿INTSourceChangelist:3467293
 Availability:Public
 Title:非统一比例动画
+Crumbs:%ROOT%, Engine, Engine/Animation
 Description:关于如何使用非统一比例动画的概述。
-version: 4.9
-tags:Animation
-tags:Animation Features
+version:4.9
 topic-image:NonUniformScaleAnimation_topic.png
 
 

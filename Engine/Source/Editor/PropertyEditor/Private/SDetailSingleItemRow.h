@@ -80,8 +80,6 @@ public:
 	 */
 	void Construct( const FArguments& InArgs, FDetailLayoutCustomization* InCustomization, bool bHasMultipleColumns, TSharedRef<FDetailTreeNode> InOwnerTreeNode, const TSharedRef<STableViewBase>& InOwnerTableView );
 
-	void SetIsDragDrop(bool bInIsDragDrop);
-
 protected:
 	virtual bool OnContextMenuOpening( FMenuBuilder& MenuBuilder ) override;
 private:
@@ -102,7 +100,6 @@ private:
 	void OnArrayDragEnter(const FDragDropEvent& DragDropEvent);
 	void OnArrayDragLeave(const FDragDropEvent& DragDropEvent);
 	FReply OnArrayDrop(const FDragDropEvent& DragDropEvent);
-	FReply OnArrayHeaderDrop(const FDragDropEvent& DragDropEvent);
 
 	TSharedPtr<FPropertyNode> GetCopyPastePropertyNode() const;
 private:
@@ -112,7 +109,6 @@ private:
 	FDetailColumnSizeData ColumnSizeData;
 	bool bAllowFavoriteSystem;
 	bool bIsHoveredDragTarget;
-	bool bIsDragDropObject;
 	TSharedPtr<FPropertyNode> SwappablePropertyNode;
 };
 
@@ -121,11 +117,27 @@ class FArrayRowDragDropOp : public FDecoratedDragDropOp
 public:
 	DRAG_DROP_OPERATOR_TYPE(FArrayRowDragDropOp, FDecoratedDragDropOp)
 
-	FArrayRowDragDropOp(TSharedPtr<SDetailSingleItemRow> InRow);
+	FArrayRowDragDropOp(TSharedPtr<SDetailSingleItemRow> InRow)
+	{
+		Row = InRow;
+		DecoratorWidget = SNew(SBorder)
+			.BorderImage(FEditorStyle::GetBrush("Graph.ConnectorFeedback.Border"))
+			.Content()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(NSLOCTEXT("ArrayDragDrop", "PlaceRowHere", "Place Row Here"))
+				]
+			];
+
+		Construct();
+	};
 
 	TSharedPtr<SWidget> DecoratorWidget;
-
-	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override;
 
 	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override
 	{

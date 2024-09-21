@@ -17,6 +17,7 @@ void SGraphPinBoneNameValueWidget::Construct(const FArguments& InArgs)
 	TSharedRef<SWidget> ComboBoxMenuContent =
 		SNew(SBox)
 		.MaxDesiredHeight(InArgs._MaxListHeight)
+
 		[
 			SNew(SVerticalBox)
 
@@ -155,32 +156,8 @@ void SGraphPinBoneNameValueWidget::OnMenuOpenChanged(bool bOpen)
 		});
 
 	}
-	else
-	{
-		RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SGraphPinBoneNameValueWidget::SetFocusPostConstruct));
-	}
 }
 
-EActiveTimerReturnType SGraphPinBoneNameValueWidget::SetFocusPostConstruct(double InCurrentTime, float InDeltaTime)
-{
-	if (SearchField.IsValid())
-	{
-		bool bSucceeded = false;
-		FSlateApplication::Get().ForEachUser([&](FSlateUser* User) {
-			if (FSlateApplication::Get().SetUserFocus(User->GetUserIndex(), SearchField->AsShared(), EFocusCause::SetDirectly))
-			{
-				bSucceeded = true;
-			}
-		});
-
-		if (bSucceeded)
-		{
-			return EActiveTimerReturnType::Stop;
-		}
-	}
-
-	return EActiveTimerReturnType::Continue;
-}
 
 void SGraphPinBoneNameValueWidget::OnSelectionChanged_Internal(TSharedPtr<FString> ProposedSelection, ESelectInfo::Type SelectInfo)
 {

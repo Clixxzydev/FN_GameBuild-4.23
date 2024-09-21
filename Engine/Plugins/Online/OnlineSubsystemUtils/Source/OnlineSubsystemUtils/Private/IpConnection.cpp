@@ -29,7 +29,6 @@ Notes:
 DECLARE_CYCLE_STAT(TEXT("IpConnection InitRemoteConnection"), Stat_IpConnectionInitRemoteConnection, STATGROUP_Net);
 DECLARE_CYCLE_STAT(TEXT("IpConnection Socket SendTo"), STAT_IpConnection_SendToSocket, STATGROUP_Net);
 DECLARE_CYCLE_STAT(TEXT("IpConnection WaitForSendTasks"), STAT_IpConnection_WaitForSendTasks, STATGROUP_Net);
-DECLARE_CYCLE_STAT(TEXT("IpConnection Address Synthesis"), STAT_IpConnection_AddressSynthesis, STATGROUP_Net);
 
 TAutoConsoleVariable<int32> CVarNetIpConnectionUseSendTasks(
 	TEXT("net.IpConnectionUseSendTasks"),
@@ -38,6 +37,7 @@ TAutoConsoleVariable<int32> CVarNetIpConnectionUseSendTasks(
 
 UIpConnection::UIpConnection(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer),
+	RemoteAddr(NULL),
 	Socket(NULL),
 	ResolveInfo(NULL),
 	SocketErrorDisconnectDelay(5.f),
@@ -70,26 +70,6 @@ void UIpConnection::InitLocalConnection(UNetDriver* InDriver, class FSocket* InS
 	// Get numerical address directly.
 	RemoteAddr = InDriver->GetSocketSubsystem()->CreateInternetAddr();
 	RemoteAddr->SetIp(*InURL.Host, bIsValid);
-
-	// If the protocols do not match, attempt to synthesize the address so they do.
-	if (bIsValid && InSocket->GetProtocol() != RemoteAddr->GetProtocolType())
-	{
-		SCOPE_CYCLE_COUNTER(STAT_IpConnection_AddressSynthesis);
-
-		// We want to use GAI to create the address with the correct protocol.
-		const FAddressInfoResult MapRequest = InDriver->GetSocketSubsystem()->GetAddressInfo(*InURL.Host, nullptr, 
-			EAddressInfoFlags::AllResultsWithMapping | EAddressInfoFlags::OnlyUsableAddresses, InSocket->GetProtocol());
-
-		// Set the remote addr provided we have information.
-		if (MapRequest.ReturnCode == SE_NO_ERROR && MapRequest.Results.Num() > 0)
-		{
-			RemoteAddr = MapRequest.Results[0].Address->Clone();
-		}
-		else
-		{
-			UE_LOG(LogNet, Warning, TEXT("IpConnection::InitConnection: Address protocols do not match and cannot be synthesized to a similar address, this will likely lead to issues!"));
-		}
-	}
 	RemoteAddr->SetPort(InURL.Port);
 
 	// Try to resolve it if it failed
@@ -117,7 +97,13 @@ void UIpConnection::InitRemoteConnection(UNetDriver* InDriver, class FSocket* In
 		(InMaxPacket == 0 || InMaxPacket > MAX_PACKET_SIZE) ? MAX_PACKET_SIZE : InMaxPacket,
 		InPacketOverhead == 0 ? UDP_HEADER_SIZE : InPacketOverhead);
 
-	RemoteAddr = InRemoteAddr.Clone();
+	// Copy the remote IPAddress passed in
+	bool bIsValid = false;
+	FString IpAddrStr = InRemoteAddr.ToString(false);
+	RemoteAddr = InDriver->GetSocketSubsystem()->CreateInternetAddr();
+	RemoteAddr->SetIp(*IpAddrStr, bIsValid);
+	RemoteAddr->SetPort(InRemoteAddr.GetPort());
+
 	URL.Host = RemoteAddr->ToString(false);
 
 	// Initialize our send bunch
@@ -423,4 +409,27 @@ FString UIpConnection::LowLevelDescribe()
 		:	State==USOCK_Closed		?	TEXT("Closed")
 		:								TEXT("Invalid")
 	);
+}
+
+int32 UIpConnection::GetAddrAsInt(void)
+{
+	uint32 OutAddr = 0;
+	// Get the host byte order ip addr
+	RemoteAddr->GetIp(OutAddr);
+	return (int32)OutAddr;
+}
+
+int32 UIpConnection::GetAddrPort(void)
+{
+	return RemoteAddr->GetPort();
+}
+
+TSharedPtr<FInternetAddr> UIpConnection::GetInternetAddr()
+{
+	return RemoteAddr;
+}
+
+FString UIpConnection::RemoteAddressToString()
+{
+	return RemoteAddr->ToString(true);
 }

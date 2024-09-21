@@ -49,7 +49,7 @@ public:
 
 	virtual ITargetPlatform* GetTargetPlatform( ) override
 	{
-		if (Singleton == nullptr && TGenericWindowsTargetPlatform<true, false, false>::IsUsable())
+		if (Singleton == nullptr)
 		{
 			Singleton = new TGenericWindowsTargetPlatform<true, false, false>();
 		}

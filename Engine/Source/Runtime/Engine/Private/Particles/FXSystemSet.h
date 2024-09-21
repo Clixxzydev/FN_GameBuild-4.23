@@ -30,16 +30,14 @@ public:
 	virtual void AddVectorField(UVectorFieldComponent* VectorFieldComponent) override;
 	virtual void RemoveVectorField(UVectorFieldComponent* VectorFieldComponent) override;
 	virtual void UpdateVectorField(UVectorFieldComponent* VectorFieldComponent) override;
-	virtual void PreInitViews(FRHICommandListImmediate& RHICmdList) override;
+	virtual void PreInitViews() override;
 	virtual bool UsesGlobalDistanceField() const override;
-	virtual void PreRender(FRHICommandListImmediate& RHICmdList, const class FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData, bool bAllowGPUParticleSceneUpdate) override;
+	virtual void PreRender(FRHICommandListImmediate& RHICmdList, const class FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData) override;
 	virtual void PostRenderOpaque(
 		FRHICommandListImmediate& RHICmdList, 
-		FRHIUniformBuffer* ViewUniformBuffer,
+		const FUniformBufferRHIParamRef ViewUniformBuffer, 
 		const class FShaderParametersMetadata* SceneTexturesUniformBufferStruct,
-		FRHIUniformBuffer* SceneTexturesUniformBuffer) override;
-
-	virtual void OnDestroy() override;
+		FUniformBufferRHIParamRef SceneTexturesUniformBuffer) override;
 
 protected:
 

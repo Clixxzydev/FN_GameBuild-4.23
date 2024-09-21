@@ -56,14 +56,6 @@ void SVectorInputBox::ConstructX( const FArguments& InArgs, TSharedRef<SHorizont
 		.OverrideTextMargin(MarginAttribute)
 		.ContextMenuExtender( InArgs._ContextMenuExtenderX )
 		.TypeInterface(InArgs._TypeInterface)
-		.MinValue(TOptional<float>())
-		.MaxValue(TOptional<float>())
-		.MinSliderValue(TOptional<float>())
-		.MaxSliderValue(TOptional<float>())
-		.LinearDeltaSensitivity(1)
-		.Delta(InArgs._SpinDelta)
-		.OnBeginSliderMovement(InArgs._OnBeginSliderMovement)
-		.OnEndSliderMovement(InArgs._OnEndSliderMovement)
 		.Label()
 		[
 			LabelWidget
@@ -99,14 +91,6 @@ void SVectorInputBox::ConstructY( const FArguments& InArgs, TSharedRef<SHorizont
 		.OverrideTextMargin(MarginAttribute)
 		.ContextMenuExtender(InArgs._ContextMenuExtenderY)
 		.TypeInterface(InArgs._TypeInterface)
-		.MinValue(TOptional<float>())
-		.MaxValue(TOptional<float>())
-		.MinSliderValue(TOptional<float>())
-		.MaxSliderValue(TOptional<float>())
-		.LinearDeltaSensitivity(1)
-		.Delta(InArgs._SpinDelta)
-		.OnBeginSliderMovement(InArgs._OnBeginSliderMovement)
-		.OnEndSliderMovement(InArgs._OnEndSliderMovement)
 		.Label()
 		[
 			LabelWidget
@@ -142,14 +126,6 @@ void SVectorInputBox::ConstructZ( const FArguments& InArgs, TSharedRef<SHorizont
 		.OverrideTextMargin(MarginAttribute)
 		.ContextMenuExtender(InArgs._ContextMenuExtenderZ)
 		.TypeInterface(InArgs._TypeInterface)
-		.MinValue(TOptional<float>())
-		.MaxValue(TOptional<float>())
-		.MinSliderValue(TOptional<float>())
-		.MaxSliderValue(TOptional<float>())
-		.LinearDeltaSensitivity(1)
-		.Delta(InArgs._SpinDelta)
-		.OnBeginSliderMovement(InArgs._OnBeginSliderMovement)
-		.OnEndSliderMovement(InArgs._OnEndSliderMovement)
 		.Label()
 		[
 			LabelWidget

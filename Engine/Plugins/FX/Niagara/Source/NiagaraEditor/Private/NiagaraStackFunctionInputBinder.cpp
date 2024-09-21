@@ -33,8 +33,8 @@ bool FNiagaraStackFunctionInputBinder::TryBind(
 	FInputMatchesPredicate InputMatches;
 	InputMatches.BindLambda([=](FNiagaraVariable InputVariable)
 	{
-		TOptional<FNiagaraVariableMetaData> InputMetadata = FunctionGraph->GetMetaData(InputVariable);
-		if (InputMetadata.IsSet())
+		FNiagaraVariableMetaData* InputMetadata = FunctionGraph->GetMetaData(InputVariable);
+		if (InputMetadata != nullptr)
 		{
 			FString* ValueString = InputMetadata->PropertyMetaData.Find(InMetaDataKey);
 			if (ValueString != nullptr && *ValueString == InMetaDataValue)
@@ -92,12 +92,11 @@ bool FNiagaraStackFunctionInputBinder::TryBindInternal(
 
 	TArray<const UEdGraphPin*> InputPins;
 	FNiagaraStackGraphUtilities::GetStackFunctionInputPins(*FunctionCallNode, InputPins, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
-	
+
 	bool bInputFound = false;
-	const UEdGraphSchema_Niagara* Schema = GetDefault<UEdGraphSchema_Niagara>();
 	for (const UEdGraphPin* InputPin : InputPins)
 	{
-		FNiagaraVariable InputVariable = Schema->PinToNiagaraVariable(InputPin);
+		FNiagaraVariable InputVariable = GetDefault<UEdGraphSchema_Niagara>()->PinToNiagaraVariable(InputPin);
 		if(InputMatchesCallback.Execute(InputVariable))
 		{
 			InputName = InputVariable.GetName();
@@ -136,24 +135,6 @@ bool FNiagaraStackFunctionInputBinder::TryBindInternal(
 		}
 	}
 
-	// For the EditCondition and VisibleCondition, we want to be able to bind to static switch input variables
-	UNiagaraGraph* CalledGraph = FunctionCallNode->GetCalledGraph();
-	if (!bInputFound && CalledGraph)
-	{
-		for (FNiagaraVariable InputVar : CalledGraph->FindStaticSwitchInputs())
-		{
-			if (InputMatchesCallback.Execute(InputVar) && (!InInputType.IsSet() || InputVar.GetType() == InInputType.GetValue()))
-			{
-				InputName = InputVar.GetName();
-				InputType = InputVar.GetType();
-				AliasedParameterHandle = FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(FNiagaraParameterHandle(InputVar.GetName()), FunctionCallNode.Get());
-				RefreshGraphPins();
-				bInputFound = true;
-				break;
-			}
-		}
-	}
-
 	if (bInputFound == false)
 	{
 		Reset();
@@ -176,7 +157,7 @@ bool FNiagaraStackFunctionInputBinder::IsValid() const
 		{
 			RefreshGraphPins();
 		}
-		return (OverridePin == nullptr || OverridePin->LinkedTo.Num() == 0) && DefaultPin != nullptr;
+		return OverridePin == nullptr || OverridePin->LinkedTo.Num() == 0;
 	}
 	return false;
 }
@@ -293,12 +274,6 @@ void FNiagaraStackFunctionInputBinder::RefreshGraphPins() const
 {
 	OverridePin = FNiagaraStackGraphUtilities::GetStackFunctionInputOverridePin(*FunctionCallNode, AliasedParameterHandle);
 	DefaultPin = FunctionCallNode->FindParameterMapDefaultValuePin(InputName, Script->GetUsage());
-	
-	// if we bind to a static switch value the default value pin cannot be found via the parameter map
-	if (DefaultPin == nullptr)
-	{
-		DefaultPin = FunctionCallNode->FindStaticSwitchInputPin(InputName);
-	}
 	ValidScriptGraphChangeIdForOverridePin = Script->GetSource()->GetChangeID();
 	ValidScriptGraphChangeIdForDefaultPin = GetChangeIdFromFunctionScript();
 }

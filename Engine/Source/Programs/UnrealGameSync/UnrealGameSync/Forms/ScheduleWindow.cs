@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -24,7 +23,6 @@ namespace UnrealGameSync
 			ChangeComboBox.SelectedIndex = (int)InChange;
 
 			DateTime CurrentTime = DateTime.Now;
-			TimePicker.CustomFormat = CultureInfo.CurrentCulture.DateTimeFormat.ShortTimePattern;
 			TimePicker.Value = new DateTime(CurrentTime.Year, CurrentTime.Month, CurrentTime.Day, InTime.Hours, InTime.Minutes, InTime.Seconds);
 
 			ProjectListBox.Items.Add("Any open projects", AnyOpenProject);

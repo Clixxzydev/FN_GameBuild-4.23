@@ -45,15 +45,15 @@ struct FStaticMeshDataType
 	/** The stream to read the vertex color from. */
 	FVertexStreamComponent ColorComponent;
 
-	FRHIShaderResourceView* PositionComponentSRV = nullptr;
+	FShaderResourceViewRHIParamRef PositionComponentSRV = nullptr;
 
-	FRHIShaderResourceView* TangentsSRV = nullptr;
+	FShaderResourceViewRHIParamRef TangentsSRV = nullptr;
 
 	/** A SRV to manually bind and load TextureCoordinates in the Vertexshader. */
-	FRHIShaderResourceView* TextureCoordinatesSRV = nullptr;
+	FShaderResourceViewRHIParamRef TextureCoordinatesSRV = nullptr;
 
 	/** A SRV to manually bind and load Colors in the Vertexshader. */
-	FRHIShaderResourceView* ColorComponentsSRV = nullptr;
+	FShaderResourceViewRHIParamRef ColorComponentsSRV = nullptr;
 
 	int LightMapCoordinateIndex = -1;
 	int NumTexCoords = -1;

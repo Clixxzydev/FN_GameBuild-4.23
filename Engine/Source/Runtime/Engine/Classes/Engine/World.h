@@ -54,7 +54,6 @@ class UNetConnection;
 class UNetDriver;
 class UPrimitiveComponent;
 class UTexture2D;
-class FPhysScene_Chaos;
 struct FUniqueNetIdRepl;
 struct FEncryptionKeyResponse;
 
@@ -112,10 +111,7 @@ private:
 public:
 	~FConstPawnIterator();
 
-	FConstPawnIterator(FConstPawnIterator&&);
-	FConstPawnIterator& operator=(FConstPawnIterator&&);
-
-	explicit operator bool() const;
+	operator bool() const;
 	FPawnIteratorObject operator*() const;
 	TUniquePtr<FPawnIteratorObject> operator->() const;
 
@@ -127,7 +123,7 @@ public:
 	FConstPawnIterator& operator--(int) { return *this; }
 
 private:
-	TUniquePtr<TActorIterator<APawn>> Iterator;
+	TActorIterator<APawn>* Iterator;
 
 	friend UWorld;
 };
@@ -484,6 +480,7 @@ struct TStructOpsTypeTraits<FEndPhysicsTickFunction> : public TStructOpsTypeTrai
 };
 
 /* Struct of optional parameters passed to SpawnActor function(s). */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS // Required for auto-generated functions referencing bNoCollisionFail
 struct ENGINE_API FActorSpawnParameters
 {
 	FActorSpawnParameters();
@@ -511,32 +508,33 @@ private:
 	friend class UPackageMapClient;
 
 	/* Is the actor remotely owned. This should only be set true by the package map when it is creating an actor on a client that was replicated from the server. */
-	uint8	bRemoteOwned:1;
+	uint16	bRemoteOwned:1;
 	
 public:
 
 	bool IsRemoteOwned() const { return bRemoteOwned; }
 
 	/* Determines whether spawning will not fail if certain conditions are not met. If true, spawning will not fail because the class being spawned is `bStatic=true` or because the class of the template Actor is not the same as the class of the Actor being spawned. */
-	uint8	bNoFail:1;
+	uint16	bNoFail:1;
 
 	/* Determines whether the construction script will be run. If true, the construction script will not be run on the spawned Actor. Only applicable if the Actor is being spawned from a Blueprint. */
-	uint8	bDeferConstruction:1;
+	uint16	bDeferConstruction:1;
 	
 	/* Determines whether or not the actor may be spawned when running a construction script. If true spawning will fail if a construction script is being run. */
-	uint8	bAllowDuringConstructionScript:1;
+	uint16	bAllowDuringConstructionScript:1;
 
 #if WITH_EDITOR
 	/** Determines whether the begin play cycle will run on the spawned actor when in the editor. */
-	uint8	bTemporaryEditorActor:1;
+	uint16 bTemporaryEditorActor:1;
 
 	/* Determines wether or not the actor should be hidden from the Scene Outliner */
-	uint8	bHideFromSceneOutliner:1;
+	uint16 bHideFromSceneOutliner : 1;
 #endif
 	
 	/* Flags used to describe the spawned actor/object instance. */
 	EObjectFlags ObjectFlags;		
 };
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 
 /**
@@ -904,10 +902,6 @@ class ENGINE_API UWorld final : public UObject, public FNetworkNotify
 	 */
 	UPROPERTY(Transient)
 	TArray<UObject*>							PerModuleDataObjects;
-
-	// Level sequence actors to tick first
-	UPROPERTY(transient)
-	TArray<AActor*>								LevelSequenceActors;
 
 private:
 	/** Level collection. ULevels are referenced by FName (Package name) to avoid serialized references. Also contains offsets in world units */
@@ -1294,16 +1288,6 @@ private:
 
 	/** Physics scene for this world. */
 	FPhysScene*									PhysicsScene;
-	// Note that this should be merged with PhysScene going forward but is needed for now.
-public:
-#if INCLUDE_CHAOS
-	/** Current global physics scene. */
-	TSharedPtr<FPhysScene_Chaos> PhysicsScene_Chaos;
-
-	/** Default global physics scene. */
-	TSharedPtr<FPhysScene_Chaos> DefaultPhysicsScene_Chaos;
-#endif
-private:
 
 	/** Array of components that need updates at the end of the frame */
 	UPROPERTY(Transient, NonTransactional)
@@ -1335,11 +1319,6 @@ private:
 
 	/** Utility function that is used to ensure that a World has the correct WorldSettings */
 	void RepairWorldSettings();
-	
-#if INCLUDE_CHAOS
-	/** Utility function that is used to ensure that a World has the correct ChaosActor */
-	void RepairChaosActors();
-#endif
 
 	/** Gameplay timers. */
 	class FTimerManager* TimerManager;
@@ -1505,14 +1484,7 @@ public:
 
 	/** The type of travel to perform next when doing a server travel */
 	TEnumAsByte<ETravelType> NextTravelType;
-
-private:
-	/** An internal count of how many streaming levels are currently loading */
-	uint16 NumStreamingLevelsBeingLoaded; // Move this somewhere better
-
-	friend struct FWorldNotifyStreamingLevelLoading;
-
-public:
+	
 	/** The URL to be used for the upcoming server travel */
 	FString NextURL;
 
@@ -2407,11 +2379,10 @@ public:
 
 	/**
 	 * Cleans up components, streaming data and assorted other intermediate data.
-	 * @param bSessionEnded whether to notify the viewport that the game session has ended.
+	 * @param bSessionEnded whether to notify the viewport that the game session has ended
 	 * @param NewWorld Optional new world that will be loaded after this world is cleaned up. Specify a new world to prevent it and it's sublevels from being GCed during map transitions.
-	 * @param bResetCleanedUpFlag wheter to reset the bCleanedUpWorld flag or not.
 	 */
-	void CleanupWorld(bool bSessionEnded = true, bool bCleanupResources = true, UWorld* NewWorld = nullptr, bool bResetCleanedUpFlag = true);
+	void CleanupWorld(bool bSessionEnded = true, bool bCleanupResources = true, UWorld* NewWorld = nullptr);
 	
 	/**
 	 * Invalidates the cached data used to render the levels' UModel.
@@ -2464,8 +2435,6 @@ public:
 	 */
 	void UpdateLevelStreaming();
 
-	/** Releases PhysicsScene manually */
-	void ReleasePhysicsScene();
 public:
 	/**
 	 * Flushes level streaming in blocking fashion and returns when all levels are loaded/ visible/ hidden
@@ -3610,30 +3579,10 @@ public:
 	// Global Callback after actors have been initialized (on any world)
 	static UWorld::FOnWorldInitializedActors OnWorldInitializedActors;
 
-	static FWorldEvent OnWorldBeginTearDown;
 private:
 	FWorldDelegates() {}
 };
 
-/** Helper struct to allow ULevelStreaming to update its World on how many streaming levels are being loaded */
-struct FWorldNotifyStreamingLevelLoading
-{
-private:
-	static void Started(UWorld* World)
-	{
-		++World->NumStreamingLevelsBeingLoaded;
-	}
-
-	static void Finished(UWorld* World)
-	{
-		if (ensure(World->NumStreamingLevelsBeingLoaded > 0))
-		{
-			--World->NumStreamingLevelsBeingLoaded;
-		}
-	}
-
-	friend ULevelStreaming;
-};
 
 //////////////////////////////////////////////////////////////////////////
 // UWorld inlines:

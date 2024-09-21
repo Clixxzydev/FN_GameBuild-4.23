@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "RayTracingDiskLight.ush"
-
 bool GenerateSpotLightOcclusionRay(
 	FLightShaderParameters LightParameters,
 	float3 WorldPosition,
@@ -15,29 +13,30 @@ bool GenerateSpotLightOcclusionRay(
 	out float RayTMax
 )
 {
-	bool IsVisible = true;
-	float3 LightDirection = LightParameters.Position - WorldPosition;
-	float RayLength = length(LightDirection);
-	LightDirection *= rcp(RayLength);
-
 	if (LightParameters.SourceRadius > 0.0)
 	{
-		IsVisible = GenerateDiskLightOcclusionRay(LightParameters, WorldPosition, WorldNormal, RandSample,
-			RayOrigin, RayDirection, RayTMin, RayTMax);
+		float RayPdf = 0.0;
+		GenerateSphereLightOcclusionRay(LightParameters, WorldPosition, WorldNormal, RandSample,
+			RayOrigin, RayDirection, RayTMin, RayTMax, RayPdf);
 	}
 	else
 	{
+		float3 LightDirection = LightParameters.Position - WorldPosition;
+		float RayLength = length(LightDirection);
+		LightDirection /= RayLength;
+
+		// Apply normal perturbation when defining ray
 		RayOrigin = WorldPosition;
 		RayDirection = LightDirection;
-		RayTMin = 0.01;
+		RayTMin = 0.0;
 		RayTMax = RayLength;
 	}
 
 	// Apply culling
-	if (IsVisible)
+	float CosAngle = LightParameters.SpotAngles.x;
+	if (dot(RayDirection, LightParameters.Direction) < CosAngle)
 	{
-		float CosAngle = LightParameters.SpotAngles.x;
-		IsVisible = dot(LightDirection, LightParameters.Direction) >= CosAngle;
+		return false;
 	}
-	return IsVisible;
+	return true;
 }

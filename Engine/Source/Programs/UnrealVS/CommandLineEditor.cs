@@ -29,11 +29,6 @@ namespace UnrealVS
 
 		public CommandLineEditor()
 		{
-		}
-
-
-		public void Initialize()
-		{
 			// Create the handlers for our commands
 			{
 				// CommandLineCombo
@@ -93,7 +88,7 @@ namespace UnrealVS
 		/// </summary>
 		private void OnUpdateCommandLineCombo(Object source, ElapsedEventArgs e)
 		{
-            ThreadHelper.Generic.BeginInvoke(UpdateCommandLineCombo);
+			UpdateCommandLineCombo();
 		}
 
 		/// <summary>

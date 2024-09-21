@@ -61,7 +61,7 @@ private:
 	EPhysicsInterfaceScopedLockType LockType;
 };
 
-void FPhysicsInterface_ImmediatePhysX::CreateActor(const FActorCreationParams& Params, FPhysicsActorHandle& Handle)
+FPhysicsActorHandle FPhysicsInterface_ImmediatePhysX::CreateActor(const FActorCreationParams& Params)
 {
 	FPhysicsActorReference_ImmediatePhysX NewBody;
 	NewBody.Scene = Params.Scene;
@@ -87,7 +87,7 @@ void FPhysicsInterface_ImmediatePhysX::CreateActor(const FActorCreationParams& P
 	    Params.Scene->SwapActorData(Params.Scene->SolverBodiesData.Num() - 1, Params.Scene->NumSimulatedBodies++);
 	}
 	
-	Handle = NewBody;
+	return NewBody;
 }
 
 void FPhysicsInterface_ImmediatePhysX::ReleaseActor(FPhysicsActorHandle& InActorReference, FPhysScene* InScene)

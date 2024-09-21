@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -57,13 +57,10 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
     @autoreleasepool {
         SDL_uikitviewcontroller *viewcontroller = (__bridge SDL_uikitviewcontroller *) userdata;
         viewcontroller.homeIndicatorHidden = (hint && *hint) ? SDL_atoi(hint) : -1;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunguarded-availability-new"
-        if ([viewcontroller respondsToSelector:@selector(setNeedsUpdateOfHomeIndicatorAutoHidden)]) {
+        if (@available(iOS 11.0, *)) {
             [viewcontroller setNeedsUpdateOfHomeIndicatorAutoHidden];
             [viewcontroller setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
         }
-#pragma clang diagnostic pop
     }
 }
 #endif
@@ -76,11 +73,7 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 
 #if SDL_IPHONE_KEYBOARD
     UITextField *textField;
-    BOOL hardwareKeyboard;
-    BOOL showingKeyboard;
     BOOL rotatingOrientation;
-    NSString *changeText;
-    NSString *obligateForBackspace;
 #endif
 }
 
@@ -93,9 +86,7 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 
 #if SDL_IPHONE_KEYBOARD
         [self initKeyboard];
-        hardwareKeyboard = NO;
-        showingKeyboard = NO;
-        rotatingOrientation = NO;
+        rotatingOrientation = FALSE;
 #endif
 
 #if TARGET_OS_TV
@@ -259,12 +250,10 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 /* Set ourselves up as a UITextFieldDelegate */
 - (void)initKeyboard
 {
-    changeText = nil;
-    obligateForBackspace = @"                                                                "; /* 64 space */
     textField = [[UITextField alloc] initWithFrame:CGRectZero];
     textField.delegate = self;
     /* placeholder so there is something to delete! */
-    textField.text = obligateForBackspace;
+    textField.text = @" ";
 
     /* set UITextInputTrait properties, mostly to defaults */
     textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
@@ -278,47 +267,11 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
     textField.hidden = YES;
     keyboardVisible = NO;
 
-    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
 #if !TARGET_OS_TV
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
     [center addObserver:self selector:@selector(keyboardWillShow:) name:UIKeyboardWillShowNotification object:nil];
     [center addObserver:self selector:@selector(keyboardWillHide:) name:UIKeyboardWillHideNotification object:nil];
 #endif
-    [center addObserver:self selector:@selector(textFieldTextDidChange:) name:UITextFieldTextDidChangeNotification object:nil];
-}
-
-- (NSArray *) keyCommands {
-    NSMutableArray *commands = [[NSMutableArray alloc] init];
-    [commands addObject:[UIKeyCommand keyCommandWithInput:UIKeyInputUpArrow modifierFlags:kNilOptions action:@selector(handleCommand:)]];
-    [commands addObject:[UIKeyCommand keyCommandWithInput:UIKeyInputDownArrow modifierFlags:kNilOptions action:@selector(handleCommand:)]];
-    [commands addObject:[UIKeyCommand keyCommandWithInput:UIKeyInputLeftArrow modifierFlags:kNilOptions action:@selector(handleCommand:)]];
-    [commands addObject:[UIKeyCommand keyCommandWithInput:UIKeyInputRightArrow modifierFlags:kNilOptions action:@selector(handleCommand:)]];
-    [commands addObject:[UIKeyCommand keyCommandWithInput:UIKeyInputEscape modifierFlags:kNilOptions action:@selector(handleCommand:)]];
-    return [NSArray arrayWithArray:commands];
-}
-
-- (void) handleCommand: (UIKeyCommand *) keyCommand {
-    SDL_Scancode scancode = SDL_SCANCODE_UNKNOWN;
-
-    if (keyCommand.input == UIKeyInputUpArrow) {
-        scancode = SDL_SCANCODE_UP;
-    } else if (keyCommand.input == UIKeyInputDownArrow) {
-        scancode = SDL_SCANCODE_DOWN;
-    } else if (keyCommand.input == UIKeyInputLeftArrow) {
-        scancode = SDL_SCANCODE_LEFT;
-    } else if (keyCommand.input == UIKeyInputRightArrow) {
-        scancode = SDL_SCANCODE_RIGHT;
-    } else if (keyCommand.input == UIKeyInputEscape) {
-        scancode = SDL_SCANCODE_ESCAPE;
-    }
-
-    if (scancode != SDL_SCANCODE_UNKNOWN) {
-        SDL_SendKeyboardKey(SDL_PRESSED, scancode);
-        SDL_SendKeyboardKey(SDL_RELEASED, scancode);
-    }
-}
-
-- (void) downArrow: (UIKeyCommand *) keyCommand {
-    NSLog(@"down arrow!");
 }
 
 - (void)setView:(UIView *)view
@@ -337,32 +290,31 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 - (void)viewWillTransitionToSize:(CGSize)size withTransitionCoordinator:(id<UIViewControllerTransitionCoordinator>)coordinator
 {
     [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
-    rotatingOrientation = YES;
+    rotatingOrientation = TRUE;
     [coordinator animateAlongsideTransition:^(id<UIViewControllerTransitionCoordinatorContext> context) {}
                                  completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
-                                     rotatingOrientation = NO;
+                                     rotatingOrientation = FALSE;
                                  }];
 }
 #else
 - (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration {
     [super willRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
-    rotatingOrientation = YES;
+    rotatingOrientation = TRUE;
 }
 
 - (void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation {
     [super didRotateFromInterfaceOrientation:fromInterfaceOrientation];
-    rotatingOrientation = NO;
+    rotatingOrientation = FALSE;
 }
 #endif /* TARGET_OS_TV || __IPHONE_OS_VERSION_MIN_REQUIRED >= 80000 */
 
 - (void)deinitKeyboard
 {
-    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
 #if !TARGET_OS_TV
+    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
     [center removeObserver:self name:UIKeyboardWillShowNotification object:nil];
     [center removeObserver:self name:UIKeyboardWillHideNotification object:nil];
 #endif
-    [center removeObserver:self name:UITextFieldTextDidChangeNotification object:nil];
 }
 
 /* reveal onscreen virtual keyboard */
@@ -370,9 +322,7 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 {
     keyboardVisible = YES;
     if (textField.window) {
-        showingKeyboard = YES;
         [textField becomeFirstResponder];
-        showingKeyboard = NO;
     }
 }
 
@@ -398,54 +348,10 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 
 - (void)keyboardWillHide:(NSNotification *)notification
 {
-    if (!showingKeyboard && !rotatingOrientation) {
+    if (!rotatingOrientation) {
         SDL_StopTextInput();
     }
     [self setKeyboardHeight:0];
-}
-
-- (void)textFieldTextDidChange:(NSNotification *)notification
-{
-    if (changeText!=nil && textField.markedTextRange == nil)
-    {
-        NSUInteger len = changeText.length;
-        if (len > 0) {
-            /* Go through all the characters in the string we've been sent and
-             * convert them to key presses */
-            int i;
-            for (i = 0; i < len; i++) {
-                unichar c = [changeText characterAtIndex:i];
-                SDL_Scancode code;
-                Uint16 mod;
-
-                if (c < 127) {
-                    /* Figure out the SDL_Scancode and SDL_keymod for this unichar */
-                    code = unicharToUIKeyInfoTable[c].code;
-                    mod  = unicharToUIKeyInfoTable[c].mod;
-                } else {
-                    /* We only deal with ASCII right now */
-                    code = SDL_SCANCODE_UNKNOWN;
-                    mod = 0;
-                }
-
-                if (mod & KMOD_SHIFT) {
-                    /* If character uses shift, press shift down */
-                    SDL_SendKeyboardKey(SDL_PRESSED, SDL_SCANCODE_LSHIFT);
-                }
-
-                /* send a keydown and keyup even for the character */
-                SDL_SendKeyboardKey(SDL_PRESSED, code);
-                SDL_SendKeyboardKey(SDL_RELEASED, code);
-
-                if (mod & KMOD_SHIFT) {
-                    /* If character uses shift, press shift back up */
-                    SDL_SendKeyboardKey(SDL_RELEASED, SDL_SCANCODE_LSHIFT);
-                }
-            }
-            SDL_SendKeyboardText([changeText UTF8String]);
-        }
-        changeText = nil;
-    }
 }
 
 - (void)updateKeyboard
@@ -486,20 +392,49 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 - (BOOL)textField:(UITextField *)_textField shouldChangeCharactersInRange:(NSRange)range replacementString:(NSString *)string
 {
     NSUInteger len = string.length;
+
     if (len == 0) {
-        changeText = nil;
-        if (textField.markedTextRange == nil) {
-            /* it wants to replace text with nothing, ie a delete */
-            SDL_SendKeyboardKey(SDL_PRESSED, SDL_SCANCODE_BACKSPACE);
-            SDL_SendKeyboardKey(SDL_RELEASED, SDL_SCANCODE_BACKSPACE);
-        }
-        if (textField.text.length < 16) {
-            textField.text = obligateForBackspace;
-        }
+        /* it wants to replace text with nothing, ie a delete */
+        SDL_SendKeyboardKey(SDL_PRESSED, SDL_SCANCODE_BACKSPACE);
+        SDL_SendKeyboardKey(SDL_RELEASED, SDL_SCANCODE_BACKSPACE);
     } else {
-        changeText = string;
+        /* go through all the characters in the string we've been sent and
+         * convert them to key presses */
+        int i;
+        for (i = 0; i < len; i++) {
+            unichar c = [string characterAtIndex:i];
+            Uint16 mod = 0;
+            SDL_Scancode code;
+
+            if (c < 127) {
+                /* figure out the SDL_Scancode and SDL_keymod for this unichar */
+                code = unicharToUIKeyInfoTable[c].code;
+                mod  = unicharToUIKeyInfoTable[c].mod;
+            } else {
+                /* we only deal with ASCII right now */
+                code = SDL_SCANCODE_UNKNOWN;
+                mod = 0;
+            }
+
+            if (mod & KMOD_SHIFT) {
+                /* If character uses shift, press shift down */
+                SDL_SendKeyboardKey(SDL_PRESSED, SDL_SCANCODE_LSHIFT);
+            }
+
+            /* send a keydown and keyup even for the character */
+            SDL_SendKeyboardKey(SDL_PRESSED, code);
+            SDL_SendKeyboardKey(SDL_RELEASED, code);
+
+            if (mod & KMOD_SHIFT) {
+                /* If character uses shift, press shift back up */
+                SDL_SendKeyboardKey(SDL_RELEASED, SDL_SCANCODE_LSHIFT);
+            }
+        }
+
+        SDL_SendKeyboardText([string UTF8String]);
     }
-    return YES;
+
+    return NO; /* don't allow the edit! (keep placeholder text there) */
 }
 
 /* Terminates the editing session */
@@ -507,8 +442,7 @@ SDL_HideHomeIndicatorHintChanged(void *userdata, const char *name, const char *o
 {
     SDL_SendKeyboardKey(SDL_PRESSED, SDL_SCANCODE_RETURN);
     SDL_SendKeyboardKey(SDL_RELEASED, SDL_SCANCODE_RETURN);
-    if (keyboardVisible &&
-        SDL_GetHintBoolean(SDL_HINT_RETURN_KEY_HIDES_IME, SDL_FALSE)) {
+    if (SDL_GetHintBoolean(SDL_HINT_RETURN_KEY_HIDES_IME, SDL_FALSE)) {
          SDL_StopTextInput();
     }
     return YES;
@@ -564,7 +498,7 @@ UIKit_IsScreenKeyboardShown(_THIS, SDL_Window *window)
     @autoreleasepool {
         SDL_uikitviewcontroller *vc = GetWindowViewController(window);
         if (vc != nil) {
-            return vc.keyboardVisible;
+            return vc.isKeyboardVisible;
         }
         return SDL_FALSE;
     }

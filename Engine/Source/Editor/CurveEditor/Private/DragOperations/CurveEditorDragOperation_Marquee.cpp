@@ -2,21 +2,14 @@
 
 #include "DragOperations/CurveEditorDragOperation_Marquee.h"
 #include "CurveEditor.h"
-#include "SCurveEditorView.h"
 #include "SCurveEditorPanel.h"
 #include "EditorStyleSet.h"
 #include "CurveDrawInfo.h"
 
-FCurveEditorDragOperation_Marquee::FCurveEditorDragOperation_Marquee(FCurveEditor* InCurveEditor)
-	: LockedToView(nullptr)
+FCurveEditorDragOperation_Marquee::FCurveEditorDragOperation_Marquee(FCurveEditor* InCurveEditor, const SCurveEditorPanel* InCurveEditorPanel)
 {
 	CurveEditor = InCurveEditor;
-}
-
-FCurveEditorDragOperation_Marquee::FCurveEditorDragOperation_Marquee(FCurveEditor* InCurveEditor, SCurveEditorView* InLockedToView)
-	: LockedToView(InLockedToView)
-{
-	CurveEditor = InCurveEditor;
+	CurveEditorPanel = InCurveEditorPanel;
 }
 
 void FCurveEditorDragOperation_Marquee::OnBeginDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
@@ -48,39 +41,14 @@ void FCurveEditorDragOperation_Marquee::OnEndDrag(FVector2D InitialPosition, FVe
 		FMath::Max(InitialPosition.Y, CurrentPosition.Y)
 		);
 
-	TArray<FCurvePointHandle> AllPoints;
+	FCurveEditorScreenSpace ScreenSpace = CurveEditor->GetScreenSpace();
 
-	if (LockedToView)
-	{
-		LockedToView->GetPointsWithinWidgetRange(Marquee, &AllPoints);
-	}
-	else
-	{
-		TSharedPtr<SCurveEditorPanel> CurveEditorPanel = CurveEditor->GetPanel();
+	bool bRemoveFromSelection = MouseEvent.IsAltDown();
 
-		FGeometry ViewContainerGeometry = CurveEditorPanel->GetViewContainerGeometry();
-		FSlateLayoutTransform InverseContainerTransform = ViewContainerGeometry.GetAccumulatedLayoutTransform().Inverse();
-		for (TSharedPtr<SCurveEditorView> View : CurveEditorPanel->GetViews())
-		{
-			const FGeometry& LocalGeometry = View->GetCachedGeometry();
-			FSlateLayoutTransform ContainerToView = InverseContainerTransform.Concatenate(LocalGeometry.GetAccumulatedLayoutTransform()).Inverse();
-
-			FSlateRect UnclippedLocalMarquee = FSlateRect(ContainerToView.TransformPoint(Marquee.GetTopLeft()), ContainerToView.TransformPoint(Marquee.GetBottomRight()));
-			FSlateRect ClippedLocalMarquee = UnclippedLocalMarquee.IntersectionWith(FSlateRect(FVector2D(0.f,0.f), LocalGeometry.GetLocalSize()));
-
-			if (ClippedLocalMarquee.IsValid() && !ClippedLocalMarquee.IsEmpty())
-			{
-				View->GetPointsWithinWidgetRange(ClippedLocalMarquee, &AllPoints);
-			}
-		}
-	}
-
-	const bool bIsShiftDown = MouseEvent.IsShiftDown();
-	const bool bRemoveFromSelection = MouseEvent.IsAltDown();
-
+	// Only select the same types of point
 	TOptional<ECurvePointType> MatchPointType;
 
-	if (!bIsShiftDown && !bRemoveFromSelection)
+	if (!MouseEvent.IsShiftDown() && !bRemoveFromSelection)
 	{
 		CurveEditor->Selection.Clear();
 	}
@@ -89,39 +57,49 @@ void FCurveEditorDragOperation_Marquee::OnEndDrag(FVector2D InitialPosition, FVe
 		MatchPointType = CurveEditor->Selection.GetSelectionType();
 	}
 
-	// Now that we've gathered the overlapping points, perform the relevant selection
-	for (const FCurvePointHandle& Point : AllPoints)
+	FSlateRect MarqueeRectPx = Marquee;
+	for (const FCurveDrawParams& DrawParams : CurveEditorPanel->GetCachedDrawParams())
 	{
-		// If we're able to specify a point type, prefer keys
-		if (!MatchPointType.IsSet() && Point.PointType == ECurvePointType::Key)
+		for (const FCurvePointInfo& Point : DrawParams.Points)
 		{
-			// We found a key, so start selecting with keys
-			CurveEditor->Selection.Clear();
-			MatchPointType.Emplace(ECurvePointType::Key);
-		}
+			// Can we select this type of point?
+			if (MatchPointType.IsSet() && Point.Type != MatchPointType.GetValue())
+			{
+				continue;
+			}
 
-		if (MatchPointType.IsSet() && Point.PointType != MatchPointType.GetValue())
-		{
-			// Point does not match what we want
-			continue;
-		}
-		else if (bRemoveFromSelection)
-		{
-			CurveEditor->Selection.Remove(Point);
-		}
-		else
-		{
-			CurveEditor->Selection.Add(Point);
+			const FKeyDrawInfo& DrawInfo = DrawParams.GetKeyDrawInfo(Point.Type);
+			FSlateRect PointRect = FSlateRect::FromPointAndExtent(Point.ScreenPosition - DrawInfo.ScreenSize/2, DrawInfo.ScreenSize);
+
+			if (FSlateRect::DoRectanglesIntersect(PointRect, MarqueeRectPx))
+			{
+				if (!MatchPointType.IsSet() && Point.Type == ECurvePointType::Key)
+				{
+					CurveEditor->Selection.Clear();
+					MatchPointType = ECurvePointType::Key;
+				}
+
+				if (bRemoveFromSelection)
+				{
+					CurveEditor->Selection.Remove(DrawParams.GetID(), Point.Type, Point.KeyHandle);
+				}
+				else
+				{
+					CurveEditor->Selection.Add(DrawParams.GetID(), Point.Type, Point.KeyHandle);
+				}
+			}
 		}
 	}
 }
 
-void FCurveEditorDragOperation_Marquee::OnPaint(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 PaintOnLayerId)
+int32 FCurveEditorDragOperation_Marquee::OnPaint(const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId)
 {
 	FSlateDrawElement::MakeBox(
 		OutDrawElements,
-		PaintOnLayerId,
+		LayerId,
 		AllottedGeometry.ToPaintGeometry(Marquee.GetTopLeft(), Marquee.GetBottomRight() - Marquee.GetTopLeft()),
 		FEditorStyle::GetBrush(TEXT("MarqueeSelection"))
 		);
+
+	return LayerId;
 }

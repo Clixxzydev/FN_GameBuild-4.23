@@ -171,15 +171,32 @@ void UNiagaraNodeParameterMapGet::OnNewTypedPinAdded(UEdGraphPin* NewPin)
 
 void UNiagaraNodeParameterMapGet::RemoveDynamicPin(UEdGraphPin* Pin)
 {
-	RemovePin(Pin);
+	UEdGraphPin* DefaultPin = nullptr;
 	if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
 	{
-		UEdGraphPin* DefaultPin = GetDefaultPin(Pin);
-		if (DefaultPin != nullptr)
+		DefaultPin = GetDefaultPin(Pin);
+
+		FNiagaraVariable Var = CastChecked<UEdGraphSchema_Niagara>(GetSchema())->PinToNiagaraVariable(Pin);
+
+		UNiagaraGraph* Graph = GetNiagaraGraph();
+		FNiagaraVariableMetaData* OldMetaData = Graph->GetMetaData(Var);
+
+		if (OldMetaData)
 		{
-			RemovePin(DefaultPin);
+			Graph->Modify();
+			OldMetaData->ReferencerNodes.Remove(TWeakObjectPtr<UObject>(this));
 		}
 	}
+
+	RemovePin(Pin);
+
+	if (DefaultPin != nullptr)
+	{
+		RemovePin(DefaultPin);
+	}
+
+	MarkNodeRequiresSynchronization(__FUNCTION__, true);
+	//GetGraph()->NotifyGraphChanged();
 }
 
 UEdGraphPin* UNiagaraNodeParameterMapGet::GetDefaultPin(UEdGraphPin* OutputPin) const
@@ -291,11 +308,11 @@ FText UNiagaraNodeParameterMapGet::GetNodeTitle(ENodeTitleType::Type TitleType) 
 	return LOCTEXT("UNiagaraNodeParameterMapGetName", "Map Get");
 }
 
-void UNiagaraNodeParameterMapGet::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive /*= true*/, bool bFilterForCompilation /*= true*/) const
+void UNiagaraNodeParameterMapGet::BuildParameterMapHistory(FNiagaraParameterMapHistoryBuilder& OutHistory, bool bRecursive)
 {
 	if (bRecursive)
 	{
-		OutHistory.VisitInputPin(GetInputPin(0), this, bFilterForCompilation);
+		OutHistory.VisitInputPin(GetInputPin(0), this);
 	}
 
 	if (!IsNodeEnabled() && OutHistory.GetIgnoreDisabled())
@@ -325,11 +342,11 @@ void UNiagaraNodeParameterMapGet::BuildParameterMapHistory(FNiagaraParameterMapH
 			bool bUsedDefaults = false;
 			if (bRecursive)
 			{
-				OutHistory.HandleVariableRead(ParamMapIdx, OutputPins[i], true, GetDefaultPin(OutputPins[i]), bFilterForCompilation, bUsedDefaults);
+				OutHistory.HandleVariableRead(ParamMapIdx, OutputPins[i], true, GetDefaultPin(OutputPins[i]), bUsedDefaults);
 			}
 			else
 			{
-				OutHistory.HandleVariableRead(ParamMapIdx, OutputPins[i], true, nullptr, bFilterForCompilation, bUsedDefaults);
+				OutHistory.HandleVariableRead(ParamMapIdx, OutputPins[i], true, nullptr, bUsedDefaults);
 			}
 		}
 		OutHistory.EndNodeVisitation(ParamMapIdx, NodeIdx);
@@ -414,7 +431,7 @@ bool UNiagaraNodeParameterMapGet::CommitEditablePinName(const FText& InName, UEd
 	return false;
 }
 
-void UNiagaraNodeParameterMapGet::GatherExternalDependencyIDs(ENiagaraScriptUsage InMasterUsage, const FGuid& InMasterUsageId, TArray<FNiagaraCompileHash>& InReferencedCompileHashes, TArray<FGuid>& InReferencedIDs, TArray<UObject*>& InReferencedObjs) const
+void UNiagaraNodeParameterMapGet::GatherExternalDependencyIDs(ENiagaraScriptUsage InMasterUsage, const FGuid& InMasterUsageId, TArray<FGuid>& InReferencedIDs, TArray<UObject*>& InReferencedObjs) const
 {
 	// If we are referencing any parameter collections, we need to register them here... might want to speeed this up in the future 
 	// by caching any parameter collections locally.
@@ -467,17 +484,23 @@ void UNiagaraNodeParameterMapGet::GetPinHoverText(const UEdGraphPin& Pin, FStrin
 				const UEdGraphPin* OutputPin = GetOutputPinForDefault(&Pin);
 				if (OutputPin)
 				{
-					FText Desc = FText::Format(LOCTEXT("DefaultValueTooltip", "Default value for \"{0}\" if no other module has set it previously in the stack."), FText::FromName(OutputPin->PinName));
-					HoverTextOut = Desc.ToString();
-					return;
+					TypeDef = Schema->PinToTypeDefinition(OutputPin);
+					FNiagaraVariable Var = FNiagaraVariable(TypeDef, OutputPin->PinName);
+					const FNiagaraVariableMetaData* Metadata = NiagaraGraph->GetMetaData(Var);
+					if (Metadata)
+					{
+						FText Desc = FText::Format(LOCTEXT("DefaultValueTooltip", "Default value for \"{0}\" if no other module has set it previously in the stack."), FText::FromName(OutputPin->PinName));
+						HoverTextOut = Desc.ToString();
+						return;
+					}
 				}
 				
 			}
 			else
 			{
 				FNiagaraVariable Var = FNiagaraVariable(TypeDef, Pin.PinName);
-				TOptional<FNiagaraVariableMetaData> Metadata = NiagaraGraph->GetMetaData(Var);
-				if (Metadata.IsSet())
+				const FNiagaraVariableMetaData* Metadata = NiagaraGraph->GetMetaData(Var);
+				if (Metadata)
 				{
 					FText Desc = FText::Format(LOCTEXT("GetVarTooltip", "Name: \"{0}\"\nType: {1}\nDesc: {2}"), FText::FromName(Pin.PinName),
 						TypeDef.GetNameText(), Metadata->Description);
@@ -515,7 +538,7 @@ void UNiagaraNodeParameterMapGet::GetContextMenuActions(const FGraphNodeContextM
 				[
 					SNew(SEditableTextBox)
 					.Text_UObject(this, &UNiagaraNodeParameterMapBase::GetPinDescriptionText, Pin)
-					.OnTextCommitted_UObject(const_cast<UNiagaraNodeParameterMapGet*>(this), &UNiagaraNodeParameterMapBase::PinDescriptionTextCommitted, Pin)
+					.OnTextCommitted_UObject(this, &UNiagaraNodeParameterMapBase::PinDescriptionTextCommitted, Pin)
 				];
 			Context.MenuBuilder->AddWidget(RenameWidget, LOCTEXT("DescMenuItem", "Description"));
 			Context.MenuBuilder->EndSection();

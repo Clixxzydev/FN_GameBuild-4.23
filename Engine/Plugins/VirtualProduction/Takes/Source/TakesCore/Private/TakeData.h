@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "TakesCoreLog.h"
+#include "TakesCoreFwd.h"
 #include "TakeMetaData.h"
 #include "TakesCoreBlueprintLibrary.h"
 
@@ -51,8 +51,6 @@ public:
 		}
 
 		CurrentTakeNumber = TakeMetaData->GetTakeNumber();
-
-		TakeNumbers.Sort();
 
 		return true;
 	}

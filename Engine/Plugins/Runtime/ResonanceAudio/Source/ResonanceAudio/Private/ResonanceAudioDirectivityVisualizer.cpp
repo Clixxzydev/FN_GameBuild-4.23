@@ -12,16 +12,18 @@ AResonanceAudioDirectivityVisualizer::AResonanceAudioDirectivityVisualizer()
 {
 	// Make sure visualization is not displayed in the actual game.
 	Super::SetActorHiddenInGame(true);
-
-#if SUPPORTS_PROCEDURAL_MESH
 	Mesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("VisualizationMesh"));
-	Mesh->AddToRoot();
 
 	// Disable collision data.
 	Mesh->ContainsPhysicsTriMeshData(false);
 
 	RootComponent = Mesh;
-#endif // SUPPORTS_PROCEDURAL_MESH
+
+// 	static ConstructorHelpers::FObjectFinder<UMaterial> FoundMaterial(TEXT("Material'/ResonanceAudio/VisualizationMeshMaterial.VisualizationMeshMaterial'"));
+// 	if (FoundMaterial.Succeeded())
+// 	{
+// 		Material = FoundMaterial.Object;
+// 	}
 }
 
 void AResonanceAudioDirectivityVisualizer::DrawPattern()
@@ -55,19 +57,6 @@ void AResonanceAudioDirectivityVisualizer::DrawPattern()
 		}
 	}
 
-#if SUPPORTS_PROCEDURAL_MESH
 	Mesh->CreateMeshSection(0, Vertices, Triangles, Normals, UV0, VertexColors, Tangents, false);
 	Mesh->SetMaterial(0, Material);
-#endif // SUPPORTS_PROCEDURAL_MESH
-}
-
-void AResonanceAudioDirectivityVisualizer::BeginDestroy()
-{
-#if SUPPORTS_PROCEDURAL_MESH
-	if (Mesh)
-	{
-		Mesh->RemoveFromRoot();
-	}
-#endif // SUPPORTS_PROCEDURAL_MESH
-	AActor::BeginDestroy();
 }

@@ -208,8 +208,6 @@ bool ProcessCommandLine()
 
 int32 WINAPI WinMain( _In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ char*, _In_ int32 nCmdShow )
 {
-	TRACE_BOOKMARK(TEXT("WinMain.Enter"));
-
 	// Setup common Windows settings
 	SetupWindowsEnvironment();
 
@@ -314,8 +312,6 @@ int32 WINAPI WinMain( _In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstan
 	{
 		Sleep(INFINITE);
 	}
-
-	TRACE_BOOKMARK(TEXT("WinMain.Exit"));
 
 	return ErrorLevel;
 }

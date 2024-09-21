@@ -18,12 +18,10 @@ public class WindowsMixedRealityPlatformEditor : ModuleRules
 				"EditorWidgets",
 				"DesktopWidgets",
 				"PropertyEditor",
-                "UnrealEd",
-                "SharedSettingsWidgets",
+				"SharedSettingsWidgets",
 				"WindowsMixedRealityRuntimeSettings",
 				"WindowsMixedRealityHMD",
-                "WindowsMixedRealitySpatialInput",
-                "TargetPlatform",
+				"TargetPlatform",
 				"RenderCore",
 			}
 		);
@@ -33,7 +31,5 @@ public class WindowsMixedRealityPlatformEditor : ModuleRules
 				"Settings"
 			}
 		);
-
-        AddEngineThirdPartyPrivateStaticDependencies(Target, "WindowsMixedRealityInterop");
-    }
+	}
 }

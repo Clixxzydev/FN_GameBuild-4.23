@@ -7,7 +7,6 @@
 #include "Misc/QueuedThreadPool.h"
 #include "Modules/ModuleManager.h"
 
-#include "ImgMediaGlobalCache.h"
 #include "ImgMediaPlayer.h"
 #include "ImgMediaScheduler.h"
 #include "IImgMediaModule.h"
@@ -104,12 +103,8 @@ public:
 		{
 			InitScheduler();
 		}
-		if (!GlobalCache.IsValid())
-		{
-			InitGlobalCache();
-		}
 
-		return MakeShared<FImgMediaPlayer, ESPMode::ThreadSafe>(EventSink, Scheduler.ToSharedRef(), GlobalCache.ToSharedRef());
+		return MakeShared<FImgMediaPlayer, ESPMode::ThreadSafe>(EventSink, Scheduler.ToSharedRef());
 	}
 
 public:
@@ -124,7 +119,6 @@ public:
 	virtual void ShutdownModule() override
 	{
 		Scheduler.Reset();
-		GlobalCache.Reset();
 
 #if USE_IMGMEDIA_DEALLOC_POOL
 		ImgMediaThreadPool.Reset();
@@ -147,15 +141,7 @@ private:
 		}
 	}
 
-	void InitGlobalCache()
-	{
-		// Initialize global cache.
-		GlobalCache = MakeShared<FImgMediaGlobalCache, ESPMode::ThreadSafe>();
-		GlobalCache->Initialize();
-	}
-
 	TSharedPtr<FImgMediaScheduler, ESPMode::ThreadSafe> Scheduler;
-	TSharedPtr<FImgMediaGlobalCache, ESPMode::ThreadSafe> GlobalCache;
 };
 
 

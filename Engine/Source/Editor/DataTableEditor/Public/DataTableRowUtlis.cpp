@@ -6,23 +6,17 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/SWidget.h"
-#include "Framework/Commands/GenericCommands.h"
-#include "IDataTableEditor.h"
 
 #define LOCTEXT_NAMESPACE "FDataTableRowUtils"
 
 const FText FDataTableRowUtils::SearchForReferencesActionName = LOCTEXT("FDataTableRowUtils_SearchForReferences", "Find Row References");
 const FText FDataTableRowUtils::SearchForReferencesActionTooltip = LOCTEXT("FDataTableRowUtils_SearchForReferencesTooltip", "Find assets that reference this Row");
 
-TSharedRef<SWidget> FDataTableRowUtils::MakeRowActionsMenu(TSharedPtr<IDataTableEditor> Editor, FExecuteAction SearchForReferencesAction)
+TSharedRef<SWidget> FDataTableRowUtils::MakeRowActionsMenu(FExecuteAction SearchForReferencesAction)
 {
 	if (SearchForReferencesAction.IsBound())
 	{
-		FMenuBuilder MenuBuilder(true, Editor->GetToolkitCommands());
-		MenuBuilder.AddMenuEntry(FGenericCommands::Get().Copy);
-		MenuBuilder.AddMenuEntry(FGenericCommands::Get().Paste);
-		MenuBuilder.AddMenuEntry(FGenericCommands::Get().Duplicate);
-		MenuBuilder.AddMenuSeparator();
+		FMenuBuilder MenuBuilder(true, nullptr);
 		MenuBuilder.AddMenuEntry(SearchForReferencesActionName, SearchForReferencesActionTooltip, 
 			FSlateIcon(), FUIAction(SearchForReferencesAction));
 		return MenuBuilder.MakeWidget();

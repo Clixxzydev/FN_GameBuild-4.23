@@ -116,6 +116,11 @@ void UBlueprintGeneratedClass::PostLoad()
 			}
 		}
 
+		if (Package && Package->HasAnyPackageFlags(PKG_ForDiffing))
+		{
+			ClassFlags |= CLASS_Deprecated;
+		}
+
 #if UE_BLUEPRINT_EVENTGRAPH_FASTCALLS
 		// Patch the fast calls (needed as we can't bump engine version to serialize it directly in UFunction right now)
 		for (const FEventGraphFastCallPair& Pair : FastCallPairs_DEPRECATED)
@@ -299,14 +304,13 @@ UObject* UBlueprintGeneratedClass::GetArchetypeForCDO() const
 }
 #endif //WITH_EDITOR
 
-void UBlueprintGeneratedClass::SerializeDefaultObject(UObject* Object, FStructuredArchive::FSlot Slot)
+void UBlueprintGeneratedClass::SerializeDefaultObject(UObject* Object, FArchive& Ar)
 {
 	FScopeLock SerializeAndPostLoadLock(&SerializeAndPostLoadCritical);
-	FArchive& UnderlyingArchive = Slot.GetUnderlyingArchive();
 
-	Super::SerializeDefaultObject(Object, Slot);
+	Super::SerializeDefaultObject(Object, Ar);
 
-	if (UnderlyingArchive.IsLoading() && !UnderlyingArchive.IsObjectReferenceCollector() && Object == ClassDefaultObject)
+	if (Ar.IsLoading() && !Ar.IsObjectReferenceCollector() && Object == ClassDefaultObject)
 	{
 		// On load, build the custom property list used in post-construct initialization logic. Note that in the editor, this will be refreshed during compile-on-load.
 		// @TODO - Potentially make this serializable (or cooked data) to eliminate the slight load time cost we'll incur below to generate this list in a cooked build. For now, it's not serialized since the raw UProperty references cannot be saved out.
@@ -680,7 +684,7 @@ void UBlueprintGeneratedClass::InitArrayPropertyFromCustomList(const UArrayPrope
 	}
 }
 
-bool UBlueprintGeneratedClass::IsFunctionImplementedInScript(FName InFunctionName) const
+bool UBlueprintGeneratedClass::IsFunctionImplementedInBlueprint(FName InFunctionName) const
 {
 	UFunction* Function = FindFunctionByName(InFunctionName);
 	return Function && Function->GetOuter() && Function->GetOuter()->IsA(UBlueprintGeneratedClass::StaticClass());
@@ -1000,6 +1004,7 @@ void UBlueprintGeneratedClass::CreateTimelineComponent(AActor* Actor, const UTim
 {
 	if (!Actor
 		|| !TimelineTemplate
+		|| !TimelineTemplate->bValidatedAsWired
 		|| Actor->IsTemplate()
 		|| Actor->IsPendingKill())
 	{
@@ -1127,7 +1132,7 @@ void UBlueprintGeneratedClass::CreateComponentsForActor(const UClass* ThisClass,
 		for (UTimelineTemplate* TimelineTemplate : BPGC->Timelines)
 		{
 			// Not fatal if NULL, but shouldn't happen and ignored if not wired up in graph
-			if (TimelineTemplate)
+			if (TimelineTemplate && TimelineTemplate->bValidatedAsWired)
 			{
 				CreateTimelineComponent(Actor, TimelineTemplate);
 			}
@@ -1139,7 +1144,7 @@ void UBlueprintGeneratedClass::CreateComponentsForActor(const UClass* ThisClass,
 		{
 			const UTimelineTemplate* TimelineTemplate = Cast<const UTimelineTemplate>(MiscObj);
 			// Not fatal if NULL, but shouldn't happen and ignored if not wired up in graph
-			if (TimelineTemplate)
+			if (TimelineTemplate && TimelineTemplate->bValidatedAsWired)
 			{
 				CreateTimelineComponent(Actor, TimelineTemplate);
 			}
@@ -1624,13 +1629,6 @@ void UBlueprintGeneratedClass::Serialize(FArchive& Ar)
 	if (Ar.IsLoading() && 0 == (Ar.GetPortFlags() & PPF_Duplicate))
 	{
 		CreatePersistentUberGraphFrame(ClassDefaultObject, true);
-
-		UPackage* Package = GetOutermost();
-		if (Package && Package->HasAnyPackageFlags(PKG_ForDiffing))
-		{
-			// If this is a diff package, set class to deprecated. This happens here to make sure it gets hit in all load cases
-			ClassFlags |= CLASS_Deprecated;
-		}
 	}
 }
 

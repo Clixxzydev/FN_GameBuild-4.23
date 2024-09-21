@@ -44,10 +44,9 @@ public:
 	void Flush();
 
 	/** Helper functions to describe end points. */
-	TArray<uint8> GetRawRemoteAddr(int32& OutPort);
 	FString RemoteEndPoint(bool bAppendPort);
 	FString LocalEndPoint(bool bAppendPort);
-	struct sockaddr_in* GetRemoteAddr() { return &RemoteAddr; }
+	struct sockaddr_in* GetRemoteAddr();
 
 // this was made public because of cross-platform build issues
 public:

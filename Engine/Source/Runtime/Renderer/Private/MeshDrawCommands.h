@@ -22,7 +22,7 @@ public:
 	FPrimitiveIdVertexBufferPool();
 	~FPrimitiveIdVertexBufferPool();
 
-	FRHIVertexBuffer* Allocate(int32 BufferSize);
+	FVertexBufferRHIParamRef Allocate(int32 BufferSize);
 	void DiscardAll();
 
 	virtual void ReleaseDynamicRHI() override;
@@ -164,7 +164,7 @@ public:
 
 
 private:
-	FRHIVertexBuffer* PrimitiveIdVertexBufferRHI;
+	FVertexBufferRHIParamRef PrimitiveIdVertexBufferRHI;
 	FMeshDrawCommandPassSetupTaskContext TaskContext;
 	FGraphEventRef TaskEventRef;
 	FString PassNameForStats;
@@ -184,5 +184,5 @@ extern void SortAndMergeDynamicPassMeshDrawCommands(
 	ERHIFeatureLevel::Type FeatureLevel,
 	FMeshCommandOneFrameArray& VisibleMeshDrawCommands,
 	FDynamicMeshDrawCommandStorage& MeshDrawCommandStorage,
-	FRHIVertexBuffer*& OutPrimitiveIdVertexBuffer,
+	FVertexBufferRHIParamRef& OutPrimitiveIdVertexBuffer,
 	uint32 InstanceFactor);

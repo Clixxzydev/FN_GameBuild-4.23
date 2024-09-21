@@ -22,7 +22,7 @@ enum
 UDatasmithScene::UDatasmithScene()
 {
 #if WITH_EDITORONLY_DATA
-	DataprepRecipeBP = nullptr;
+	DataPrepRecipeBP = nullptr;
 #endif
 #if WITH_EDITOR
 	bPreWorldRenameCallbackRegistered = false;
@@ -98,7 +98,7 @@ void UDatasmithScene::Serialize( FArchive& Archive )
 		DatasmithSceneBulkData.Serialize( Archive, this );
 	}
 
-	if (Archive.IsLoading() && Archive.CustomVer(FEnterpriseObjectVersion::GUID) < FEnterpriseObjectVersion::HasUDataprepRecipe)
+	if (Archive.IsLoading() && Archive.CustomVer(FEnterpriseObjectVersion::GUID) < FEnterpriseObjectVersion::HasUDatasmithDataPrepRecipe)
 	{
 		check(AssetImportData);
 		check(AssetImportData->StaticClass()->IsChildOf(UDatasmithSceneImportData::StaticClass()));

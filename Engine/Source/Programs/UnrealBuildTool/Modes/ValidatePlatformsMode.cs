@@ -41,7 +41,7 @@ namespace UnrealBuildTool
 			// If the -AllPlatforms argument is specified, add all the known platforms into the list
 			if(bAllPlatforms)
 			{
-				Platforms.UnionWith(UnrealTargetPlatform.GetValidPlatforms());
+				Platforms.UnionWith(Enum.GetValues(typeof(UnrealTargetPlatform)).OfType<UnrealTargetPlatform>().Where(x => x != UnrealTargetPlatform.Unknown));
 			}
 
 			// Output a line for each registered platform

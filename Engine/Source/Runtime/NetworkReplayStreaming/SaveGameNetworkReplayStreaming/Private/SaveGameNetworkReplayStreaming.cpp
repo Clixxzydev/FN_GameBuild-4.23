@@ -10,6 +10,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Async/Async.h"
 #include "Tickable.h"
+#include "Misc/NetworkVersion.h"
 #include "GameDelegates.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
@@ -634,16 +635,35 @@ FSaveGameNetworkReplayStreamer::FSaveGameNetworkReplayStreamer(const FString& In
 {
 }
 
-void FSaveGameNetworkReplayStreamer::StartStreaming(const FStartStreamingParameters& Params, const FStartStreamingCallback& Delegate)
+void FSaveGameNetworkReplayStreamer::StartStreaming(const FString& CustomName, const FString& FriendlyName, const TArray<int32>& UserIndices, bool bRecord, const FNetworkReplayVersion& ReplayVersion, const FStartStreamingCallback& Delegate)
+{
+	if (!IsSaveGameFileName(CustomName))
+	{
+		FLocalFileNetworkReplayStreamer::StartStreaming(CustomName, FriendlyName, UserIndices, bRecord, ReplayVersion, Delegate);
+	}
+	else if (UserIndices.Num() > 0 && UserIndices[0] != INDEX_NONE)
+	{
+		StartStreamingSaved(CustomName, FriendlyName, UserIndices, bRecord, ReplayVersion, Delegate);
+	}
+	else
+	{
+		UE_LOG(LogSaveGameReplay, Warning, TEXT("FSaveGameNetworkReplayStreamer::StartStreaming - Invalid UserIndex"));
+		Delegate.ExecuteIfBound(FStartStreamingResult());
+	}
+}
+
+void FSaveGameNetworkReplayStreamer::StartStreaming(const FString& CustomName, const FString& FriendlyName, const TArray<FString>& UserStrings, bool bRecord, const FNetworkReplayVersion& ReplayVersion, const FStartStreamingCallback& Delegate)
 {
 	// If we're not handling a SaveFile directly, then just do normal streaming behavior.
-	if (!IsSaveGameFileName(Params.CustomName))
+	if (!IsSaveGameFileName(CustomName))
 	{
-		FLocalFileNetworkReplayStreamer::StartStreaming(Params, Delegate);
+		FLocalFileNetworkReplayStreamer::StartStreaming(CustomName, FriendlyName, UserStrings, bRecord, ReplayVersion, Delegate);
 	}
-	else if (Params.UserIndices.Num() > 0)
+	else if (UserStrings.Num() > 0 && !UserStrings[0].IsEmpty())
 	{
-		StartStreamingSaved(Params, Delegate);
+		TArray<int32> UserIndices;
+		GetUserIndicesFromUserStrings(UserStrings, UserIndices);
+		StartStreaming(CustomName, FriendlyName, UserIndices, bRecord, ReplayVersion, Delegate);
 	}
 	else
 	{
@@ -652,29 +672,25 @@ void FSaveGameNetworkReplayStreamer::StartStreaming(const FStartStreamingParamet
 	}
 }
 
-void FSaveGameNetworkReplayStreamer::StartStreamingSaved(const FStartStreamingParameters& Params, const FStartStreamingCallback& Delegate)
+void FSaveGameNetworkReplayStreamer::StartStreamingSaved(const FString& CustomName, const FString& FriendlyName, const TArray<int32>& UserIndices, bool bRecord, const FNetworkReplayVersion& ReplayVersion, const FStartStreamingCallback& Delegate)
 {
 	// We should only hit this path if we're playing back a replay.
-	check(!Params.bRecord);
+	check(!bRecord);
 
 	using TAsyncTypes = SaveGameReplay::TAsyncTypes<FStartStreamingResult>;
 
-	auto AsyncWork = [this, Params]()
+	auto AsyncWork = [this, CustomName, UserIndices, ReplayVersion]()
 	{
 		auto SharedResult = TAsyncTypes::MakeSharedResult();
-		StartStreaming_Internal(Params, *SharedResult.Get());
+		StartStreaming_Internal(CustomName, FString(), UserIndices, false, ReplayVersion, *SharedResult.Get());
 		return SharedResult;
 	};
 
-	auto PostAsyncWork = [this, Params, Delegate](const FStartStreamingResult& Result)
+	auto PostAsyncWork = [this, UserIndices, ReplayVersion, Delegate](const FStartStreamingResult& Result)
 	{
 		if (Result.WasSuccessful())
 		{
-			FStartStreamingParameters LocalParams = Params;
-			LocalParams.CustomName = GetLocalPlaybackName();
-			LocalParams.FriendlyName = FString();
-
-			FLocalFileNetworkReplayStreamer::StartStreaming(LocalParams, Delegate);
+			FLocalFileNetworkReplayStreamer::StartStreaming(GetLocalPlaybackName(), FString(), UserIndices, false, ReplayVersion, Delegate);
 		}
 		else
 		{
@@ -685,11 +701,11 @@ void FSaveGameNetworkReplayStreamer::StartStreamingSaved(const FStartStreamingPa
 	SaveGameReplay::FAsyncTaskManager::Get().StartTask<FStartStreamingResult>(*this, TEXT("StartStreaming"), AsyncWork, PostAsyncWork);
 }
 
-void FSaveGameNetworkReplayStreamer::StartStreaming_Internal(const FStartStreamingParameters& Params, FStartStreamingResult& Result)
+void FSaveGameNetworkReplayStreamer::StartStreaming_Internal(const FString& CustomName, const FString& FriendlyName, const TArray<int32>& UserIndices, bool bRecord, const FNetworkReplayVersion& ReplayVersion, FStartStreamingResult& Result)
 {
 	using ESaveExistsResult = ISaveGameSystem::ESaveExistsResult;
 
-	Result.bRecording = Params.bRecord;
+	Result.bRecording = bRecord;
 
 	// Make sure the save game system is available.
 	ISaveGameSystem* SaveGameSystem = IPlatformFeaturesModule::Get().GetSaveGameSystem();
@@ -698,16 +714,16 @@ void FSaveGameNetworkReplayStreamer::StartStreaming_Internal(const FStartStreami
 		return;
 	}
 
-	if (Params.bRecord)
+	if (bRecord)
 	{
 		UE_LOG(LogSaveGameReplay, Warning, TEXT("FSaveGameNetworkReplayStreamer::StartStreaming: Cannot record directly to a save game, use KeepReplay() instead."));
 		return;
 	}
 
-	const int32 UserIndex = Params.UserIndices.Num() > 0 ? Params.UserIndices[0] : INDEX_NONE;
+	const int32 UserIndex = UserIndices.Num() > 0 ? UserIndices[0] : INDEX_NONE;
 
 	// Make sure that the file actually exists.
-	const ESaveExistsResult SaveExistsResult = SaveGameSystem->DoesSaveGameExistWithResult(*Params.CustomName, UserIndex);
+	const ESaveExistsResult SaveExistsResult = SaveGameSystem->DoesSaveGameExistWithResult(*CustomName, UserIndex);
 	if (SaveExistsResult != ESaveExistsResult::OK)
 	{
 		PopulateStreamingResultFromSaveExistsResult(SaveExistsResult, Result);
@@ -717,7 +733,7 @@ void FSaveGameNetworkReplayStreamer::StartStreaming_Internal(const FStartStreami
 
 	// Try to load the data.
 	TArray<uint8> ReplayData;
-	if (!SaveGameSystem->LoadGame(/*bAttemptToUseUI=*/false, *Params.CustomName, UserIndex, ReplayData))
+	if (!SaveGameSystem->LoadGame(/*bAttemptToUseUI=*/false, *CustomName, UserIndex, ReplayData))
 	{
 		UE_LOG(LogSaveGameReplay, Warning, TEXT("FSaveGameNetworkReplayStreamer::StartStreaming: Failed to load replay data."));
 		return;
@@ -1155,7 +1171,22 @@ void FSaveGameNetworkReplayStreamer::RenameReplaySaved(const FString& ReplayName
 	Delegate.ExecuteIfBound(Result);
 }
 
+void FSaveGameNetworkReplayStreamer::EnumerateStreams(const FNetworkReplayVersion& ReplayVersion, const FString& UserString, const FString& MetaString, const FEnumerateStreamsCallback& Delegate)
+{
+	EnumerateStreamsSaved(ReplayVersion, GetUserIndexFromUserString(UserString), MetaString, TArray< FString >(), Delegate);
+}
+
+void FSaveGameNetworkReplayStreamer::EnumerateStreams(const FNetworkReplayVersion& ReplayVersion, const FString& UserString, const FString& MetaString, const TArray< FString >& ExtraParms, const FEnumerateStreamsCallback& Delegate)
+{
+	EnumerateStreamsSaved(ReplayVersion, GetUserIndexFromUserString(UserString), MetaString, ExtraParms, Delegate);
+}
+
 void FSaveGameNetworkReplayStreamer::EnumerateStreams(const FNetworkReplayVersion& ReplayVersion, const int32 UserIndex, const FString& MetaString, const TArray< FString >& ExtraParms, const FEnumerateStreamsCallback& Delegate)
+{
+	EnumerateStreamsSaved(ReplayVersion, UserIndex, MetaString, ExtraParms, Delegate);
+}
+
+void FSaveGameNetworkReplayStreamer::EnumerateStreamsSaved(const FNetworkReplayVersion& ReplayVersion, const int32 UserIndex, const FString& MetaString, const TArray< FString >& ExtraParms, const FEnumerateStreamsCallback& Delegate)
 {
 	using TAsyncTypes = SaveGameReplay::TAsyncTypes<FEnumerateStreamsResult>;
 
@@ -1252,6 +1283,13 @@ void FSaveGameNetworkReplayStreamer::EnumerateStreams_Internal(const FNetworkRep
 void FSaveGameNetworkReplayStreamer::EnumerateRecentStreams(const FNetworkReplayVersion& ReplayVersion, const int32 UserIndex, const FEnumerateStreamsCallback& Delegate)
 {
 	FLocalFileNetworkReplayStreamer::EnumerateStreams(ReplayVersion, UserIndex, FString(), TArray<FString>(), Delegate);
+}
+
+void FSaveGameNetworkReplayStreamer::EnumerateRecentStreams(const FNetworkReplayVersion& ReplayVersion, const FString& RecentViewer, const FEnumerateStreamsCallback& Delegate)
+{
+	// Recent Streams will just be any stream we have locally that hasn't been committed to memory.
+	// So, just do Local Stream enumeration.
+	FLocalFileNetworkReplayStreamer::EnumerateStreams(ReplayVersion, RecentViewer, FString(), TArray<FString>(), Delegate);
 }
 
 void FSaveGameNetworkReplayStreamer::EnumerateEvents(const FString& ReplayName, const FString& Group, const FEnumerateEventsCallback& Delegate)

@@ -17,53 +17,69 @@ IMediaProfileManager& IMediaProfileManager::Get()
 
 
 FMediaProfileManager::FMediaProfileManager()
-	: CurrentMediaProfile(nullptr)
+	: Collector(this)
+	, CurrentMediaProfile(nullptr)
 {
 }
 
 
 UMediaProfile* FMediaProfileManager::GetCurrentMediaProfile() const
 {
-	return CurrentMediaProfile.Get();
+	return CurrentMediaProfile;
 }
 
 
 void FMediaProfileManager::SetCurrentMediaProfile(UMediaProfile* InMediaProfile)
 {
-	bool bRemoveDelegate = false;
-	bool bAddDelegate = false;
-	UMediaProfile* Previous = CurrentMediaProfile.Get();
+	bool bChanged = false;
+	UMediaProfile* Previous = CurrentMediaProfile;
 	if (InMediaProfile != Previous)
 	{
 		if (Previous)
 		{
 			Previous->Reset();
-			bRemoveDelegate = true;
 		}
 
 		if (InMediaProfile)
 		{
 			InMediaProfile->Apply();
-			bAddDelegate = true;
 		}
 
-		CurrentMediaProfile.Reset(InMediaProfile);
+		// Set Current assets to prevent GC
+		CurrentMediaProfile = InMediaProfile;
+		CurrentProxyMediaSources.Reset();
+		CurrentProxyMediaOutputs.Reset();
+
+		if (CurrentMediaProfile)
+		{
+			TArray<UProxyMediaSource*> SourceProxies = GetDefault<UMediaProfileSettings>()->GetAllMediaSourceProxy();
+			const int32 MinSourceProxies = FMath::Min(SourceProxies.Num(), CurrentMediaProfile->NumMediaSources());
+			for (int32 Index = 0; Index < MinSourceProxies; ++Index)
+			{
+				UProxyMediaSource* Proxy = SourceProxies[Index];
+				if (Proxy)
+				{
+					CurrentProxyMediaSources.Add(Proxy);
+				}
+			}
+		}
+
+		if (CurrentMediaProfile)
+		{
+			TArray<UProxyMediaOutput*> OutputProxies = GetDefault<UMediaProfileSettings>()->GetAllMediaOutputProxy();
+			const int32 MinOutputProxies = FMath::Min(OutputProxies.Num(), CurrentMediaProfile->NumMediaOutputs());
+			for (int32 Index = 0; Index < MinOutputProxies; ++Index)
+			{
+				UProxyMediaOutput* Proxy = OutputProxies[Index];
+				if (Proxy)
+				{
+					CurrentProxyMediaOutputs.Add(Proxy);
+				}
+			}
+		}
+
 		MediaProfileChangedDelegate.Broadcast(Previous, InMediaProfile);
 	}
-
-#if WITH_EDITOR
-	if (UObjectInitialized())
-	{
-		if (bAddDelegate && !bRemoveDelegate)
-		{
-			GetMutableDefault<UMediaProfileSettings>()->OnMediaProxiesChanged.AddRaw(this, &FMediaProfileManager::OnMediaProxiesChanged);
-		}
-		else if (bRemoveDelegate && !bAddDelegate)
-		{
-			GetMutableDefault<UMediaProfileSettings>()->OnMediaProxiesChanged.RemoveAll(this);
-		}
-	}
-#endif
 }
 
 
@@ -72,14 +88,17 @@ FMediaProfileManager::FOnMediaProfileChanged& FMediaProfileManager::OnMediaProfi
 	return MediaProfileChangedDelegate;
 }
 
-#if WITH_EDITOR
-void FMediaProfileManager::OnMediaProxiesChanged()
+
+FMediaProfileManager::FInternalReferenceCollector::FInternalReferenceCollector(FMediaProfileManager* InOwner)
+	: Owner(InOwner)
 {
-	UMediaProfile* CurrentMediaProfilePtr = CurrentMediaProfile.Get();
-	if (CurrentMediaProfilePtr)
-	{
-		CurrentMediaProfilePtr->Reset();
-		CurrentMediaProfilePtr->Apply();
-	}
 }
-#endif
+
+
+void FMediaProfileManager::FInternalReferenceCollector::AddReferencedObjects(FReferenceCollector& InCollector)
+{
+	check(Owner);
+	InCollector.AddReferencedObject(Owner->CurrentMediaProfile);
+	InCollector.AddReferencedObjects(Owner->CurrentProxyMediaSources);
+	InCollector.AddReferencedObjects(Owner->CurrentProxyMediaOutputs);
+}

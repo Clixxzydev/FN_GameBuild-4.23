@@ -346,10 +346,10 @@ namespace Gauntlet
 				foreach (UnrealTestRole TestRole in TypesToRoles.Value)
 				{
 					// If a config has overriden a platform then we can't use the context constraints from the commandline
-					bool UseContextConstraint = TestRole.Type == UnrealTargetRole.Client && TestRole.PlatformOverride == null;
+					bool UseContextConstraint = TestRole.Type == UnrealTargetRole.Client && TestRole.PlatformOverride == UnrealTargetPlatform.Unknown;
 
 					// important, use the type from the ContextRolke because Server may have been mapped to EditorServer etc
-					UnrealTargetPlatform SessionPlatform = TestRole.PlatformOverride ?? RoleContext.Platform;
+					UnrealTargetPlatform SessionPlatform = TestRole.PlatformOverride != UnrealTargetPlatform.Unknown ? TestRole.PlatformOverride : RoleContext.Platform;
 
 					UnrealSessionRole SessionRole = new UnrealSessionRole(RoleContext.Type, SessionPlatform, RoleContext.Configuration, TestRole.CommandLine);
 
@@ -397,7 +397,6 @@ namespace Gauntlet
 
 					// copy over relevant settings from test role
                     SessionRole.FilesToCopy = TestRole.FilesToCopy;
-					SessionRole.AdditionalArtifactDirectories = TestRole.AdditionalArtifactDirectories;
 					SessionRole.ConfigureDevice = TestRole.ConfigureDevice;
 					SessionRole.MapOverride = TestRole.MapOverride;
 
@@ -540,13 +539,7 @@ namespace Gauntlet
 		{
 			TestInstance = UnrealApp.RestartSession();
 
-			bool bWasRestarted = (TestInstance != null);
-			if (bWasRestarted)
-			{
-				MarkTestStarted();
-			}
-
-			return bWasRestarted;
+			return TestInstance != null;
 		}
 
 		/// <summary>
@@ -1115,7 +1108,6 @@ namespace Gauntlet
 			MB.Paragraph(string.Format("Context: {0}", Context.ToString()));
 			MB.Paragraph(string.Format("FatalErrors: {0}, Ensures: {1}, Errors: {2}, Warnings: {3}", FatalErrors, Ensures, Errors, Warnings));
 			MB.Paragraph(string.Format("ResultHash: {0}", GetTestResultHash()));
-			MB.Paragraph(string.Format("Result: {0}", GetTestResult()));
 			//MB.Paragraph(string.Format("Artifacts: {0}", CachedArtifactPath));
 
 			return MB.ToString();

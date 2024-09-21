@@ -444,24 +444,37 @@ void AGameModeBase::ProcessServerTravel(const FString& URL, bool bAbsolute)
 #if WITH_SERVER_CODE
 	StartToLeaveMap();
 
-	UE_LOG(LogGameMode, Log, TEXT("ProcessServerTravel: %s"), *URL);
-	UWorld* World = GetWorld();
-	check(World);
-	FWorldContext& WorldContext = GEngine->GetWorldContextFromWorldChecked(World);
-
 	// Force an old style load screen if the server has been up for a long time so that TimeSeconds doesn't overflow and break everything
 	bool bSeamless = (bUseSeamlessTravel && GetWorld()->TimeSeconds < 172800.0f); // 172800 seconds == 48 hours
 
-	// Compute the next URL, and pull the map out of it. This handles short->long package name conversion
-	FURL NextURL = FURL(&WorldContext.LastURL, *URL, bAbsolute ? TRAVEL_Absolute : TRAVEL_Relative);
+	FString NextMap;
+	if (URL.ToUpper().Contains(TEXT("?RESTART")))
+	{
+		NextMap = UWorld::RemovePIEPrefix(GetOutermost()->GetName());
+	}
+	else
+	{
+		int32 OptionStart = URL.Find(TEXT("?"));
+		if (OptionStart == INDEX_NONE)
+		{
+			NextMap = URL;
+		}
+		else
+		{
+			NextMap = URL.Left(OptionStart);
+		}
+	}
 
-	FGuid NextMapGuid = UEngine::GetPackageGuid(FName(*NextURL.Map), GetWorld()->IsPlayInEditor());
+	FGuid NextMapGuid = UEngine::GetPackageGuid(FName(*NextMap), GetWorld()->IsPlayInEditor());
 
 	// Notify clients we're switching level and give them time to receive.
-	FString URLMod = NextURL.ToString();
+	FString URLMod = URL;
 	APlayerController* LocalPlayer = ProcessClientTravel(URLMod, NextMapGuid, bSeamless, bAbsolute);
 
-	World->NextURL = URLMod;
+	UE_LOG(LogGameMode, Log, TEXT("ProcessServerTravel: %s"), *URL);
+	UWorld* World = GetWorld();
+	check(World);
+	World->NextURL = URL;
 	ENetMode NetMode = GetNetMode();
 
 	if (bSeamless)
@@ -507,7 +520,6 @@ void AGameModeBase::SwapPlayerControllers(APlayerController* OldPC, APlayerContr
 		UPlayer* Player = OldPC->Player;
 		NewPC->NetPlayerIndex = OldPC->NetPlayerIndex; //@warning: critical that this is first as SetPlayer() may trigger RPCs
 		NewPC->NetConnection = OldPC->NetConnection;
-		NewPC->SetReplicates(OldPC->GetIsReplicated());
 		NewPC->SetPlayer(Player);
 		NewPC->CopyRemoteRoleFrom(OldPC);
 

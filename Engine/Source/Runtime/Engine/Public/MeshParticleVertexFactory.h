@@ -139,7 +139,7 @@ public:
 	/**
 	 * Retrieve the uniform buffer for this vertex factory.
 	 */
-	FORCEINLINE FRHIUniformBuffer* GetUniformBuffer()
+	FORCEINLINE FUniformBufferRHIParamRef GetUniformBuffer()
 	{
 		return MeshParticleUniformBuffer;
 	}
@@ -166,7 +166,7 @@ public:
 
 	uint8* LockPreviousTransformBuffer(uint32 ParticleCount);
 	void UnlockPreviousTransformBuffer();
-	FRHIShaderResourceView* GetPreviousTransformBufferSRV() const;
+	FShaderResourceViewRHIParamRef GetPreviousTransformBufferSRV() const;
 
 	/**
 	* Copy the data from another vertex factory
@@ -206,7 +206,7 @@ protected:
 	int32 DynamicParameterVertexStride;
 	
 	/** Uniform buffer with mesh particle parameters. */
-	FRHIUniformBuffer* MeshParticleUniformBuffer;
+	FUniformBufferRHIParamRef MeshParticleUniformBuffer;
 
 	FDynamicReadBuffer PrevTransformBuffer;
 

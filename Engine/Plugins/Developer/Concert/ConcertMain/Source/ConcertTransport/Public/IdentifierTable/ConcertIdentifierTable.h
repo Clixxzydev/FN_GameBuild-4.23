@@ -19,7 +19,7 @@ struct TConcertIdentifierTable_CaseSensitivePlainNameKeyFuncs : BaseKeyFuncs<Val
 	}
 	static FORCEINLINE uint32 GetKeyHash(const FName& Key)
 	{
-		return GetTypeHash(Key.GetDisplayIndex());
+		return Key.GetDisplayIndex();
 	}
 };
 

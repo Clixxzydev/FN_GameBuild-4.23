@@ -1,5 +1,5 @@
-﻿INTSourceChangelist:6093519
-Availability: docs
+﻿INTSourceChangelist:3782314
+Availability:Public
 Title:5.最后一步
 Crumbs: %ROOT%, Engine, Engine/UMG, Engine/UMG/HowTo
 Description:最后一步配置拖拽控件、将体力条添加到主 HUD 显示，并进行全面测试。
@@ -14,7 +14,6 @@ tags:UMG UI Designer
 tags:UI
 type:how-to
 
-## 页面已被合并，标记为docs。 
 
 [VAR:Steps]
 [OBJECT:Navigation]

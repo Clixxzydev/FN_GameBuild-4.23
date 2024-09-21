@@ -718,9 +718,7 @@ public:
 		{
 			TArray<uint8> UCode;
 			TArray<uint8>& UncompressedCode = FShaderLibraryHelperUncompressCode(Platform, Size, *Code, UCode);
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			Shader = RHICreateGeometryShaderWithStreamOutput(UncompressedCode, ElementList, NumStrides, Strides, RasterizedStream);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			CheckShaderCreation(Shader.GetReference(), Hash);
 			if (bWasSync)
 			{
@@ -1670,7 +1668,7 @@ public:
 			FRWScopeLock(LibraryMutex, SLT_Write);
 			for (uint32 i = ShaderCodeArchiveStack.Num(); i > 0; i--)
 			{
-				FRHIShaderLibrary* ShaderCodeArchive = ShaderCodeArchiveStack[i - 1];
+				FRHIShaderLibraryParamRef ShaderCodeArchive = ShaderCodeArchiveStack[i - 1];
 				if (ShaderCodeArchive->GetName() == Name)
 				{
 					ShaderCodeArchiveStack.RemoveAt(i - 1);
@@ -1756,17 +1754,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FVertexShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreateVertexShader(ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreateVertexShader(Hash);
-			}
 		}
 		return Result;
 	}
@@ -1776,17 +1770,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FPixelShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreatePixelShader(ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreatePixelShader(Hash);
-			}
 		}
 		return Result;
 	}
@@ -1796,17 +1786,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FGeometryShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreateGeometryShader(ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreateGeometryShader(Hash);
-			}
 		}
 		return Result;
 	}
@@ -1816,19 +1802,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FGeometryShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreateGeometryShaderWithStreamOutput(ElementList, NumStrides, Strides, RasterizedStream, ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreateGeometryShaderWithStreamOutput(Hash, ElementList, NumStrides, Strides, RasterizedStream);
-			}
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		return Result;
 	}
@@ -1838,17 +1818,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FHullShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreateHullShader(ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreateHullShader(Hash);
-			}
 		}
 		return Result;
 	}
@@ -1858,17 +1834,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FDomainShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreateDomainShader(ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreateDomainShader(Hash);
-			}
 		}
 		return Result;
 	}
@@ -1878,17 +1850,13 @@ public:
 		checkSlow(Platform == GetRuntimeShaderPlatform());
 
 		FComputeShaderRHIRef Result;
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 		{
 			if (bNativeFormat || GRHILazyShaderCodeLoading)
-			{
 				Result = RHICreateComputeShader(ShaderCodeArchive, Hash);
-			}
 			else
-			{
 				Result = ((FShaderCodeArchive*)ShaderCodeArchive)->CreateComputeShader(Hash);
-			}
 		}
 		return Result;
 	}
@@ -1919,15 +1887,15 @@ public:
 		return nullptr;
 	}
 
-	FRHIShaderLibrary* FindShaderLibrary(const FSHAHash& Hash)
+	FRHIShaderLibraryParamRef FindShaderLibrary(const FSHAHash& Hash)
 	{
 		FRWScopeLock(LibraryMutex, SLT_ReadOnly);
-		FRHIShaderLibrary* Result = nullptr;
+		FRHIShaderLibraryParamRef Result = nullptr;
 
 		// Search in library opened order
 		for (int32 i = 0; i < ShaderCodeArchiveStack.Num(); ++i)
 		{
-			FRHIShaderLibrary* ShaderCodeArchive = ShaderCodeArchiveStack[i];
+			FRHIShaderLibraryParamRef ShaderCodeArchive = ShaderCodeArchiveStack[i];
 			if (ShaderCodeArchive->ContainsEntry(Hash))
 			{
 				Result = ShaderCodeArchive;
@@ -1939,7 +1907,7 @@ public:
 
 	bool ContainsShaderCode(const FSHAHash& Hash)
 	{
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 			return true;
 		else
@@ -1948,7 +1916,7 @@ public:
 
 	bool RequestShaderCode(const FSHAHash& Hash, FArchive* Ar)
 	{
-		FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+		FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 		if (ShaderCodeArchive)
 			return ShaderCodeArchive->RequestEntry(Hash, Ar);
 		else
@@ -1959,7 +1927,7 @@ public:
 	{
 		if (!bNativeFormat)
 		{
-			FRHIShaderLibrary* ShaderCodeArchive = FindShaderLibrary(Hash);
+			FRHIShaderLibraryParamRef ShaderCodeArchive = FindShaderLibrary(Hash);
 			if (ShaderCodeArchive)
 				((FShaderCodeArchive*)ShaderCodeArchive)->ReleaseShaderCode(Hash);
 		}
@@ -2356,9 +2324,7 @@ FGeometryShaderRHIRef FShaderCodeLibrary::CreateGeometryShaderWithStreamOutput(E
 	}
 	if (!IsValidRef(Shader))
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Shader = RHICreateGeometryShaderWithStreamOutput(Code, ElementList, NumStrides, Strides, RasterizedStream);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	SafeAssignHash(Shader, Hash);
 	return Shader;

@@ -9,11 +9,7 @@
 #include "Logging/MessageLog.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Internationalization/Internationalization.h"
-
-#include "PhysicsInterfaceDeclaresCore.h"
-
-#if !WITH_CHAOS_NEEDS_TO_BE_FIXED
-#include "SQAccelerator.h"
+#include "Physics/SQAccelerator.h"
 
 #if WITH_PHYSX
 #include "PhysXPublic.h"
@@ -42,6 +38,8 @@ extern TAutoConsoleVariable<float> CVarConstraintLinearDampingScale;
 extern TAutoConsoleVariable<float> CVarConstraintLinearStiffnessScale;
 extern TAutoConsoleVariable<float> CVarConstraintAngularDampingScale;
 extern TAutoConsoleVariable<float> CVarConstraintAngularStiffnessScale;
+
+extern bool GHillClimbError;
 
 enum class EPhysicsInterfaceScopedLockType : uint8
 {
@@ -113,7 +111,7 @@ const FBodyInstance* FPhysicsInterface_PhysX::ShapeToOriginalBodyInstance(const 
 	return TargetInstance;
 }
 
-void FPhysicsInterface_PhysX::CreateActor(const FActorCreationParams& Params, FPhysicsActorHandle& Handle)
+FPhysicsActorHandle FPhysicsInterface_PhysX::CreateActor(const FActorCreationParams& Params)
 {
 	FPhysicsActorHandle NewActor;
 
@@ -151,7 +149,7 @@ void FPhysicsInterface_PhysX::CreateActor(const FActorCreationParams& Params, FP
 		}
 	}
 
-	Handle = NewActor;
+	return NewActor;
 }
 
 //helper function for TermBody to avoid code duplication between scenes
@@ -343,6 +341,24 @@ PxTransform GetKinematicOrGlobalTransform_AssumesLocked(const PxRigidActor* InAc
 	}
 
 	return InActor->getGlobalPose();
+}
+
+void LogHillClimbError_PhysX(const FBodyInstance* BI, const PxGeometry& PGeom, const PxTransform& ShapePose)
+{
+	FString DebugName = BI->OwnerComponent.Get() ? BI->OwnerComponent->GetReadableName() : FString("None");
+	FString TransformString = P2UTransform(ShapePose).ToString();
+	if(PGeom.getType() == PxGeometryType::eCAPSULE)
+	{
+		const PxCapsuleGeometry& CapsuleGeom = static_cast<const PxCapsuleGeometry&>(PGeom);
+		ensureAlwaysMsgf(false, TEXT("HillClimbing stuck in infinite loop for component:%s with Capsule half-height:%f, radius:%f, at world transform:%s"), *DebugName, CapsuleGeom.halfHeight, CapsuleGeom.radius, *TransformString);
+	}
+	else
+	{
+		const uint32 GeomType = PGeom.getType();
+		ensureAlwaysMsgf(false, TEXT("HillClimbing stuck in infinite loop for component:%s with geometry type:%d, at world transform:%s"), *DebugName, GeomType, *TransformString);
+	}
+
+	GHillClimbError = false;
 }
 
 // PhysX interface definition //////////////////////////////////////////////////////////////////////////
@@ -671,7 +687,7 @@ int32 GetAllShapesInternal_AssumedLocked(const FPhysicsActorHandle_PhysX& InActo
 	OutShapes.Empty();
 
 	// grab shapes from sync actor
-	if(InActorHandle.SyncActor)
+	if (InActorHandle.SyncActor)
 	{
 		NumSyncShapes = InActorHandle.SyncActor->getNbShapes();
 		TempShapes.AddUninitialized(NumSyncShapes);
@@ -679,7 +695,7 @@ int32 GetAllShapesInternal_AssumedLocked(const FPhysicsActorHandle_PhysX& InActo
 	}
 
 	OutShapes.Reset(TempShapes.Num());
-	for(PxShape* Shape : TempShapes)
+	for (PxShape* Shape : TempShapes)
 	{
 		OutShapes.Add(FPhysicsShapeHandle_PhysX(Shape));
 	}
@@ -1525,7 +1541,7 @@ void FPhysicsInterface_PhysX::SetAngularDamping_AssumesLocked(const FPhysicsActo
 	}
 }
 
-void FPhysicsInterface_PhysX::AddImpulse_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InForce)
+void FPhysicsInterface_PhysX::AddForce_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InForce)
 {
 	if(PxRigidBody* Body = GetPx<PxRigidBody>(InActorHandle))
 	{
@@ -1533,7 +1549,7 @@ void FPhysicsInterface_PhysX::AddImpulse_AssumesLocked(const FPhysicsActorHandle
 	}
 }
 
-void FPhysicsInterface_PhysX::AddAngularImpulseInRadians_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InTorque)
+void FPhysicsInterface_PhysX::AddTorque_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InTorque)
 {
 	if(PxRigidBody* Body = GetPx<PxRigidBody>(InActorHandle))
 	{
@@ -1541,7 +1557,7 @@ void FPhysicsInterface_PhysX::AddAngularImpulseInRadians_AssumesLocked(const FPh
 	}
 }
 
-void FPhysicsInterface_PhysX::AddVelocity_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InForce)
+void FPhysicsInterface_PhysX::AddForceMassIndependent_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InForce)
 {
 	if(PxRigidBody* Body = GetPx<PxRigidBody>(InActorHandle))
 	{
@@ -1549,7 +1565,7 @@ void FPhysicsInterface_PhysX::AddVelocity_AssumesLocked(const FPhysicsActorHandl
 	}
 }
 
-void FPhysicsInterface_PhysX::AddAngularVelocityInRadians_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InTorque)
+void FPhysicsInterface_PhysX::AddTorqueMassIndependent_AssumesLocked(const FPhysicsActorHandle_PhysX& InActorHandle, const FVector& InTorque)
 {
 	if(PxRigidBody* Body = GetPx<PxRigidBody>(InActorHandle))
 	{
@@ -2631,6 +2647,11 @@ bool Overlap_GeomInternal(const FBodyInstance* InInstance, const PxGeometry& InP
 					OutOptResult->Direction = P2UVector(POutDirection);
 					OutOptResult->Distance = FMath::Abs(OutDistance);
 
+					if(GHillClimbError)
+					{
+						LogHillClimbError_PhysX(InInstance, InPxGeom, ShapePose);
+					}
+
 					return true;
 				}
 			}
@@ -2646,6 +2667,10 @@ bool Overlap_GeomInternal(const FBodyInstance* InInstance, const PxGeometry& InP
 		}
 	}
 
+	if(GHillClimbError)
+	{
+		LogHillClimbError_PhysX(InInstance, InPxGeom, ShapePose);
+	}
 	return false;
 }
 
@@ -2818,7 +2843,5 @@ FPhysicsGeometryCollection_PhysX::FPhysicsGeometryCollection_PhysX(const FPhysic
 }
 
 #undef LOCTEXT_NAMESPACE
-
-#endif
 
 #endif

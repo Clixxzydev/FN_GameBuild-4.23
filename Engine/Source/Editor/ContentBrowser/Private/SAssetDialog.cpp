@@ -90,8 +90,6 @@ void SAssetDialog::Construct(const FArguments& InArgs, const FSharedAssetDialogC
 	AssetPickerConfig.OnGetAssetContextMenu = FOnGetAssetContextMenu::CreateSP(this, &SAssetDialog::OnGetAssetContextMenu);
 	AssetPickerConfig.OnGetFolderContextMenu = FOnGetFolderContextMenu::CreateSP(this, &SAssetDialog::OnGetFolderContextMenu);
 
-	OnPathSelected = InConfig.OnPathSelected;
-
 	SetCurrentlySelectedPath(DefaultPath);
 
 	// Open and save specific configuration
@@ -820,8 +818,6 @@ void SAssetDialog::SetCurrentlySelectedPath(const FString& NewPath)
 {
 	CurrentlySelectedPath = NewPath;
 	UpdateInputValidity();
-
-	OnPathSelected.ExecuteIfBound(NewPath);
 }
 
 void SAssetDialog::SetCurrentlyEnteredAssetName(const FString& NewName)

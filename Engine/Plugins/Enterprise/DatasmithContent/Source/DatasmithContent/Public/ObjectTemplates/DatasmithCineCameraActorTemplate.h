@@ -18,9 +18,6 @@ public:
 	uint8 bEnableLookAtTracking : 1;
 
 	UPROPERTY()
-	uint8 bAllowRoll : 1;
-
-	UPROPERTY()
 	TSoftObjectPtr< AActor > ActorToTrack;
 
 public:
@@ -44,7 +41,7 @@ public:
 	UPROPERTY()
 	FDatasmithCameraLookatTrackingSettingsTemplate LookatTrackingSettings;
 
-	virtual UObject* UpdateObject( UObject* Destination, bool bForce = false ) override;
+	virtual void Apply( UObject* Destination, bool bForce = false ) override;
 	virtual void Load( const UObject* Source ) override;
 	virtual bool Equals( const UDatasmithObjectTemplate* Other ) const override;
 };

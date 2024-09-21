@@ -41,7 +41,6 @@ UPhysicalAnimationComponent::UPhysicalAnimationComponent(const FObjectInitialize
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bTickEvenWhenPaused = true;
 	PrimaryComponentTick.TickGroup = TG_PrePhysics;
-	bPhysicsEngineNeedsUpdating = false;
 
 	StrengthMultiplyer = 1.f;
 }
@@ -305,11 +304,6 @@ void UPhysicalAnimationComponent::OnTeleport()
 
 void UPhysicalAnimationComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
-	if (bPhysicsEngineNeedsUpdating)
-	{
-		UpdatePhysicsEngineImp();
-	}
-
 	UpdateTargetActors(ETeleportType::None);
 }
 
@@ -328,12 +322,6 @@ void SetMotorStrength(FConstraintInstance& ConstraintInstance, const FPhysicalAn
 
 void UPhysicalAnimationComponent::UpdatePhysicsEngine()
 {
-	bPhysicsEngineNeedsUpdating = true;	//must defer until tick so that animation can finish
-}
-
-void UPhysicalAnimationComponent::UpdatePhysicsEngineImp()
-{
-	bPhysicsEngineNeedsUpdating = false;
 	UPhysicsAsset* PhysAsset = SkeletalMeshComponent ? SkeletalMeshComponent->GetPhysicsAsset() : nullptr;
 	if(PhysAsset && SkeletalMeshComponent->SkeletalMesh)
 	{
@@ -428,15 +416,11 @@ void UPhysicalAnimationComponent::SetStrengthMultiplyer(float InStrengthMultiply
 			{
 				bool bNewConstraint = false;
 				const FPhysicalAnimationData& PhysAnimData = DriveData[DataIdx];
-				//added guard around crashing animation dereference
-				if (DataIdx < RuntimeInstanceData.Num())
+				FPhysicalAnimationInstanceData& InstanceData = RuntimeInstanceData[DataIdx];
+				if(FConstraintInstance* ConstraintInstance = InstanceData.ConstraintInstance)
 				{
-					FPhysicalAnimationInstanceData& InstanceData = RuntimeInstanceData[DataIdx];
-					if (FConstraintInstance* ConstraintInstance = InstanceData.ConstraintInstance)
-					{
-						//Apply drive forces
-						SetMotorStrength(*ConstraintInstance, PhysAnimData, StrengthMultiplyer);
-					}
+					//Apply drive forces
+					SetMotorStrength(*ConstraintInstance, PhysAnimData, StrengthMultiplyer);
 				}
 			}
 		});

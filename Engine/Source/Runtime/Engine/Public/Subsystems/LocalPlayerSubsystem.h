@@ -20,15 +20,6 @@ class ENGINE_API ULocalPlayerSubsystem : public USubsystem
 public:
 	ULocalPlayerSubsystem();
 
-	template<typename LocalPlayerType = ULocalPlayer>
-	LocalPlayerType* GetLocalPlayer() const
-	{
-		return Cast<LocalPlayerType>(GetOuter());
-	}
+	ULocalPlayer* GetLocalPlayer() const;
 
-	template<typename LocalPlayerType = ULocalPlayer>
-	LocalPlayerType* GetLocalPlayerChecked() const
-	{
-		return CastChecked<LocalPlayerType>(GetOuter());
-	}
 };

@@ -29,7 +29,6 @@ FAnimationRecorder::FAnimationRecorder()
 	, bRecordLocalToWorld(false)
 	, bAutoSaveAsset(false)
 	, bRemoveRootTransform(true)
-	, bCheckDeltaTimeAtBeginning(true)
 	, InterpMode(ERichCurveInterpMode::RCIM_Linear)
 	, TangentMode(ERichCurveTangentMode::RCTM_Auto)
 	, AnimationSerializer(nullptr)
@@ -457,14 +456,10 @@ void FAnimationRecorder::UpdateRecord(USkeletalMeshComponent* Component, float D
 		return;
 	}
 
-	// Take Recorder will turn this off, not sure if it's needed for persona animation recording or not.
-	if (bCheckDeltaTimeAtBeginning)
+	// in-editor we can get a long frame update because of the modal dialog used to pick paths
+	if(DeltaTime > IntervalTime && (LastFrame == 0 || LastFrame == 1))
 	{
-		// in-editor we can get a long frame update because of the modal dialog used to pick paths
-		if (DeltaTime > IntervalTime && (LastFrame == 0 || LastFrame == 1))
-		{
-			DeltaTime = IntervalTime;
-		}
+		DeltaTime = IntervalTime;
 	}
 
 	float const PreviousTimePassed = TimePassed;
@@ -581,12 +576,11 @@ bool FAnimationRecorder::Record(USkeletalMeshComponent* Component, FTransform co
 							// we make about root motion use are incorrect.
 							// NEW. But we don't do this if there is just one root bone. This has come up with recording
 							// single bone props and cameras.
-							InitialRootTransform = LocalTransform;
 							InvInitialRootTransform = LocalTransform.Inverse();
 						}
 						else
 						{
-							InitialRootTransform = InvInitialRootTransform = FTransform::Identity;
+							InvInitialRootTransform = FTransform::Identity;
 						}
 						SkeletonRootIndex = BoneIndex;
 						break;
@@ -608,11 +602,23 @@ bool FAnimationRecorder::Record(USkeletalMeshComponent* Component, FTransform co
 				FTransform LocalTransform = SpacesBases[BoneIndex];
 				if ( ParentIndex != INDEX_NONE )
 				{
-					LocalTransform.SetToRelativeTransform(SpacesBases[ParentIndex]);
+					if (ParentIndex == SkeletonRootIndex)
+					{
+						// Remove initial root transform
+						LocalTransform.SetToRelativeTransform(SpacesBases[ParentIndex] * InvInitialRootTransform);
+					}
+					else
+					{
+						LocalTransform.SetToRelativeTransform(SpacesBases[ParentIndex]);
+					}
 				}
 				// if record local to world, we'd like to consider component to world to be in root
 				else
 				{
+					// Remove initial root transform
+					LocalTransform *= InvInitialRootTransform;
+					//LocalTransform = InvInitialRootTransform * LocalTransform;
+
 					if (bRecordLocalToWorld)
 					{
 						LocalTransform *= ComponentToWorld;
@@ -817,7 +823,6 @@ void FAnimRecorderInstance::InitInternal(USkeletalMeshComponent* InComponent, co
 	Recorder->SetAnimCompressionScheme(UAnimCompress_BitwiseCompressOnly::StaticClass());
 	Recorder->bAutoSaveAsset = Settings.bAutoSaveAsset;
 	Recorder->bRemoveRootTransform = Settings.bRemoveRootAnimation;
-	Recorder->bCheckDeltaTimeAtBeginning = Settings.bCheckDeltaTimeAtBeginning;
 	Recorder->AnimationSerializer = InAnimationSerializer;
 
 	if (InComponent)
@@ -1023,18 +1028,6 @@ float FAnimationRecorderManager::GetCurrentRecordingTime(USkeletalMeshComponent*
 	}
 
 	return 0.0f;
-}
-
-const FTransform&  FAnimationRecorderManager::GetInitialRootTransform(USkeletalMeshComponent* Component) const
-{
-	for (const FAnimRecorderInstance& Instance : RecorderInstances)
-	{
-		if (Instance.SkelComp == Component)
-		{
-			return Instance.Recorder->GetInitialRootTransform();
-		}
-	}
-	return FTransform::Identity;
 }
 
 void FAnimationRecorderManager::StopRecordingAnimation(USkeletalMeshComponent* Component, bool bShowMessage)

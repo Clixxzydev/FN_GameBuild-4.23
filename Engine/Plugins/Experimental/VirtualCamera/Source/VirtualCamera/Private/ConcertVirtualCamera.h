@@ -10,7 +10,6 @@
 #include "ConcertVirtualCamera.generated.h"
 
 struct FConcertSessionContext;
-class AActor;
 class IConcertClientSession;
 class UCineCameraComponent;
 
@@ -42,15 +41,16 @@ public:
  *
  */
 USTRUCT()
-struct FConcertVirtualCameraCameraData
+struct FConcertVirtualCameraCameraEvent
 {
 public:
 	GENERATED_BODY()
 
-	FConcertVirtualCameraCameraData();
-	FConcertVirtualCameraCameraData(const AActor* InOwner, const UCineCameraComponent* InCineCameraComponent);
+	FConcertVirtualCameraCameraEvent();
 
-	void ApplyTo(AActor* InOwner, UCineCameraComponent* InCineCameraComponent, bool bUpdateCameraComponentTransform);
+	/** Controller settings */
+	UPROPERTY()
+	ETrackerInputSource InputSource;
 
 	/** Camera transform */
 	UPROPERTY()
@@ -76,48 +76,6 @@ public:
 };
 
 
-/**
- *
- */
-USTRUCT()
-struct FConcertVirtualCameraCameraComponentEvent
-{
-public:
-	GENERATED_BODY()
-
-	FConcertVirtualCameraCameraComponentEvent();
-
-	/** Name of the tracking camera */
-	UPROPERTY()
-	FName TrackingName;
-
-	/** Camera data */
-	UPROPERTY()
-	FConcertVirtualCameraCameraData CameraData;
-};
-
-
-/**
- *
- */
-USTRUCT()
-struct FConcertVirtualCameraControllerEvent
-{
-public:
-	GENERATED_BODY()
-
-	FConcertVirtualCameraControllerEvent();
-
-	/** Controller settings */
-	UPROPERTY()
-	ETrackerInputSource InputSource;
-
-	/** Camera data */
-	UPROPERTY()
-	FConcertVirtualCameraCameraData CameraData;
-};
-
-
 
 #if VIRTUALCAMERA_WITH_CONCERT // Concert is only available in development mode
 
@@ -133,24 +91,19 @@ public:
 	~FConcertVirtualCameraManager();
 
 public:
-	bool GetLatestCameraComponentEvent(FName TrackingName, FConcertVirtualCameraCameraData& OutCameraData) const;
-	void SendCameraCompoentEvent(FName TrackingName, const FConcertVirtualCameraCameraData& InCameraData);
-
-	bool GetLatestControllerCameraEvent(FConcertVirtualCameraControllerEvent& OutCameraEvent) const;
-	void SendControllerCameraEvent(const FConcertVirtualCameraControllerEvent& InCameraEvent);
+	bool GetLatestCameraEventData(FConcertVirtualCameraCameraEvent& OutCameraEvent) const;
+	void SendCameraEventData(const FConcertVirtualCameraCameraEvent& InCameraEvent);
 
 private:
 	void RegisterConcertSyncHandlers(TSharedRef<IConcertClientSession> InSession);
 	void UnregisterConcertSyncHandlers(TSharedRef<IConcertClientSession> InSession);
 
-	void HandleCameraComponentEventData(const FConcertSessionContext& InEventContext, const FConcertVirtualCameraCameraComponentEvent& InEvent);
-	void HandleControllerCameraEventData(const FConcertSessionContext& InEventContext, const FConcertVirtualCameraControllerEvent& InEvent);
+	void HandleCameraEventData(const FConcertSessionContext& InEventContext, const FConcertVirtualCameraCameraEvent& InEvent);
 
 private:
 	/** Latest event data */
-	TArray<FConcertVirtualCameraCameraComponentEvent> LatestCameraEventDatas;
-	FConcertVirtualCameraControllerEvent LatestControllerCameraEventData;
-	bool bIsLatestControllerCameraEventDataValid;
+	FConcertVirtualCameraCameraEvent LatestCameraEventData;
+	bool bIsLatestCameraEventDataValid;
 
 	/** Delegate handle for a the callback when a session starts up */
 	FDelegateHandle OnSessionStartupHandle;
@@ -167,11 +120,8 @@ private:
 class FConcertVirtualCameraManager
 {
 public:
-	bool GetLatestCameraComponentEvent(FName TrackingName, FConcertVirtualCameraCameraData& OutCameraData) const;
-	void SendCameraCompoentEvent(FName TrackingName, const FConcertVirtualCameraCameraData& InCameraData);
-
-	bool GetLatestControllerCameraEvent(FConcertVirtualCameraControllerEvent& OutCameraEvent) const;
-	void SendControllerCameraEvent(const FConcertVirtualCameraControllerEvent& InCameraEvent);
+	bool GetLatestCameraEventData(FConcertVirtualCameraCameraEvent& OutCameraEvent) const;
+	void SendCameraEventData(const FConcertVirtualCameraCameraEvent& InCameraEvent);
 };
 
 #endif //VIRTUALCAMERA_WITH_CONCERT

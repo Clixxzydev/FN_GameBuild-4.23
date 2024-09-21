@@ -68,7 +68,7 @@ namespace SteamAudio
 		TArray<AActor*> PhononProbeVolumes;
 		UGameplayStatics::GetAllActorsOfClass(World, APhononProbeVolume::StaticClass(), PhononProbeVolumes);
 
-		Async(EAsyncExecution::Thread, [=]()
+		Async<void>(EAsyncExecution::Thread, [=]()
 		{
 			// Ensure we have at least one probe
 			bool AtLeastOneProbe = false;

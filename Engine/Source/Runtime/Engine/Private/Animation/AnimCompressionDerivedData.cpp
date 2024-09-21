@@ -20,7 +20,7 @@ FDerivedDataAnimationCompression::FDerivedDataAnimationCompression(const TCHAR* 
 	, CompressContext(InCompressContext)
 	, PreviousCompressedSize(InPreviousCompressedSize)
 {
-
+	
 }
 
 FDerivedDataAnimationCompression::~FDerivedDataAnimationCompression()

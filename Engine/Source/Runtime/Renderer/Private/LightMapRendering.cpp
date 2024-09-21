@@ -9,7 +9,7 @@ LightMapRendering.cpp: Light map rendering implementations.
 #include "PrecomputedVolumetricLightmap.h"
 
 #include "Runtime/Engine/Classes/VT/VirtualTexture.h"
-#include "Runtime/Renderer/Private/VT/VirtualTextureSpace.h"
+#include "Runtime/Engine/Classes/VT/VirtualTextureSpace.h"
 #include "VT/VirtualTextureSpace.h"
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FIndirectLightingCacheUniformParameters, "IndirectLightingCache");
@@ -26,18 +26,18 @@ int32 GNumLightmapCoefficients[2] =
 	NUM_HQ_LIGHTMAP_COEF
 };
 
-void FCachedPointIndirectLightingPolicy::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+void FCachedPointIndirectLightingPolicy::ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 {
 	OutEnvironment.SetDefine(TEXT("CACHED_POINT_INDIRECT_LIGHTING"),TEXT("1"));	
 }
 
-void FSelfShadowedCachedPointIndirectLightingPolicy::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+void FSelfShadowedCachedPointIndirectLightingPolicy::ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 {
 	OutEnvironment.SetDefine(TEXT("CACHED_POINT_INDIRECT_LIGHTING"),TEXT("1"));	
-	FSelfShadowedTranslucencyPolicy::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+	FSelfShadowedTranslucencyPolicy::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 }
 
-void SetupLCIUniformBuffers(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FLightCacheInterface* LCI, FRHIUniformBuffer*& PrecomputedLightingBuffer, FRHIUniformBuffer*& LightmapResourceClusterBuffer, FRHIUniformBuffer*& IndirectLightingCacheBuffer)
+void SetupLCIUniformBuffers(const FPrimitiveSceneProxy* PrimitiveSceneProxy, const FLightCacheInterface* LCI, FUniformBufferRHIParamRef& PrecomputedLightingBuffer, FUniformBufferRHIParamRef& LightmapResourceClusterBuffer, FUniformBufferRHIParamRef& IndirectLightingCacheBuffer)
 {
 	if (LCI)
 	{
@@ -77,9 +77,9 @@ void FSelfShadowedCachedPointIndirectLightingPolicy::GetPixelShaderBindings(
 	const PixelParametersType* PixelShaderParameters,
 	FMeshDrawSingleShaderBindings& ShaderBindings)
 {
-	FRHIUniformBuffer* PrecomputedLightingBuffer = nullptr;
-	FRHIUniformBuffer* LightmapResourceClusterBuffer = nullptr;
-	FRHIUniformBuffer* IndirectLightingCacheBuffer = nullptr;
+	FUniformBufferRHIParamRef PrecomputedLightingBuffer = nullptr;
+	FUniformBufferRHIParamRef LightmapResourceClusterBuffer = nullptr;
+	FUniformBufferRHIParamRef IndirectLightingCacheBuffer = nullptr;
 
 	SetupLCIUniformBuffers(PrimitiveSceneProxy, ShaderElementData.LCI, PrecomputedLightingBuffer, LightmapResourceClusterBuffer, IndirectLightingCacheBuffer);
 
@@ -96,9 +96,9 @@ void FSelfShadowedVolumetricLightmapPolicy::GetPixelShaderBindings(
 	const PixelParametersType* PixelShaderParameters,
 	FMeshDrawSingleShaderBindings& ShaderBindings)
 {
-	FRHIUniformBuffer* PrecomputedLightingBuffer = nullptr;
-	FRHIUniformBuffer* LightmapResourceClusterBuffer = nullptr;
-	FRHIUniformBuffer* IndirectLightingCacheBuffer = nullptr;
+	FUniformBufferRHIParamRef PrecomputedLightingBuffer = nullptr;
+	FUniformBufferRHIParamRef LightmapResourceClusterBuffer = nullptr;
+	FUniformBufferRHIParamRef IndirectLightingCacheBuffer = nullptr;
 
 	SetupLCIUniformBuffers(PrimitiveSceneProxy, ShaderElementData.LCI, PrecomputedLightingBuffer, LightmapResourceClusterBuffer, IndirectLightingCacheBuffer);
 
@@ -115,9 +115,9 @@ void FUniformLightMapPolicy::GetVertexShaderBindings(
 	const VertexParametersType* VertexShaderParameters,
 	FMeshDrawSingleShaderBindings& ShaderBindings) 
 {
-	FRHIUniformBuffer* PrecomputedLightingBuffer = nullptr;
-	FRHIUniformBuffer* LightmapResourceClusterBuffer = nullptr;
-	FRHIUniformBuffer* IndirectLightingCacheBuffer = nullptr;
+	FUniformBufferRHIParamRef PrecomputedLightingBuffer = nullptr;
+	FUniformBufferRHIParamRef LightmapResourceClusterBuffer = nullptr;
+	FUniformBufferRHIParamRef IndirectLightingCacheBuffer = nullptr;
 
 	SetupLCIUniformBuffers(PrimitiveSceneProxy, ShaderElementData, PrecomputedLightingBuffer, LightmapResourceClusterBuffer, IndirectLightingCacheBuffer);
 
@@ -132,9 +132,9 @@ void FUniformLightMapPolicy::GetPixelShaderBindings(
 	const PixelParametersType* PixelShaderParameters,
 	FMeshDrawSingleShaderBindings& ShaderBindings)
 {
-	FRHIUniformBuffer* PrecomputedLightingBuffer = nullptr;
-	FRHIUniformBuffer* LightmapResourceClusterBuffer = nullptr;
-	FRHIUniformBuffer* IndirectLightingCacheBuffer = nullptr;
+	FUniformBufferRHIParamRef PrecomputedLightingBuffer = nullptr;
+	FUniformBufferRHIParamRef LightmapResourceClusterBuffer = nullptr;
+	FUniformBufferRHIParamRef IndirectLightingCacheBuffer = nullptr;
 
 	SetupLCIUniformBuffers(PrimitiveSceneProxy, ShaderElementData, PrecomputedLightingBuffer, LightmapResourceClusterBuffer, IndirectLightingCacheBuffer);
 
@@ -151,9 +151,9 @@ void FUniformLightMapPolicy::GetRayHitGroupShaderBindings(
 	FMeshDrawSingleShaderBindings& RayHitGroupBindings
 ) const
 {
-	FRHIUniformBuffer* PrecomputedLightingBuffer = nullptr;
-	FRHIUniformBuffer* LightmapResourceClusterBuffer = nullptr;
-	FRHIUniformBuffer* IndirectLightingCacheBuffer = nullptr;
+	FUniformBufferRHIParamRef PrecomputedLightingBuffer = nullptr;
+	FUniformBufferRHIParamRef LightmapResourceClusterBuffer = nullptr;
+	FUniformBufferRHIParamRef IndirectLightingCacheBuffer = nullptr;
 
 	SetupLCIUniformBuffers(PrimitiveSceneProxy, LCI, PrecomputedLightingBuffer, LightmapResourceClusterBuffer, IndirectLightingCacheBuffer);
 

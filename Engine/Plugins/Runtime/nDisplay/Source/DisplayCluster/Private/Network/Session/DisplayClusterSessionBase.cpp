@@ -6,7 +6,7 @@
 
 #include "HAL/RunnableThread.h"
 
-#include "DisplayClusterLog.h"
+#include "Misc/DisplayClusterLog.h"
 
 
 FDisplayClusterSessionBase::FDisplayClusterSessionBase(FSocket* InSocket, IDisplayClusterSessionListener* InListener, const FString& InName) :
@@ -21,14 +21,16 @@ FDisplayClusterSessionBase::FDisplayClusterSessionBase(FSocket* InSocket, IDispl
 FDisplayClusterSessionBase::~FDisplayClusterSessionBase()
 {
 	UE_LOG(LogDisplayClusterNetwork, VeryVerbose, TEXT("Session %s .dtor"), *Name);
-	Stop();
+
+	ThreadObj->WaitForCompletion();
+	delete ThreadObj;
 }
 
 void FDisplayClusterSessionBase::StartSession()
 {
 	Listener->NotifySessionOpen(this);
 
-	ThreadObj.Reset(FRunnableThread::Create(this, *(Name + FString("_thread")), 1024 * 1024, TPri_Normal, FPlatformAffinity::GetPoolThreadMask()));
+	ThreadObj = FRunnableThread::Create(this, *(Name + FString("_thread")), 128 * 1024, TPri_Normal, FPlatformAffinity::GetPoolThreadMask());
 	ensure(ThreadObj);
 
 	UE_LOG(LogDisplayClusterNetwork, Log, TEXT("Session %s started"), *Name);
@@ -37,5 +39,5 @@ void FDisplayClusterSessionBase::StartSession()
 void FDisplayClusterSessionBase::Stop()
 {
 	GetSocket()->Close();
-	ThreadObj->WaitForCompletion();
+	GetListener()->NotifySessionClose(this);
 }

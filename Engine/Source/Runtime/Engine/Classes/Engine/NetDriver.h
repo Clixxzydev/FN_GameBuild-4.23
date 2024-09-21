@@ -5,7 +5,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Math/RandomStream.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Object.h"
@@ -329,7 +328,7 @@ class UChannel;
 class IAnalyticsProvider;
 class FNetAnalyticsAggregator;
 
-using FConnectionMap = TMap<TSharedRef<const FInternetAddr>, UNetConnection*, FDefaultSetAllocator, FInternetAddrConstKeyMapFuncs<UNetConnection*>>;
+using FConnectionMap = TMap<TSharedRef<FInternetAddr>, UNetConnection*, FDefaultSetAllocator, FInternetAddrKeyMapFuncs<UNetConnection*>>;
 
 extern ENGINE_API TAutoConsoleVariable<int32> CVarNetAllowEncryption;
 extern ENGINE_API int32 GNumSaturatedConnections;
@@ -585,18 +584,11 @@ struct ENGINE_API FChannelDefinition
 struct FDisconnectedClient
 {
 	/** The address of the client */
-	TSharedRef<const FInternetAddr>	Address;
+	TSharedRef<FInternetAddr>	Address;
 
 	/** The time at which the client disconnected  */
 	double						DisconnectTime;
 
-	FDisconnectedClient(TSharedRef<const FInternetAddr>& InAddress, double InDisconnectTime)
-		: Address(InAddress)
-		, DisconnectTime(InDisconnectTime)
-	{
-	}
-
-	UE_DEPRECATED(4.23, "This object does not update address information, and should have const addresses passed in")
 	FDisconnectedClient(TSharedRef<FInternetAddr>& InAddress, double InDisconnectTime)
 		: Address(InAddress)
 		, DisconnectTime(InDisconnectTime)
@@ -606,7 +598,7 @@ struct FDisconnectedClient
 
 
 UCLASS(Abstract, customConstructor, transient, MinimalAPI, config=Engine)
-class ENGINE_VTABLE UNetDriver : public UObject, public FExec
+class UNetDriver : public UObject, public FExec
 {
 	GENERATED_UCLASS_BODY()
 
@@ -634,10 +626,6 @@ public:
 	/** @todo document */
 	UPROPERTY(Config)
 	int32 NetServerMaxTickRate;
-
-	/** Limit tick rate of replication to allow very high frame rates to still replicate data. A value less or equal to zero means use the engine tick rate. A value greater than zero will clamp the net tick rate to this value.  */
-	UPROPERTY(Config)
-	int32 MaxNetTickRate;
 
 	/** @todo document */
 	UPROPERTY(Config)
@@ -1031,8 +1019,7 @@ public:
 	/** DDoS detection management */
 	FDDoSDetection DDoS;
 
-	/** Local address this net driver is associated with */
-	TSharedPtr<FInternetAddr> LocalAddr;
+
 
 	/**
 	* Updates the standby cheat information and
@@ -1151,10 +1138,7 @@ public:
 	ENGINE_API virtual void LowLevelDestroy();
 
 	/* @return network number */
-	ENGINE_API virtual FString LowLevelGetNetworkNumber();
-
-	/* @return local addr of this machine if set */
-	ENGINE_API virtual TSharedPtr<const FInternetAddr> GetLocalAddr() { return LocalAddr; }
+	virtual FString LowLevelGetNetworkNumber() PURE_VIRTUAL(UNetDriver::LowLevelGetNetworkNumber,return TEXT(""););
 
 	/** Make sure this connection is in a reasonable state. */
 	ENGINE_API virtual void AssertValid();
@@ -1219,13 +1203,8 @@ public:
 	ENGINE_API virtual void LowLevelSend(FString Address, void* Data, int32 CountBits)
 	{
 		FOutPacketTraits EmptyTraits;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		LowLevelSend(Address, Data, CountBits, EmptyTraits);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-
-	UE_DEPRECATED(4.22, "Change arguments to support FInternetAddr instead")
-	ENGINE_API virtual void LowLevelSend(FString Address, void* Data, int32 CountBits, FOutPacketTraits& Traits);
 
 	/**
 	 * Sends a 'connectionless' (not associated with a UNetConection) packet, to the specified address.
@@ -1236,7 +1215,7 @@ public:
 	 * @param CountBits		The size of the packet data, in bits
 	 * @param Traits		Traits for the packet, if applicable
 	 */
-	ENGINE_API virtual void LowLevelSend(TSharedPtr<const FInternetAddr> Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
+	ENGINE_API virtual void LowLevelSend(FString Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
 		PURE_VIRTUAL(UNetDriver::LowLevelSend,);
 
 	/**
@@ -1541,22 +1520,9 @@ public:
 		return bMaySendProperties;
 	}
 
-	/**
-	 * Get the current number of sent packets for which we have received a delivery notification
-	 */
-	ENGINE_API uint32 GetOutTotalNotifiedPackets() const { return OutTotalNotifiedPackets; }
-
-	/**
-	 * Increase the current number of sent packets for which we have received a delivery notification
-	 */
-	inline void IncreaseOutTotalNotifiedPackets() { ++OutTotalNotifiedPackets; }
-
 protected:
 
 	bool bMaySendProperties;
-
-	/** Stream of random numbers to be used by this instance of UNetDriver */
-	FRandomStream UpdateDelayRandomStream;
 
 private:
 
@@ -1585,7 +1551,4 @@ private:
 
 	/** NetDriver time to end packet loss burst simulation. */
 	float PacketLossBurstEndTime;
-
-	/** Count the number of notified packets, i.e. packets that we know if they are delivered or not. Used to reliably measure outgoing packet loss */
-	uint32 OutTotalNotifiedPackets;
 };

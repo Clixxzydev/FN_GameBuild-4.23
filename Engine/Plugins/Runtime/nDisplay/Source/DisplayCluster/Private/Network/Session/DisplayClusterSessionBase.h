@@ -35,5 +35,5 @@ protected:
 private:
 	const FString        Name;
 	IDisplayClusterSessionListener* Listener = nullptr;
-	TUniquePtr<FRunnableThread> ThreadObj;
+	FRunnableThread* ThreadObj = nullptr;
 };

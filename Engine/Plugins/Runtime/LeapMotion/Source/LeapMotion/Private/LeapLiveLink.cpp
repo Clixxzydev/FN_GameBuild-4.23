@@ -4,11 +4,7 @@
 #include "CoreMinimal.h"
 #include "Misc/App.h"
 #include "Animation/AnimInstance.h"
-
-
 #include "LiveLinkProvider.h"
-#include "Roles/LiveLinkAnimationRole.h"
-#include "Roles/LiveLinkAnimationTypes.h"
 
 FLeapLiveLinkProducer::FLeapLiveLinkProducer()
 {
@@ -42,58 +38,51 @@ void FLeapLiveLinkProducer::ShutDown()
 
 void FLeapLiveLinkProducer::SyncSubjectToSkeleton(const UBodyStateSkeleton* Skeleton)
 {
-	const TArray<UBodyStateBone*>& Bones = Skeleton->Bones;
+	TArray<UBodyStateBone*>& Bones = ((UBodyStateSkeleton*)Skeleton)->Bones;
 
-	LiveLinkProvider->RemoveSubject(SubjectName);
-
-	//Initialize the subject
-	FLiveLinkStaticDataStruct StaticData(FLiveLinkSkeletonStaticData::StaticStruct());
-	FLiveLinkSkeletonStaticData* AnimationStaticData = StaticData.Cast<FLiveLinkSkeletonStaticData>();
-
-	TrackedBones.Reset();
-
+	SubjectBoneTransforms.Empty();
+	SubjectBoneNames.Empty();
+	SubjectBoneParents.Empty();
+	TrackedBones.Empty();
+	
 	TArray<FName> ParentsNames;
-	ParentsNames.Reserve(Bones.Num());
 
 	for (UBodyStateBone* Bone : Bones)
 	{
 		if (Bone->IsTracked())
 		{
-			AnimationStaticData->BoneNames.Add(FName(*Bone->Name));
+			SubjectBoneNames.Add(FName(*Bone->Name));
 			ParentsNames.Add(FName(*Bone->Parent->Name));
+			SubjectBoneTransforms.Add(Bone->Transform());
 			TrackedBones.Add(Bone);
 		}
 	}
 
 	//Correct the parent index to the current live list
-	for (FName ParentName : ParentsNames)
+	for (int i=0; i<ParentsNames.Num(); i++)
 	{
-		AnimationStaticData->BoneParents.Add(AnimationStaticData->BoneNames.IndexOfByKey(ParentName));
+		SubjectBoneParents.Add(SubjectBoneNames.IndexOfByKey(ParentsNames[i]));
 	}
 
-	LiveLinkProvider->UpdateSubjectStaticData(SubjectName, ULiveLinkAnimationRole::StaticClass(), MoveTemp(StaticData));
+	//Initialize the subject
+	LiveLinkProvider->UpdateSubject(SubjectName, SubjectBoneNames, SubjectBoneParents);
 }
 
 void FLeapLiveLinkProducer::UpdateFromBodyState(const UBodyStateSkeleton* Skeleton)
 {
-	FLiveLinkFrameDataStruct FrameData(FLiveLinkAnimationFrameData::StaticStruct());
-	FLiveLinkAnimationFrameData* AnimationFrameData = FrameData.Cast<FLiveLinkAnimationFrameData>();
+	//TArray<UBodyStateBone*>& Bones = ((UBodyStateSkeleton*)Skeleton)->Bones;
 
-	AnimationFrameData->Transforms.Reserve(TrackedBones.Num());
-
-	for (TWeakObjectPtr<UBodyStateBone> WeakBone : TrackedBones)
+	//older iterator for efficiency
+	for (int i=0; i < TrackedBones.Num(); i++)
 	{
-		if (UBodyStateBone* Bone = WeakBone.Get())
+		UBodyStateBone* Bone = TrackedBones[i];
+		if (Bone->IsTracked())
 		{
-			AnimationFrameData->Transforms.Add(Bone->Transform());
-		}
-		else
-		{
-			AnimationFrameData->Transforms.Add(FTransform::Identity);
+			SubjectBoneTransforms[i] = Bone->Transform();
 		}
 	}
 
-	LiveLinkProvider->UpdateSubjectFrameData(SubjectName, MoveTemp(FrameData));
+	LiveLinkProvider->UpdateSubjectFrame(SubjectName, SubjectBoneTransforms, SubjectCurves, FApp::GetCurrentTime());
 }
 
 bool FLeapLiveLinkProducer::HasConnection()

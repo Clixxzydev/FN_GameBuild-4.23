@@ -22,21 +22,12 @@ public:
 	Event(const wchar_t* name, Type::Enum type);
 	~Event(void);
 
-	// Resets the event.
-	void Reset(void);
-
-	// Signals the event.
 	void Signal(void);
+	void Reset(void);
+	void Wait(void);
 
-	// Waits until the event becomes signaled, blocking.
-	bool Wait(void);
-
-	// Waits until the event becomes signaled, blocking until the timeout is reached.
-	// Returns whether the event was signaled.
+	// returns true if the event was signaled
 	bool WaitTimeout(unsigned int milliSeconds);
-
-	// Returns whether the event was signaled, non-blocking.
-	bool TryWait(void);
 
 private:
 	Windows::HANDLE m_event;

@@ -60,6 +60,7 @@ namespace GLTF
 		check(!Prefix.IsEmpty());
 
 		GLTF::GenerateNames(Prefix + TEXT("_material_"), Materials);
+		GLTF::GenerateNames(Prefix + TEXT("_mesh_"), Meshes);
 		GLTF::GenerateNames(Prefix + TEXT("_skin_"), Skins);
 		GLTF::GenerateNames(Prefix + TEXT("_animation_"), Animations);
 
@@ -68,32 +69,25 @@ namespace GLTF
 			const FString& JoinPrefix = Prefix + TEXT("_join_");
 
 			int32 Counter[2] = {0, 0};
-			for (int32 NodeIndex = 0; NodeIndex < Nodes.Num(); ++NodeIndex)
+			for (FNode& Node : Nodes)
 			{
-				FNode& Node = Nodes[NodeIndex];
+				if (!Node.Name.IsEmpty())
+					continue;
 
-				if (Node.Name.IsEmpty())
-				{
-					bool bIsJoint = Node.Type == FNode::EType::Joint;
-					Node.Name     = (bIsJoint ? JoinPrefix : NodePrefix) + FString::FromInt(Counter[bIsJoint]++);
-				}
-
-				// Make sure node names are unique
-				Node.Name = FString::FromInt(NodeIndex) + TEXT("_") + Node.Name;
+				bool bIsJoint = Node.Type == FNode::EType::Joint;
+				Node.Name     = (bIsJoint ? JoinPrefix : NodePrefix) + FString::FromInt(Counter[bIsJoint]++);
 			}
 		}
 
 		{
 			const FString& TexPrefix = Prefix + TEXT("_texture_");
-			for (int32 TextureIndex = 0; TextureIndex != Textures.Num(); ++TextureIndex)
+			int32          Counter   = 0;
+			for (FTexture& Tex : Textures)
 			{
-				FTexture& Tex = Textures[TextureIndex];
-
 				if (!Tex.Name.IsEmpty())
-				{
-					// keep base part of the name as it was in gltf
-				}
-				else if (!Tex.Source.Name.IsEmpty())
+					continue;
+
+				if (!Tex.Source.Name.IsEmpty())
 				{
 					Tex.Name = Tex.Source.Name;
 				}
@@ -103,31 +97,8 @@ namespace GLTF
 				}
 				else
 				{
-					Tex.Name = TexPrefix;
+					Tex.Name = TexPrefix + FString::FromInt(Counter++);
 				}
-
-				// GLTF texture name has decorative purpose, not guaranteed to be unique
-				// only its index is unique. Same with glTF image or its source file's basename
-				// So always include texture index into texture's name to increase probability that names are unique
-				Tex.Name = FString::FromInt(TextureIndex) + TEXT("_") + Tex.Name;
-			}
-		}
-
-		{
-			const FString& MeshPrefix = Prefix + TEXT("_mesh_");
-			for (int32 Index = 0; Index != Meshes.Num(); ++Index)
-			{
-				FMesh& Mesh = Meshes[Index];
-
-				if (Mesh.Name.IsEmpty())
-				{
-					Mesh.Name = MeshPrefix;
-				}
-
-				// GLTF mesh name has decorative purpose, not guaranteed to be unique
-				// only its index is unique. Same with glTF image or its source file's basename
-				// So always include mesh index into meshes name to increase probability that names are unique
-				Mesh.Name = FString::FromInt(Index) + TEXT("_") + Mesh.Name;
 			}
 		}
 
@@ -151,7 +122,6 @@ namespace GLTF
 		}
 
 		GLTF::GenerateNames(Prefix + TEXT("_image_"), Images);
-		GLTF::GenerateNames(Prefix + TEXT("_image_"), Meshes);
 	}
 
 	void FAsset::GetRootNodes(TArray<int32>& NodeIndices)

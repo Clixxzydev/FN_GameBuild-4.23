@@ -24,9 +24,6 @@ FJsonArchiveInputFormatter::FJsonArchiveInputFormatter(FArchive& InInner, TFunct
 	TSharedRef< TJsonReader<char> > Reader = TJsonReaderFactory<char>::Create(&InInner);
 	ensure(FJsonSerializer::Deserialize(Reader, RootObject));
 	ValueStack.Add(MakeShared<FJsonValueObject>(RootObject));
-
-	ValueStack.Reserve(64);
-	ArrayValuesRemainingStack.Reserve(64);
 }
 
 FJsonArchiveInputFormatter::~FJsonArchiveInputFormatter()
@@ -44,7 +41,6 @@ FStructuredArchiveFormatter* FJsonArchiveInputFormatter::CreateSubtreeReader()
 	Cloned->ObjectStack.Empty();
 	Cloned->ValueStack.Empty();
 	Cloned->MapIteratorStack.Empty();
-	Cloned->ArrayValuesRemainingStack.Empty();
 	Cloned->ValueStack.Push(ValueStack.Top());
 
 	return Cloned;
@@ -119,26 +115,14 @@ void FJsonArchiveInputFormatter::EnterArray(int32& NumElements)
 	}
 
 	NumElements = ArrayValue.Num();
-	ArrayValuesRemainingStack.Add(NumElements);
 }
 
 void FJsonArchiveInputFormatter::LeaveArray()
 {
-	check(ArrayValuesRemainingStack.Num() > 0);
-	int32 Remaining = ArrayValuesRemainingStack.Top();
-	ArrayValuesRemainingStack.Pop();
-	check(Remaining >= 0);
-	check(Remaining <= ValueStack.Num());
-	while (Remaining-- > 0)
-	{
-		ValueStack.Pop();
-	}
 }
 
 void FJsonArchiveInputFormatter::EnterArrayElement()
 {
-	check(ArrayValuesRemainingStack.Num() > 0);
-	check(ArrayValuesRemainingStack.Top() > 0);
 }
 
 void FJsonArchiveInputFormatter::EnterArrayElement_TextOnly(EArchiveValueType& OutType)
@@ -149,7 +133,6 @@ void FJsonArchiveInputFormatter::EnterArrayElement_TextOnly(EArchiveValueType& O
 void FJsonArchiveInputFormatter::LeaveArrayElement()
 {
 	ValueStack.Pop();
-	ArrayValuesRemainingStack.Top()--;
 }
 
 void FJsonArchiveInputFormatter::EnterStream()
@@ -165,7 +148,6 @@ void FJsonArchiveInputFormatter::EnterStream_TextOnly(int32& NumElements)
 
 void FJsonArchiveInputFormatter::LeaveStream()
 {
-	LeaveArray();
 }
 
 void FJsonArchiveInputFormatter::EnterStreamElement()
@@ -250,7 +232,7 @@ void FJsonArchiveInputFormatter::Serialize(int32& Value)
 
 void FJsonArchiveInputFormatter::Serialize(int64& Value)
 {
-	Value = (int64)ValueStack.Top()->AsNumber();
+	Value = (uint64)ValueStack.Top()->AsNumber();
 }
 
 void FJsonArchiveInputFormatter::Serialize(float& Value)

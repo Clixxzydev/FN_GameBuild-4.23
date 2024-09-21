@@ -61,7 +61,6 @@ public:
 	virtual ESimpleElementBlendMode GetColourChannelBlendMode( ) const override;
 	virtual bool GetFitToViewport( ) const override;
 	virtual int32 GetMipLevel( ) const override;
-	virtual int32 GetLayer() const override;
 	virtual UTexture* GetTexture( ) const override;
 	virtual bool HasValidTextureResource( ) const override;
 	virtual bool GetUseSpecifiedMip( ) const override;
@@ -122,15 +121,13 @@ protected:
 	 */
 	void ExtendToolBar( );
 
-	void FillToolbar(FToolBarBuilder& ToolbarBuilder, const TSharedRef< FUICommandList > ToolkitCommands, TSharedRef<SWidget> LODControl, TSharedRef<SWidget> LayerControl);
+	void FillToolbar(FToolBarBuilder& ToolbarBuilder, const TSharedRef< FUICommandList > ToolkitCommands, TSharedRef<SWidget> LODControl);
 	/**
 	 * Gets the highest mip map level that this texture supports.
 	 *
 	 * @return Mip map level.
 	 */
 	TOptional<int32> GetMaxMipLevel( ) const;
-
-	TOptional<int32> GetMaxLayer() const;
 
 	/**
 	 * Checks whether the texture being edited is a cube map texture.
@@ -204,13 +201,6 @@ private:
 
 	// Callback for clicking the MipPlus button.
 	FReply HandleMipMapPlusButtonClicked( );
-
-
-	void HandleLayerEntryBoxChanged(int32 NewMipLevel);
-	TOptional<int32> HandleLayerEntryBoxValue() const;
-	FReply HandleLayerMinusButtonClicked();
-	FReply HandleLayerPlusButtonClicked();
-	bool HasLayers() const;
 
 	// Callback for toggling the Red channel action.
 	void HandleRedChannelActionExecute( );
@@ -305,8 +295,6 @@ private:
 	int32 SpecifiedMipLevel;
 	/* When true, the specified mip value is used. Top mip is used when false.*/
 	bool bUseSpecifiedMipLevel;
-
-	int32 SpecifiedLayer;
 
 	/** During re-import, cache this setting so it can be restored if necessary */
 	bool SavedCompressionSetting;

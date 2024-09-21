@@ -8,6 +8,7 @@
 #include "GlobalEditorUtilityBase.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "BlueprintEditorModule.h"
+#include "EditorUtilityDialog.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
 #include "IBlutilityModule.h"

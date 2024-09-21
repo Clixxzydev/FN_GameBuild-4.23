@@ -15,6 +15,7 @@
 FTargetDeviceProxy::FTargetDeviceProxy(const FString& InName)
 	: Connected(false)
 	, Authorized(false)
+	, LastUpdateTime(0)
 	, Name(InName)
 	, SupportsMultiLaunch(false)
 	, SupportsPowerOff(false)
@@ -92,7 +93,7 @@ void FTargetDeviceProxy::UpdateFromMessage( const FTargetDeviceServicePong& Mess
 		}
 	}
 
-	PingTimeout.Reset();
+	LastUpdateTime = FDateTime::UtcNow();
 }
 
 

@@ -77,17 +77,6 @@ TRange<FFrameNumber> FMovieSceneEvaluationRange::GetTraversedFrameNumberRange() 
 TRange<FFrameNumber> FMovieSceneEvaluationRange::TimeRangeToNumberRange(const TRange<FFrameTime>& InFrameTimeRange)
 {
 	TRange<FFrameNumber> FrameNumberRange;
-	TOptional<FFrameTime> UpperTime;
-	if (!InFrameTimeRange.GetUpperBound().IsOpen())
-	{
-		UpperTime = InFrameTimeRange.GetUpperBoundValue();
-
-		FrameNumberRange.SetUpperBound(
-			InFrameTimeRange.GetUpperBound().IsExclusive()
-			? TRangeBound<FFrameNumber>::Exclusive(UpperTime.GetValue().FrameNumber)
-			: TRangeBound<FFrameNumber>::Inclusive(UpperTime.GetValue().FrameNumber)
-		);
-	}
 
 	if (!InFrameTimeRange.GetLowerBound().IsOpen())
 	{
@@ -95,13 +84,21 @@ TRange<FFrameNumber> FMovieSceneEvaluationRange::TimeRangeToNumberRange(const TR
 		// If there is a sub frame on the start time, we're actually beyond that frame number, so it needs incrementing
 		if (LowerTime.GetSubFrame() != 0.f || InFrameTimeRange.GetLowerBound().IsExclusive())
 		{
-			LowerTime.FrameNumber = (!UpperTime.IsSet() || LowerTime.FrameNumber < UpperTime.GetValue().FrameNumber) ?
-				LowerTime.FrameNumber + 1 : LowerTime.FrameNumber;
-
+			LowerTime.FrameNumber = LowerTime.FrameNumber + 1;
 		}
 		FrameNumberRange.SetLowerBound(TRangeBound<FFrameNumber>::Inclusive(LowerTime.FrameNumber));
 	}
 
+	if (!InFrameTimeRange.GetUpperBound().IsOpen())
+	{
+		const FFrameTime UpperTime = InFrameTimeRange.GetUpperBoundValue();
+
+		FrameNumberRange.SetUpperBound(
+			InFrameTimeRange.GetUpperBound().IsExclusive()
+			? TRangeBound<FFrameNumber>::Exclusive(UpperTime.FrameNumber)
+			: TRangeBound<FFrameNumber>::Inclusive(UpperTime.FrameNumber)
+		);
+	}
 
 	return FrameNumberRange;
 }

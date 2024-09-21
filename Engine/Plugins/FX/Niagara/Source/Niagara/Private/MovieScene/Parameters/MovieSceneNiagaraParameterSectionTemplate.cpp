@@ -98,7 +98,9 @@ FMovieSceneNiagaraParameterSectionTemplate::FMovieSceneNiagaraParameterSectionTe
 
 FMovieSceneNiagaraParameterSectionTemplate::FMovieSceneNiagaraParameterSectionTemplate(FNiagaraVariable InParameter)
 	: Parameter(InParameter)
-{}
+{
+	EnableOverrides(RequiresInitializeFlag);
+}
 
 void FMovieSceneNiagaraParameterSectionTemplate::Initialize(const FMovieSceneEvaluationOperand& Operand, const FMovieSceneContext& Context, FPersistentEvaluationData& PersistentData, IMovieScenePlayer& Player) const
 {

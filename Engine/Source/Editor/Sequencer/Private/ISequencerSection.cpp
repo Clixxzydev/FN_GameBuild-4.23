@@ -15,6 +15,14 @@ struct FChannelData
 
 	/** The channel's editor meta data */
 	const FMovieSceneChannelMetaData& MetaData;
+
+	/**
+	 * Make a key area out of this data
+	 */
+	TSharedRef<IKeyArea> MakeKeyArea(UMovieSceneSection& InSection) const
+	{
+		return MakeShared<IKeyArea>(InSection, Channel);
+	}
 };
 
 /** Data pertaining to a group of channels */
@@ -39,7 +47,7 @@ struct FGroupData
 	FText GroupText;
 
 	/** Sort order of the group */
-	uint32 SortOrder;
+	uint8 SortOrder;
 
 	/** Array of channels within this group */
 	TArray<FChannelData, TInlineAllocator<4>> Channels;
@@ -96,7 +104,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 		const TTuple<FName, FGroupData>& Pair = *GroupToChannelsMap.CreateIterator();
 		if (Pair.Value.Channels.Num() == 1 && Pair.Value.Channels[0].MetaData.bCanCollapseToTrack)
 		{
-			LayoutBuilder.SetTopLevelChannel(Pair.Value.Channels[0].Channel);
+			LayoutBuilder.SetSectionAsKeyArea(Pair.Value.Channels[0].MakeKeyArea(*Section));
 			return;
 		}
 	}
@@ -111,7 +119,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 		Pair.Value.Channels.Sort([](const FChannelData& A, const FChannelData& B){
 			if (A.MetaData.SortOrder == B.MetaData.SortOrder)
 			{
-				return A.MetaData.Name.LexicalLess(B.MetaData.Name);
+				return A.MetaData.Name < B.MetaData.Name;
 			}
 			return A.MetaData.SortOrder < B.MetaData.SortOrder;
 		});
@@ -147,7 +155,8 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 
 		for (const FChannelData& ChannelAndData : ChannelData.Channels)
 		{
-			LayoutBuilder.AddChannel(ChannelAndData.Channel);
+			TSharedRef<IKeyArea> KeyArea = ChannelAndData.MakeKeyArea(*Section);
+			LayoutBuilder.AddKeyArea(ChannelAndData.MetaData.Name, ChannelAndData.MetaData.DisplayText, KeyArea);
 		}
 
 		if (!GroupName.IsNone())

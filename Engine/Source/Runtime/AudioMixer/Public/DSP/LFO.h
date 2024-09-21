@@ -12,7 +12,7 @@ namespace Audio
 	{
 		enum Type
 		{
-			Sine = 0,
+			Sine,
 			UpSaw,
 			DownSaw,
 			Square,
@@ -29,7 +29,7 @@ namespace Audio
 		enum Type
 		{
 			// Constantly oscillates
-			Sync = 0,
+			Sync,
 
 			// Performs the LFO only once, then stops
 			OneShot,

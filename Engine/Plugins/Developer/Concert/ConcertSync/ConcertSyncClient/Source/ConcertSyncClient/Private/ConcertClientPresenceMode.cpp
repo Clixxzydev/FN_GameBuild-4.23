@@ -79,15 +79,14 @@ void FConcertClientBasePresenceMode::SendEvents(IConcertClientSession& Session)
 
 	const FTransform PresenceHeadTransform = GetHeadTransform();
 
-	EEditorPlayMode EditorPlayModePlaceholder;
 	FConcertClientPresenceDataUpdateEvent PresenceDataUpdatedEvent;
-	PresenceDataUpdatedEvent.WorldPath = *ParentManager->GetPresenceWorldPath(Session.GetSessionClientEndpointId(), EditorPlayModePlaceholder); // The Non-PIE world path, i.e. the "UEDPIE_%d_" decoration stripped away.
+	PresenceDataUpdatedEvent.WorldPath = *World->GetPathName();
 	PresenceDataUpdatedEvent.Position = PresenceHeadTransform.GetLocation();
 	PresenceDataUpdatedEvent.Orientation = PresenceHeadTransform.GetRotation();
 
 	SetUpdateIndex(Session, FConcertClientPresenceDataUpdateEvent::StaticStruct()->GetFName(), PresenceDataUpdatedEvent);
 
-	Session.SendCustomEvent(PresenceDataUpdatedEvent, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::UniqueId);
+	Session.SendCustomEvent(PresenceDataUpdatedEvent, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::None);
 }
 
 FTransform FConcertClientBasePresenceMode::GetHeadTransform()
@@ -218,7 +217,7 @@ void FConcertClientDesktopPresenceMode::SendEvents(IConcertClientSession& Sessio
 
 				SetUpdateIndex(Session, FConcertClientDesktopPresenceUpdateEvent::StaticStruct()->GetFName(), Event);
 
-				Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::UniqueId);
+				Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::None);
 			}
 		}
 	}
@@ -302,7 +301,7 @@ void FConcertClientVRPresenceMode::SendEvents(IConcertClientSession& Session)
 
 		SetUpdateIndex(Session, FConcertClientDesktopPresenceUpdateEvent::StaticStruct()->GetFName(), Event);
 
-		Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::UniqueId);
+		Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::None);
 	}
 }
 

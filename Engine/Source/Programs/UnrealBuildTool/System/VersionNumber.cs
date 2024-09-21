@@ -15,11 +15,6 @@ namespace UnrealBuildTool
 	class VersionNumber : IComparable<VersionNumber>
 	{
 		/// <summary>
-		/// Set of delimiters for version numbers
-		/// </summary>
-		static readonly char[] Delimiters = { '.', ',' };
-
-		/// <summary>
 		/// The individual version components
 		/// </summary>
 		int[] Components;
@@ -198,7 +193,7 @@ namespace UnrealBuildTool
 		public static VersionNumber Parse(string Text)
 		{
 			List<int> Components = new List<int>();
-			foreach(string TextElement in Text.Split(Delimiters))
+			foreach(string TextElement in Text.Split('.'))
 			{
 				Components.Add(int.Parse(TextElement));
 			}
@@ -214,7 +209,7 @@ namespace UnrealBuildTool
 		public static bool TryParse(string Text, out VersionNumber OutNumber)
 		{
 			List<int> Components = new List<int>();
-			foreach(string TextElement in Text.Split(Delimiters))
+			foreach(string TextElement in Text.Split('.'))
 			{
 				int Component;
 				if(!int.TryParse(TextElement, out Component))

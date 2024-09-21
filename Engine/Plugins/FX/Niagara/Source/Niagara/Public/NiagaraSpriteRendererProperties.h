@@ -47,32 +47,26 @@ public:
 
 	UNiagaraSpriteRendererProperties();
 
-	//UObject Interface
 	virtual void PostLoad() override;
 	virtual void PostInitProperties() override;
 	virtual void Serialize(FStructuredArchive::FRecord Record) override;
-#if WITH_EDITORONLY_DATA
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITORONLY_DATA
-	//UObject Interface END
 
 	static void InitCDOPropertiesAfterModuleStartup();
 
-	//UNiagaraRendererProperties interface
-	virtual FNiagaraRenderer* CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel, const FNiagaraEmitterInstance* Emitter) override;
-	virtual class FNiagaraBoundsCalculator* CreateBoundsCalculator() override;
+	//~ UNiagaraRendererProperties interface
+	virtual NiagaraRenderer* CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel) override;
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const override;
 	virtual bool IsSimTargetSupported(ENiagaraSimTarget InSimTarget) const override { return true; };
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
+	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual bool IsMaterialValidForRenderer(UMaterial* Material, FText& InvalidMessage) override;
 	virtual void FixMaterial(UMaterial* Material) override;
 	virtual const TArray<FNiagaraVariable>& GetRequiredAttributes() override;
 	virtual const TArray<FNiagaraVariable>& GetOptionalAttributes() override;
-#endif
-	//UNiagaraMaterialRendererProperties interface END
+#endif // WITH_EDITORONLY_DATA
 
 	int32 GetNumCutoutVertexPerSubimage() const;
-	virtual uint32 GetNumIndicesPerInstance() const;
+	virtual uint32 GetNumIndicesPerInstance();
 
 	/** The material used to render the particle. Note that it must have the Use with Niagara Sprites flag checked.*/
 	UPROPERTY(EditAnywhere, Category = "Sprite Rendering")
@@ -189,6 +183,9 @@ public:
 	/** Which attribute should we use for Normalized Age? */
 	UPROPERTY(EditAnywhere, Category = "Bindings")
 	FNiagaraVariableAttributeBinding NormalizedAgeBinding;
+
+	UPROPERTY(Transient)
+	int32 SyncId;
 
 	void InitBindings();
 

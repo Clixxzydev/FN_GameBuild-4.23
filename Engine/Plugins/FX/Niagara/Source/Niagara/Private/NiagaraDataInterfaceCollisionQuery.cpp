@@ -6,7 +6,6 @@
 #include "NiagaraWorldManager.h"
 #include "ShaderParameterUtils.h"
 #include "GlobalDistanceFieldParameters.h"
-#include "NiagaraEmitterInstanceBatcher.h"
 #include "Shader.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -17,9 +16,7 @@ FCriticalSection UNiagaraDataInterfaceCollisionQuery::CriticalSection;
 UNiagaraDataInterfaceCollisionQuery::UNiagaraDataInterfaceCollisionQuery(FObjectInitializer const& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	TraceChannelEnum = StaticEnum<ECollisionChannel>();
-
-    Proxy = MakeShared<FNiagaraDataIntefaceProxyCollisionQuery, ESPMode::ThreadSafe>();
+	TraceChannelEnum = FindObject<UEnum>(ANY_PACKAGE, TEXT("ECollisionChannel"), true);
 }
 
 bool UNiagaraDataInterfaceCollisionQuery::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* InSystemInstance)
@@ -840,7 +837,12 @@ struct FNiagaraDataInterfaceParametersCS_CollisionQuery : public FNiagaraDataInt
 	virtual void Bind(const FNiagaraDataInterfaceParamRef& ParamRef, const class FShaderParameterMap& ParameterMap) override
 	{
 		PassUniformBuffer.Bind(ParameterMap, FSceneTexturesUniformParameters::StaticStructMetadata.GetShaderVariableName());
+		
 		GlobalDistanceFieldParameters.Bind(ParameterMap);
+		if (GlobalDistanceFieldParameters.IsBound())
+		{
+			GNiagaraViewDataManager.SetGlobalDistanceFieldUsage();
+		}
 	}
 
 	virtual void Serialize(FArchive& Ar) override
@@ -849,17 +851,18 @@ struct FNiagaraDataInterfaceParametersCS_CollisionQuery : public FNiagaraDataInt
 		Ar << GlobalDistanceFieldParameters;
 	}
 
-	virtual void Set(FRHICommandList& RHICmdList, const FNiagaraDataInterfaceSetArgs& Context) const override
+	virtual void Set(FRHICommandList& RHICmdList, FNiagaraShader* Shader, class UNiagaraDataInterface* DataInterface, void* PerInstanceData) const override
 	{
 		check(IsInRenderingThread());
 
-		FRHIComputeShader* ComputeShaderRHI = Context.Shader->GetComputeShader();
+		const FComputeShaderRHIParamRef ComputeShaderRHI = Shader->GetComputeShader();
 		
 		TUniformBufferRef<FSceneTexturesUniformParameters> SceneTextureUniformParams = GNiagaraViewDataManager.GetSceneTextureUniformParameters();
 		SetUniformBufferParameter(RHICmdList, ComputeShaderRHI, PassUniformBuffer/*Shader->GetUniformBufferParameter(SceneTexturesUniformBufferStruct)*/, SceneTextureUniformParams);
-		if (GlobalDistanceFieldParameters.IsBound() && Context.Batcher)
+		if (GlobalDistanceFieldParameters.IsBound())
 		{
-			GlobalDistanceFieldParameters.Set(RHICmdList, ComputeShaderRHI, Context.Batcher->GetGlobalDistanceFieldParameters());
+			GNiagaraViewDataManager.SetGlobalDistanceFieldUsage();
+			GlobalDistanceFieldParameters.Set(RHICmdList, ComputeShaderRHI, *GNiagaraViewDataManager.GetGlobalDistanceFieldParameters());
 		}		
 	}
 

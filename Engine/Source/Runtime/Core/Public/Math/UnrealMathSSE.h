@@ -4,7 +4,7 @@
 
 struct FMath;
 
-#if defined(__cplusplus_cli) && !PLATFORM_HOLOLENS
+#ifdef __cplusplus_cli
 // there are compile issues with this file in managed mode, so use the FPU version
 #include "Math/UnrealMathFPU.h"
 #else

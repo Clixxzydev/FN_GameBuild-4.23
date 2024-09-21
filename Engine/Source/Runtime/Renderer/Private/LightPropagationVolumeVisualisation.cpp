@@ -64,7 +64,7 @@ public:
 		FRHICommandList& RHICmdList, 
 		const FSceneView& View )
 	{
-		FRHIGeometryShader* ShaderRHI = GetGeometryShader();
+		FGeometryShaderRHIParamRef ShaderRHI = GetGeometryShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 	}
 };
@@ -84,7 +84,7 @@ public:
 		FRHICommandList& RHICmdList, 
 		const FSceneView& View )
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 	}
 };
@@ -116,12 +116,12 @@ public:
 		const FLightPropagationVolume* LPV,
 		const FSceneView& View )
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 		
 		for ( int i = 0; i < 7; i++ )
 		{
-			FRHITexture* LpvBufferSrv = LPV->LpvVolumeTextures[ 1-LPV->mWriteBufferIndex ][i]->GetRenderTargetItem().ShaderResourceTexture;
+			FTextureRHIParamRef LpvBufferSrv = LPV->LpvVolumeTextures[ 1-LPV->mWriteBufferIndex ][i]->GetRenderTargetItem().ShaderResourceTexture;
 			if ( LpvBufferSRVParameters[i].IsBound() )
 			{
 				RHICmdList.SetShaderTexture(ShaderRHI, LpvBufferSRVParameters[i].GetBaseIndex(), LpvBufferSrv);
@@ -131,7 +131,7 @@ public:
 		
 		for ( int i = 0; i < NUM_GV_TEXTURES; i++ ) 
 		{
-			FRHITexture* GvBufferSrv = LPV->GvVolumeTextures[i]->GetRenderTargetItem().ShaderResourceTexture;
+			FTextureRHIParamRef GvBufferSrv = LPV->GvVolumeTextures[i]->GetRenderTargetItem().ShaderResourceTexture;
 			if ( GvBufferSRVParameters[i].IsBound() )
 			{
 				RHICmdList.SetShaderTexture(ShaderRHI, GvBufferSRVParameters[i].GetBaseIndex(), GvBufferSrv);
@@ -169,12 +169,12 @@ public:
 	void UnbindBuffers(FRHICommandList& RHICmdList)
 	{
 		// TODO: Is this necessary here?
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 		for ( int i = 0; i < 7; i++ )
 		{
 			if ( LpvBufferSRVParameters[i].IsBound() )
 			{
-				RHICmdList.SetShaderTexture(ShaderRHI, LpvBufferSRVParameters[i].GetBaseIndex(), nullptr);
+				RHICmdList.SetShaderTexture(ShaderRHI, LpvBufferSRVParameters[i].GetBaseIndex(), FTextureRHIParamRef());
 			}
 		}
 		
@@ -182,7 +182,7 @@ public:
 		{
 			if ( GvBufferSRVParameters[i].IsBound() )
 			{
-				RHICmdList.SetShaderTexture(ShaderRHI, GvBufferSRVParameters[i].GetBaseIndex(), nullptr);
+				RHICmdList.SetShaderTexture(ShaderRHI, GvBufferSRVParameters[i].GetBaseIndex(), FTextureRHIParamRef());
 			}
 		}
 	}

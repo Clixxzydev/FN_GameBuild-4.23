@@ -77,8 +77,7 @@ namespace UnrealBuildTool
 
 		HTML5PlatformSDK SDK;
 
-		public HTML5Platform(HTML5PlatformSDK InSDK) 
-			: base(UnrealTargetPlatform.HTML5)
+		public HTML5Platform(HTML5PlatformSDK InSDK) : base(UnrealTargetPlatform.HTML5, CppPlatform.HTML5)
 		{
 			SDK = InSDK;
 		}
@@ -271,9 +270,10 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Creates a toolchain instance for the given platform.
 		/// </summary>
+		/// <param name="CppPlatform">The platform to create a toolchain for</param>
 		/// <param name="Target">The target being built</param>
 		/// <returns>New toolchain instance.</returns>
-		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
+		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
 		{
 			return new HTML5ToolChain(Target.ProjectFile);
 		}

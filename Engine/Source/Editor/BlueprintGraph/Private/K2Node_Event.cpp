@@ -16,7 +16,6 @@
 #include "KismetCompilerMisc.h"
 #include "KismetCompiler.h"
 #include "EventEntryHandler.h"
-#include "DiffResults.h"
 
 const FName UK2Node_Event::DelegateOutputName(TEXT("OutputDelegate"));
 
@@ -779,7 +778,7 @@ FText UK2Node_Event::GetMenuCategory() const
 	return FunctionCategory;
 }
 
-bool UK2Node_Event::HasDeprecatedReference() const
+bool UK2Node_Event::IsDeprecated() const
 {
 	if (UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode()))
 	{
@@ -789,31 +788,17 @@ bool UK2Node_Event::HasDeprecatedReference() const
 	return false;
 }
 
-FEdGraphNodeDeprecationResponse UK2Node_Event::GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const
+FString UK2Node_Event::GetDeprecationMessage() const
 {
-	FEdGraphNodeDeprecationResponse Response = Super::GetDeprecationResponse(DeprecationType);
-	if (DeprecationType == EEdGraphNodeDeprecationType::NodeHasDeprecatedReference)
+	if (UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode()))
 	{
-		// Only warn on override usage.
-		if (bOverrideFunction)
+		if (Function->HasMetaData(FBlueprintMetadata::MD_DeprecationMessage))
 		{
-			UFunction* Function = EventReference.ResolveMember<UFunction>(GetBlueprintClassFromNode());
-			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the event override cannot be resolved.")))
-			{
-				FText EventName = FText::FromName(GetFunctionName());
-				FText DetailedMessage = FText::FromString(Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
-				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(EventName, DetailedMessage);
-			}
-		}
-		else
-		{
-			// Allow the source event to be marked as deprecated in the class that defines it without warning, but use a note to visually indicate that the definition itself has been deprecated.
-			Response.MessageType = EEdGraphNodeDeprecationMessageType::Note;
-			Response.MessageText = LOCTEXT("DeprecatedEventMessage", "@@: This event has been marked as deprecated. It can be safely deleted if all references have been replaced or removed.");
+			return FString::Printf(TEXT("%s %s"), *LOCTEXT("EventDeprecated_Warning", "@@ is deprecated;").ToString(), *Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
 		}
 	}
 
-	return Response;
+	return Super::GetDeprecationMessage();
 }
 
 UObject* UK2Node_Event::GetJumpTargetForDoubleClick() const
@@ -851,27 +836,6 @@ FString UK2Node_Event::GetFindReferenceSearchString() const
 	}
 
 	return FunctionName;
-}
-
-void UK2Node_Event::FindDiffs(UEdGraphNode* OtherNode, struct FDiffResults& Results)
-{
-	Super::FindDiffs(OtherNode, Results);
-	UK2Node_Event* OtherFunction = Cast<UK2Node_Event>(OtherNode);
-
-	if (OtherFunction)
-	{
-		if (FunctionFlags != OtherFunction->FunctionFlags)
-		{
-			FDiffSingleResult Diff;
-			Diff.Diff = EDiffType::NODE_PROPERTY;
-			Diff.Node1 = this;
-			Diff.Node2 = OtherNode;
-			Diff.DisplayString = LOCTEXT("DIF_EventFlags", "Event flags have changed");
-			Diff.DisplayColor = FLinearColor(0.25f, 0.71f, 0.85f);
-
-			Results.Add(Diff);
-		}
-	}
 }
 
 bool UK2Node_Event::AreEventNodesIdentical(const UK2Node_Event* InNodeA, const UK2Node_Event* InNodeB)

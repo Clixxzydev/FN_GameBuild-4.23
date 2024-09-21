@@ -3,7 +3,7 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-[SupportedPlatforms("IOS")]
+[SupportedPlatforms(UnrealTargetPlatform.IOS)]
 public class UnrealLaunchDaemonTarget : TargetRules
 {
 	public UnrealLaunchDaemonTarget(TargetInfo Target) : base(Target)

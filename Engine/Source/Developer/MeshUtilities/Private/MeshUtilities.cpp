@@ -266,7 +266,7 @@ static void SkinnedMeshToRawMeshes(USkinnedMeshComponent* InSkinnedMeshComponent
 					const FVector TangentX = InComponentToWorld.TransformVector(SkinnedVertex.TangentX.ToFVector());
 					const FVector TangentZ = InComponentToWorld.TransformVector(SkinnedVertex.TangentZ.ToFVector());
 					const FVector4 UnpackedTangentZ = SkinnedVertex.TangentZ.ToFVector4();
-					const FVector TangentY = (TangentZ ^ TangentX).GetSafeNormal() * UnpackedTangentZ.W;
+					const FVector TangentY = (TangentX ^ TangentZ).GetSafeNormal() * UnpackedTangentZ.W;
 
 					RawMesh.WedgeTangentX.Add(TangentX);
 					RawMesh.WedgeTangentY.Add(TangentY);
@@ -579,11 +579,11 @@ UStaticMesh* FMeshUtilities::ConvertMeshesToStaticMesh(const TArray<UMeshCompone
 				int32 SectionIndex = 0;
 				for (int32 UniqueMaterialIndex : UniqueMaterialIndices)
 				{
-					StaticMesh->GetSectionInfoMap().Set(RawMeshLODIndex, SectionIndex, FMeshSectionInfo(UniqueMaterialIndex));
+					StaticMesh->SectionInfoMap.Set(RawMeshLODIndex, SectionIndex, FMeshSectionInfo(UniqueMaterialIndex));
 					SectionIndex++;
 				}
 			}
-			StaticMesh->GetOriginalSectionInfoMap().CopyFrom(StaticMesh->GetSectionInfoMap());
+			StaticMesh->OriginalSectionInfoMap.CopyFrom(StaticMesh->SectionInfoMap);
 
 			// Build mesh from source
 			StaticMesh->Build(false);
@@ -747,9 +747,9 @@ void FMeshUtilities::BuildSkeletalModelFromChunks(FSkeletalMeshLODModel& LODMode
 
 			FSoftSkinVertex NewVertex;
 			NewVertex.Position = SoftVertex.Position;
-			NewVertex.TangentX = SoftVertex.TangentX;
-			NewVertex.TangentY = SoftVertex.TangentY;
-			NewVertex.TangentZ = SoftVertex.TangentZ;
+			NewVertex.TangentX = SoftVertex.TangentX.ToFVector();
+			NewVertex.TangentY = SoftVertex.TangentY.ToFVector();
+			NewVertex.TangentZ = SoftVertex.TangentZ.ToFVector();
 			FMemory::Memcpy(NewVertex.UVs, SoftVertex.UVs, sizeof(FVector2D)*MAX_TEXCOORDS);
 			NewVertex.Color = SoftVertex.Color;
 			for (int32 i = 0; i < MAX_TOTAL_INFLUENCES; ++i)
@@ -1056,9 +1056,6 @@ static void ComputeTriangleTangents(
 	OutTangentY.Empty(NumTriangles);
 	OutTangentZ.Empty(NumTriangles);
 
-	//Currently GetSafeNormal do not support 0.0f threshold properly
-	float RealComparisonThreshold = FMath::Max(ComparisonThreshold, FLT_MIN);
-
 	for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; TriangleIndex++)
 	{
 		int32 UVIndex = 0;
@@ -1069,57 +1066,37 @@ static void ComputeTriangleTangents(
 			P[i] = InVertices[InIndices[TriangleIndex * 3 + i]];
 		}
 
-		const FVector Normal = ((P[1] - P[2]) ^ (P[0] - P[2])).GetSafeNormal(RealComparisonThreshold);
-		//Avoid doing orthonormal vector from a degenerated triangle.
-		if (!Normal.IsNearlyZero(FLT_MIN))
-		{
-			FMatrix	ParameterToLocal(
-				FPlane(P[1].X - P[0].X, P[1].Y - P[0].Y, P[1].Z - P[0].Z, 0),
-				FPlane(P[2].X - P[0].X, P[2].Y - P[0].Y, P[2].Z - P[0].Z, 0),
-				FPlane(P[0].X, P[0].Y, P[0].Z, 0),
-				FPlane(0, 0, 0, 1)
+		const FVector Normal = ((P[1] - P[2]) ^ (P[0] - P[2])).GetSafeNormal(ComparisonThreshold);
+		FMatrix	ParameterToLocal(
+			FPlane(P[1].X - P[0].X, P[1].Y - P[0].Y, P[1].Z - P[0].Z, 0),
+			FPlane(P[2].X - P[0].X, P[2].Y - P[0].Y, P[2].Z - P[0].Z, 0),
+			FPlane(P[0].X, P[0].Y, P[0].Z, 0),
+			FPlane(0, 0, 0, 1)
 			);
 
-			const FVector2D T1 = InUVs[TriangleIndex * 3 + 0];
-			const FVector2D T2 = InUVs[TriangleIndex * 3 + 1];
-			const FVector2D T3 = InUVs[TriangleIndex * 3 + 2];
+		const FVector2D T1 = InUVs[TriangleIndex * 3 + 0];
+		const FVector2D T2 = InUVs[TriangleIndex * 3 + 1];
+		const FVector2D T3 = InUVs[TriangleIndex * 3 + 2];
 
-			FMatrix ParameterToTexture(
-				FPlane(T2.X - T1.X, T2.Y - T1.Y, 0, 0),
-				FPlane(T3.X - T1.X, T3.Y - T1.Y, 0, 0),
-				FPlane(T1.X, T1.Y, 1, 0),
-				FPlane(0, 0, 0, 1)
+		FMatrix ParameterToTexture(
+			FPlane(T2.X - T1.X, T2.Y - T1.Y, 0, 0),
+			FPlane(T3.X - T1.X, T3.Y - T1.Y, 0, 0),
+			FPlane(T1.X, T1.Y, 1, 0),
+			FPlane(0, 0, 0, 1)
 			);
 
-			// Use InverseSlow to catch singular matrices.  Inverse can miss this sometimes.
-			const FMatrix TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
+		// Use InverseSlow to catch singular matrices.  Inverse can miss this sometimes.
+		const FMatrix TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
 
-			OutTangentX.Add(TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal());
-			OutTangentY.Add(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal());
-			OutTangentZ.Add(Normal);
+		OutTangentX.Add(TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal());
+		OutTangentY.Add(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal());
+		OutTangentZ.Add(Normal);
 
-			FVector::CreateOrthonormalBasis(
-				OutTangentX[TriangleIndex],
-				OutTangentY[TriangleIndex],
-				OutTangentZ[TriangleIndex]
+		FVector::CreateOrthonormalBasis(
+			OutTangentX[TriangleIndex],
+			OutTangentY[TriangleIndex],
+			OutTangentZ[TriangleIndex]
 			);
-			if (OutTangentX[TriangleIndex].IsNearlyZero() || OutTangentX[TriangleIndex].ContainsNaN()
-				|| OutTangentY[TriangleIndex].IsNearlyZero() || OutTangentY[TriangleIndex].ContainsNaN()
-				|| OutTangentZ[TriangleIndex].IsNearlyZero() || OutTangentZ[TriangleIndex].ContainsNaN())
-			{
-				OutTangentX[TriangleIndex] = FVector::ZeroVector;
-				OutTangentY[TriangleIndex] = FVector::ZeroVector;
-				OutTangentZ[TriangleIndex] = FVector::ZeroVector;
-			}
-		}
-		else
-		{
-			//Add zero tangents and normal for this triangle, this is like weighting it to zero when we compute the vertex normal
-			//But we need the triangle to correctly connect other neighbourg triangles
-			OutTangentX.Add(FVector::ZeroVector);
-			OutTangentY.Add(FVector::ZeroVector);
-			OutTangentZ.Add(FVector::ZeroVector);
-		}
 	}
 
 	check(OutTangentX.Num() == NumTriangles);
@@ -1260,7 +1237,7 @@ static void ComputeTangents(
 		TriangleTangentX,
 		TriangleTangentY,
 		TriangleTangentZ,
-		bIgnoreDegenerateTriangles ? SMALL_NUMBER : FLT_MIN
+		bIgnoreDegenerateTriangles ? SMALL_NUMBER : 0.0f
 		);
 
 	// Declare these out here to avoid reallocations.
@@ -1334,36 +1311,29 @@ static void ComputeTangents(
 
 		// Start building a list of faces adjacent to this face.
 		AdjacentFaces.Reset();
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			int32 ThisCornerIndex = WedgeOffset + CornerIndex;
 			const TArray<int32>& DupVerts = OverlappingCorners.FindIfOverlapping(ThisCornerIndex);
-			for (int32 k = 0, nk = DupVerts.Num() ; k < nk; k++)
+			for (int32 k = 0; k < DupVerts.Num(); k++)
 			{
-				AdjacentFaces.Add(DupVerts[k] / 3);
+				AdjacentFaces.AddUnique(DupVerts[k] / 3);
 			}
 			if (DupVerts.Num() == 0)
 			{
-				AdjacentFaces.Add(ThisCornerIndex / 3); // I am a "dup" of myself
+				AdjacentFaces.AddUnique(ThisCornerIndex / 3); // I am a "dup" of myself
 			}
 		}
 
 		// We need to sort these here because the criteria for point equality is
 		// exact, so we must ensure the exact same order for all dups.
- 		AdjacentFaces.Sort();
+		AdjacentFaces.Sort();
 
 		// Process adjacent faces
-		int32 LastIndex = -1;
-		for (int32 OtherFaceIndex : AdjacentFaces)
+		for (int32 AdjacentFaceIndex = 0; AdjacentFaceIndex < AdjacentFaces.Num(); AdjacentFaceIndex++)
 		{
-			if (LastIndex == OtherFaceIndex)
-			{
-				continue;
-			}
-
-			LastIndex = OtherFaceIndex;
-
-			for (int32 OurCornerIndex = 0; OurCornerIndex < 3; ++OurCornerIndex)
+			int32 OtherFaceIndex = AdjacentFaces[AdjacentFaceIndex];
+			for (int32 OurCornerIndex = 0; OurCornerIndex < 3; OurCornerIndex++)
 			{
 				if (bCornerHasTangents[OurCornerIndex])
 					continue;
@@ -1380,9 +1350,13 @@ static void ComputeTangents(
 				else
 				{
 					// Check matching vertices against main vertex .
-					for (int32 OtherCornerIndex = 0; OtherCornerIndex < 3; ++OtherCornerIndex)
+					for (int32 OtherCornerIndex = 0; OtherCornerIndex < 3; OtherCornerIndex++)
 					{
-						if(CornerPositions[OurCornerIndex].Equals(InVertices[InIndices[OtherFaceIndex * 3 + OtherCornerIndex]], ComparisonThreshold))
+						if (PointsEqual(
+							CornerPositions[OurCornerIndex],
+							InVertices[InIndices[OtherFaceIndex * 3 + OtherCornerIndex]],
+							ComparisonThreshold
+							))
 						{
 							CommonIndexCount++;
 							NewFanFace.LinkedVertexIndex = OtherCornerIndex;
@@ -1404,7 +1378,7 @@ static void ComputeTangents(
 
 		// Find true relevance of faces for a vertex normal by traversing
 		// smoothing-group-compatible connected triangle fans around common vertices.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			if (bCornerHasTangents[CornerIndex])
 				continue;
@@ -1413,13 +1387,13 @@ static void ComputeTangents(
 			do
 			{
 				NewConnections = 0;
-				for (int32 OtherFaceIdx = 0, ni = RelevantFacesForCorner[CornerIndex].Num() ; OtherFaceIdx < ni; ++OtherFaceIdx)
+				for (int32 OtherFaceIdx = 0; OtherFaceIdx < RelevantFacesForCorner[CornerIndex].Num(); OtherFaceIdx++)
 				{
 					FFanFace& OtherFace = RelevantFacesForCorner[CornerIndex][OtherFaceIdx];
 					// The vertex' own face is initially the only face with bFilled == true.
 					if (OtherFace.bFilled)
 					{
-						for (int32 NextFaceIndex = 0, nk = RelevantFacesForCorner[CornerIndex].Num() ; NextFaceIndex < nk ; ++NextFaceIndex)
+						for (int32 NextFaceIndex = 0; NextFaceIndex < RelevantFacesForCorner[CornerIndex].Num(); NextFaceIndex++)
 						{
 							FFanFace& NextFace = RelevantFacesForCorner[CornerIndex][NextFaceIndex];
 							if (!NextFace.bFilled) // && !NextFace.bBlendTangents)
@@ -1430,9 +1404,9 @@ static void ComputeTangents(
 									int32 CommonVertices = 0;
 									int32 CommonTangentVertices = 0;
 									int32 CommonNormalVertices = 0;
-									for (int32 OtherCornerIndex = 0; OtherCornerIndex < 3; ++OtherCornerIndex)
+									for (int32 OtherCornerIndex = 0; OtherCornerIndex < 3; OtherCornerIndex++)
 									{
-										for (int32 NextCornerIndex = 0; NextCornerIndex < 3; ++NextCornerIndex)
+										for (int32 NextCornerIndex = 0; NextCornerIndex < 3; NextCornerIndex++)
 										{
 											int32 NextVertexIndex = InIndices[NextFace.FaceIndex * 3 + NextCornerIndex];
 											int32 OtherVertexIndex = InIndices[OtherFace.FaceIndex * 3 + OtherCornerIndex];
@@ -1489,7 +1463,7 @@ static void ComputeTangents(
 		}
 
 		// Vertex normal construction.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			if (bCornerHasTangents[CornerIndex])
 			{
@@ -1499,7 +1473,7 @@ static void ComputeTangents(
 			}
 			else
 			{
-				for (int32 RelevantFaceIdx = 0; RelevantFaceIdx < RelevantFacesForCorner[CornerIndex].Num(); ++RelevantFaceIdx)
+				for (int32 RelevantFaceIdx = 0; RelevantFaceIdx < RelevantFacesForCorner[CornerIndex].Num(); RelevantFaceIdx++)
 				{
 					FFanFace const& RelevantFace = RelevantFacesForCorner[CornerIndex][RelevantFaceIdx];
 					if (RelevantFace.bFilled)
@@ -1532,7 +1506,7 @@ static void ComputeTangents(
 		}
 
 		// Normalization.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			CornerTangentX[CornerIndex].Normalize();
 			CornerTangentY[CornerIndex].Normalize();
@@ -1549,7 +1523,7 @@ static void ComputeTangents(
 		}
 
 		// Copy back to the mesh.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			OutTangentX[WedgeOffset + CornerIndex] = CornerTangentX[CornerIndex];
 			OutTangentY[WedgeOffset + CornerIndex] = CornerTangentY[CornerIndex];
@@ -1796,12 +1770,12 @@ static void ComputeNormals(
 		TriangleTangentX,
 		TriangleTangentY,
 		TriangleTangentZ,
-		bIgnoreDegenerateTriangles ? SMALL_NUMBER : FLT_MIN
+		bIgnoreDegenerateTriangles ? SMALL_NUMBER : 0.0f
 		);
 
 	// Declare these out here to avoid reallocations.
 	TArray<FFanFace> RelevantFacesForCorner[3];
-// 	TArray<int32> AdjacentFaces;
+	TArray<int32> AdjacentFaces;
 
 	int32 NumWedges = InIndices.Num();
 	int32 NumFaces = NumWedges / 3;
@@ -1848,33 +1822,30 @@ static void ComputeNormals(
 		}
 
 		// Start building a list of faces adjacent to this face.
-// 		AdjacentFaces.Reset();
-		TSet<int32> AdjacentFaces;
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		AdjacentFaces.Reset();
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			int32 ThisCornerIndex = WedgeOffset + CornerIndex;
 			const TArray<int32>& DupVerts = OverlappingCorners.FindIfOverlapping(ThisCornerIndex);
 			if (DupVerts.Num() == 0)
 			{
-//				AdjacentFaces.AddUnique(ThisCornerIndex / 3); // I am a "dup" of myself
-				AdjacentFaces.Add(ThisCornerIndex / 3); // I am a "dup" of myself
+				AdjacentFaces.AddUnique(ThisCornerIndex / 3); // I am a "dup" of myself
 			}
 			for (int32 k = 0; k < DupVerts.Num(); k++)
 			{
-				AdjacentFaces.Add(DupVerts[k] / 3);
+				AdjacentFaces.AddUnique(DupVerts[k] / 3);
 			}
 		}
 
 		// We need to sort these here because the criteria for point equality is
 		// exact, so we must ensure the exact same order for all dups.
-// 		AdjacentFaces.Sort();
+		AdjacentFaces.Sort();
 
 		// Process adjacent faces
-// 		for (int32 AdjacentFaceIndex = 0; AdjacentFaceIndex < AdjacentFaces.Num(); AdjacentFaceIndex++)
-		for (int32 OtherFaceIndex : AdjacentFaces )
+		for (int32 AdjacentFaceIndex = 0; AdjacentFaceIndex < AdjacentFaces.Num(); AdjacentFaceIndex++)
 		{
-// 			int32 OtherFaceIndex = AdjacentFaces[AdjacentFaceIndex];
-			for (int32 OurCornerIndex = 0; OurCornerIndex < 3; ++OurCornerIndex)
+			int32 OtherFaceIndex = AdjacentFaces[AdjacentFaceIndex];
+			for (int32 OurCornerIndex = 0; OurCornerIndex < 3; OurCornerIndex++)
 			{
 				if (bCornerHasNormal[OurCornerIndex])
 					continue;
@@ -1944,9 +1915,9 @@ static void ComputeNormals(
 								{
 									int32 CommonVertices = 0;
 									int32 CommonNormalVertices = 0;
-									for (int32 OtherCornerIndex = 0; OtherCornerIndex < 3; ++OtherCornerIndex)
+									for (int32 OtherCornerIndex = 0; OtherCornerIndex < 3; OtherCornerIndex++)
 									{
-										for (int32 NextCornerIndex = 0; NextCornerIndex < 3; ++NextCornerIndex)
+										for (int32 NextCornerIndex = 0; NextCornerIndex < 3; NextCornerIndex++)
 										{
 											int32 NextVertexIndex = InIndices[NextFace.FaceIndex * 3 + NextCornerIndex];
 											int32 OtherVertexIndex = InIndices[OtherFace.FaceIndex * 3 + OtherCornerIndex];
@@ -1982,7 +1953,7 @@ static void ComputeNormals(
 
 
 		// Vertex normal construction.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			if (bCornerHasNormal[CornerIndex])
 			{
@@ -2010,13 +1981,13 @@ static void ComputeNormals(
 		}
 
 		// Normalization.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			CornerNormal[CornerIndex].Normalize();
 		}
 
 		// Copy back to the mesh.
-		for (int32 CornerIndex = 0; CornerIndex < 3; ++CornerIndex)
+		for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 		{
 			OutTangentZ[WedgeOffset + CornerIndex] = CornerNormal[CornerIndex];
 		}
@@ -2448,7 +2419,7 @@ public:
 	{
 		check(Stage == EStage::Uninit);
 		check(StaticMesh != nullptr);
-		TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->GetSourceModels();
+		TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->SourceModels;
 		ELightmapUVVersion LightmapUVVersion = (ELightmapUVVersion)StaticMesh->LightmapUVVersion;
 
 		FMeshUtilities& MeshUtilities = FModuleManager::Get().LoadModuleChecked<FMeshUtilities>("MeshUtilities");
@@ -2564,12 +2535,12 @@ public:
 				LODBuildSettings[LODIndex] = LODBuildSettings[BaseRawMeshIndex];
 				HasRawMesh[LODIndex] = false;
 				//Make sure the SectionInfoMap is taken from the Base RawMesh
-				int32 SectionNumber = StaticMesh->GetOriginalSectionInfoMap().GetSectionNumber(BaseRawMeshIndex);
+				int32 SectionNumber = StaticMesh->OriginalSectionInfoMap.GetSectionNumber(BaseRawMeshIndex);
 				for (int32 SectionIndex = 0; SectionIndex < SectionNumber; ++SectionIndex)
 				{
-					FMeshSectionInfo Info = StaticMesh->GetOriginalSectionInfoMap().Get(BaseRawMeshIndex, SectionIndex);
-					StaticMesh->GetSectionInfoMap().Set(LODIndex, SectionIndex, Info);
-					StaticMesh->GetOriginalSectionInfoMap().Set(LODIndex, SectionIndex, Info);
+					FMeshSectionInfo Info = StaticMesh->OriginalSectionInfoMap.Get(BaseRawMeshIndex, SectionIndex);
+					StaticMesh->SectionInfoMap.Set(LODIndex, SectionIndex, Info);
+					StaticMesh->OriginalSectionInfoMap.Set(LODIndex, SectionIndex, Info);
 				}
 			}
 		}
@@ -2596,7 +2567,7 @@ public:
 	{
 		check(Stage == EStage::Gathered);
 		check(StaticMesh != nullptr);
-		TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->GetSourceModels();
+		TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->SourceModels;
 		if (SourceModels.Num() == 0)
 		{
 			UE_LOG(LogMeshUtilities, Error, TEXT("Mesh contains zero source models."));
@@ -2651,7 +2622,7 @@ public:
 					if (DestMesh.IsValid())
 					{
 						//Set the new SectionInfoMap for this reduced LOD base on the ReductionSettings.BaseLODModel SectionInfoMap
-						const FMeshSectionInfoMap& BaseLODModelSectionInfoMap = StaticMesh->GetSectionInfoMap();
+						const FMeshSectionInfoMap& BaseLODModelSectionInfoMap = StaticMesh->SectionInfoMap;
 						TArray<int32> UniqueMaterialIndex;
 						//Find all unique Material in used order
 						int32 NumFaces = DestMesh.FaceMaterialIndices.Num();
@@ -2680,7 +2651,7 @@ public:
 									}
 								}
 								//Copy the BaseLODModel section info to the reduce LODIndex.
-								StaticMesh->GetSectionInfoMap().Set(LODIndex, SectionIndex, SectionInfo);
+								StaticMesh->SectionInfoMap.Set(LODIndex, SectionIndex, SectionInfo);
 							}
 						}
 					}
@@ -2707,7 +2678,7 @@ public:
 		check(Stage == EStage::Reduce);
 		check(StaticMesh != nullptr);
 
-		TArray<FStaticMeshSourceModel>& InOutModels = StaticMesh->GetSourceModels();
+		TArray<FStaticMeshSourceModel>& InOutModels = StaticMesh->SourceModels;
 		int32 ImportVersion = StaticMesh->ImportVersion;
 
 		// Generate per-LOD rendering data.
@@ -2814,7 +2785,7 @@ public:
 			LODModel.IndexBuffer.SetIndices(CombinedIndices, bNeeds32BitIndices ? EIndexBufferStride::Force32Bit : EIndexBufferStride::Force16Bit);
 			
 			// Build the reversed index buffer.
-			if (LODModel.AdditionalIndexBuffers && InOutModels[0].BuildSettings.bBuildReversedIndexBuffer)
+			if (InOutModels[0].BuildSettings.bBuildReversedIndexBuffer)
 			{
 				TArray<uint32> InversedIndices;
 				const int32 IndexCount = CombinedIndices.Num();
@@ -2852,7 +2823,7 @@ public:
 			}
 
 			// Build the inversed depth only index buffer.
-			if (LODModel.AdditionalIndexBuffers && InOutModels[0].BuildSettings.bBuildReversedIndexBuffer)
+			if (InOutModels[0].BuildSettings.bBuildReversedIndexBuffer)
 			{
 				TArray<uint32> ReversedDepthOnlyIndices;
 				const int32 IndexCount = DepthOnlyIndices.Num();
@@ -2865,7 +2836,6 @@ public:
 			}
 
 			// Build a list of wireframe edges in the static mesh.
-			if (LODModel.AdditionalIndexBuffers)
 			{
 				TArray<FMeshEdgeDef> Edges;
 				TArray<uint32> WireframeIndices;
@@ -2882,7 +2852,7 @@ public:
 			}
 
 			// Build the adjacency index buffer used for tessellation.
-			if (LODModel.AdditionalIndexBuffers && InOutModels[0].BuildSettings.bBuildAdjacencyBuffer)
+			if (InOutModels[0].BuildSettings.bBuildAdjacencyBuffer)
 			{
 				TArray<uint32> AdjacencyIndices;
 
@@ -2930,7 +2900,7 @@ public:
 		check(Stage == EStage::Reduce);
 		check(StaticMesh != nullptr);
 
-		TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->GetSourceModels();
+		TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->SourceModels;
 
 		check(HasRawMesh[0]);
 		check(SourceModels.Num() >= NumValidLODs);
@@ -2972,7 +2942,7 @@ private:
 
 bool FMeshUtilities::BuildStaticMesh(FStaticMeshRenderData& OutRenderData, UStaticMesh* StaticMesh, const FStaticMeshLODGroup& LODGroup)
 {
-	TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->GetSourceModels();
+	TArray<FStaticMeshSourceModel>& SourceModels = StaticMesh->SourceModels;
 	int32 LightmapUVVersion = StaticMesh->LightmapUVVersion;
 	int32 ImportVersion = StaticMesh->ImportVersion;
 
@@ -2995,7 +2965,7 @@ bool FMeshUtilities::BuildStaticMesh(FStaticMeshRenderData& OutRenderData, UStat
 
 bool FMeshUtilities::GenerateStaticMeshLODs(UStaticMesh* StaticMesh, const FStaticMeshLODGroup& LODGroup)
 {
-	TArray<FStaticMeshSourceModel>& Models = StaticMesh->GetSourceModels();
+	TArray<FStaticMeshSourceModel>& Models = StaticMesh->SourceModels;
 	int32 LightmapUVVersion = StaticMesh->LightmapUVVersion;
 
 	FStaticMeshUtilityBuilder Builder(StaticMesh);
@@ -3289,9 +3259,6 @@ public:
 		TriangleTangentY.Empty(NumTriangles);
 		TriangleTangentZ.Empty(NumTriangles);
 
-		//Currently GetSafeNormal do not support 0.0f threshold properly
-		float RealComparisonThreshold = FMath::Max(ComparisonThreshold, FLT_MIN);
-
 		for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; TriangleIndex++)
 		{
 			const int32 UVIndex = 0;
@@ -3302,145 +3269,36 @@ public:
 				P[i] = BuildData->GetVertexPosition(TriangleIndex, i);
 			}
 
-			//get safe normal should have return a valid normalized vector or a zero vector.
-			const FVector Normal = ((P[1] - P[2]) ^ (P[0] - P[2])).GetSafeNormal(RealComparisonThreshold);
-			//Avoid doing orthonormal vector from a degenerated triangle.
-			if (!Normal.IsNearlyZero(FLT_MIN))
-			{
-				FMatrix	ParameterToLocal(
-					FPlane(P[1].X - P[0].X, P[1].Y - P[0].Y, P[1].Z - P[0].Z, 0),
-					FPlane(P[2].X - P[0].X, P[2].Y - P[0].Y, P[2].Z - P[0].Z, 0),
-					FPlane(P[0].X, P[0].Y, P[0].Z, 0),
-					FPlane(0, 0, 0, 1)
+			const FVector Normal = ((P[1] - P[2]) ^ (P[0] - P[2])).GetSafeNormal(ComparisonThreshold);
+			FMatrix	ParameterToLocal(
+				FPlane(P[1].X - P[0].X, P[1].Y - P[0].Y, P[1].Z - P[0].Z, 0),
+				FPlane(P[2].X - P[0].X, P[2].Y - P[0].Y, P[2].Z - P[0].Z, 0),
+				FPlane(P[0].X, P[0].Y, P[0].Z, 0),
+				FPlane(0, 0, 0, 1)
 				);
 
-				FVector2D T1 = BuildData->GetVertexUV(TriangleIndex, 0, UVIndex);
-				FVector2D T2 = BuildData->GetVertexUV(TriangleIndex, 1, UVIndex);
-				FVector2D T3 = BuildData->GetVertexUV(TriangleIndex, 2, UVIndex);
-				FMatrix ParameterToTexture(
-					FPlane(T2.X - T1.X, T2.Y - T1.Y, 0, 0),
-					FPlane(T3.X - T1.X, T3.Y - T1.Y, 0, 0),
-					FPlane(T1.X, T1.Y, 1, 0),
-					FPlane(0, 0, 0, 1)
+			FVector2D T1 = BuildData->GetVertexUV(TriangleIndex, 0, UVIndex);
+			FVector2D T2 = BuildData->GetVertexUV(TriangleIndex, 1, UVIndex);
+			FVector2D T3 = BuildData->GetVertexUV(TriangleIndex, 2, UVIndex);
+			FMatrix ParameterToTexture(
+				FPlane(T2.X - T1.X, T2.Y - T1.Y, 0, 0),
+				FPlane(T3.X - T1.X, T3.Y - T1.Y, 0, 0),
+				FPlane(T1.X, T1.Y, 1, 0),
+				FPlane(0, 0, 0, 1)
 				);
 
-				// Use InverseSlow to catch singular matrices.  Inverse can miss this sometimes.
-				const FMatrix TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
+			// Use InverseSlow to catch singular matrices.  Inverse can miss this sometimes.
+			const FMatrix TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
 
-				TriangleTangentX.Add(TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal());
-				TriangleTangentY.Add(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal());
-				TriangleTangentZ.Add(Normal);
+			TriangleTangentX.Add(TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal());
+			TriangleTangentY.Add(TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal());
+			TriangleTangentZ.Add(Normal);
 
-				FVector::CreateOrthonormalBasis(
-					TriangleTangentX[TriangleIndex],
-					TriangleTangentY[TriangleIndex],
-					TriangleTangentZ[TriangleIndex]
+			FVector::CreateOrthonormalBasis(
+				TriangleTangentX[TriangleIndex],
+				TriangleTangentY[TriangleIndex],
+				TriangleTangentZ[TriangleIndex]
 				);
-
-				if (TriangleTangentX[TriangleIndex].IsNearlyZero() || TriangleTangentX[TriangleIndex].ContainsNaN()
-					|| TriangleTangentY[TriangleIndex].IsNearlyZero() || TriangleTangentY[TriangleIndex].ContainsNaN()
-					|| TriangleTangentZ[TriangleIndex].IsNearlyZero() || TriangleTangentZ[TriangleIndex].ContainsNaN())
-				{
-					TriangleTangentX[TriangleIndex] = FVector::ZeroVector;
-					TriangleTangentY[TriangleIndex] = FVector::ZeroVector;
-					TriangleTangentZ[TriangleIndex] = FVector::ZeroVector;
-				}
-			}
-			else
-			{
-				//Add zero tangents and normal for this triangle, this is like weighting it to zero when we compute the vertex normal
-				//But we need the triangle to correctly connect other neighbourg triangles
-				TriangleTangentX.Add(FVector::ZeroVector);
-				TriangleTangentY.Add(FVector::ZeroVector);
-				TriangleTangentZ.Add(FVector::ZeroVector);
-			}
-		}
-	}
-
-	//This function add every triangles connected to the triangle queue.
-	//A connected triangle pair must share at least 1 vertex between the two triangles.
-	//If bConnectByEdge is true, the connected triangle must share at least one edge (two vertex index)
-	void AddAdjacentFace(IMeshBuildData* BuildData, TBitArray<>& FaceAdded, TMap<int32, TArray<int32>>& VertexIndexToAdjacentFaces, int32 FaceIndex, TArray<int32>& TriangleQueue, const bool bConnectByEdge)
-	{
-		int32 NumFaces = (int32)BuildData->GetNumFaces();
-		check(FaceAdded.Num() == NumFaces);
-
-		TMap<int32, int32> AdjacentFaceCommonVertices;
-		for (int32 Corner = 0; Corner < 3; Corner++)
-		{
-			int32 VertexIndex = BuildData->GetVertexIndex(FaceIndex, Corner);
-			TArray<int32>& AdjacentFaces = VertexIndexToAdjacentFaces.FindChecked(VertexIndex);
-			for (int32 AdjacentFaceArrayIndex = 0; AdjacentFaceArrayIndex < AdjacentFaces.Num(); ++AdjacentFaceArrayIndex)
-			{
-				int32 AdjacentFaceIndex = AdjacentFaces[AdjacentFaceArrayIndex];
-				if (!FaceAdded[AdjacentFaceIndex] && AdjacentFaceIndex != FaceIndex)
-				{
-					bool bAddConnected = !bConnectByEdge;
-					if (bConnectByEdge)
-					{
-						int32& AdjacentFaceCommonVerticeCount = AdjacentFaceCommonVertices.FindOrAdd(AdjacentFaceIndex);
-						AdjacentFaceCommonVerticeCount++;
-						//Is the connected triangles share 2 vertex index (one edge) not only one vertex
-						bAddConnected = AdjacentFaceCommonVerticeCount > 1;
-					}
-
-					if (bAddConnected)
-					{
-						TriangleQueue.Add(AdjacentFaceIndex);
-						//Add the face only once by marking the face has computed
-						FaceAdded[AdjacentFaceIndex] = true;
-					}
-				}
-			}
-		}
-	}
-
-	//Fill FaceIndexToPatchIndex so every triangle know is unique island patch index.
-	//We need to respect the island when we use the smooth group to compute the normals.
-	//Each island patch have its own smoothgroup data, there is no triangle connectivity possible between island patch.
-	//@Param bConnectByEdge: If true we need at least 2 vertex index (one edge) to connect 2 triangle. If false we just need one vertex index (bowtie)
-	void Skeletal_FillPolygonPatch(IMeshBuildData* BuildData, TArray<int32>& FaceIndexToPatchIndex, const bool bConnectByEdge)
-	{
-		int32 NumTriangles = BuildData->GetNumFaces();
-		check(FaceIndexToPatchIndex.Num() == NumTriangles);
-		
-		int32 PatchIndex = 0;
-
-		TMap<int32, TArray<int32>> VertexIndexToAdjacentFaces;
-		VertexIndexToAdjacentFaces.Reserve(BuildData->GetNumFaces()*2);
-		for (int32 FaceIndex = 0; FaceIndex < NumTriangles; ++FaceIndex)
-		{
-			int32 WedgeOffset = FaceIndex * 3;
-			for (int32 Corner = 0; Corner < 3; Corner++)
-			{
-				int32 VertexIndex = BuildData->GetVertexIndex(FaceIndex, Corner);
-				TArray<int32>& AdjacentFaces = VertexIndexToAdjacentFaces.FindOrAdd(VertexIndex);
-				AdjacentFaces.AddUnique(FaceIndex);
-			}
-		}
-
-		//Mark added face so we do not add them more then once
-		TBitArray<> FaceAdded;
-		FaceAdded.Init(false, NumTriangles);
-
-		TArray<int32> TriangleQueue;
-		TriangleQueue.Reserve(100);
-		for (int32 FaceIndex = 0; FaceIndex < NumTriangles; ++FaceIndex)
-		{
-			if (FaceAdded[FaceIndex])
-			{
-				continue;
-			}
-			TriangleQueue.Reset();
-			TriangleQueue.Add(FaceIndex); //Use a queue to avoid recursive function
-			FaceAdded[FaceIndex] = true;
-			while (TriangleQueue.Num() > 0)
-			{
-				int32 CurrentTriangleIndex = TriangleQueue.Pop(false);
-				FaceIndexToPatchIndex[CurrentTriangleIndex] = PatchIndex;
-				AddAdjacentFace(BuildData, FaceAdded, VertexIndexToAdjacentFaces, CurrentTriangleIndex, TriangleQueue, bConnectByEdge);
-			}
-			PatchIndex++;
 		}
 	}
 
@@ -3462,7 +3320,7 @@ public:
 			TriangleTangentY,
 			TriangleTangentZ,
 			BuildData,
-			bIgnoreDegenerateTriangles ? SMALL_NUMBER : FLT_MIN
+			bIgnoreDegenerateTriangles ? SMALL_NUMBER : 0.0f
 			);
 
 		TArray<FVector>& WedgeTangentX = BuildData->GetTangentArray(0);
@@ -3807,11 +3665,7 @@ public:
 	{
 		bool bBlendOverlappingNormals = true;
 		bool bIgnoreDegenerateTriangles = BuildData->BuildOptions.bRemoveDegenerateTriangles;
-		
-		int32 NumFaces = BuildData->GetNumFaces();
-		int32 NumWedges = BuildData->GetNumWedges();
-		check(NumFaces * 3 == NumWedges);
-		
+
 		// Compute per-triangle tangents.
 		TArray<FVector> TriangleTangentX;
 		TArray<FVector> TriangleTangentY;
@@ -3822,14 +3676,8 @@ public:
 			TriangleTangentY,
 			TriangleTangentZ,
 			BuildData,
-			bIgnoreDegenerateTriangles ? SMALL_NUMBER : FLT_MIN
+			bIgnoreDegenerateTriangles ? SMALL_NUMBER : 0.0f
 			);
-
-		TArray<int32> FaceIndexToPatchIndex;
-		FaceIndexToPatchIndex.AddZeroed(NumFaces);
-		//Since we use triangle normals to compute the vertex normal, we need a full edge connected (2 vertex component per triangle)
-		const bool bConnectByEdge = true;
-		Skeletal_FillPolygonPatch(BuildData, FaceIndexToPatchIndex, bConnectByEdge);
 
 		TArray<FVector>& WedgeTangentX = BuildData->GetTangentArray(0);
 		TArray<FVector>& WedgeTangentY = BuildData->GetTangentArray(1);
@@ -3838,6 +3686,10 @@ public:
 		// Declare these out here to avoid reallocations.
 		TArray<FFanFace> RelevantFacesForCorner[3];
 		TArray<int32> AdjacentFaces;
+
+		int32 NumFaces = BuildData->GetNumFaces();
+		int32 NumWedges = BuildData->GetNumWedges();
+		check(NumFaces * 3 == NumWedges);
 
 		bool bWedgeTSpace = false;
 
@@ -3858,11 +3710,11 @@ public:
 			WedgeTangentZ.Empty(NumWedges);
 			WedgeTangentZ.AddZeroed(NumWedges);
 		}
-		bool bIsZeroLengthNormalErrorMessageDisplayed = false;
+
 		// we need to calculate normals for MikkTSpace
+
 		for (int32 FaceIndex = 0; FaceIndex < NumFaces; FaceIndex++)
 		{
-			int32 PatchIndex = FaceIndexToPatchIndex[FaceIndex];
 			int32 WedgeOffset = FaceIndex * 3;
 			FVector CornerPositions[3];
 			FVector CornerNormal[3];
@@ -3906,10 +3758,8 @@ public:
 				for (int32 k = 0; k < DupVerts.Num(); k++)
 				{
 					int32 PotentialTriangleIndex = DupVerts[k] / 3;
-					
-					bool bDegeneratedTriangles = TriangleTangentZ[FaceIndex].IsNearlyZero() || TriangleTangentZ[PotentialTriangleIndex].IsNearlyZero();
-					//Do not add mirror triangle to the adjacentFaces. Also make sure adjacent triangle is in the same connected triangle patch. Accept connected degenerate triangle
-					if ((bDegeneratedTriangles || !IsTriangleMirror(BuildData, TriangleTangentZ, FaceIndex, PotentialTriangleIndex)) && PatchIndex == FaceIndexToPatchIndex[PotentialTriangleIndex])
+					//Do not add mirror triangle to the adjacentFaces
+					if (!IsTriangleMirror(BuildData, TriangleTangentZ, FaceIndex, PotentialTriangleIndex))
 					{
 						AdjacentFaces.AddUnique(PotentialTriangleIndex);
 					}
@@ -4067,30 +3917,6 @@ public:
 			// Copy back to the mesh.
 			for (int32 CornerIndex = 0; CornerIndex < 3; CornerIndex++)
 			{
-				//Make sure the normal do not contain nan, if it contain nan change it to a valid zero vector
-				if (CornerNormal[CornerIndex].IsNearlyZero() || CornerNormal[CornerIndex].ContainsNaN())
-				{
-					CornerNormal[CornerIndex] = FVector::ZeroVector;
-					//We also notify the log that we compute a zero length normals, so the user is aware of it
-					if (!bIsZeroLengthNormalErrorMessageDisplayed)
-					{
-						bIsZeroLengthNormalErrorMessageDisplayed = true;
-						// add warning message if available, do a log if not
-						FText TextMessage = LOCTEXT("Skeletal_ComputeTangents_MikkTSpace_Warning_ZeroLengthNormal", "Skeletal ComputeTangents MikkTSpace function: Compute a zero length normal vector.");
-						if (BuildData->OutWarningMessages)
-						{
-							BuildData->OutWarningMessages->Add(TextMessage);
-							if (BuildData->OutWarningNames)
-							{
-								BuildData->OutWarningNames->Add(FFbxErrors::Generic_Mesh_TangentsComputeError);
-							}
-						}
-						else
-						{
-							UE_LOG(LogSkeletalMesh, Warning, TEXT("%s"), *(TextMessage.ToString()));
-						}
-					}
-				}
 				WedgeTangentZ[WedgeOffset + CornerIndex] = CornerNormal[CornerIndex];
 			}
 		}
@@ -4694,45 +4520,37 @@ bool FMeshUtilities::BuildSkeletalMesh_Legacy(FSkeletalMeshLODModel& LODModel
 				P2 = Points[Wedges[Faces[FaceIndex].iWedge[1]].iVertex],
 				P3 = Points[Wedges[Faces[FaceIndex].iWedge[2]].iVertex];
 			FVector	TriangleNormal = FPlane(P3, P2, P1);
-			if (!TriangleNormal.IsNearlyZero(FLT_MIN))
-			{
-				FMatrix	ParameterToLocal(
-					FPlane(P2.X - P1.X, P2.Y - P1.Y, P2.Z - P1.Z, 0),
-					FPlane(P3.X - P1.X, P3.Y - P1.Y, P3.Z - P1.Z, 0),
-					FPlane(P1.X, P1.Y, P1.Z, 0),
-					FPlane(0, 0, 0, 1)
+			FMatrix	ParameterToLocal(
+				FPlane(P2.X - P1.X, P2.Y - P1.Y, P2.Z - P1.Z, 0),
+				FPlane(P3.X - P1.X, P3.Y - P1.Y, P3.Z - P1.Z, 0),
+				FPlane(P1.X, P1.Y, P1.Z, 0),
+				FPlane(0, 0, 0, 1)
 				);
 
-				float	U1 = Wedges[Faces[FaceIndex].iWedge[0]].UVs[0].X,
-					U2 = Wedges[Faces[FaceIndex].iWedge[1]].UVs[0].X,
-					U3 = Wedges[Faces[FaceIndex].iWedge[2]].UVs[0].X,
-					V1 = Wedges[Faces[FaceIndex].iWedge[0]].UVs[0].Y,
-					V2 = Wedges[Faces[FaceIndex].iWedge[1]].UVs[0].Y,
-					V3 = Wedges[Faces[FaceIndex].iWedge[2]].UVs[0].Y;
+			float	U1 = Wedges[Faces[FaceIndex].iWedge[0]].UVs[0].X,
+				U2 = Wedges[Faces[FaceIndex].iWedge[1]].UVs[0].X,
+				U3 = Wedges[Faces[FaceIndex].iWedge[2]].UVs[0].X,
+				V1 = Wedges[Faces[FaceIndex].iWedge[0]].UVs[0].Y,
+				V2 = Wedges[Faces[FaceIndex].iWedge[1]].UVs[0].Y,
+				V3 = Wedges[Faces[FaceIndex].iWedge[2]].UVs[0].Y;
 
-				FMatrix	ParameterToTexture(
-					FPlane(U2 - U1, V2 - V1, 0, 0),
-					FPlane(U3 - U1, V3 - V1, 0, 0),
-					FPlane(U1, V1, 1, 0),
-					FPlane(0, 0, 0, 1)
+			FMatrix	ParameterToTexture(
+				FPlane(U2 - U1, V2 - V1, 0, 0),
+				FPlane(U3 - U1, V3 - V1, 0, 0),
+				FPlane(U1, V1, 1, 0),
+				FPlane(0, 0, 0, 1)
 				);
 
-				FMatrix	TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
-				FVector	TangentX = TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal(),
-					TangentY = TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal(),
-					TangentZ;
+			FMatrix	TextureToLocal = ParameterToTexture.Inverse() * ParameterToLocal;
+			FVector	TangentX = TextureToLocal.TransformVector(FVector(1, 0, 0)).GetSafeNormal(),
+				TangentY = TextureToLocal.TransformVector(FVector(0, 1, 0)).GetSafeNormal(),
+				TangentZ;
 
-				TangentX = TangentX - TriangleNormal * (TangentX | TriangleNormal);
-				TangentY = TangentY - TriangleNormal * (TangentY | TriangleNormal);
+			TangentX = TangentX - TriangleNormal * (TangentX | TriangleNormal);
+			TangentY = TangentY - TriangleNormal * (TangentY | TriangleNormal);
 
-				FaceTangentX[FaceIndex] = TangentX.GetSafeNormal();
-				FaceTangentY[FaceIndex] = TangentY.GetSafeNormal();
-			}
-			else
-			{
-				FaceTangentX[FaceIndex] = FVector::ZeroVector;
-				FaceTangentY[FaceIndex] = FVector::ZeroVector;
-			}
+			FaceTangentX[FaceIndex] = TangentX.GetSafeNormal();
+			FaceTangentY[FaceIndex] = TangentY.GetSafeNormal();
 		}
 	}
 
@@ -5439,8 +5257,8 @@ private:
 				if (StaticMeshReductionInterface)
 				{
 					FUIAction UIAction;
-					UIAction.ExecuteAction.BindSP(const_cast<FMeshSimplifcationSettingsCustomization*>(this), &FMeshSimplifcationSettingsCustomization::OnMeshSimplificationModuleChosen, ModuleName);
-					UIAction.GetActionCheckState.BindSP(const_cast<FMeshSimplifcationSettingsCustomization*>(this), &FMeshSimplifcationSettingsCustomization::IsMeshSimplificationModuleChosen, ModuleName);
+					UIAction.ExecuteAction.BindSP(this, &FMeshSimplifcationSettingsCustomization::OnMeshSimplificationModuleChosen, ModuleName);
+					UIAction.GetActionCheckState.BindSP(this, &FMeshSimplifcationSettingsCustomization::IsMeshSimplificationModuleChosen, ModuleName);
 
 					MenuBuilder.AddMenuEntry(FText::FromName(ModuleName), FText::GetEmpty(), FSlateIcon(), UIAction, NAME_None, EUserInterfaceActionType::RadioButton);
 				}
@@ -5451,7 +5269,7 @@ private:
 		
 
 		FUIAction OpenMarketplaceAction;
-		OpenMarketplaceAction.ExecuteAction.BindSP(const_cast<FMeshSimplifcationSettingsCustomization*>(this), &FMeshSimplifcationSettingsCustomization::OnFindReductionPluginsClicked);
+		OpenMarketplaceAction.ExecuteAction.BindSP(this, &FMeshSimplifcationSettingsCustomization::OnFindReductionPluginsClicked);
 		FSlateIcon Icon = FSlateIcon(FEditorStyle::Get().GetStyleSetName(), "LevelEditor.OpenMarketplace.Menu");
 		MenuBuilder.AddMenuEntry( LOCTEXT("FindMoreReductionPluginsLink", "Search the Marketplace"), LOCTEXT("FindMoreReductionPluginsLink_Tooltip", "Opens the Marketplace to find more mesh reduction plugins"), Icon, OpenMarketplaceAction);
 		return MenuBuilder.MakeWidget();
@@ -5559,8 +5377,8 @@ private:
 				if (SkeletalMeshReductionInterface)
 				{
 					FUIAction UIAction;
-					UIAction.ExecuteAction.BindSP(const_cast<FSkeletalMeshSimplificationSettingsCustomization*>(this), &FSkeletalMeshSimplificationSettingsCustomization::OnSkeletalMeshSimplificationModuleChosen, ModuleName);
-					UIAction.GetActionCheckState.BindSP(const_cast<FSkeletalMeshSimplificationSettingsCustomization*>(this), &FSkeletalMeshSimplificationSettingsCustomization::IsSkeletalMeshSimplificationModuleChosen, ModuleName);
+					UIAction.ExecuteAction.BindSP(this, &FSkeletalMeshSimplificationSettingsCustomization::OnSkeletalMeshSimplificationModuleChosen, ModuleName);
+					UIAction.GetActionCheckState.BindSP(this, &FSkeletalMeshSimplificationSettingsCustomization::IsSkeletalMeshSimplificationModuleChosen, ModuleName);
 
 					MenuBuilder.AddMenuEntry(FText::FromName(ModuleName), FText::GetEmpty(), FSlateIcon(), UIAction, NAME_None, EUserInterfaceActionType::RadioButton);
 				}
@@ -5571,7 +5389,7 @@ private:
 
 
 		FUIAction OpenMarketplaceAction;
-		OpenMarketplaceAction.ExecuteAction.BindSP(const_cast<FSkeletalMeshSimplificationSettingsCustomization*>(this), &FSkeletalMeshSimplificationSettingsCustomization::OnFindReductionPluginsClicked);
+		OpenMarketplaceAction.ExecuteAction.BindSP(this, &FSkeletalMeshSimplificationSettingsCustomization::OnFindReductionPluginsClicked);
 		FSlateIcon Icon = FSlateIcon(FEditorStyle::Get().GetStyleSetName(), "LevelEditor.OpenMarketplace.Menu");
 		MenuBuilder.AddMenuEntry(LOCTEXT("FindMoreReductionPluginsLink", "Search the Marketplace"), LOCTEXT("FindMoreReductionPluginsLink_Tooltip", "Opens the Marketplace to find more mesh reduction plugins"), Icon, OpenMarketplaceAction);
 		return MenuBuilder.MakeWidget();
@@ -5679,8 +5497,8 @@ private:
 				if (MeshMergingInterface)
 				{
 					FUIAction UIAction;
-					UIAction.ExecuteAction.BindSP(const_cast<FProxyLODMeshSimplificationSettingsCustomization*>(this), &FProxyLODMeshSimplificationSettingsCustomization::OnProxyLODMeshSimplificationModuleChosen, ModuleName);
-					UIAction.GetActionCheckState.BindSP(const_cast<FProxyLODMeshSimplificationSettingsCustomization*>(this), &FProxyLODMeshSimplificationSettingsCustomization::IsProxyLODMeshSimplificationModuleChosen, ModuleName);
+					UIAction.ExecuteAction.BindSP(this, &FProxyLODMeshSimplificationSettingsCustomization::OnProxyLODMeshSimplificationModuleChosen, ModuleName);
+					UIAction.GetActionCheckState.BindSP(this, &FProxyLODMeshSimplificationSettingsCustomization::IsProxyLODMeshSimplificationModuleChosen, ModuleName);
 
 					MenuBuilder.AddMenuEntry(FText::FromName(ModuleName), FText::GetEmpty(), FSlateIcon(), UIAction, NAME_None, EUserInterfaceActionType::RadioButton);
 				}
@@ -5691,7 +5509,7 @@ private:
 
 
 		FUIAction OpenMarketplaceAction;
-		OpenMarketplaceAction.ExecuteAction.BindSP(const_cast<FProxyLODMeshSimplificationSettingsCustomization*>(this), &FProxyLODMeshSimplificationSettingsCustomization::OnFindReductionPluginsClicked);
+		OpenMarketplaceAction.ExecuteAction.BindSP(this, &FProxyLODMeshSimplificationSettingsCustomization::OnFindReductionPluginsClicked);
 		FSlateIcon Icon = FSlateIcon(FEditorStyle::Get().GetStyleSetName(), "LevelEditor.OpenMarketplace.Menu");
 		MenuBuilder.AddMenuEntry(LOCTEXT("FindMoreReductionPluginsLink", "Search the Marketplace"), LOCTEXT("FindMoreReductionPluginsLink_Tooltip", "Opens the Marketplace to find more mesh reduction plugins"), Icon, OpenMarketplaceAction);
 		return MenuBuilder.MakeWidget();
@@ -5798,8 +5616,6 @@ void FMeshUtilities::ShutdownModule()
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>(PropertyEditorModuleName);
 
 		PropertyEditorModule.UnregisterCustomClassLayout("MeshSimplificationSettings");
-		PropertyEditorModule.UnregisterCustomClassLayout("SkeletalMeshSimplificationSettings");
-		PropertyEditorModule.UnregisterCustomClassLayout("ProxyLODMeshSimplificationSettings");
 	}
 
 	RemoveLevelViewportMenuExtender();
@@ -6336,7 +6152,7 @@ void FMeshUtilities::MergeActors(
 		UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(PrimComponent);
 		if (MeshComponent && 
 			MeshComponent->GetStaticMesh() != nullptr &&
-			MeshComponent->GetStaticMesh()->GetNumSourceModels() > 0)
+			MeshComponent->GetStaticMesh()->SourceModels.Num() > 0)
 		{
 			ComponentsToMerge.Add(MeshComponent);
 		}

@@ -1,5 +1,5 @@
-﻿INTSourceChangelist:6077702
-Availability: docs
+﻿INTSourceChangelist:3782314
+Availability: Public
 Title:4 - 将Actor放入关卡
 Crumbs:%ROOT%, GettingStarted, Engine/QuickStart
 Description:在本节中，我们将开始在关卡中放置并操作Actor以构建环境。 
@@ -12,7 +12,6 @@ Related:Engine/Actors
 Related:Engine/Rendering/LightingAndShadows
 checkpoint: editorqs
 
-## 页面已被合并，标记为docs。 
 
 [VAR:Steps]
 [OBJECT:Navigation]

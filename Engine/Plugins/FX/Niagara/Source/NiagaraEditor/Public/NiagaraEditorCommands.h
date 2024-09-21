@@ -29,8 +29,7 @@ public:
 	TSharedPtr<FUICommandInfo> ResetSimulation;
 
 	/** Toggles the preview pane's grid */
-	TSharedPtr<FUICommandInfo> TogglePreviewGrid;
-	TSharedPtr<FUICommandInfo> ToggleInstructionCounts;
+	TSharedPtr< FUICommandInfo > TogglePreviewGrid;
 
 	/** Toggles the preview pane's background */
 	TSharedPtr< FUICommandInfo > TogglePreviewBackground;
@@ -49,6 +48,4 @@ public:
 	TSharedPtr<FUICommandInfo> ToggleResetDependentSystems;
 
 	TSharedPtr<FUICommandInfo> CollapseStackToHeaders;
-
-	TSharedPtr<FUICommandInfo> FindInCurrentView;
 };

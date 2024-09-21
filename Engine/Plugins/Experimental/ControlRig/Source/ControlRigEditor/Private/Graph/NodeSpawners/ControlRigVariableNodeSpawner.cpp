@@ -15,10 +15,6 @@
 #include "ControlRigBlueprintUtils.h"
 #include "Units/RigUnit.h"
 
-#if WITH_EDITOR
-#include "Editor.h"
-#endif
-
 #define LOCTEXT_NAMESPACE "ControlRigVariableNodeSpawner"
 
 const TArray<FString> GControlRigVariableNodeSpawnerAllowedStructTypes = {

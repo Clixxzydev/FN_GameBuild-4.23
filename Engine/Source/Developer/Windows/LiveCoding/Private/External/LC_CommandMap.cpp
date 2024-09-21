@@ -7,11 +7,11 @@
 namespace
 {
 	template <class T>
-	static bool DefaultAction(const DuplexPipe* pipe, void*, void* payload, size_t payloadSize)
+	static bool DefaultAction(const DuplexPipe* pipe, void*)
 	{
 		// receive command and continue execution
 		T command = {};
-		const bool success = pipe->ReceiveCommand(&command, payload, payloadSize);
+		const bool success = pipe->ReceiveCommand(&command);
 		pipe->SendAck();
 
 		if (!success)
@@ -38,14 +38,26 @@ CommandMap::CommandMap(void)
 	RegisterDefaultAction<commands::RegisterProcess>(m_actions);
 	RegisterDefaultAction<commands::RegisterProcessFinished>(m_actions);
 
-	RegisterDefaultAction<commands::EnableModules>(m_actions);
-	RegisterDefaultAction<commands::EnableModulesFinished>(m_actions);
-	RegisterDefaultAction<commands::DisableModules>(m_actions);
-	RegisterDefaultAction<commands::DisableModulesFinished>(m_actions);
+	RegisterDefaultAction<commands::EnableModuleBatchBegin>(m_actions);
+	RegisterDefaultAction<commands::EnableModuleBatchEnd>(m_actions);
+	RegisterDefaultAction<commands::DisableModuleBatchBegin>(m_actions);
+	RegisterDefaultAction<commands::DisableModuleBatchEnd>(m_actions);
+
+	RegisterDefaultAction<commands::EnableModule>(m_actions);
+	RegisterDefaultAction<commands::EnableModuleFinished>(m_actions);
+	RegisterDefaultAction<commands::DisableModule>(m_actions);
+	RegisterDefaultAction<commands::DisableModuleFinished>(m_actions);
+
+	RegisterDefaultAction<commands::EnableAllModules>(m_actions);
+	RegisterDefaultAction<commands::EnableAllModulesFinished>(m_actions);
+	RegisterDefaultAction<commands::DisableAllModules>(m_actions);
+	RegisterDefaultAction<commands::DisableAllModulesFinished>(m_actions);
 
 	RegisterDefaultAction<commands::EnterSyncPoint>(m_actions);
 	RegisterDefaultAction<commands::LeaveSyncPoint>(m_actions);
 	RegisterDefaultAction<commands::CallHooks>(m_actions);
+	RegisterDefaultAction<commands::GetModule>(m_actions);
+	RegisterDefaultAction<commands::GetModuleInfo>(m_actions);
 	RegisterDefaultAction<commands::LoadPatch>(m_actions);
 	RegisterDefaultAction<commands::LoadPatchInfo>(m_actions);
 	RegisterDefaultAction<commands::UnloadPatch>(m_actions);
@@ -55,7 +67,6 @@ CommandMap::CommandMap(void)
 	RegisterDefaultAction<commands::CompilationFinished>(m_actions);
 	RegisterDefaultAction<commands::DisconnectClient>(m_actions);
 	RegisterDefaultAction<commands::TriggerRecompile>(m_actions);	
-	RegisterDefaultAction<commands::LogMessage>(m_actions);
 	RegisterDefaultAction<commands::BuildPatch>(m_actions);
 	RegisterDefaultAction<commands::HandleException>(m_actions);
 	RegisterDefaultAction<commands::HandleExceptionFinished>(m_actions);
@@ -91,31 +102,20 @@ bool CommandMap::HandleCommands(const DuplexPipe* pipe, void* context)
 {
 	for (;;)
 	{
-		// fetch incoming command header
-		commands::Header header = {};
+		// fetch incoming command id
+		uint32_t commandId = 0u;
 		{
-			const bool success = pipe->ReceiveHeader(&header);
+			const bool success = pipe->ReceiveCommandId(&commandId);
 			if (!success)
 			{
 				return false;
 			}
 		}
 
-		const Action action = m_actions[header.commandId];
-
-		// make space for optional payload
-		void* payload = nullptr;
-		if (header.payloadSize != 0u)
-		{
-			payload = malloc(header.payloadSize);
-		}
-
 		// call handler for this command
-		const bool continueExecution = action(pipe, context, payload, header.payloadSize);
+		const Action action = m_actions[commandId];
 
-		// free payload
-		free(payload);
-
+		const bool continueExecution = action(pipe, context);
 		if (!continueExecution)
 		{
 			return true;

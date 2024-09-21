@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "api/resonance_audio_api.h"
+#include <vraudio_api.h>
 
 #include "AudioPluginUtilities.h"
 #include "ResonanceAudioModule.h"
@@ -27,7 +27,7 @@ namespace ResonanceAudio
 
 	private:
 		// Resonance Audio API instance.
-		vraudio::ResonanceAudioApi* ResonanceAudioApi;
+		vraudio::VrAudioApi* ResonanceAudioApi;
 
 		class FResonanceAudioModule* ResonanceAudioModule;
 		class FResonanceAudioReverb* ReverbPtr;

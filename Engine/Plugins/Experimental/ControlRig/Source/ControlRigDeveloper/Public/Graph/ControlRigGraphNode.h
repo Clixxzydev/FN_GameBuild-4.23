@@ -177,8 +177,9 @@ public:
 	virtual void AutowireNewNode(UEdGraphPin* FromPin) override;	
 	virtual void PrepareForCopying() override;
 
-	virtual bool IsDeprecated() const override;
-	virtual FEdGraphNodeDeprecationResponse GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const override;
+	virtual bool IsDeprecated() const;
+	virtual bool ShouldWarnOnDeprecation() const;
+	virtual FString GetDeprecationMessage() const;
 
 	/** Set the cached dimensions of this node */
 	void SetDimensions(const FVector2D& InDimensions) { Dimensions = InDimensions; }
@@ -238,6 +239,9 @@ public:
 	virtual void PostLoad() override;
 	void CacheHierarchyRefConnectionsOnPostLoad();
 #endif
+
+	/** Updates the cached node color based on the metadata on the rig unit */
+	void UpdateNodeColorFromMetadata();
 
 protected:
 	/** Rebuild the cached info about our inputs/outputs */
@@ -309,9 +313,6 @@ protected:
 	/** Destroy all pins in an array */
 	void DestroyPinList(TArray<UEdGraphPin*>& InPins);
 
-	/** Sets the body + title color from a color provided by the model */
-	void SetColorFromModel(const FLinearColor& InColor);
-
 private:
 
 	bool IsVariable() const;
@@ -320,6 +321,6 @@ private:
 	TArray<UEdGraphNode*> HierarchyRefOutputConnections;
 #endif
 
-	FLinearColor CachedTitleColor;
-	FLinearColor CachedNodeColor;
+	FLinearColor CachedTitleColorFromMetadata;
+	FLinearColor CachedNodeColorFromMetadata;
 };

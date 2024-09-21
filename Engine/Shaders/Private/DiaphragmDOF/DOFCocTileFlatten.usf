@@ -24,18 +24,15 @@
 
 //------------------------------------------------------- PARAMETERS.
 
-uint4 ViewportRect;
 float2 ThreadIdToBufferUV;
 float2 MaxBufferUV;
-
-Texture2D GatherInput_SceneColor;
-Texture2D GatherInput_SeparateCoc;
+float PreProcessingToProcessingCocRadiusFactor;
 
 
 //------------------------------------------------------- OUTPUTS.
 
-RWTexture2D<float4>	TileOutput_Foreground;
-RWTexture2D<float4>	TileOutput_Background;
+RWTexture2D<float4>	Output0;
+RWTexture2D<float4>	Output1;
 
 
 //------------------------------------------------------- LDS.
@@ -139,9 +136,9 @@ void CocFlattenMainCS(
 		
 		#if CONFIG_DOF_ALPHA
 			// The coc radius is within separate buffer's red channel.
-			float4 CocRadii = GatherInput_SeparateCoc.GatherRed(GlobalPointClampedSampler, BufferUV, 0);
+			float4 CocRadii = PostprocessInput0.GatherRed(GlobalPointClampedSampler, BufferUV, 0);
 		#else
-			float4 CocRadii = GatherInput_SceneColor.GatherAlpha(GlobalPointClampedSampler, BufferUV, 0);
+			float4 CocRadii = PostprocessInput0.GatherAlpha(GlobalPointClampedSampler, BufferUV, 0);
 		#endif
 
 		InitCocTileSampleFromCocRadius(CocRadii.x, TileSample);
@@ -160,9 +157,9 @@ void CocFlattenMainCS(
 
 		#if CONFIG_DOF_ALPHA
 			// The coc radius is within separate buffer's red channel.
-			float CocRadius = GatherInput_SeparateCoc[PixelPos].r;
+			float CocRadius = PostprocessInput0[PixelPos].r;
 		#else
-			float CocRadius = GatherInput_SceneColor[PixelPos].a;
+			float CocRadius = PostprocessInput0[PixelPos].w;
 		#endif
 
 		InitCocTileSampleFromCocRadius(CocRadius, TileSample);
@@ -208,10 +205,10 @@ void CocFlattenMainCS(
 			EncodeCocTileSample(Local, LDS_LAYOUT, RawOutput);
 	
 			// Output.
-			TileOutput_Foreground[GroupId] = RawOutput[0];
+			Output0[GroupId] = RawOutput[0];
 			if (static_condition(GetBufferCountForCocTileLayour(LDS_LAYOUT) > 1))
 			{
-				TileOutput_Background[GroupId] = RawOutput[1];
+				Output1[GroupId] = RawOutput[1];
 			}
 		}
 	}
@@ -295,10 +292,10 @@ void CocFlattenMainCS(
 			EncodeCocTileSample(OutputTileSample, LDS_LAYOUT, RawOutput);
 	
 			// Output.
-			TileOutput_Foreground[GroupId] = RawOutput[0];
+			Output0[GroupId] = RawOutput[0];
 			if (static_condition(GetBufferCountForCocTileLayour(LDS_LAYOUT) > 1))
 			{
-				TileOutput_Background[GroupId] = RawOutput[1];
+				Output1[GroupId] = RawOutput[1];
 			}
 		}
 	}

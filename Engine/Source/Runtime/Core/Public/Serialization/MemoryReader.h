@@ -74,7 +74,7 @@ class FMemoryReaderView : public FMemoryArchive
 {
 public:
 	/**
-  	 * Returns the name of the Archive.  Useful for getting the name of the package a struct or object
+	   * Returns the name of the Archive.  Useful for getting the name of the package a struct or object
 	 * is in when a loading error occurs.
 	 *
 	 * This is overridden for the specific Archive Types
@@ -124,4 +124,3 @@ private:
 	TArrayView<const uint8> Bytes;
 	int64                LimitSize;
 };
-

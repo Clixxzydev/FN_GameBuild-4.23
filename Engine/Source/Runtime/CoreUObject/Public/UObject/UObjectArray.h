@@ -561,11 +561,6 @@ public:
 		 * @param Index	index of object that is being deleted
 		 */
 		virtual void NotifyUObjectCreated(const class UObjectBase *Object, int32 Index)=0;
-
-		/**
-		 * Called when UObject Array is being shut down, this is where all listeners should be removed from it 
-		 */
-		virtual void OnUObjectArrayShutdown()=0;
 	};
 
 	/**
@@ -583,11 +578,6 @@ public:
 		 * @param Index	index of object that is being deleted
 		 */
 		virtual void NotifyUObjectDeleted(const class UObjectBase *Object, int32 Index)=0;
-
-		/**
-		 * Called when UObject Array is being shut down, this is where all listeners should be removed from it
-		 */
-		virtual void OnUObjectArrayShutdown() = 0;
 	};
 
 	/**
@@ -1095,11 +1085,8 @@ public:
 	 */
 	void DissolveCluster(UObjectBaseUtility* ClusterRootOrObjectFromCluster);
 
-	/** 
-	 * Dissolve all clusters marked for dissolving 
-	 * @param bForceDissolveAllClusters if true, dissolves all clusters even if they're not marked for dissolving
-	 */
-	void DissolveClusters(bool bForceDissolveAllClusters = false);
+	/** Dissolve all clusters marked for dissolving */
+	void DissolveClusters();
 
 	/** Dissolve the specified cluster and all clusters that reference it */
 	void DissolveClusterAndMarkObjectsAsUnreachable(FUObjectItem* RootObjectItem);

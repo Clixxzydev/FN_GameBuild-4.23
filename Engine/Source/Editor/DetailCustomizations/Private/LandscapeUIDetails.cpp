@@ -9,13 +9,9 @@
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Text/STextBlock.h"
-#include "Widgets/Input/SCheckBox.h"
 #include "Misc/MessageDialog.h"
 #include "Editor.h"
-
-#define LOCTEXT_NAMESPACE "FLandscapeUIDetails"
 
 FLandscapeUIDetails::FLandscapeUIDetails()
 {
@@ -42,51 +38,48 @@ void FLandscapeUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder 
 	if (EditingObjects.Num() == 1)
 	{
 		ALandscape* Landscape = Cast<ALandscape>(EditingObjects[0].Get());
-		if (Landscape == nullptr)
-		{
-			return;
-		}
 
-		if (Landscape->NumSubsections == 1)
+		if (Landscape != nullptr && Landscape->NumSubsections == 1)
 		{
 			TSharedRef<IPropertyHandle> ComponentScreenSizeToUseSubSectionsProp = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ALandscapeProxy, ComponentScreenSizeToUseSubSections));
 			DetailBuilder.HideProperty(ComponentScreenSizeToUseSubSectionsProp);
 		}
 
-		if (!DetailLayoutBuilder)
+		if (Landscape != nullptr)
 		{
-			DetailLayoutBuilder = &DetailBuilder;
-			GetMutableDefault<UEditorExperimentalSettings>()->OnSettingChanged().AddSP(this, &FLandscapeUIDetails::OnEditorExperimentalSettingsChanged);
-		}
-							   
-		TSharedRef<IPropertyHandle> PropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ALandscape, bCanHaveLayersContent));
-		DetailBuilder.HideProperty(PropertyHandle);
-		if (GetMutableDefault<UEditorExperimentalSettings>()->bLandscapeLayerSystem)
-		{
-			const FText DisplayAndFilterText(LOCTEXT("LandscapeToggleLayerName", "Enable Layer System"));
-			DetailBuilder.AddCustomRowToCategory(PropertyHandle, DisplayAndFilterText)
-			.NameContent()
-			[
-				PropertyHandle->CreatePropertyNameWidget(DisplayAndFilterText)
-			]
-			.ValueContent()
-			[
-				SNew(SCheckBox)
-				.ToolTipText(LOCTEXT("LandscapeToggleLayerToolTip", "Toggle whether or not to support layers on this Landscape and its streaming proxies. Toggling this will clear the undo stack."))
-				.Type(ESlateCheckBoxType::CheckBox)
-				.IsChecked_Lambda([=]()
-				{
-					return Landscape->CanHaveLayersContent() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-				})
-				.OnCheckStateChanged_Lambda([=](ECheckBoxState NewState)
-				{
-					bool bChecked = (NewState == ECheckBoxState::Checked);
-					if (Landscape->CanHaveLayersContent() != bChecked)
+			if (!DetailLayoutBuilder)
+			{
+				DetailLayoutBuilder = &DetailBuilder;
+				GetMutableDefault<UEditorExperimentalSettings>()->OnSettingChanged().AddSP(this, &FLandscapeUIDetails::OnEditorExperimentalSettingsChanged);
+			}
+
+			TSharedRef<IPropertyHandle> PropertyHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ALandscape, bCanHaveLayersContent));
+			DetailBuilder.HideProperty(PropertyHandle);
+			if(GetMutableDefault<UEditorExperimentalSettings>()->bLandscapeLayerSystem)
+			{
+				IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(PropertyHandle->GetDefaultCategoryName());
+				Category.AddCustomRow(FText(), true)
+				.NameContent()
+				[
+					PropertyHandle->CreatePropertyNameWidget(FText::FromString("Layer System"))
+				]
+				.ValueContent()
+				[
+					SNew(SButton)
+					.OnClicked_Lambda([this, Landscape]() -> FReply
 					{
-						ToggleCanHaveLayersContent(Landscape);
-					}
-				})
-			];
+						return ToggleCanHaveLayersContent(Landscape);
+					})
+					[
+						SNew(STextBlock)
+						.Text_Lambda([Landscape]()
+						{
+							return Landscape->bCanHaveLayersContent ? NSLOCTEXT("UnrealEd", "LandscapeDisableLayers", "Disable") : NSLOCTEXT("UnrealEd", "LandscapeEnableLayers", "Enable");	
+						})
+					]
+				];
+			}
+			
 		}
 	}
 }
@@ -99,7 +92,7 @@ void FLandscapeUIDetails::OnEditorExperimentalSettingsChanged(FName PropertyName
 	}
 }
 
-void FLandscapeUIDetails::ToggleCanHaveLayersContent(ALandscape* Landscape)
+FReply FLandscapeUIDetails::ToggleCanHaveLayersContent(ALandscape* Landscape)
 {
 	bool bToggled = false;
 
@@ -117,16 +110,17 @@ void FLandscapeUIDetails::ToggleCanHaveLayersContent(ALandscape* Landscape)
 				break;
 			}
 		}
-				
+
+		
 		FText Reason;
 
 		if (bHasHiddenLayers)
 		{
-			Reason = LOCTEXT("LandscapeDisableLayers_HiddenLayers", "Are you sure you want to disable the layers system?\n\nDoing so, will result in losing the data stored for each layers, but the current visual output will be kept. Be aware that some layers are currently hidden, continuing will result in their data being lost. Undo/redo buffer will also be cleared.");
+			Reason = NSLOCTEXT("UnrealEd", "LandscapeDisableLayers_HiddenLayers", "Are you sure you want to disable the layers system?\n\nDoing so, will result in losing the data stored for each layers, but the current visual output will be kept. Be aware that some layers are currently hidden, continuing will result in their data being lost. Undo/redo buffer will also be cleared.");
 		}
 		else
 		{
-			Reason = LOCTEXT("LandscapeDisableLayers", "Are you sure you want to disable the layers system?\n\nDoing so, will result in losing the data stored for each layers, but the current visual output will be kept. Undo/redo buffer will also be cleared.");
+			Reason = NSLOCTEXT("UnrealEd", "LandscapeDisableLayers", "Are you sure you want to disable the layers system?\n\nDoing so, will result in losing the data stored for each layers, but the current visual output will be kept. Undo/redo buffer will also be cleared.");
 		}
 
 		bToggled = FMessageDialog::Open(EAppMsgType::YesNo, Reason) == EAppReturnType::Yes;
@@ -134,17 +128,15 @@ void FLandscapeUIDetails::ToggleCanHaveLayersContent(ALandscape* Landscape)
 	else
 	{
 		
-		bToggled = FMessageDialog::Open(EAppMsgType::YesNo, LOCTEXT("LandscapeEnableLayers", "Are you sure you want to enable the layer system on this landscape and streaming proxies? Doing so will clear the undo/redo buffer.")) == EAppReturnType::Yes;
+		bToggled = FMessageDialog::Open(EAppMsgType::YesNo, NSLOCTEXT("UnrealEd", "LandscapeEnableLayers", "Are you sure you want to enable the layer system on this landscape and streaming proxies? Doing so will clear the undo/redo buffer."));
 	}
 
-	if (bToggled)
+	if (DetailLayoutBuilder && bToggled)
 	{
 		Landscape->ToggleCanHaveLayersContent();
-		if (GEditor)
-		{
-			GEditor->ResetTransaction(LOCTEXT("ToggleLanscapeLayers", "Toggling Landscape Layers"));
-		}
+		GEditor->ResetTransaction(NSLOCTEXT("UnrealEd", "ToggleLanscapeLayers", "Toggling Landscape Layers"));
+		DetailLayoutBuilder->ForceRefreshDetails();
 	}
-}
 
-#undef LOCTEXT_NAMESPACE
+	return FReply::Handled();
+}

@@ -1,6 +1,6 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "WmfMediaCommon.h"
+#include "WmfMediaPrivate.h"
 
 #include "IMediaCaptureSupport.h"
 #include "Modules/ModuleManager.h"
@@ -9,8 +9,6 @@
 #include "ShaderCore.h"
 
 #include "IWmfMediaModule.h"
-
-#include "WmfMediaCodec/WmfMediaCodecManager.h"
 
 #if WMFMEDIA_SUPPORTED_PLATFORM
 	#include "IMediaModule.h"
@@ -34,11 +32,6 @@
 
 DEFINE_LOG_CATEGORY(LogWmfMedia);
 
-// Defined here to allow forward declaration of WmfMediaCodecManager with smart pointer to work
-IWmfMediaModule::~IWmfMediaModule()
-{
-
-}
 
 /**
  * Implements the WmfMedia module.
@@ -132,8 +125,6 @@ public:
 		{
 			MediaModule->RegisterCaptureSupport(*this);
 		}
-
-		CodecManager = MakeUnique<WmfMediaCodecManager>();
 
 		Initialized = true;
 

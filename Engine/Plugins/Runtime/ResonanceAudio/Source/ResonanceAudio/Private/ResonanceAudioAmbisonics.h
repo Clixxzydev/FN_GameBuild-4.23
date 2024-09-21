@@ -29,13 +29,13 @@ namespace ResonanceAudio
 		//~ IAmbisonicsMixer
 
 		// This function is called by the ResonanceAudioPluginListener as soon as the ResonanceAudioApi is initialized.
-		void SetResonanceAudioApi(vraudio::ResonanceAudioApi* InResonanceAudioApi) { ResonanceAudioApi = InResonanceAudioApi; };
+		void SetResonanceAudioApi(vraudio::VrAudioApi* InResonanceAudioApi) { ResonanceAudioApi = InResonanceAudioApi; };
 
 	private:
 		// Map of which audio engine StreamIds map to which Resonance SourceIds.
 		TMap<uint32, RaSourceId> ResonanceSourceIdMap;
 
 		//Handle to the API context used by this plugin.
-		vraudio::ResonanceAudioApi* ResonanceAudioApi;
+		vraudio::VrAudioApi* ResonanceAudioApi;
 	};
 }

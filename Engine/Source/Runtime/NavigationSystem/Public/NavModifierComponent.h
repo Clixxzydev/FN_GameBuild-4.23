@@ -35,8 +35,6 @@ class NAVIGATIONSYSTEM_API UNavModifierComponent : public UNavRelevantComponent
 	void SetAreaClass(TSubclassOf<UNavArea> NewAreaClass);
 
 protected:
-	void OnTransformUpdated(USceneComponent* RootComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
-
 	struct FRotatedBox
 	{
 		FBox Box;
@@ -47,8 +45,4 @@ protected:
 	};
 
 	mutable TArray<FRotatedBox> ComponentBounds;
-	mutable FDelegateHandle TransformUpdateHandle;
-	/** cached in CalcAndCacheBounds and tested in GetNavigationData to see if
-	 *	cached data is still valid */
-	mutable FTransform CachedTransform;
 };

@@ -7,7 +7,6 @@
 #include "Sound/SoundAttenuation.h"
 #include "HAL/ThreadSafeBool.h"
 #include "Audio.h"
-#include "Audio/AudioDebug.h"
 #include "AudioDynamicParameter.h"
 #include "Sound/SoundConcurrency.h"
 #include "Components/AudioComponent.h"
@@ -27,65 +26,33 @@ struct FListener;
 struct FAttenuationListenerData;
 
 /**
- * Attenuation focus system data computed per update per active sound
- */
-struct FAttenuationFocusData
-{
-	/** Azimuth of the active sound relative to the listener. Used by sound focus. */
-	float Azimuth;
-
-	/** Absolute azimuth of the active sound relative to the listener. Used for 3d audio calculations. */
-	float AbsoluteAzimuth;
-
-	/** Value used to allow smooth interpolation in/out of focus */
-	float FocusFactor;
-
-	/** Cached calculation of the amount distance is scaled due to focus */
-	float DistanceScale;
-
-	/** The amount priority is scaled due to focus */
-	float PriorityScale;
-
-	/** The amount volume is scaled due to focus */
-	float VolumeScale;
-
-	FAttenuationFocusData()
-		: Azimuth(0.0f)
-		, AbsoluteAzimuth(0.0f)
-		, FocusFactor(1.0f)
-		, DistanceScale(1.0f)
-		, PriorityScale(1.0f)
-		, VolumeScale(1.0f)
-	{
-	}
-};
-
-/**
  *	Struct used for gathering the final parameters to apply to a wave instance
  */
 struct FSoundParseParameters
 {
-	// A collection of finish notification hooks
+	// A collection of 
 	FNotifyBufferFinishedHooks NotifyBufferFinishedHooks;
 
 	// The Sound Class to use the settings of
 	USoundClass* SoundClass;
-
+	
 	// The transform of the sound (scale is not used)
 	FTransform Transform;
 
 	// The speed that the sound is moving relative to the listener
 	FVector Velocity;
-
+	
 	// The volume product of the sound
 	float Volume;
 
 	// The attenuation of the sound due to distance attenuation
 	float DistanceAttenuation;
 
-	// A volume scale on the sound specified by user
+	// A volume scalse on the sound specified by user
 	float VolumeMultiplier;
-
+	
+	// Volume due to application-level volume scaling (tabbing, master volume)
+	float VolumeApp;
 
 	// Attack time of the source envelope follower
 	int32 EnvelopeFollowerAttackTime;
@@ -102,13 +69,13 @@ struct FSoundParseParameters
 	// The pitch scale factor of the sound
 	float Pitch;
 
-	// Time offset from beginning of sound to start at
+	// How far in to the sound the
 	float StartTime;
 
 	// At what distance from the source of the sound should spatialization begin
 	float OmniRadius;
 
-	// The distance over which the sound is attenuated
+	// The distance over which the sound is attenuated 
 	float AttenuationDistance;
 
 	// The distance from the listener to the sound
@@ -148,9 +115,6 @@ struct FSoundParseParameters
 	// What occlusion plugin source settings to use
 	UOcclusionPluginSourceSettingsBase* OcclusionPluginSettings;
 
-	/** Instance of modulation source settings to use. */
-	USoundModulationPluginSourceSettingsBase* ModulationPluginSettings;
-
 	// What reverb plugin source settings to use
 	UReverbPluginSourceSettingsBase* ReverbPluginSettings;
 
@@ -180,7 +144,7 @@ struct FSoundParseParameters
 
 	// Whether the sound should be seamlessly looped
 	uint8 bLooping:1;
-
+	
 	// Whether we have enabled low-pass filtering of this sound
 	uint8 bEnableLowPassFilter:1;
 
@@ -202,6 +166,7 @@ struct FSoundParseParameters
 		, Volume(1.f)
 		, DistanceAttenuation(1.f)
 		, VolumeMultiplier(1.f)
+		, VolumeApp(1.f)
 		, EnvelopeFollowerAttackTime(10)
 		, EnvelopeFollowerReleaseTime(100)
 		, InteriorVolumeMultiplier(1.f)
@@ -221,7 +186,6 @@ struct FSoundParseParameters
 		, SpatializationMethod(ESoundSpatializationAlgorithm::SPATIALIZATION_Default)
 		, SpatializationPluginSettings(nullptr)
 		, OcclusionPluginSettings(nullptr)
-		, ModulationPluginSettings(nullptr)
 		, ReverbPluginSettings(nullptr)
 		, SourceEffectChain(nullptr)
 		, LowPassFilterFrequency(MAX_FILTER_FREQUENCY)
@@ -248,8 +212,6 @@ public:
 	FActiveSound();
 	~FActiveSound();
 
-	static FActiveSound* CreateVirtualCopy(const FActiveSound& ActiveSoundToCopy, FAudioDevice& AudioDevice);
-
 private:
 	TWeakObjectPtr<UWorld> World;
 	uint32 WorldID;
@@ -259,7 +221,7 @@ private:
 	uint64 AudioComponentID;
 	FName AudioComponentUserID;
 	uint32 OwnerID;
-
+	
 	FName AudioComponentName;
 	FName OwnerName;
 
@@ -270,26 +232,18 @@ public:
 	FName GetAudioComponentUserID() const { return AudioComponentUserID; }
 	void ClearAudioComponent();
 	void SetAudioComponent(const FActiveSound& ActiveSound);
-	void SetAudioComponent(const UAudioComponent& Component);
+	void SetAudioComponent(UAudioComponent* Component);
 	void SetOwner(AActor* Owner);
 	FString GetAudioComponentName() const;
 	FString GetOwnerName() const;
 
 	uint32 GetWorldID() const { return WorldID; }
 	TWeakObjectPtr<UWorld> GetWeakWorld() const { return World; }
-	UWorld* GetWorld() const
+	UWorld* GetWorld() const 
 	{
 		return World.Get();
 	}
 	void SetWorld(UWorld* World);
-
-	void SetPitch(float Value);
-	void SetVolume(float Value);
-
-	float GetPitch() const { return PitchMultiplier; }
-
-	/** Gets volume product all gain stages pertaining to active sound */
-	float GetVolume() const;
 
 	USoundBase* GetSound() const { return Sound; }
 	void SetSound(USoundBase* InSound);
@@ -313,8 +267,8 @@ public:
 	/** Whether or not the active sound is currently playing audible sound. */
 	bool IsPlayingAudio() const { return bIsPlayingAudio; }
 
-	/** Whether or not sound reference is valid and set to play when silent. */
-	bool IsPlayWhenSilent() const;
+	/** Whether or not we're set to virtualize when silent. */
+	bool IsVirtualizeWhenSilent() const { return Sound && Sound->IsVirtualizeWhenSilent();  }
 
 	FAudioDevice* AudioDevice;
 
@@ -337,21 +291,7 @@ private:
 	/** Optional override for the source bus sends for the sound. */
 	TArray<FSoundSourceBusSendInfo> SoundSourceBusSendsOverride[(int32)EBusSendType::Count];
 
-	TMap<UPTRINT, FWaveInstance*> WaveInstances;
-
 public:
-	enum class EFadeOut : uint8
-	{
-		// Sound is not currently fading out
-		None,
-
-		// Client code (eg. AudioComponent) is requesting a fade out
-		User,
-
-		// The concurrency system is requesting a fade due to voice stealing
-		Concurrency
-	};
-
 	/** Whether or not the sound has checked if it was occluded already. Used to initialize a sound as occluded and bypassing occlusion interpolation. */
 	uint8 bHasCheckedOcclusion:1;
 
@@ -363,6 +303,9 @@ public:
 
 	/** Whether the wave instances should remain active if they're dropped by the prioritization code. Useful for e.g. vehicle sounds that shouldn't cut out. */
 	uint8 bShouldRemainActiveIfDropped:1;
+
+	/** Is the audio component currently fading out */
+	uint8 bFadingOut:1;
 
 	/** Whether the current component has finished playing */
 	uint8 bFinished:1;
@@ -444,13 +387,11 @@ public:
 	/** Whether or not this active sound is playing audio, as in making audible sounds. */
 	uint8 bIsPlayingAudio:1;
 
-	/** Whether or not the active sound is stopping. */
+	/** Whether or not the active sound is stoppping. */
 	uint8 bIsStopping:1;
 
+public:
 	uint8 UserIndex;
-
-	/** Type of fade out currently being applied */
-	EFadeOut FadeOut;
 
 	/** whether we were occluded the last time we checked */
 	FThreadSafeBool bIsOccluded;
@@ -458,12 +399,7 @@ public:
 	/** Whether or not there is an async occlusion trace pending */
 	FThreadSafeBool bAsyncOcclusionPending;
 
-	/** Duration between now and when the sound has been started. */
 	float PlaybackTime;
-
-	/** If virtualized, duration between last time virtualized and now. */
-	float PlaybackTimeNonVirtualized;
-
 	float MinCurrentPitch;
 	float RequestedStartTime;
 
@@ -488,6 +424,12 @@ public:
 	/** The product of the component priority and the USoundBase priority */
 	float Priority;
 
+	/** The amount priority is scaled due to focus */
+	float FocusPriorityScale;
+
+	/** The amount distance is scaled due to focus */
+	float FocusDistanceScale;
+
 	/** The volume used to determine concurrency resolution for "quietest" active sound.
 	// If negative, tracking is disabled for lifetime of ActiveSound */
 	float VolumeConcurrency;
@@ -503,10 +445,11 @@ public:
 
 	FTransform Transform;
 
-	/**
-	 * Cached data pertaining to focus system updated each frame
-	 */
-	FAttenuationFocusData FocusData;
+	/** Azimuth of the active sound relative to the listener. Used by sound focus. */
+	float Azimuth;
+
+	/** Absolute azimuth of the active sound relative to the listener. Used for 3d audio calculations. */
+	float AbsoluteAzimuth;
 
 	/** Location last time playback was updated */
 	FVector LastLocation;
@@ -519,7 +462,7 @@ public:
 	uint32 AudioVolumeID;
 
 	// To remember where the volumes are interpolating to and from
-	double LastUpdateTime;
+	double LastUpdateTime; 
 	float SourceInteriorVolume;
 	float SourceInteriorLPF;
 	float CurrentInteriorVolume;
@@ -529,39 +472,35 @@ public:
 	int32 EnvelopeFollowerAttackTime;
 	int32 EnvelopeFollowerReleaseTime;
 
+	TMap<UPTRINT, FWaveInstance*> WaveInstances;
+
 	TMap<UPTRINT,uint32> SoundNodeOffsetMap;
 	TArray<uint8> SoundNodeData;
 
 	TArray<FAudioComponentParam> InstanceParameters;
 
-#if ENABLE_AUDIO_DEBUG
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+	FName DebugOriginalSoundName;
 	FColor DebugColor;
-#endif // ENABLE_AUDIO_DEBUG
+#endif
 
 	// Updates the wave instances to be played.
 	void UpdateWaveInstances(TArray<FWaveInstance*> &OutWaveInstances, const float DeltaTime);
 
-	/**
+	/** 
 	 * Find an existing waveinstance attached to this audio component (if any)
 	 */
 	FWaveInstance* FindWaveInstance(const UPTRINT WaveInstanceHash);
 
-	void RemoveWaveInstance(const UPTRINT WaveInstanceHash);
-
-	const TMap<UPTRINT, FWaveInstance*>& GetWaveInstances() const
-	{
-		return WaveInstances;
-	}
-
-	/**
-	 * Add newly created wave instance to active sound
-	 */
-	FWaveInstance& AddWaveInstance(const UPTRINT WaveInstanceHash);
-
-	/**
+	/** 
 	 * Check whether to apply the radio filter
 	 */
-	void ApplyRadioFilter(const FSoundParseParameters& ParseParams);
+	void ApplyRadioFilter(const struct FSoundParseParameters& ParseParams);
+
+	/**
+	 * Draws debug info for builds supporting debug drawing
+	 */
+	void DrawDebugInfo(const TArray<FWaveInstance*>* WaveInstances);
 
 	/** Gets total concurrency gain stage based on all concurrency memberships of sound */
 	float GetTotalConcurrencyVolumeScale() const;
@@ -574,7 +513,7 @@ public:
 
 	/** Sets a boolean instance parameter for the ActiveSound */
 	void SetBoolParameter(const FName InName, const bool InBool);
-
+	
 	/** Sets an integer instance parameter for the ActiveSound */
 	void SetIntParameter(const FName InName, const int32 InInt);
 
@@ -598,7 +537,7 @@ public:
 	 * @return true if boolean for parameter was found, otherwise false
 	 */
 	bool GetBoolParameter(const FName InName, bool& OutBool) const;
-
+	
 	/**
 	 *Try and find an Instance Parameter with the given name and if we find it return the integer value.
 	 * @return true if boolean for parameter was found, otherwise false
@@ -606,6 +545,9 @@ public:
 	bool GetIntParameter(const FName InName, int32& OutInt) const;
 
 	void CollectAttenuationShapesForVisualization(TMultiMap<EAttenuationShape::Type, FBaseAttenuationSettings::AttenuationShapeDetails>& ShapeDetailsMap) const;
+
+	/** Gets volume product all gain stages pertaining to active sound */
+	float GetVolume() const;
 
 	/**
 	 * Friend archive function used for serialization.
@@ -632,23 +574,21 @@ public:
 
 	/* Determines which listener is the closest to the sound */
 	int32 FindClosestListener( const TArray<struct FListener>& InListeners ) const;
-
+	
 	/** Returns the unique ID of the active sound's owner if it exists. Returns 0 if the sound doesn't have an owner. */
 	FSoundOwnerObjectID GetOwnerID() const { return OwnerID; }
 
 	/** Gets the sound concurrency handles applicable to this sound instance*/
 	void GetConcurrencyHandles(TArray<FConcurrencyHandle>& OutConcurrencyHandles) const;
 
-	bool GetConcurrencyFadeDuration(float& OutFadeDuration) const;
-
 	/** Delegate callback function when an async occlusion trace completes */
 	static void OcclusionTraceDone(const FTraceHandle& TraceHandle, FTraceDatum& TraceDatum);
 
 	/** Applies the active sound's attenuation settings to the input parse params using the given listener */
-	void ParseAttenuation(FSoundParseParameters& OutParseParams, const FListener& InListener, const FSoundAttenuationSettings& InAttenuationSettings);
+	void ApplyAttenuation(FSoundParseParameters& ParseParams, const FListener& Listener, const FSoundAttenuationSettings* SettingsAttenuationNode = nullptr);
 
 	/** Returns the effective priority of the active sound */
-	float GetPriority() const { return Priority * FocusData.PriorityScale; }
+	float GetPriority() const { return Priority * FocusPriorityScale; }
 
 	/** Sets the amount of audio from this active sound to send to the submix. */
 	void SetSubmixSend(const FSoundSubmixSendInfo& SubmixSendInfo);
@@ -656,14 +596,8 @@ public:
 	/** Sets the amount of audio from this active sound to send to the source bus. */
 	void SetSourceBusSend(EBusSendType BusSendTyoe, const FSoundSourceBusSendInfo& SourceBusSendInfo);
 
-	/** Updates the active sound's attenuation settings to the input parse params using the given listener */
-	void UpdateAttenuation(float DeltaTime, FSoundParseParameters& ParseParams, const FListener& Listener, const FSoundAttenuationSettings* SettingsAttenuationNode = nullptr);
-
-	/** Updates the provided focus data using the local */
-	void UpdateFocusData(float DeltaTime, const FAttenuationListenerData& ListenerData, FAttenuationFocusData* OutFocusData = nullptr);
-
 private:
-
+	
 	struct FAsyncTraceDetails
 	{
 		uint32 AudioDeviceID;
@@ -685,9 +619,6 @@ private:
 
 	/** Whether or not the active sound is stopping. */
 	bool IsStopping() const { return bIsStopping; }
-
-	/** Find the active modulation settings */
-	USoundModulationPluginSourceSettingsBase* FindModulationSettings() const;
 
 	/** Called when an active sound has been stopped but needs to update it's stopping sounds. Returns true when stopping sources have finished stopping. */
 	bool UpdateStoppingSources(uint64 CurrentTick, bool bEnsureStopped);
@@ -711,4 +642,7 @@ private:
 
 	/** Helper function which retrieves attenuation frequency value for HPF and LPF distance-based filtering. */
 	float GetAttenuationFrequency(const FSoundAttenuationSettings* InSettings, const FAttenuationListenerData& ListenerData, const FVector2D& FrequencyRange, const FRuntimeFloatCurve& CustomCurve);
+
+	/** Internal Focus Factor value used to allow smooth interpolation in/out of Focus */
+	float InternalFocusFactor;
 };

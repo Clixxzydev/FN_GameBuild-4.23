@@ -5,6 +5,25 @@ using System.IO;
 
 public class DisplayCluster : ModuleRules
 {
+	private string ModulePath
+	{
+		get
+		{
+			//return Path.GetDirectoryName(RulesCompiler.GetModuleFilename(this.GetType().Name));
+			string ModuleFilename = UnrealBuildTool.RulesCompiler.GetFileNameFromType(GetType());
+			string ModuleBaseDirectory = Path.GetDirectoryName(ModuleFilename);
+			return ModuleBaseDirectory;
+		}
+	}
+
+	private string ThirdPartyPath
+	{
+		get
+		{
+			return Path.GetFullPath(Path.Combine(ModulePath, "../../ThirdParty/"));
+		}
+	}
+
 	public DisplayCluster(ReadOnlyTargetRules ROTargetRules) : base(ROTargetRules)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
@@ -12,6 +31,11 @@ public class DisplayCluster : ModuleRules
 		PrivateIncludePaths.AddRange(
 			new string[] {
 				"DisplayCluster/Private",
+				"../../../../../Engine/Source/Runtime/Renderer/Private",
+				"../../../../../Engine/Source/Runtime/Windows/D3D11RHI/Private",
+				"../../../../../Engine/Source/Runtime/Windows/D3D11RHI/Private/Windows",
+				"../../../../../Engine/Source/Runtime/D3D12RHI/Private",
+				"../../../../../Engine/Source/Runtime/D3D12RHI/Private/Windows"
 			});
 
 		PublicDependencyModuleNames.AddRange(
@@ -21,6 +45,8 @@ public class DisplayCluster : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"InputCore",
+				"Json",
+				"JsonUtilities"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -33,8 +59,6 @@ public class DisplayCluster : ModuleRules
 				"Engine",
 				"HeadMountedDisplay",
 				"InputCore",
-				"Json",
-				"JsonUtilities",
 				"Networking",
 				"OpenGLDrv",
 				"RHI",
@@ -54,26 +78,28 @@ public class DisplayCluster : ModuleRules
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX12");
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
-		AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
 
-		// 3rd party dependencies
-		AddThirdPartyDependencies(ROTargetRules);
+        // vrpn
+        AddDependencyVrpn(ROTargetRules);
 	}
 
-
-	public void AddThirdPartyDependencies(ReadOnlyTargetRules ROTargetRules)
+	public bool AddDependencyVrpn(ReadOnlyTargetRules ROTargetRules)
 	{
-		string ThirdPartyPath = Path.GetFullPath(Path.Combine(ModuleDirectory, "../../ThirdParty/"));
+		if ((ROTargetRules.Platform == UnrealTargetPlatform.Win64) || (ROTargetRules.Platform == UnrealTargetPlatform.Win32))
+		{
+			string PlatformString = (ROTargetRules.Platform == UnrealTargetPlatform.Win64) ? "x64" : "x86";
+			string LibrariesPath = Path.Combine(ThirdPartyPath, "VRPN", "Lib/" + PlatformString);
 
-		string PathLib = string.Empty;
-		string PathInc = string.Empty;
+			//@todo: There are also debug versions: vrpnd.lib and quatd.lib
+			PublicAdditionalLibraries.Add(Path.Combine(LibrariesPath, "vrpn.lib"));
+			PublicAdditionalLibraries.Add(Path.Combine(LibrariesPath, "quat.lib"));
 
-		// VRPN
-		PathLib = Path.Combine(ThirdPartyPath, "VRPN/Lib");
-		PathInc = Path.Combine(ThirdPartyPath, "VRPN/Include");
-		PublicAdditionalLibraries.Add(Path.Combine(PathLib, "vrpn.lib"));
-		PublicAdditionalLibraries.Add(Path.Combine(PathLib, "quat.lib"));
-		PublicIncludePaths.Add(PathInc);
+			PublicIncludePaths.Add(Path.Combine(ThirdPartyPath, "VRPN", "Include"));
+
+			return true;
+		}
+
+		return false;
 	}
 }

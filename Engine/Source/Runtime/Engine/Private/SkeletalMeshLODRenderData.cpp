@@ -67,16 +67,10 @@ namespace
 // Serialization.
 FArchive& operator<<(FArchive& Ar, FSkelMeshRenderSection& S)
 {
-	const uint8 DuplicatedVertices = 1;
-	
-	// DuplicatedVerticesBuffer is used only for SkinCache and Editor features which is SM5 only
-	uint8 ClassDataStripFlags = 0;
-	ClassDataStripFlags |= (Ar.IsCooking() && !Ar.CookingTarget()->SupportsFeature(ETargetPlatformFeatures::DeferredRendering)) ? DuplicatedVertices : 0;
-
 	// When data is cooked for server platform some of the
 	// variables are not serialized so that they're always
 	// set to their initial values (for safety)
-	FStripDataFlags StripFlags(Ar, ClassDataStripFlags);
+	FStripDataFlags StripFlags(Ar);
 
 	Ar << S.MaterialIndex;
 	Ar << S.BaseIndex;
@@ -90,10 +84,7 @@ FArchive& operator<<(FArchive& Ar, FSkelMeshRenderSection& S)
 	Ar << S.MaxBoneInfluences;
 	Ar << S.CorrespondClothAssetIndex;
 	Ar << S.ClothingData;
-	if (!StripFlags.IsClassDataStripped(DuplicatedVertices))
-	{
-		Ar << S.DuplicatedVerticesBuffer;
-	}
+	Ar << S.DuplicatedVerticesBuffer;
 	Ar << S.bDisabled;
 
 	return Ar;
@@ -213,8 +204,7 @@ void FSkeletalMeshLODRenderData::InitResources(bool bNeedsVertexColors, int32 LO
 		INC_DWORD_STAT_BY(STAT_SkeletalMeshIndexMemory, AdjacencyMultiSizeIndexContainer.IsIndexBufferValid() ? (AdjacencyMultiSizeIndexContainer.GetIndexBuffer()->Num() * AdjacencyMultiSizeIndexContainer.GetDataTypeSize()) : 0);
 	}
 
-	// DuplicatedVerticesBuffer is used only for SkinCache and Editor features which is SM5 only
-    if (IsFeatureLevelSupported(GMaxRHIShaderPlatform, ERHIFeatureLevel::SM5))
+    if (RHISupportsComputeShaders(GMaxRHIShaderPlatform))
     {
         for (auto& RenderSection : RenderSections)
         {
@@ -482,14 +472,10 @@ void FSkeletalMeshLODRenderData::ReleaseResources()
 	BeginReleaseResource(&SkinWeightVertexBuffer);
 	BeginReleaseResource(&StaticVertexBuffers.ColorVertexBuffer);
 	BeginReleaseResource(&ClothVertexBuffer);
-	// DuplicatedVerticesBuffer is used only for SkinCache and Editor features which is SM5 only
-    if (IsFeatureLevelSupported(GMaxRHIShaderPlatform, ERHIFeatureLevel::SM5))
+	for (auto& RenderSection : RenderSections)
 	{
-		for (auto& RenderSection : RenderSections)
-		{
-			check(RenderSection.DuplicatedVerticesBuffer.DupVertData.Num());
-			BeginReleaseResource(&RenderSection.DuplicatedVerticesBuffer);
-		}
+		check(RenderSection.DuplicatedVerticesBuffer.DupVertData.Num());
+		BeginReleaseResource(&RenderSection.DuplicatedVerticesBuffer);
 	}
 	BeginReleaseResource(&MorphTargetVertexInfoBuffers);
 	
@@ -765,16 +751,10 @@ void FSkeletalMeshLODRenderData::Serialize(FArchive& Ar, UObject* Owner, int32 I
 	if (Ar.IsLoading() && !!GSkinWeightProfilesLoadByDefaultMode)
 	{
 #if !WITH_EDITOR
-		if ( GSkinWeightProfilesLoadByDefaultMode == 1)
-		{
-			// Only allow overriding the base buffer in non-editor builds as it could otherwise be serialized into the asset
-			SkinWeightProfilesData.OverrideBaseBufferSkinWeightData(OwnerMesh, Idx);
-		}
+		// Only allow overriding the base buffer in non-editor builds as it could otherwise be serialized into the asset
+		SkinWeightProfilesData.OverrideBaseBufferSkinWeightData(OwnerMesh, Idx);
 #endif 	
-		if (GSkinWeightProfilesLoadByDefaultMode == 3)
-		{
-			SkinWeightProfilesData.SetDynamicDefaultSkinWeightProfile(OwnerMesh, Idx);
-		}
+		SkinWeightProfilesData.SetDynamicDefaultSkinWeightProfile(OwnerMesh, Idx);
 	}
 }
 

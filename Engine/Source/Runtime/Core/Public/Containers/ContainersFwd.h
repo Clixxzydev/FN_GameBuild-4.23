@@ -3,15 +3,12 @@
 #pragma once
 
 /// @cond DOXYGEN_WARNINGS
-template<int IndexSize> class TSizedDefaultAllocator;
-using FDefaultAllocator = TSizedDefaultAllocator<32>;
-using FDefaultAllocator64 = TSizedDefaultAllocator<64>;
+class FDefaultAllocator;
 class FDefaultSetAllocator;
 
 class FString;
 
 template<typename T, typename Allocator = FDefaultAllocator> class TArray;
-template<typename T> using TArray64 = TArray<T, FDefaultAllocator64>;
 template<typename T> class TTransArray;
 template<typename KeyType, typename ValueType, bool bInAllowDuplicateKeys> struct TDefaultMapHashableKeyFuncs;
 template<typename KeyType, typename ValueType, typename SetAllocator = FDefaultSetAllocator, typename KeyFuncs = TDefaultMapHashableKeyFuncs<KeyType, ValueType, false> > class TMap;

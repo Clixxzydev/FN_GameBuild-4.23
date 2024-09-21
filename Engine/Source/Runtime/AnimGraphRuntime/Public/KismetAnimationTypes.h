@@ -13,7 +13,7 @@
  *	The FPositionArray also tracks the last index used to allow for 
  *	reuse of entries (instead of appending to the array all the time).
  */
-USTRUCT(BlueprintType, meta = (DocumentationPolicy = "Strict"))
+USTRUCT(BlueprintType)
 struct FPositionHistory
 {
 	GENERATED_BODY()

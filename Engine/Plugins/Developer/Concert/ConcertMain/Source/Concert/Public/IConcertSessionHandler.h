@@ -21,56 +21,26 @@ struct FConcertSessionContext
 class IConcertSessionCustomEventHandler
 {
 public:
-	virtual ~IConcertSessionCustomEventHandler() = default;
-
-	virtual FDelegateHandle GetHandle() const = 0;
-
-	virtual bool HasSameObject(const void* InObject) const = 0;
+	virtual ~IConcertSessionCustomEventHandler() {}
 
 	virtual void HandleEvent(const FConcertSessionContext& Context, const void* EventData) const = 0;
-};
-
-/**
- * Common implementation of a session custom event handler.
- */
-class FConcertSessionCustomEventHandlerBase : public IConcertSessionCustomEventHandler
-{
-public:
-	explicit FConcertSessionCustomEventHandlerBase(FDelegateHandle InHandle)
-		: Handle(MoveTemp(InHandle))
-	{
-	}
-
-	virtual FDelegateHandle GetHandle() const override
-	{
-		return Handle;
-	}
-
-protected:
-	FDelegateHandle Handle;
 };
 
 /**
  * Implementation of a session custom event handler that uses a raw member function pointer with the correct event type in the handler function signature.
  */
 template<typename EventType, typename HandlerType>
-class TConcertRawSessionCustomEventHandler : public FConcertSessionCustomEventHandlerBase
+class TConcertRawSessionCustomEventHandler : public IConcertSessionCustomEventHandler
 {
 public:
 	typedef void (HandlerType::*FFuncType)(const FConcertSessionContext&, const EventType&);
 
-	TConcertRawSessionCustomEventHandler(FDelegateHandle InHandle, HandlerType* InHandler, FFuncType InFunc)
-		: FConcertSessionCustomEventHandlerBase(MoveTemp(InHandle))
-		, Handler(InHandler)
+	TConcertRawSessionCustomEventHandler(HandlerType* InHandler, FFuncType InFunc)
+		: Handler(InHandler)
 		, Func(InFunc)
 	{
 		check(Handler);
 		check(Func);
-	}
-
-	virtual bool HasSameObject(const void* InObject) const override
-	{
-		return InObject == Handler;
 	}
 
 	virtual void HandleEvent(const FConcertSessionContext& Context, const void* EventData) const override
@@ -87,23 +57,17 @@ private:
  * Implementation of a session custom event handler that calls a function with the correct event type in the handler function signature.
  */
 template<typename EventType>
-class TConcertFunctionSessionCustomEventHandler : public FConcertSessionCustomEventHandlerBase
+class TConcertFunctionSessionCustomEventHandler : public IConcertSessionCustomEventHandler
 {
 public:
 	typedef TFunction<void(const FConcertSessionContext&, const EventType&)> FFuncType;
 
-	TConcertFunctionSessionCustomEventHandler(FDelegateHandle InHandle, FFuncType InFunc)
-		: FConcertSessionCustomEventHandlerBase(MoveTemp(InHandle))
-		, Func(MoveTemp(InFunc))
+	TConcertFunctionSessionCustomEventHandler(FFuncType InFunc)
+		: Func(MoveTemp(InFunc))
 	{
 		check(Func);
 	}
 	
-	virtual bool HasSameObject(const void* InObject) const override
-	{
-		return false;
-	}
-
 	virtual void HandleEvent(const FConcertSessionContext& Context, const void* EventData) const override
 	{
 		Func(Context, *(const EventType*)EventData);

@@ -177,7 +177,6 @@ void STiledLandcapeImportDlg::Construct(const FArguments& InArgs, TSharedPtr<SWi
 					SNew( SVectorInputBox )
 					.bColorAxisLabels( true )
 					.AllowResponsiveLayout( true )
-					.AllowSpin(false)
 					.X( this, &STiledLandcapeImportDlg::GetScaleX )
 					.Y( this, &STiledLandcapeImportDlg::GetScaleY )
 					.Z( this, &STiledLandcapeImportDlg::GetScaleZ )
@@ -503,12 +502,8 @@ FReply STiledLandcapeImportDlg::OnClickedSelectHeightmapTiles()
 					if (HeightmapInfo.ResultCode != ELandscapeImportResult::Success)
 					{
 						StatusMessage = HeightmapInfo.ErrorMessage;
-
-						if (HeightmapInfo.ResultCode == ELandscapeImportResult::Error)
-						{
-							bValidTiles = false;
-							break;
-						}
+						bValidTiles = false;
+						break;
 					}
 
 					const FLandscapeFileResolution* FoundSquareResolution =
@@ -710,9 +705,6 @@ void STiledLandcapeImportDlg::GenerateAllPossibleTileConfigurations()
 
 FText STiledLandcapeImportDlg::GetImportSummaryText() const
 {
-	FTextBuilder StatusMessageBuilder;
-	StatusMessageBuilder.AppendLine(StatusMessage);
-
 	if (ImportSettings.HeightmapFileList.Num() && ImportSettings.ComponentsNum > 0)
 	{
 		// Tile information(num, resolution)
@@ -724,15 +716,15 @@ FText STiledLandcapeImportDlg::GetImportSummaryText() const
 		float WidthX = 0.00001f*ImportSettings.Scale3D.X*WidthInTilesX*ImportSettings.SizeX;
 		float WidthY = 0.00001f*ImportSettings.Scale3D.Y*WidthInTilesY*ImportSettings.SizeX;
 		const FString LandscapeSummary = FString::Printf(TEXT("%.3fx%.3f"), WidthX, WidthY);
-
-		StatusMessageBuilder.AppendLine(FText::Format(
+	
+		StatusMessage = FText::Format(
 			LOCTEXT("TiledLandscapeImport_SummaryText", "{0} tiles, {1}km landscape"), 
 			FText::FromString(TilesSummary),
 			FText::FromString(LandscapeSummary)
-			));
+			);
 	}
 	
-	return StatusMessageBuilder.ToText();
+	return StatusMessage;
 }
 
 FText STiledLandcapeImportDlg::GetWeightmapCountText(TSharedPtr<FTiledLandscapeImportSettings::LandscapeLayerSettings> InLayerData) const

@@ -99,7 +99,7 @@ FIndexBufferRHIRef FMetalDynamicRHI::RHICreateIndexBuffer(uint32 Stride, uint32 
 	}
 }
 
-void FMetalDynamicRHI::RHITransferIndexBufferUnderlyingResource(FRHIIndexBuffer* DestIndexBuffer, FRHIIndexBuffer* SrcIndexBuffer)
+void FMetalDynamicRHI::RHITransferIndexBufferUnderlyingResource(FIndexBufferRHIParamRef DestIndexBuffer, FIndexBufferRHIParamRef SrcIndexBuffer)
 {
 	@autoreleasepool {
 	check(DestIndexBuffer);
@@ -118,7 +118,7 @@ void FMetalDynamicRHI::RHITransferIndexBufferUnderlyingResource(FRHIIndexBuffer*
 	}
 }
 
-void* FMetalDynamicRHI::RHILockIndexBuffer(FRHIIndexBuffer* IndexBufferRHI, uint32 Offset, uint32 Size, EResourceLockMode LockMode)
+void* FMetalDynamicRHI::RHILockIndexBuffer(FIndexBufferRHIParamRef IndexBufferRHI, uint32 Offset, uint32 Size, EResourceLockMode LockMode)
 {
 	@autoreleasepool {
 	FMetalIndexBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
@@ -127,7 +127,7 @@ void* FMetalDynamicRHI::RHILockIndexBuffer(FRHIIndexBuffer* IndexBufferRHI, uint
 	}
 }
 
-void FMetalDynamicRHI::RHIUnlockIndexBuffer(FRHIIndexBuffer* IndexBufferRHI)
+void FMetalDynamicRHI::RHIUnlockIndexBuffer(FIndexBufferRHIParamRef IndexBufferRHI)
 {
 	@autoreleasepool {
 	FMetalIndexBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);

@@ -5,45 +5,49 @@ namespace UnrealBuildTool.Rules
 	public class LiveLinkEditor : ModuleRules
 	{
 		public LiveLinkEditor(ReadOnlyTargetRules Target) : base(Target)
-		{
-			PublicDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"LiveLinkInterface",
-					"LiveLink",
-					"SlateCore",
-				}
-			);
+        {
 
-			PrivateDependencyModuleNames.AddRange(
+            PublicDependencyModuleNames.AddRange(
+                new string[] {
+                    "TargetPlatform",
+                }
+            );
+
+
+
+            PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
-					"AnimGraph",
-					"AssetRegistry",
-					"BlueprintGraph",
-					"ClassViewer",
 					"Core",
 					"CoreUObject",
-					"DetailCustomizations",
-					"EditorStyle",
-					"Engine",
-					"InputCore",
-					"KismetCompiler",
-					"GraphEditor",
-					"LiveLinkGraphNode",
+                    "UnrealEd",
+                    "Engine",
+                    "Projects",
+                    "DetailCustomizations",
+					"HeadMountedDisplay",
+                    "MovieScene",
+                    "MovieSceneTools",
+                    "MovieSceneTracks",
+                    "WorkspaceMenuStructure",
+					"SerializedRecorderInterface",
+                    "EditorStyle",
+                    "Sequencer",
+					"SequenceRecorder",
+                    "TakesCore",
+                    "TakeRecorder",
+				    "TakeTrackRecorders",
+                    "SlateCore",
+                    "Slate",
+                    "InputCore",
+                    //"Messaging",
+                    "LiveLinkInterface",
 					"LiveLinkMessageBusFramework",
-					"LiveLinkMovieScene",
-					"Persona",
-					"Projects",
-					"PropertyEditor",
-					"Settings",
-					"Sequencer",
-					"Slate",
-					"TimeManagement",
-					"UnrealEd",
-					"WorkspaceMenuStructure",
-				}
-			);
+                    "BlueprintGraph",
+					"LiveLink",
+                    "AnimGraph",
+                    "Persona"
+                }
+			); 
 		}
 	}
 }

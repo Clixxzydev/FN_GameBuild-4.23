@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 #include "UObject/Object.h"
@@ -6,85 +6,10 @@
 #include "LiveLinkTypes.h"
 #include "LiveLinkMessages.generated.h"
 
-struct LIVELINKMESSAGEBUSFRAMEWORK_API FLiveLinkMessageAnnotation
-{
-	static FName SubjectAnnotation;
-	static FName RoleAnnotation;
-};
-
 USTRUCT()
-struct FLiveLinkPingMessage
+struct FLiveLinkSubjectDataMessage
 {
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FGuid PollRequest;
-
-	UPROPERTY()
-	int32 LiveLinkVersion = 1;
-
-	// default constructor for the receiver
-	FLiveLinkPingMessage() = default;
-
-	FLiveLinkPingMessage(const FGuid& InPollRequest, int32 InLiveLinkVersion) : PollRequest(InPollRequest), LiveLinkVersion(InLiveLinkVersion) {}
-};
-
-USTRUCT()
-struct FLiveLinkPongMessage
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FString ProviderName;
-
-	UPROPERTY()
-	FString MachineName;
-
-	UPROPERTY()
-	FGuid PollRequest;
-
-	UPROPERTY()
-	int32 LiveLinkVersion = 1;
-
-	// default constructor for the receiver
-	FLiveLinkPongMessage() = default;
-
-	FLiveLinkPongMessage(const FString& InProviderName, const FString& InMachineName, const FGuid& InPollRequest) : ProviderName(InProviderName), MachineName(InMachineName), PollRequest(InPollRequest) {}
-};
-
-USTRUCT()
-struct FLiveLinkConnectMessage
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	int32 LiveLinkVersion = 1;
-};
-
-USTRUCT()
-struct FLiveLinkHeartbeatMessage
-{
-	GENERATED_BODY()
-};
-
-USTRUCT()
-struct FLiveLinkClearSubject
-{
-	GENERATED_BODY()
-
-	// Name of the subject to clear
-	UPROPERTY()
-	FName SubjectName;
-
-	FLiveLinkClearSubject() {}
-	FLiveLinkClearSubject(const FName& InSubjectName) : SubjectName(InSubjectName) {}
-};
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-USTRUCT()
-struct UE_DEPRECATED(4.23, "FLiveLinkSubjectDataMessage is deprecated. Please use the LiveLink animation role.") FLiveLinkSubjectDataMessage
-{
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY()
 	FLiveLinkRefSkeleton RefSkeleton;
@@ -94,9 +19,9 @@ struct UE_DEPRECATED(4.23, "FLiveLinkSubjectDataMessage is deprecated. Please us
 };
 
 USTRUCT()
-struct UE_DEPRECATED(4.23, "FLiveLinkSubjectDataMessage is deprecated. Please use the LiveLink animation role.") FLiveLinkSubjectFrameMessage
+struct FLiveLinkSubjectFrameMessage
 {
-	GENERATED_BODY()
+	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY()
 	FName SubjectName;
@@ -117,4 +42,62 @@ struct UE_DEPRECATED(4.23, "FLiveLinkSubjectDataMessage is deprecated. Please us
 	UPROPERTY()
 	double Time;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+USTRUCT()
+struct FLiveLinkPingMessage
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FGuid PollRequest;
+
+	// default constructor for the receiver
+	FLiveLinkPingMessage() = default;
+
+	FLiveLinkPingMessage(const FGuid& InPollRequest) : PollRequest(InPollRequest) {}
+};
+
+USTRUCT()
+struct FLiveLinkPongMessage
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY()
+	FString ProviderName;
+
+	UPROPERTY()
+	FString MachineName;
+
+	UPROPERTY()
+	FGuid PollRequest;
+
+	// default constructor for the receiver
+	FLiveLinkPongMessage() = default;
+
+	FLiveLinkPongMessage(const FString& InProviderName, const FString& InMachineName, const FGuid& InPollRequest) : ProviderName(InProviderName), MachineName(InMachineName), PollRequest(InPollRequest) {}
+};
+
+USTRUCT()
+struct FLiveLinkConnectMessage
+{
+	GENERATED_USTRUCT_BODY()
+};
+
+USTRUCT()
+struct FLiveLinkHeartbeatMessage
+{
+	GENERATED_USTRUCT_BODY()
+};
+
+USTRUCT()
+struct FLiveLinkClearSubject
+{
+	GENERATED_USTRUCT_BODY()
+
+	// Name of the subject to clear
+	UPROPERTY()
+	FName SubjectName;
+
+	FLiveLinkClearSubject() {}
+	FLiveLinkClearSubject(const FName& InSubjectName) : SubjectName(InSubjectName) {}
+};

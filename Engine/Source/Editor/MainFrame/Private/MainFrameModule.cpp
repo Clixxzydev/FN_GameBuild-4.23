@@ -10,6 +10,7 @@
 #include "GameProjectGenerationModule.h"
 #include "MessageLogModule.h"
 #include "MRUFavoritesList.h"
+#include "OutputLogModule.h"
 #include "EditorStyleSet.h"
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "Sound/SoundBase.h"
@@ -247,7 +248,7 @@ TSharedRef<SWidget> FMainFrameModule::MakeMainTabMenu( const TSharedPtr<FTabMana
 
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-TSharedRef<SWidget> FMainFrameModule::MakeDeveloperTools( const TArray<FMainFrameDeveloperTool>& AdditionalTools ) const
+TSharedRef<SWidget> FMainFrameModule::MakeDeveloperTools() const
 {
 	struct Local
 	{
@@ -308,83 +309,133 @@ TSharedRef<SWidget> FMainFrameModule::MakeDeveloperTools( const TArray<FMainFram
 			FPlatformProcess::ExploreFolder( *( FPaths::GetPath(SourceFilePath) ) );
 		}
 
+
 		/** @return Returns true if frame rate and memory should be displayed in the UI */
 		static EVisibility ShouldShowFrameRateAndMemory()
 		{
 			return GetDefault<UEditorPerformanceSettings>()->bShowFrameRateAndMemory ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
 		}
-
-		static void AddSlot(TSharedRef<SHorizontalBox>& HorizontalBox, const FSlateFontInfo& LabelFont, const FSlateFontInfo& ValueFont, const FMainFrameDeveloperTool& DeveloperTool)
-		{
-			HorizontalBox->AddSlot()
-				.AutoWidth()
-				.Padding(4.0f, 0.0f, 4.0f, 0.0f)
-				[
-					SNew(SHorizontalBox)
-					.Visibility(DeveloperTool.Visibility)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Bottom)
-					[
-						SNew(STextBlock)
-						.Text(DeveloperTool.Label)
-						.Font(LabelFont)
-						.ColorAndOpacity(FLinearColor(0.3f, 0.3f, 0.3f))
-					]
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Bottom)
-					[
-						SNew(STextBlock)
-						.Text(DeveloperTool.Value)
-						.Font(ValueFont)
-						.ColorAndOpacity(FLinearColor(0.6f, 0.6f, 0.6f))
-					]
-				];
-		}
 	};
+
+
+
+	// We need the output log module in order to instantiate SConsoleInputBox widgets
+	FOutputLogModule& OutputLogModule = FModuleManager::LoadModuleChecked< FOutputLogModule >(TEXT("OutputLog"));
+	TSharedPtr<FConsoleCommandExecutor> CmdExec = MakeShared<FConsoleCommandExecutor>();
+	OutputLogModule.SetActiveCommandExecutor(StaticCastSharedPtr<IConsoleCommandExecutor>(CmdExec));
 
 	const FSlateFontInfo& SmallFixedFont = FEditorStyle::GetFontStyle(TEXT("MainFrame.DebugTools.SmallFont") );
 	const FSlateFontInfo& NormalFixedFont = FEditorStyle::GetFontStyle(TEXT("MainFrame.DebugTools.NormalFont") );
 	const FSlateFontInfo& LabelFont = FEditorStyle::GetFontStyle(TEXT("MainFrame.DebugTools.LabelFont") );
 
-	TSharedRef<SHorizontalBox> DeveloperToolWidget =
+	TSharedPtr< SWidget > DeveloperTools;
+	TSharedPtr< SEditableTextBox > ExposedEditableTextBox;
+
+	TSharedRef<SWidget> FrameRateAndMemoryWidget =
 		SNew( SHorizontalBox )
-		.Visibility(GIsDemoMode ? EVisibility::Collapsed : EVisibility::HitTestInvisible);
+		.Visibility_Static( &Local::ShouldShowFrameRateAndMemory )
 
-	for (const FMainFrameDeveloperTool& DeveloperTool : AdditionalTools)
-	{
-		Local::AddSlot(DeveloperToolWidget, LabelFont, NormalFixedFont, DeveloperTool);
-	}
+		// FPS
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding( 0.0f, 0.0f, 4.0f, 0.0f )
+		[
+			SNew( SHorizontalBox )
+			.Visibility( GIsDemoMode ? EVisibility::Collapsed : EVisibility::HitTestInvisible )
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Bottom)
+			[
+				SNew( STextBlock )
+				.Text( LOCTEXT("FrameRateLabel", "FPS: ") )
+				.Font( LabelFont )
+				.ColorAndOpacity( FLinearColor( 0.3f, 0.3f, 0.3f ) )
+			]
+			+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Bottom)
+				[
+					SNew( STextBlock )
+					.Text_Static( &Local::GetFrameRateAsString )
+					.Font(NormalFixedFont)
+					.ColorAndOpacity( FLinearColor( 0.6f, 0.6f, 0.6f ) )
+				]
+			+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Bottom)
+				.Padding( 4.0f, 0.0f, 0.0f, 0.0f )
+				[
+					SNew( STextBlock )
+					.Text( LOCTEXT("FrameRate/FrameTime", "/") )
+					.Font( SmallFixedFont )
+					.ColorAndOpacity( FLinearColor( 0.4f, 0.4f, 0.4f ) )
+				]
+			+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Bottom)
+				.Padding( 4.0f, 0.0f, 0.0f, 0.0f )
+				[
+					SNew( STextBlock )
+					.Text_Static( &Local::GetFrameTimeAsString )
+					.Font( SmallFixedFont )
+					.ColorAndOpacity( FLinearColor( 0.4f, 0.4f, 0.4f ) )
+				]
+		]
 
-	{
-		FMainFrameDeveloperTool FpsDeveloperTool;
-		FpsDeveloperTool.Visibility = TAttribute<EVisibility>::Create(&Local::ShouldShowFrameRateAndMemory);
-		FpsDeveloperTool.Label = LOCTEXT("FrameRateLabel", "FPS: ");
-		FpsDeveloperTool.Value = TAttribute<FText>::Create(&Local::GetFrameRateAsString);
-		Local::AddSlot(DeveloperToolWidget, LabelFont, NormalFixedFont, FpsDeveloperTool);
-	}
-	{
-		FMainFrameDeveloperTool FrameDeveloperTool;
-		FrameDeveloperTool.Visibility = TAttribute<EVisibility>::Create(&Local::ShouldShowFrameRateAndMemory);
-		FrameDeveloperTool.Label = LOCTEXT("FrameRate/FrameTime", "/ ");
-		FrameDeveloperTool.Value = TAttribute<FText>::Create(&Local::GetFrameTimeAsString);
-		Local::AddSlot(DeveloperToolWidget, LabelFont, NormalFixedFont, FrameDeveloperTool);
-	}
-	{
-		FMainFrameDeveloperTool MemDeveloperTool;
-		MemDeveloperTool.Visibility = TAttribute<EVisibility>::Create(&Local::ShouldShowFrameRateAndMemory);
-		MemDeveloperTool.Label = LOCTEXT("MemoryLabel", "Mem: ");
-		MemDeveloperTool.Value = TAttribute<FText>::Create(&Local::GetMemoryAsString);
-		Local::AddSlot(DeveloperToolWidget, LabelFont, NormalFixedFont, MemDeveloperTool);
-	}
-	{
-		FMainFrameDeveloperTool ObjDeveloperTool;
-		ObjDeveloperTool.Visibility = TAttribute<EVisibility>::Create(&Local::ShouldShowFrameRateAndMemory);
-		ObjDeveloperTool.Label = LOCTEXT("UObjectCountLabel", "Objs: ");
-		ObjDeveloperTool.Value = TAttribute<FText>::Create(&Local::GetUObjectCountAsString);
-		Local::AddSlot(DeveloperToolWidget, LabelFont, NormalFixedFont, ObjDeveloperTool);
-	}
+		// Memory
+		+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding( 4.0f, 0.0f, 4.0f, 0.0f )
+			[
+				SNew( SHorizontalBox )
+				.Visibility( GIsDemoMode ? EVisibility::Collapsed : EVisibility::HitTestInvisible )
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Bottom)
+				[
+					SNew( STextBlock )
+					.Text( LOCTEXT("MemoryLabel", "Mem: ") )
+					.Font( LabelFont )
+					.ColorAndOpacity( FLinearColor( 0.3f, 0.3f, 0.3f ) )
+				]
+				+SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Bottom)
+					[
+						SNew( STextBlock )
+						.Text_Static( &Local::GetMemoryAsString )
+						.Font(NormalFixedFont)
+						.ColorAndOpacity( FLinearColor( 0.6f, 0.6f, 0.6f ) )
+					]
+			]
+
+		// UObject count
+		+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding( 4.0f, 0.0f, 4.0f, 0.0f )
+		[
+			SNew( SHorizontalBox )
+				.Visibility( GIsDemoMode ? EVisibility::Collapsed : EVisibility::HitTestInvisible )
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Bottom)
+				[
+					SNew( STextBlock )
+						.Text( LOCTEXT("UObjectCountLabel", "Objs: ") )
+						.Font( LabelFont )
+						.ColorAndOpacity( FLinearColor( 0.3f, 0.3f, 0.3f ) )
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Bottom)
+				[
+					SNew( STextBlock )
+						.Text_Static( &Local::GetUObjectCountAsString )
+						.Font(NormalFixedFont)
+						.ColorAndOpacity( FLinearColor( 0.6f, 0.6f, 0.6f ) )
+				]
+		]
+	;
 
 
 	// Invisible border, so that we can animate our box panel size
@@ -401,8 +452,20 @@ TSharedRef<SWidget> FMainFrameModule::MakeDeveloperTools( const TArray<FMainFram
 			.AutoWidth()
 			.Padding( 0.0f )
 			[
-				DeveloperToolWidget
+				FrameRateAndMemoryWidget
 			]
+			
+			//+ SHorizontalBox::Slot()
+			//.AutoWidth()
+			//.VAlign(VAlign_Bottom)
+			//.Padding( 0.0f )
+			//[
+			//	SNew(SBox)
+			//	.Padding( FMargin( 4.0f, 0.0f, 0.0f, 0.0f ) )
+			//	[
+			//		OutputLogModule.MakeConsoleInputBox( ExposedEditableTextBox )
+			//	]
+			//]
 		];
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -461,6 +524,13 @@ void FMainFrameModule::StartupModule( )
 
 void FMainFrameModule::ShutdownModule( )
 {
+	FOutputLogModule* OutputLogModule = FModuleManager::GetModulePtr< FOutputLogModule >(TEXT("OutputLog"));
+	if (OutputLogModule)
+	{
+		TSharedPtr<FConsoleCommandExecutor> CmdExec = MakeShared<FConsoleCommandExecutor>();
+		OutputLogModule->RemoveActiveCommandExecutor(CmdExec);
+	}
+
 	// Destroy the main frame window
 	TSharedPtr< SWindow > ParentWindow( GetParentWindow() );
 	if( ParentWindow.IsValid() )

@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "ComponentVisualizer.h"
-#include "PointLightComponentVisualizer.h"
 
 class FPrimitiveDrawInterface;
 class FSceneView;
@@ -15,7 +14,4 @@ public:
 	//~ Begin FComponentVisualizer Interface
 	virtual void DrawVisualization(const UActorComponent* Component, const FSceneView* View, FPrimitiveDrawInterface* PDI) override;
 	//~ End FComponentVisualizer Interface
-
-private:
-	FTextureLightProfileVisualizer LightProfileVisualizer;
 };

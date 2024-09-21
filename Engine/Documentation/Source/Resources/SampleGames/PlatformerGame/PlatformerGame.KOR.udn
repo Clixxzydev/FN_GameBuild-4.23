@@ -1,11 +1,15 @@
-﻿INTSourceChangelist:6666880
+﻿INTSourceChangelist:3782314
 Availability: Public
 Title:플랫포머 게임 샘플
 Crumbs:%ROOT%, Resources
 Description:UE4 로 횡스크롤 플랫포머 게임을 제작해 보는 예제입니다.
 Version: 4.9
 topic-image:Platformer_Topic.png
-hero-image:PlatGame_Hero.png
+
+
+[REGION:fullwidth]
+![](platformer_game.png)
+[/REGION]
 
 [TOC(start:2)]
 

@@ -49,7 +49,7 @@ public:
 	 */
 	void SetParameters(FRHICommandList& RHICmdList, const FTexture* NormalMapTexture)
 	{
-		FRHIPixelShader* PixelShaderRHI = GetPixelShader();
+		FPixelShaderRHIParamRef PixelShaderRHI = GetPixelShader();
 		SetTextureParameter(RHICmdList, PixelShaderRHI,Texture,TextureSampler,NormalMapTexture);
 	}
 

@@ -90,7 +90,6 @@ private:
 	TArray<FObjectRecord> ObjectStack;
 	TArray<TSharedPtr<FJsonValue>> ValueStack;
 	TArray<TMap<FString, TSharedPtr<FJsonValue>>::TIterator> MapIteratorStack;
-	TArray<int32> ArrayValuesRemainingStack;
 
 	static FString EscapeFieldName(const TCHAR* Name);
 	static FString UnescapeFieldName(const TCHAR* Name);

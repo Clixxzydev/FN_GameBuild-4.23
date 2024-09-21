@@ -1227,12 +1227,12 @@ void FHotReloadModule::RegisterForReinstancing(UClass* OldClass, UClass* NewClas
 	Pair.Value = NewClass;
 
 	// Don't allow reinstancing of UEngine classes
-	if (!OldClass->IsChildOf(UEngine::StaticClass()))
+	if (!OldClass->IsChildOf(UEngine::StaticClass()) || !(Flags & EHotReloadedClassFlags::Changed))
 	{
 		TArray<TPair<UClass*, UClass*> >& ClassesToReinstance = GetClassesToReinstance();
 		ClassesToReinstance.Add(MoveTemp(Pair));
 	}
-	else if (EnumHasAnyFlags(Flags, EHotReloadedClassFlags::Changed))
+	else
 	{
 		UE_LOG(LogHotReload, Warning, TEXT("Engine class '%s' has changed but will be ignored for hot reload"), *NewClass->GetName());
 	}

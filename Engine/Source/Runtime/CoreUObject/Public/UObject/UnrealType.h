@@ -7,27 +7,24 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
-#include "Concepts/GetTypeHashable.h"
-#include "Containers/List.h"
-#include "Serialization/SerializedPropertyScope.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/UObjectGlobals.h"
+#include "UObject/Object.h"
+#include "UObject/Class.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/CoreNetTypes.h"
+#include "UObject/ScriptInterface.h"
+#include "UObject/SparseDelegate.h"
 #include "Templates/Casts.h"
-#include "Templates/Greater.h"
 #include "Templates/IsFloatingPoint.h"
 #include "Templates/IsIntegral.h"
 #include "Templates/IsSigned.h"
-#include "Templates/Models.h"
-#include "UObject/Class.h"
-#include "UObject/CoreNetTypes.h"
+#include "Templates/Greater.h"
+#include "Containers/List.h"
 #include "UObject/LazyObjectPtr.h"
-#include "UObject/Object.h"
-#include "UObject/ObjectMacros.h"
-#include "UObject/PropertyTag.h"
-#include "UObject/ScriptInterface.h"
 #include "UObject/SoftObjectPtr.h"
-#include "UObject/SparseDelegate.h"
-#include "UObject/UObjectGlobals.h"
-#include "UObject/WeakObjectPtr.h"
+#include "UObject/PropertyTag.h"
+#include "Serialization/SerializedPropertyScope.h"
 
 COREUOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogType, Log, All);
 
@@ -970,7 +967,7 @@ protected:
 			(TIsPODType<TCppType>::Value ? CPF_IsPlainOldData : CPF_None) 
 			| (TIsTriviallyDestructible<TCppType>::Value ? CPF_NoDestructor : CPF_None) 
 			| (TIsZeroConstructType<TCppType>::Value ? CPF_ZeroConstructor : CPF_None)
-			| (TModels<CGetTypeHashable, TCppType>::Value ? CPF_HasGetValueTypeHash : CPF_None);
+			| (THasGetTypeHash<TCppType>::Value ? CPF_HasGetValueTypeHash : CPF_None);
 
 	}
 };
@@ -2885,21 +2882,8 @@ public:
 	{
 		Array->SwapMemory(A, B, ElementSize);
 	}
-
 	/**
-	 *	Move the allocation from another array and make it our own.
-	 *	@note The arrays MUST be of the same type, and this function will NOT validate that!
-	 *	@param InOtherArray The array to move the allocation from.
-	**/
-	void MoveAssign(void* InOtherArray)
-	{
-		FScriptArray* OtherArray = (FScriptArray*)InOtherArray;
-		checkSlow(OtherArray);
-		Array->MoveAssign(*OtherArray, ElementSize);
-	}
-
-	/**
-	 *	Used by memory counting archives to accumulate the size of this array.
+	 *	Used by memory counting archives to accumlate the size of this array.
 	 *	@param Ar archive to accumulate sizes
 	**/
 	void CountBytes( FArchive& Ar  ) const
@@ -3159,19 +3143,6 @@ public:
 	}
 
 	/**
-	 * Move the allocation from another map and make it our own.
-	 * @note The maps MUST be of the same type, and this function will NOT validate that!
-	 *
-	 * @param InOtherMap The map to move the allocation from.
-	 */
-	void MoveAssign(void* InOtherMap)
-	{
-		FScriptMap* OtherMap = (FScriptMap*)InOtherMap;
-		checkSlow(OtherMap);
-		Map->MoveAssign(*OtherMap, MapLayout);
-	}
-
-	/**
 	 * Add an uninitialized value to the end of the map.
 	 *
 	 * @return  The index of the added element.
@@ -3263,33 +3234,6 @@ public:
 	 * This function must be called to create a valid map.
 	 */
 	COREUOBJECT_API void Rehash();
-
-	/** 
-	 * Maps have gaps in their indices, so this function translates a logical index (ie. Nth element) 
-	 * to an internal index that can be used for the other functions in this class.
-	 * NOTE: This is slow, do not use this for iteration!
-	 */
-	int32 FindInternalIndex(int32 LogicalIdx) const
-	{
-		if (LogicalIdx < 0 && LogicalIdx > Num())
-		{
-			return INDEX_NONE;
-		}
-
-		int32 MaxIndex = GetMaxIndex();
-		for (int32 Actual = 0; Actual < MaxIndex; ++Actual)
-		{
-			if (IsValidIndex(Actual))
-			{
-				if (LogicalIdx == 0)
-				{
-					return Actual;
-				}
-				--LogicalIdx;
-			}
-		}
-		return INDEX_NONE;
-	}
 
 	/**
 	 * Finds the index of an element in a map which matches the key in another pair.
@@ -3749,19 +3693,6 @@ public:
 	}
 
 	/**
-	* Move the allocation from another set and make it our own.
-	* @note The sets MUST be of the same type, and this function will NOT validate that!
-	*
-	* @param InOtherSet The set to move the allocation from.
-	*/
-	void MoveAssign(void* InOtherSet)
-	{
-		FScriptSet* OtherSet = (FScriptSet*)InOtherSet;
-		checkSlow(OtherSet);
-		Set->MoveAssign(*OtherSet, SetLayout);
-	}
-
-	/**
 	* Add an uninitialized value to the end of the set.
 	*
 	* @return  The index of the added element.
@@ -3842,33 +3773,6 @@ public:
 	*/
 	COREUOBJECT_API void Rehash();
 
-	/**
-	 * Maps have gaps in their indices, so this function translates a logical index (ie. Nth element)
-	 * to an internal index that can be used for the other functions in this class.
-	 * NOTE: This is slow, do not use this for iteration!
-	 */
-	int32 FindInternalIndex(int32 LogicalIdx) const
-	{
-		if (LogicalIdx < 0 && LogicalIdx > Num())
-		{
-			return INDEX_NONE;
-		}
-
-		int32 MaxIndex = GetMaxIndex();
-		for (int32 Actual = 0; Actual < MaxIndex; ++Actual)
-		{
-			if (IsValidIndex(Actual))
-			{
-				if (LogicalIdx == 0)
-				{
-					return Actual;
-				}
-				--LogicalIdx;
-			}
-		}
-		return INDEX_NONE;
-	}
-	
 	/**
 	* Finds the index of an element in a set
 	*
@@ -4439,9 +4343,6 @@ public:
 protected:
 	virtual FMulticastScriptDelegate::FInvocationList& GetInvocationList(const void* PropertyValue) const;
 	// End of UMulticastDelegateProperty interface
-
-private:
-	virtual void SerializeItemInternal(FArchive& Ar, void* Value, void const* Defaults) const;
 };
 
 /** Describes a single node in a custom property list. */

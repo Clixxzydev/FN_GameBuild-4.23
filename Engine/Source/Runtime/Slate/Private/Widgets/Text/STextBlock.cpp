@@ -8,9 +8,6 @@
 #include "Rendering/DrawElements.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Fonts/FontMeasure.h"
-#if WITH_ACCESSIBILITY
-#include "Widgets/Accessibility/SlateAccessibleWidgets.h"
-#endif
 
 DECLARE_CYCLE_STAT(TEXT("STextBlock::SetText Time"), Stat_SlateTextBlockSetText, STATGROUP_SlateVerbose)
 DECLARE_CYCLE_STAT(TEXT("STextBlock::OnPaint Time"), Stat_SlateTextBlockOnPaint, STATGROUP_SlateVerbose)
@@ -22,10 +19,6 @@ STextBlock::STextBlock()
 	SetCanTick(false);
 	bCanSupportFocus = false;
 	bSimpleTextMode = false;
-
-#if WITH_ACCESSIBILITY
-	AccessibleData = FAccessibleWidgetData(EAccessibleBehavior::Auto, EAccessibleBehavior::Auto, false);
-#endif
 }
 
 STextBlock::~STextBlock()
@@ -187,6 +180,7 @@ void STextBlock::SetHighlightText(TAttribute<FText> InText)
 int32 STextBlock::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const
 {
 	SCOPE_CYCLE_COUNTER(Stat_SlateTextBlockOnPaint);
+	//SCOPED_NAMED_EVENT_TEXT("STextBlock", FColor::Orange);
 
 	if (bSimpleTextMode)
 	{
@@ -198,16 +192,10 @@ int32 STextBlock::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 		const bool bShouldBeEnabled = ShouldBeEnabled(bParentEnabled);
 
 		const FText& LocalText = GetText();
-		FSlateFontInfo LocalFont = GetFont();
+		const FSlateFontInfo LocalFont = GetFont();
 
 		if (ShouldDropShadow)
 		{
-			const int32 OutlineSize = LocalFont.OutlineSettings.OutlineSize;
-			if (!LocalFont.OutlineSettings.bApplyOutlineToDropShadows)
-			{
-				LocalFont.OutlineSettings.OutlineSize = 0;
-			}
-
 			FSlateDrawElement::MakeText(
 				OutDrawElements,
 				LayerId,
@@ -217,9 +205,6 @@ int32 STextBlock::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 				bShouldBeEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect,
 				InWidgetStyle.GetColorAndOpacityTint() * LocalShadowColorAndOpacity
 			);
-
-			// Restore outline size for main text
-			LocalFont.OutlineSettings.OutlineSize = OutlineSize;
 
 			// actual text should appear above the shadow
 			++LayerId;
@@ -238,27 +223,13 @@ int32 STextBlock::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeom
 	}
 	else
 	{
-		const FVector2D LastDesiredSize = TextLayoutCache->GetDesiredSize();
-
-		// If we're performing layout caching, it's possible nobody ever called GetDesiredSize(),
-		// which for textblocks is required to be called, since CDS is where it actually generates
-		// a lot for the text layout.
-		if (GSlateLayoutCaching)
-		{
-			GetDesiredSize();
-		}
-
 		// OnPaint will also update the text layout cache if required
 		LayerId = TextLayoutCache->OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, ShouldBeEnabled(bParentEnabled));
-
-		const FVector2D NewDesiredSize = TextLayoutCache->GetDesiredSize();
 
 		// HACK: Due to the nature of wrapping and layout, we may have been arranged in a different box than what we were cached with.  Which
 		// might update wrapping, so make sure we always set the desired size to the current size of the text layout, which may have changed
 		// during paint.
-		bool bCanWrap = WrapTextAt.Get() > 0 || AutoWrapText.Get();
-
-		if (bCanWrap && !NewDesiredSize.Equals(LastDesiredSize))
+		if (TextLayoutCache->GetDesiredSize().Y > GetDesiredSize().Y)
 		{
 			const_cast<STextBlock*>(this)->Invalidate(EInvalidateWidget::Layout);
 		}
@@ -480,16 +451,3 @@ FTextBlockStyle STextBlock::GetComputedTextStyle() const
 	ComputedStyle.SetHighlightShape( *GetHighlightShape() );
 	return ComputedStyle;
 }
-
-#if WITH_ACCESSIBILITY
-TSharedRef<FSlateAccessibleWidget> STextBlock::CreateAccessibleWidget()
-{
-	return MakeShareable<FSlateAccessibleWidget>(new FSlateAccessibleTextBlock(SharedThis(this)));
-}
-
-void STextBlock::SetDefaultAccessibleText(EAccessibleType AccessibleType)
-{
-	TAttribute<FText>& Text = (AccessibleType == EAccessibleType::Main) ? AccessibleData.AccessibleText : AccessibleData.AccessibleSummaryText;
-	Text.Bind(this, &STextBlock::GetTextCopy);
-}
-#endif

@@ -10,7 +10,6 @@ using System.IO;
 using Microsoft.Win32;
 using System.Xml.Linq;
 using Tools.DotNETCommon;
-using System.Security.Cryptography;
 
 namespace UnrealBuildTool
 {
@@ -62,7 +61,7 @@ namespace UnrealBuildTool
 		private string UPLHashCode = null;
 		private bool ARCorePluginEnabled = false;
 		private bool FacebookPluginEnabled = false;
-		private bool OculusMobilePluginEnabled = false;
+		private bool GearVRPluginEnabled = false;
 		private bool GoogleVRPluginEnabled = false;
 		private bool CrashlyticsPluginEnabled = false;
 
@@ -78,7 +77,7 @@ namespace UnrealBuildTool
 			ARCorePluginEnabled = false;
 			FacebookPluginEnabled = false;
 			GoogleVRPluginEnabled = false;
-			OculusMobilePluginEnabled = false;
+			GearVRPluginEnabled = false;
 			CrashlyticsPluginEnabled = false;
 			foreach (string Plugin in inPluginExtraData)
 			{
@@ -96,10 +95,10 @@ namespace UnrealBuildTool
 					continue;
 				}
 
-				// check if the Oculus Mobile plugin was enabled
-				if (Plugin.Contains("OculusMobile_APL"))
+				// check if the Gear VR plugin was enabled
+				if (Plugin.Contains("GearVR_APL"))
 				{
-					OculusMobilePluginEnabled = true;
+					GearVRPluginEnabled = true;
 					continue;
 				}
 
@@ -452,12 +451,12 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public List<string> GetTargetOculusMobileDevices(ConfigHierarchy Ini = null)
+		public bool IsPackagingForGearVR(ConfigHierarchy Ini = null)
 		{
-			// always false if the Oculus Mobile plugin wasn't enabled
-			if (!OculusMobilePluginEnabled)
+			// always false if the Gear VR plugin wasn't enabled
+			if (!GearVRPluginEnabled)
 			{
-				return new List<string>();
+				return false;
 			}
 
 			// make a new one if one wasn't passed in
@@ -466,30 +465,10 @@ namespace UnrealBuildTool
 				Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
 			}
 
-			List<string> OculusMobileDevices;
-			bool result = Ini.GetArray("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "PackageForOculusMobile", out OculusMobileDevices);
-			if (!result || OculusMobileDevices == null)
-			{
-				OculusMobileDevices = new List<string>();
-			}
-
-			// Handle bPackageForGearVR for backwards compatibility
 			bool bPackageForGearVR = false;
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bPackageForGearVR", out bPackageForGearVR);
-			if (bPackageForGearVR && !OculusMobileDevices.Contains("GearGo"))
-			{
-				OculusMobileDevices.Add("GearGo");
-			}
 
-			return OculusMobileDevices;
-		}
-
-		public bool IsPackagingForOculusMobile(ConfigHierarchy Ini = null)
-		{
-			List<string> TargetOculusDevices = GetTargetOculusMobileDevices(Ini);
-			bool bTargetOculusDevices = (TargetOculusDevices != null && TargetOculusDevices.Count() > 0);
-
-			return bTargetOculusDevices;
+			return bPackageForGearVR;
 		}
 
 		public bool DisableVerifyOBBOnStartUp(ConfigHierarchy Ini = null)
@@ -869,11 +848,8 @@ namespace UnrealBuildTool
 		}
 
 		private int CachedStoreVersion = -1;
-		private int CachedStoreVersionOffsetArmV7 = 0;
-		private int CachedStoreVersionOffsetArm64 = 0;
-		private int CachedStoreVersionOffsetX8664= 0;
 
-		public int GetStoreVersion(string UE4Arch)
+		public int GetStoreVersion()
 		{
 			if (CachedStoreVersion < 1)
 			{
@@ -904,17 +880,6 @@ namespace UnrealBuildTool
 				Log.TraceInformation("GotStoreVersion found v{0}. (bUseChangeListAsStoreVersion={1} IsBuildMachine={2} EngineChangeList={3})", StoreVersion, bUseChangeListAsStoreVersion, IsBuildMachine, EngineChangelist);
 
 				CachedStoreVersion = StoreVersion;
-
-				Ini.GetInt32("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "StoreVersionOffsetArmV7", out CachedStoreVersionOffsetArmV7);
-				Ini.GetInt32("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "StoreVersionOffsetArm64", out CachedStoreVersionOffsetArm64);
-				Ini.GetInt32("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "StoreVersionOffsetX8664", out CachedStoreVersionOffsetX8664);
-			}
-
-			switch (UE4Arch)
-			{
-				case "-armv7": return CachedStoreVersion + CachedStoreVersionOffsetArmV7;
-				case "-arm64": return CachedStoreVersion + CachedStoreVersionOffsetArm64;
-				case "-x64": return CachedStoreVersion + CachedStoreVersionOffsetX8664;
 			}
 
 			return CachedStoreVersion;
@@ -963,7 +928,7 @@ namespace UnrealBuildTool
 			return CachedVersionDisplayName;
 		}
 
-		public void WriteJavaOBBDataFile(string FileName, string PackageName, List<string> ObbSources, string CookFlavor, bool bPackageDataInsideApk, string UE4Arch)
+		public void WriteJavaOBBDataFile(string FileName, string PackageName, List<string> ObbSources, string CookFlavor, bool bPackageDataInsideApk)
 		{
 			Log.TraceInformation("\n==== Writing to OBB data file {0} ====", FileName);
 
@@ -977,7 +942,7 @@ namespace UnrealBuildTool
 //				AppType = ".Client";		// should always be empty now; fix up the name in batch file instead
 			}
 
-			int StoreVersion = GetStoreVersion(UE4Arch);
+			int StoreVersion = GetStoreVersion();
 
 			StringBuilder obbData = new StringBuilder("package " + PackageName + ";\n\n");
 			obbData.Append("public class OBBData\n{\n");
@@ -1072,9 +1037,9 @@ namespace UnrealBuildTool
 			ShimFileContent.Append("\tpublic static Class<DownloaderActivity> GetDownloaderType() { return DownloaderActivity.class; }\n");
 
 			// Do OBB file checking without using DownloadActivity to avoid transit to another activity
-			ShimFileContent.Append("\tpublic static boolean expansionFilesDelivered(Activity activity, int version) {\n");
+			ShimFileContent.Append("\tpublic static boolean expansionFilesDelivered(Activity activity) {\n");
 			ShimFileContent.Append("\t\tfor (OBBData.XAPKFile xf : OBBData.xAPKS) {\n");
-			ShimFileContent.Append("\t\t\tString fileName = Helpers.getExpansionAPKFileName(activity, xf.mIsMain, Integer.toString(version), OBBData.AppType);\n");
+			ShimFileContent.Append("\t\t\tString fileName = Helpers.getExpansionAPKFileName(activity, xf.mIsMain, xf.mFileVersion, OBBData.AppType);\n");
 			ShimFileContent.Append("\t\t\tGameActivity.Log.debug(\"Checking for file : \" + fileName);\n");
 			ShimFileContent.Append("\t\t\tString fileForNewFile = Helpers.generateSaveFileName(activity, fileName);\n");
 			ShimFileContent.Append("\t\t\tString fileForDevFile = Helpers.generateSaveFileNameDevelopment(activity, fileName);\n");
@@ -1155,7 +1120,7 @@ namespace UnrealBuildTool
 			}
 		}
 
-		public void WriteCrashlyticsResources(string UEBuildPath, string PackageName, string ApplicationDisplayName, bool bIsEmbedded, string UE4Arch)
+		public void WriteCrashlyticsResources(string UEBuildPath, string PackageName, string ApplicationDisplayName, bool bIsEmbedded)
 		{
 			System.DateTime CurrentDateTime = System.DateTime.Now;
 			string BuildID = Guid.NewGuid().ToString();
@@ -1172,7 +1137,7 @@ namespace UnrealBuildTool
 			CrashPropertiesContent.Append("version_name=" + VersionDisplayName + "\n");
 			CrashPropertiesContent.Append("package_name=" + PackageName + "\n");
 			CrashPropertiesContent.Append("build_id=" + BuildID + "\n");
-			CrashPropertiesContent.Append("version_code=" + GetStoreVersion(UE4Arch).ToString() + "\n");
+			CrashPropertiesContent.Append("version_code=" + GetStoreVersion().ToString() + "\n");
 
 			string CrashPropertiesFileName = Path.Combine(UEBuildPath, "assets", "crashlytics-build.properties");
 			MakeDirectoryIfRequired(CrashPropertiesFileName);
@@ -1665,7 +1630,7 @@ namespace UnrealBuildTool
 		}
 
 
-		private string GetAllBuildSettings(AndroidToolChain ToolChain, string BuildPath, bool bForDistribution, bool bMakeSeparateApks, bool bPackageDataInsideApk, bool bDisableVerifyOBBOnStartUp, bool bUseExternalFilesDir, bool bGradleEnabled, string TemplatesHashCode)
+		private string GetAllBuildSettings(AndroidToolChain ToolChain, string BuildPath, bool bForDistribution, bool bMakeSeparateApks, bool bPackageDataInsideApk, bool bDisableVerifyOBBOnStartUp, bool bUseExternalFilesDir, bool bGradleEnabled)
 		{
 			// make the settings string - this will be char by char compared against last time
 			StringBuilder CurrentSettings = new StringBuilder();
@@ -1681,7 +1646,6 @@ namespace UnrealBuildTool
 			CurrentSettings.AppendLine(string.Format("bDisableVerifyOBBOnStartUp={0}", bDisableVerifyOBBOnStartUp));
 			CurrentSettings.AppendLine(string.Format("bUseExternalFilesDir={0}", bUseExternalFilesDir));
 			CurrentSettings.AppendLine(string.Format("UPLHashCode={0}", UPLHashCode));
-			CurrentSettings.AppendLine(string.Format("TemplatesHashCode={0}", TemplatesHashCode));
 
 			// all AndroidRuntimeSettings ini settings in here
 			ConfigHierarchy Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
@@ -1696,7 +1660,7 @@ namespace UnrealBuildTool
 						continue;
 					}
 
-					IReadOnlyList<string> Values;
+					IEnumerable<string> Values;
 					Section.TryGetValues(Key, out Values);
 
 					foreach (string Value in Values)
@@ -1717,7 +1681,7 @@ namespace UnrealBuildTool
 						continue;
 					}
 
-					IReadOnlyList<string> Values;
+					IEnumerable<string> Values;
 					Section.TryGetValues(Key, out Values);
 					foreach (string Value in Values)
 					{
@@ -1987,11 +1951,11 @@ namespace UnrealBuildTool
 			ConfigHierarchy Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
 			bool bShowLaunchImage = false;
 			Ini.GetBool("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "bShowLaunchImage", out bShowLaunchImage);
-			bool bPackageForOculusMobile = IsPackagingForOculusMobile(Ini); ;
+			bool bPackageForGearVR = IsPackagingForGearVR(Ini); ;
 			bool bPackageForDaydream = IsPackagingForDaydream(Ini);
 			
-			//override the parameters if we are not showing a launch image or are packaging for Oculus Mobile and Daydream
-			if (bPackageForOculusMobile || bPackageForDaydream || !bShowLaunchImage)
+			//override the parameters if we are not showing a launch image or are packaging for Gear VR and Daydream
+			if (bPackageForGearVR || bPackageForDaydream || !bShowLaunchImage)
 			{
 				bNeedPortrait = bNeedLandscape = false;
 			}
@@ -2191,7 +2155,7 @@ namespace UnrealBuildTool
 			// Read the engine version
 			string EngineVersion = ReadEngineVersion();
 
-			int StoreVersion = GetStoreVersion(UE4Arch);
+			int StoreVersion = GetStoreVersion();
 
 			string Arch = GetNDKArch(UE4Arch);
 			int NDKLevelInt = 0;
@@ -2236,7 +2200,7 @@ namespace UnrealBuildTool
 			Ini.GetString("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "ExtraApplicationSettings", out ExtraApplicationSettings);
 			List<string> ExtraPermissions;
 			Ini.GetArray("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings", "ExtraPermissions", out ExtraPermissions);
-			bool bPackageForOculusMobile = IsPackagingForOculusMobile(Ini);
+			bool bPackageForGearVR = IsPackagingForGearVR(Ini);
 			bool bEnableIAP = false;
 			Ini.GetBool("OnlineSubsystemGooglePlay.Store", "bSupportsInAppPurchasing", out bEnableIAP);
 			bool bShowLaunchImage = false;
@@ -2281,22 +2245,22 @@ namespace UnrealBuildTool
 			// only apply density to configChanges if using android-24 or higher and minimum sdk is 17
 			bool bAddDensity = (SDKLevelInt >= 24) && (MinSDKVersion >= 17);
 
-			// disable Oculus Mobile if not supported platform (in this case only armv7 for now)
+			// disable Gear VR if not supported platform (in this case only armv7 for now)
 			if (UE4Arch != "-armv7" && UE4Arch != "-arm64")
 			{
-				if (bPackageForOculusMobile)
+				if (bPackageForGearVR)
 				{
-					Log.TraceInformation("Disabling Package For Oculus Mobile for unsupported architecture {0}", UE4Arch);
-					bPackageForOculusMobile = false;
+					Log.TraceInformation("Disabling Package For Gear VR for unsupported architecture {0}", UE4Arch);
+					bPackageForGearVR = false;
 				}
 			}
 
-			// disable splash screen for Oculus Mobile (for now)
-			if (bPackageForOculusMobile)
+			// disable splash screen for Gear VR (for now)
+			if (bPackageForGearVR)
 			{
 				if (bShowLaunchImage)
 				{
-					Log.TraceInformation("Disabling Show Launch Image for Oculus Mobile enabled application");
+					Log.TraceInformation("Disabling Show Launch Image for Gear VR enabled application");
 					bShowLaunchImage = false;
 				}
 			}
@@ -2618,7 +2582,7 @@ namespace UnrealBuildTool
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.GET_ACCOUNTS\"/>");
 				}
 
-				if(!bPackageForOculusMobile)
+				if(!bPackageForGearVR)
 				{
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.MODIFY_AUDIO_SETTINGS\"/>");
 					Text.AppendLine("\t<uses-permission android:name=\"android.permission.VIBRATE\"/>");
@@ -3125,7 +3089,7 @@ namespace UnrealBuildTool
 			// Create gradle.properties
 			StringBuilder GradleProperties = new StringBuilder();
 
-			int StoreVersion = GetStoreVersion(GetUE4Arch(NDKArch));
+			int StoreVersion = GetStoreVersion();
 			string VersionDisplayName = GetVersionDisplayName(bIsEmbedded);
 
 			ConfigHierarchy Ini = GetConfigCacheIni(ConfigHierarchyType.Engine);
@@ -3165,10 +3129,10 @@ namespace UnrealBuildTool
 			{
 				bool bDisableV2Signing = false;
 
-				if (GetTargetOculusMobileDevices().Contains("GearGo"))
+				if (IsPackagingForGearVR())
 				{
 					bDisableV2Signing = true;
-					Log.TraceInformation("Disabling v2Signing for Oculus Go / Gear VR APK");
+					Log.TraceInformation("Disabling v2Signing for Gear VR APK");
 				}
 
 				string KeyAlias, KeyStore, KeyStorePassword, KeyPassword;
@@ -3387,10 +3351,6 @@ namespace UnrealBuildTool
 			string UE4OBBDataFileName = GetUE4JavaOBBDataFileName(TemplateDestinationBase);
 			string UE4DownloadShimFileName = GetUE4JavaDownloadShimFileName(UE4JavaFilePath);
 
-			// Get list of all architecture and GPU targets for build
-			List<string> Arches = ToolChain.GetAllArchitectures();
-			List<string> GPUArchitectures = ToolChain.GetAllGPUArchitectures();
-
 			// Template generated files
 			string JavaTemplateSourceDir = GetUE4TemplateJavaSourceDir(EngineDirectory);
 			IEnumerable<TemplateFile> templates = from template in Directory.EnumerateFiles(JavaTemplateSourceDir, "*.template")
@@ -3407,7 +3367,7 @@ namespace UnrealBuildTool
 			}
 
 			// Generate the OBBData.java file if out of date (can skip rewriting it if packaging inside Apk in some cases)
-			WriteJavaOBBDataFile(UE4OBBDataFileName, PackageName, RequiredOBBFiles, CookFlavor, bPackageDataInsideApk, Arches[0]);
+			WriteJavaOBBDataFile(UE4OBBDataFileName, PackageName, RequiredOBBFiles, CookFlavor, bPackageDataInsideApk);
 
 			// Make sure any existing proguard file in project is NOT used (back it up)
 			string ProjectBuildProguardFile = Path.Combine(GameBuildFilesPath, "proguard-project.txt");
@@ -3503,8 +3463,7 @@ namespace UnrealBuildTool
 
 
 			// check to see if any "meta information" is newer than last time we build
-			string TemplatesHashCode = GenerateTemplatesHashCode(EngineDirectory);
-			string CurrentBuildSettings = GetAllBuildSettings(ToolChain, UE4BuildPath, bForDistribution, bMakeSeparateApks, bPackageDataInsideApk, bDisableVerifyOBBOnStartUp, bUseExternalFilesDir, bGradleEnabled, TemplatesHashCode);
+			string CurrentBuildSettings = GetAllBuildSettings(ToolChain, UE4BuildPath, bForDistribution, bMakeSeparateApks, bPackageDataInsideApk, bDisableVerifyOBBOnStartUp, bUseExternalFilesDir, bGradleEnabled);
 			string BuildSettingsCacheFile = Path.Combine(UE4BuildPath, "UEBuildSettings.txt");
 
 			// do we match previous build settings?
@@ -3516,6 +3475,13 @@ namespace UnrealBuildTool
 			{
 				bBuildSettingsMatch = false;
 				Log.TraceInformation("Application display name is different than last build, forcing repackage.");
+			}
+
+			// Write Crashlytics data if enabled (not needed for Gradle)
+			if (CrashlyticsPluginEnabled && !bGradleEnabled)
+			{
+				Trace.TraceInformation("Writing Crashlytics resources");
+				WriteCrashlyticsResources(Path.Combine(ProjectDirectory, "Build", "Android"), PackageName, ApplicationDisplayName, bSkipGradleBuild);
 			}
 
 			// if the manifest matches, look at other settings stored in a file
@@ -3548,6 +3514,9 @@ namespace UnrealBuildTool
 					EngineDirectory, JavaFiles, CookFlavor, OutputPath, UE4BuildPath, bMakeSeparateApks, bPackageDataInsideApk);
 
 			}
+
+			List<string> Arches = ToolChain.GetAllArchitectures();
+			List<string> GPUArchitectures = ToolChain.GetAllGPUArchitectures();
 
 			// Initialize UPL contexts for each architecture enabled
 			List<string> NDKArches = new List<string>();
@@ -3763,17 +3732,7 @@ namespace UnrealBuildTool
 
 					// modify the generated build.xml before the final include
 					UpdateBuildXML(Arch, NDKArch, EngineDirectory, UE4BuildPath);
-
-					// Write Crashlytics data if enabled (not needed for Gradle)
-					if (CrashlyticsPluginEnabled)
-					{
-						Trace.TraceInformation("Writing Crashlytics resources");
-						WriteCrashlyticsResources(Path.Combine(ProjectDirectory, "Build", "Android"), PackageName, ApplicationDisplayName, bSkipGradleBuild, Arch);
-					}
 				}
-
-				// Generate the OBBData.java file again in case architecture has different store version
-				WriteJavaOBBDataFile(UE4OBBDataFileName, PackageName, RequiredOBBFiles, CookFlavor, bPackageDataInsideApk, Arch);
 
 				// update GameActivity.java and GameApplication.java if out of date
 				UpdateGameActivity(Arch, NDKArch, EngineDirectory, UE4BuildPath);
@@ -3844,35 +3803,6 @@ namespace UnrealBuildTool
 								Directory.CreateDirectory(LibDir);
 								// copy the binary to the standard .so location
 								File.Copy(SourceSOName, FinalSOName, true);
-							}
-
-							// remove any read only flags
-							FileInfo DestFileInfo2 = new FileInfo(FinalSOName);
-							DestFileInfo2.Attributes = DestFileInfo2.Attributes & ~FileAttributes.ReadOnly;
-							File.SetLastWriteTimeUtc(FinalSOName, File.GetLastWriteTimeUtc(SourceSOName));
-
-							// run ndk-build for Ant (will stage libUE4.so into libs)
-							string LibSOName = UE4BuildPath + "/libs/" + NDKArch + "/libUE4.so";
-
-							// always delete libs up to this point so fat binaries and incremental builds work together (otherwise we might end up with multiple
-							// so files in an apk that doesn't want them)
-							// note that we don't want to delete all libs, just the ones we copied
-							TimeSpan Diff = File.GetLastWriteTimeUtc(LibSOName) - File.GetLastWriteTimeUtc(FinalSOName);
-							if (!File.Exists(LibSOName) || Diff.TotalSeconds < -1 || Diff.TotalSeconds > 1)
-							{
-								foreach (string Lib in Directory.EnumerateFiles(UE4BuildPath + "/libs", "libUE4*.so", SearchOption.AllDirectories))
-								{
-									File.Delete(Lib);
-								}
-
-								string CommandLine = "APP_ABI=\"" + NDKArch + " " + "\"";
-								if (!bForDistribution)
-								{
-									CommandLine += " NDK_DEBUG=1";
-								}
-								RunCommandLineProgramWithException(UE4BuildPath, NDKBuildPath, CommandLine, "Preparing native code for debugging...", true);
-
-								File.SetLastWriteTimeUtc(LibSOName, File.GetLastWriteTimeUtc(FinalSOName));
 							}
 						}
 						else
@@ -4128,7 +4058,7 @@ namespace UnrealBuildTool
 					if (bSaveSymbols || (Configuration == UnrealTargetConfiguration.Shipping && bBuildWithHiddenSymbolVisibility))
 					{
 						// Copy .so with symbols to 
-						int StoreVersion = GetStoreVersion(Arch);
+						int StoreVersion = GetStoreVersion();
 						string SymbolSODirectory = Path.Combine(DestApkDirectory, ProjectName + "_Symbols_v" + StoreVersion + "/" + ProjectName + Arch + GPUArchitecture);
 						string SymbolifiedSOPath = Path.Combine(SymbolSODirectory, Path.GetFileName(FinalSOName));
 						MakeDirectoryIfRequired(SymbolifiedSOPath);
@@ -4238,7 +4168,7 @@ namespace UnrealBuildTool
 
 			string[] PackageInfoSource = new string[4];
 			PackageInfoSource[0] = PackageName;
-			PackageInfoSource[1] = GetStoreVersion("").ToString();
+			PackageInfoSource[1] = GetStoreVersion().ToString();
 			PackageInfoSource[2] = GetVersionDisplayName(bIsEmbedded);
 			PackageInfoSource[3] = string.Format("name='com.epicgames.ue4.GameActivity.AppType' value='{0}'", InTargetType == TargetType.Game ? "" : InTargetType.ToString());
 
@@ -4342,53 +4272,6 @@ namespace UnrealBuildTool
 				Log.TraceInformation("\n==== Writing new build.xml file to {0} ====", DestFilename);
 				File.WriteAllLines(DestFilename, TemplateSrc);
 			}
-		}
-
-		private string GenerateTemplatesHashCode(string EngineDir)
-		{
-			string SourceDirectory = Path.Combine(EngineDir, "Build", "Android", "Java");
-
-			if (!Directory.Exists(SourceDirectory))
-			{
-				return "badpath";
-			}
-
-			MD5 md5 = MD5.Create();
-			byte[] TotalHashBytes = null;
-
-			string[] SourceFiles = Directory.GetFiles(SourceDirectory, "*.*", SearchOption.AllDirectories);
-			foreach (string Filename in SourceFiles)
-			{
-				using (FileStream stream = File.OpenRead(Filename))
-				{
-					byte[] FileHashBytes = md5.ComputeHash(stream);
-					if (TotalHashBytes != null)
-					{
-						int index = 0;
-						foreach (byte b in FileHashBytes)
-						{
-							TotalHashBytes[index] ^= b;
-							index++;
-						}
-					}
-					else
-					{
-						TotalHashBytes = FileHashBytes;
-					}
-				}
-			}
-
-			if (TotalHashBytes != null)
-			{
-				string HashCode = "";
-				foreach (byte b in TotalHashBytes)
-				{
-					HashCode += b.ToString("x2");
-				}
-				return HashCode;
-			}
-
-			return "empty";
 		}
 
 		private void UpdateGameActivity(string UE4Arch, string NDKArch, string EngineDir, string UE4BuildPath)

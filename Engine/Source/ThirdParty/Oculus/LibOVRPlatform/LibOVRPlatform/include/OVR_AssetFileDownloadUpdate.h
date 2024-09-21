@@ -9,7 +9,7 @@
 
 typedef struct ovrAssetFileDownloadUpdate *ovrAssetFileDownloadUpdateHandle;
 
-/// DEPRECATED. Use ovr_AssetFileDownloadUpdate_GetAssetId().
+/// DEPRECATED. Alias to asset id.
 OVRP_PUBLIC_FUNCTION(ovrID) ovr_AssetFileDownloadUpdate_GetAssetFileId(const ovrAssetFileDownloadUpdateHandle obj);
 
 /// ID of the asset file

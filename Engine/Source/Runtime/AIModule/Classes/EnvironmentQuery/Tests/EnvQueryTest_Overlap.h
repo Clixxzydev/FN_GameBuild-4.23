@@ -28,12 +28,8 @@ class UEnvQueryTest_Overlap : public UEnvQueryTest
 
 protected:
 
-	bool RunOverlap(const FVector& ItemPos, const FCollisionShape& CollisionShape, const TArray<AActor*>& IgnoredActors, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params) const;
-	bool RunOverlapBlocking(const FVector& ItemPos, const FCollisionShape& CollisionShape, const TArray<AActor*>& IgnoredActors, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params) const;
+	DECLARE_DELEGATE_RetVal_SixParams(bool, FRunOverlapSignature, const FVector&, const FCollisionShape&, AActor*, UWorld*, enum ECollisionChannel, const FCollisionQueryParams&);
 
-    UE_DEPRECATED(4.23, "This method is no longer called by RunTest and has been replaced by an overload using a list of actors to ignore. It now calls that overload but you should use the new overload instead.")
 	bool RunOverlap(const FVector& ItemPos, const FCollisionShape& CollisionShape, AActor* ItemActor, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params);
-
-	UE_DEPRECATED(4.23, "This method is no longer called by RunTest and has been replaced by an overload using a list of actors to ignore. It now calls that overload but you should use the new overload instead.")
 	bool RunOverlapBlocking(const FVector& ItemPos, const FCollisionShape& CollisionShape, AActor* ItemActor, UWorld* World, enum ECollisionChannel Channel, const FCollisionQueryParams& Params);
 };

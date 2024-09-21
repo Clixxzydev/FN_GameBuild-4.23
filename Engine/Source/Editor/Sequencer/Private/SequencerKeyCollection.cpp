@@ -161,10 +161,7 @@ bool FSequencerKeyCollection::Update(const FSequencerKeyCollectionSignature& InS
 	// Get all the key times for the key areas
 	for (auto& Pair : InSignature.GetKeyAreas())
 	{
-		if (Pair.Key->GetOwningSection())
-		{
-			Pair.Key->GetKeyTimes(AllTimes, Pair.Key->GetOwningSection()->GetRange());
-		}
+		Pair.Key->GetKeyTimes(AllTimes, Pair.Key->GetOwningSection()->GetRange());
 	}
 
 	AllTimes.Sort();

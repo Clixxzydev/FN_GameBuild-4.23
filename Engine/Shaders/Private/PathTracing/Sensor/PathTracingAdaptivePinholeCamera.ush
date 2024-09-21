@@ -119,7 +119,11 @@ void AdaptivePinholeCamera_SampleEmitter(
 	// Correct for ViewSize/BufferSize discrepancy
 	MipPixelUV *= View.ViewSizeAndInvSize.xy * View.BufferSizeAndInvSize.zw;
 
-	OutRay = CreatePrimaryRay(MipPixelUV);
+	OutRay.Origin = ReconstructWorldPositionFromDepth(MipPixelUV, 0.0f);
+	OutRay.Direction = normalize(ReconstructWorldPositionFromDepth(MipPixelUV, 1.f) - OutRay.Origin);
+	OutRay.TMin = 0.01;
+	OutRay.TMax = 1e12;
+
 	OutPixel = MipPixelUV * View.BufferSizeAndInvSize.xy;
 }
 

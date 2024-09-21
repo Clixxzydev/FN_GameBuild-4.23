@@ -173,8 +173,6 @@ struct FCurveAttributes
 	{
 		bHasPreExtrapolation  = 0;
 		bHasPostExtrapolation = 0;
-		PreExtrapolation = ERichCurveExtrapolation::RCCE_None;
-		PostExtrapolation = ERichCurveExtrapolation::RCCE_None;
 	}
 
 	/**

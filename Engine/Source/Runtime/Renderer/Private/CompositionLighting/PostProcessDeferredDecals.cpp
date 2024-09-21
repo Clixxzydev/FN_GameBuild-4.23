@@ -54,7 +54,7 @@ struct FDecalDepthState
 };
 
 // @param RenderState 0:before BasePass, 1:before lighting, (later we could add "after lighting" and multiply)
-FRHIBlendState* GetDecalBlendState(const ERHIFeatureLevel::Type SMFeatureLevel, EDecalRenderStage InDecalRenderStage, EDecalBlendMode DecalBlendMode, bool bHasNormal)
+FBlendStateRHIParamRef GetDecalBlendState(const ERHIFeatureLevel::Type SMFeatureLevel, EDecalRenderStage InDecalRenderStage, EDecalBlendMode DecalBlendMode, bool bHasNormal)
 {
 	if (InDecalRenderStage == DRS_BeforeBasePass)
 	{
@@ -404,7 +404,7 @@ static FDecalDepthState ComputeDecalDepthState(EDecalRenderStage LocalDecalStage
 	return Ret;
 }
 
-static FRHIDepthStencilState* GetDecalDepthState(uint32& StencilRef, FDecalDepthState DecalDepthState)
+static FDepthStencilStateRHIParamRef GetDecalDepthState(uint32& StencilRef, FDecalDepthState DecalDepthState)
 {
 	switch (DecalDepthState.DepthTest)
 	{
@@ -485,7 +485,7 @@ static FRHIDepthStencilState* GetDecalDepthState(uint32& StencilRef, FDecalDepth
 	}
 }
 
-FRHIRasterizerState* GetDecalRasterizerState(EDecalRasterizerState DecalRasterizerState)
+FRasterizerStateRHIParamRef GetDecalRasterizerState(EDecalRasterizerState DecalRasterizerState)
 {
 	switch (DecalRasterizerState)
 	{
@@ -534,8 +534,6 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 	const FSceneViewFamily& ViewFamily = *(View.Family);
 	bool bNeedsDBufferTargets = false;
 	bool bDidClearDBuffer = false;
-	// Debug view framework does not yet support decals.
-	bool bRenderDecals = ViewFamily.EngineShowFlags.Decals && !ViewFamily.UseDebugViewPS();
 
 	if (CurrentStage == DRS_BeforeBasePass)
 	{
@@ -545,7 +543,7 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 		// If we're rendering dbuffer decals but there are no decals in the scene, we avoid the 
 		// clears/decompresses and set the targets to NULL		
 		// The DBufferA-C will be replaced with dummy textures in FSceneTextureShaderParameters
-		if (bRenderDecals)
+		if (ViewFamily.EngineShowFlags.Decals)
 		{
 			FScene& Scene = *(FScene*)ViewFamily.Scene;
 			if (Scene.Decals.Num() > 0 || Context.View.MeshDecalBatches.Num() > 0)
@@ -612,7 +610,7 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 			{
 				SCOPED_DRAW_EVENT(RHICmdList, DBufferClear);
 
-				FRHITexture* RenderTargets[4];
+				FTextureRHIParamRef RenderTargets[4];
 
 				RenderTargets[0] = SceneContext.DBufferA->GetRenderTargetItem().TargetableTexture;
 				RenderTargets[1] = SceneContext.DBufferB->GetRenderTargetItem().TargetableTexture;
@@ -637,7 +635,8 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 
 	bool bHasValidDBufferMask = false;
 
-	if (bRenderDecals)
+	// Debug view framework does not yet support decals.
+	if (ViewFamily.EngineShowFlags.Decals && !ViewFamily.UseDebugViewPS())
 	{
 		bool bShouldResolveTargets = false;
 
@@ -657,12 +656,12 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 		}
 
 		FScene& Scene = *(FScene*)ViewFamily.Scene;
-		FDecalRenderTargetManager RenderTargetManager(RHICmdList, Context.GetShaderPlatform(), Context.GetFeatureLevel(), CurrentStage);
+		FDecalRenderTargetManager RenderTargetManager(RHICmdList, Context.GetShaderPlatform(), CurrentStage);
 
 		//don't early return. Resolves must be run for fast clears to work.
 		if (Scene.Decals.Num() || Context.View.MeshDecalBatches.Num() > 0)
 		{
-			check(bNeedsDBufferTargets || CurrentStage != DRS_BeforeBasePass)
+			check(bNeedsDBufferTargets || CurrentStage != DRS_BeforeBasePass);
 
 			// Build a list of decals that need to be rendered for this view
 			FTransientDecalRenderDataList SortedDecals;
@@ -683,9 +682,6 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 					check(RHICmdList.IsInsideRenderPass());
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 				}
-				
-				// Disable UAV cache flushing so we have optimal VT feedback performance.
-				RHICmdList.AutomaticCacheFlushAfterComputeShader(false);
 
 				// optimization to have less state changes
 				EDecalRasterizerState LastDecalRasterizerState = DRS_Undefined;
@@ -813,9 +809,6 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 				check(RHICmdList.IsInsideRenderPass());
 				// Finished rendering sorted decals, so end the renderpass.
 				RHICmdList.EndRenderPass();
-				
-				RHICmdList.AutomaticCacheFlushAfterComputeShader(true);
-				RHICmdList.FlushComputeShaderCache();
 			}
 
 			if (RHICmdList.IsInsideRenderPass())
@@ -846,7 +839,7 @@ void FRCPassPostProcessDeferredDecals::Process(FRenderingCompositePassContext& C
 			if (CurrentStage == DRS_BeforeBasePass)
 			{
 				// combine DBuffer RTWriteMasks; will end up in one texture we can load from in the base pass PS and decide whether to do the actual work or not
-				FRHITexture* Textures[3] =
+				FTextureRHIParamRef Textures[3] =
 				{
 					SceneContext.DBufferA->GetRenderTargetItem().TargetableTexture,
 					SceneContext.DBufferB->GetRenderTargetItem().TargetableTexture,
@@ -946,11 +939,10 @@ void FDecalRenderTargetManager::ResolveTargets()
 }
 
 
-FDecalRenderTargetManager::FDecalRenderTargetManager(FRHICommandList& InRHICmdList, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type InFeatureLevel, EDecalRenderStage CurrentStage)
+FDecalRenderTargetManager::FDecalRenderTargetManager(FRHICommandList& InRHICmdList, EShaderPlatform ShaderPlatform, EDecalRenderStage CurrentStage)
 	: RHICmdList(InRHICmdList)
 	, bGufferADirty(false)
 	, bGufferBCDirty(false)
-	, FeatureLevel(InFeatureLevel)
 {
 	FSceneRenderTargets& SceneContext = FSceneRenderTargets::Get(RHICmdList);
 
@@ -1011,8 +1003,8 @@ void FDecalRenderTargetManager::SetRenderTargetMode(FDecalRenderingCommon::ERend
 	FExclusiveDepthStencil DepthStencilAccess = FExclusiveDepthStencil::DepthRead_StencilWrite;
 	ERenderTargetActions DepthTargetActions = ERenderTargetActions::Load_DontStore;
 	uint32 NumColorTargets = 1;
-	FRHITexture** TargetsToBind = &TargetsToResolve[0];
-	FRHITexture* DepthTarget = SceneContext.GetSceneDepthSurface();
+	FTextureRHIParamRef* TargetsToBind = &TargetsToResolve[0];
+	FTextureRHIParamRef DepthTarget = SceneContext.GetSceneDepthSurface();
 
 	// The SceneColorAndGBuffer modes do not actually need GBufferA bound when there's no normal.
 	// The apis based on renderpasses fill fail to actually bind anything past a null entry in their RT list so we have to bind it anyway.
@@ -1101,11 +1093,6 @@ void FDecalRenderTargetManager::SetRenderTargetMode(FDecalRenderingCommon::ERend
 	RPInfo.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(DepthTargetActions, ERenderTargetActions::Load_Store);
 	RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil = DepthStencilAccess;
 
-	if (UseVirtualTexturing(FeatureLevel))
-	{
-		SceneContext.BindVirtualTextureFeedbackUAV(RPInfo);
-	}
-
 	if (TargetsToTransitionWritable[CurrentRenderTargetMode])
 	{
 		TransitionRenderPassTargets(RHICmdList, RPInfo);
@@ -1117,7 +1104,7 @@ void FDecalRenderTargetManager::SetRenderTargetMode(FDecalRenderingCommon::ERend
 
 
 
-void FDecalRenderTargetManager::FlushMetaData(FRHITexture** Textures, uint32 NumTextures)
+void FDecalRenderTargetManager::FlushMetaData(FTextureRHIParamRef* Textures, uint32 NumTextures)
 {
 	RHICmdList.TransitionResources(EResourceTransitionAccess::EMetaData, Textures, NumTextures);
 }

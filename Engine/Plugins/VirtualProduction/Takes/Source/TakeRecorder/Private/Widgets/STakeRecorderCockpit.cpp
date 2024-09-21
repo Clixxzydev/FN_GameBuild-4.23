@@ -77,19 +77,7 @@ void STakeRecorderCockpit::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(TransientTakeMetaData);
 }
 
-struct SNonThrottledButton : SButton
-{
-	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override
-	{
-		FReply Reply = SButton::OnMouseButtonDown(MyGeometry, MouseEvent);
-		if (Reply.IsEventHandled())
-		{
-			Reply.PreventThrottling();
-		}
-		return Reply;
-	}
-};
-
+PRAGMA_DISABLE_OPTIMIZATION
 void STakeRecorderCockpit::Construct(const FArguments& InArgs)
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
@@ -350,7 +338,7 @@ void STakeRecorderCockpit::Construct(const FArguments& InArgs)
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SNew(SNonThrottledButton)
+						SNew(SButton)
 						.ButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
 						.ToolTipText(LOCTEXT("AddMarkedFrame", "Click to add a marked frame while recording"))
 						.IsEnabled_Lambda([this]() { return IsRecording() == ECheckBoxState::Checked; })
@@ -402,6 +390,7 @@ void STakeRecorderCockpit::Construct(const FArguments& InArgs)
 		]
 	];
 }
+PRAGMA_ENABLE_OPTIMIZATION
 
 bool STakeRecorderCockpit::CanStartRecording(FText* OutErrorText) const
 {
@@ -477,14 +466,6 @@ void STakeRecorderCockpit::UpdateRecordError()
 		RecordErrorText = FText::Format(LOCTEXT("ErrorWidget_InvalidPath", "{0} is not a valid asset path. {1}"), FText::FromString(PackageName), OutReason);
 		return;
 	}
-
-	const int32 MaxLength = 260;
-
-	if (PackageName.Len() > MaxLength)
-	{
-		RecordErrorText = FText::Format(LOCTEXT("ErrorWidget_TooLong", "The path to the asset is too long '{0}', the maximum is '{1}'\nPlease choose a shorter name for the slate or create it in a shallower folder structure with shorter folder names."), FText::AsNumber(PackageName.Len()), FText::AsNumber(MaxLength));
-		return;
-	}
 }
 
 void STakeRecorderCockpit::UpdateTakeError()
@@ -557,18 +538,11 @@ void STakeRecorderCockpit::CacheMetaData()
 			TransientTakeMetaData = UTakeMetaData::CreateFromDefaults(GetTransientPackage(), NAME_None);
 			TransientTakeMetaData->SetFlags(RF_Transactional | RF_Transient);
 
-			FString DefaultSlate = GetDefault<UTakeRecorderProjectSettings>()->Settings.DefaultSlate;
-			if (TransientTakeMetaData->GetSlate() != DefaultSlate)
-			{
-				TransientTakeMetaData->SetSlate(DefaultSlate, false);
-			}
+			TransientTakeMetaData->SetSlate(GetDefault<UTakeRecorderProjectSettings>()->Settings.DefaultSlate);
 
 			// Compute the correct starting take number
 			int32 NextTakeNumber = UTakesCoreBlueprintLibrary::ComputeNextTakeNumber(TransientTakeMetaData->GetSlate());
-			if (TransientTakeMetaData->GetTakeNumber() != NextTakeNumber)
-			{
-				TransientTakeMetaData->SetTakeNumber(NextTakeNumber, false);
-			}
+			TransientTakeMetaData->SetTakeNumber(NextTakeNumber);
 		}
 
 		NewMetaDataThisTick = TransientTakeMetaData;
@@ -654,11 +628,7 @@ void STakeRecorderCockpit::SetSlateText(const FText& InNewText, ETextCommit::Typ
 
 		// Compute the correct starting take number
 		int32 NextTakeNumber = UTakesCoreBlueprintLibrary::ComputeNextTakeNumber(TakeMetaData->GetSlate());
-
-		if (NextTakeNumber != TakeMetaData->GetTakeNumber())
-		{
-			TakeMetaData->SetTakeNumber(NextTakeNumber);
-		}
+		TakeMetaData->SetTakeNumber(NextTakeNumber);
 	}
 }
 
@@ -708,15 +678,12 @@ int32 STakeRecorderCockpit::GetTakeNumber() const
 
 FReply STakeRecorderCockpit::OnSetNextTakeNumber()
 {
+	FScopedTransaction Transaction(LOCTEXT("SetNextTakeNumber_Transaction", "Set Next Take Number"));
+
 	int32 NextTakeNumber = UTakesCoreBlueprintLibrary::ComputeNextTakeNumber(TakeMetaData->GetSlate());
 
-	if (TakeMetaData->GetTakeNumber() != NextTakeNumber)
-	{
-		FScopedTransaction Transaction(LOCTEXT("SetNextTakeNumber_Transaction", "Set Next Take Number"));
-
-		TakeMetaData->Modify();
-		TakeMetaData->SetTakeNumber(NextTakeNumber);
-	}
+	TakeMetaData->Modify();
+	TakeMetaData->SetTakeNumber(NextTakeNumber);
 
 	return FReply::Handled();
 }
@@ -740,7 +707,7 @@ void STakeRecorderCockpit::SetTakeNumber(int32 InNewTakeNumber)
 
 	if (TransactionIndex != INDEX_NONE || bIsInPIEOrSimulate)
 	{
-		TakeMetaData->SetTakeNumber(InNewTakeNumber, false);
+		TakeMetaData->SetTakeNumber(InNewTakeNumber);
 		bAutoApplyTakeNumber = false;
 	}
 }
@@ -757,7 +724,7 @@ void STakeRecorderCockpit::SetTakeNumber_FromCommit(int32 InNewTakeNumber, EText
 			OnEndSetTakeNumber(InNewTakeNumber);
 		}
 	}
-	else if (TakeMetaData->GetTakeNumber() != InNewTakeNumber)
+	else
 	{
 		TakeMetaData->SetTakeNumber(InNewTakeNumber);
 	}
@@ -796,8 +763,7 @@ FReply STakeRecorderCockpit::OnAddMarkedFrame()
 		FMovieSceneMarkedFrame MarkedFrame;
 		MarkedFrame.FrameNumber = ConvertFrameTime(ElapsedFrame, MovieScene->GetDisplayRate(), MovieScene->GetTickResolution()).CeilToFrame();
 
-		int32 MarkedFrameIndex = MovieScene->AddMarkedFrame(MarkedFrame);
-		UTakeRecorderBlueprintLibrary::OnTakeRecorderMarkedFrameAdded(MovieScene->GetMarkedFrames()[MarkedFrameIndex]);
+		MovieScene->AddMarkedFrame(MarkedFrame);
 	}
 
 	return FReply::Handled();
@@ -923,11 +889,7 @@ void STakeRecorderCockpit::OnRecordingFinished(UTakeRecorder* Recorder)
 	{
 		// Increment the transient take meta data if necessary
 		int32 NextTakeNumber = UTakesCoreBlueprintLibrary::ComputeNextTakeNumber(TransientTakeMetaData->GetSlate());
-
-		if (TransientTakeMetaData->GetTakeNumber() != NextTakeNumber)
-		{
-			TransientTakeMetaData->SetTakeNumber(NextTakeNumber);
-		}
+		TransientTakeMetaData->SetTakeNumber(NextTakeNumber);
 
 		bAutoApplyTakeNumber = true;
 	}

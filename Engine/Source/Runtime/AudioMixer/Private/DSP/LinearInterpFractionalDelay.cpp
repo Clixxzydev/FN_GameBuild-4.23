@@ -113,7 +113,6 @@ void FLinearInterpFractionalDelay::ProcessAudioBlock(const float* InSamples, con
 	const VectorRegister VMaxDelay = MakeVectorRegister((float)MaxDelay, (float)MaxDelay, (float)MaxDelay, (float)MaxDelay);
 	for (int32 i = 0; i < InNum; i += 4)
 	{
-		
 		VectorRegister VFractionalDelays = VectorLoadAligned(&InDelays[i]);
 		// Ensure fractional delays are positive
 		VFractionalDelays = VectorMax(VFractionalDelays, GlobalVectorConstants::FloatZero);

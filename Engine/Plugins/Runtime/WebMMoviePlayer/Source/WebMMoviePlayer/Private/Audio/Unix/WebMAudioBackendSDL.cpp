@@ -6,7 +6,6 @@
 FWebMAudioBackendSDL::FWebMAudioBackendSDL()
 	: AudioDevice(0)
 	, bSDLInitialized(false)
-	, bPaused(false)
 {
 }
 
@@ -43,7 +42,7 @@ void FWebMAudioBackendSDL::ShutdownPlatform()
 	}
 }
 
-bool FWebMAudioBackendSDL::StartStreaming(int32 SampleRate, int32 NumOfChannels, EStreamState StreamState)
+bool FWebMAudioBackendSDL::StartStreaming(int32 SampleRate, int32 NumOfChannels)
 {
 	if (!bSDLInitialized)
 	{
@@ -57,15 +56,7 @@ bool FWebMAudioBackendSDL::StartStreaming(int32 SampleRate, int32 NumOfChannels,
 	AudioSpec.channels = NumOfChannels;
 	AudioSpec.samples = 4096;
 
-	FString DefaultDeivceName = GetDefaultDeviceName();
-	if (DefaultDeivceName.Len() > 0)
-	{
-		AudioDevice = SDL_OpenAudioDevice(TCHAR_TO_ANSI(*DefaultDeivceName), 0, &AudioSpec, nullptr, 0);
-	}
-	else
-	{
-		AudioDevice = SDL_OpenAudioDevice(nullptr, 0, &AudioSpec, nullptr, 0);
-	}
+	AudioDevice = SDL_OpenAudioDevice(nullptr, 0, &AudioSpec, nullptr, 0);
 
 	if (!AudioDevice)
 	{
@@ -87,7 +78,7 @@ void FWebMAudioBackendSDL::StopStreaming()
 	}
 }
 
-bool FWebMAudioBackendSDL::SendAudio(const FTimespan& Timespan, const uint8* Buffer, size_t BufferSize)
+bool FWebMAudioBackendSDL::SendAudio(const uint8* Buffer, size_t BufferSize)
 {
 	int32 Result = SDL_QueueAudio(AudioDevice, Buffer, BufferSize);
 	if (Result < 0)
@@ -97,30 +88,7 @@ bool FWebMAudioBackendSDL::SendAudio(const FTimespan& Timespan, const uint8* Buf
 	}
 	else
 	{
-		if (!bPaused)
-		{
-			SDL_PauseAudioDevice(AudioDevice, 0);
-		}
+		SDL_PauseAudioDevice(AudioDevice, 0);
 		return true;
 	}
-}
-
-void FWebMAudioBackendSDL::Pause(bool bPause)
-{
-	bPaused = bPause;
-	SDL_PauseAudioDevice(AudioDevice, bPaused ? 1 : 0);
-}
-
-bool FWebMAudioBackendSDL::IsPaused() const
-{
-	return bPaused;
-}
-
-void FWebMAudioBackendSDL::Tick(float DeltaTime)
-{
-}
-
-FString FWebMAudioBackendSDL::GetDefaultDeviceName()
-{
-	return {};
 }

@@ -5,7 +5,6 @@
 #include "NiagaraNodeFunctionCall.h"
 #include "NiagaraNodeParameterMapGet.h"
 #include "NiagaraEmitterEditorData.h"
-#include "ViewModels/NiagaraEmitterViewModel.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 
 #include "EdGraph/EdGraphPin.h"
@@ -61,7 +60,6 @@ void UNiagaraStackModuleItemLinkedInputCollection::RefreshChildrenInternal(const
 	{
 		FNiagaraParameterMapHistoryBuilder Builder;
 		Builder.SetIgnoreDisabled(false);
-		Builder.ConstantResolver = FCompileConstantResolver(GetEmitterViewModel()->GetEmitter());
 		FunctionCallNode->BuildParameterMapHistory(Builder, false);
 
 		if (ensureMsgf(Builder.Histories.Num() == 1, TEXT("Invalid Stack Graph - Function call node has invalid history count!")))

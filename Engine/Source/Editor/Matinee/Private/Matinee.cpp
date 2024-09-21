@@ -438,6 +438,7 @@ void FMatinee::BuildCurveEditor()
 	CurveEd->SetEndMarker(true, IData->InterpLength);
 	CurveEd->SetPositionMarker(true, 0.f, PosMarkerColor);
 	CurveEd->SetRegionMarker(true, IData->EdSectionStart, IData->EdSectionEnd, RegionFillColor);
+	CurveEd->DrawViewport();
 };
 
 /** Should NOT open an InterpEd unless InInterp has a valid MatineeData attached! */
@@ -1205,15 +1206,15 @@ void FMatinee::BindCommands()
 	ToolkitCommands->MapAction( Commands.ExportAnimGroupFBX, FExecuteAction::CreateSP(this, &FMatinee::OnContextGroupExportAnimFBX) );
 	ToolkitCommands->MapAction( 
 		Commands.GroupDuplicate, 
-		FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::DuplicateGroup),
-		FCanExecuteAction::CreateSP(this, &FMatinee::CanCreateNewGroup, FMatineeCommands::EGroupAction::Type::DuplicateGroup)
+		FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::DuplicateGroup),
+		FCanExecuteAction::CreateSP(this, &FMatinee::CanCreateNewGroup, FMatineeCommands::EGroupAction::DuplicateGroup)
 		);
 	ToolkitCommands->MapAction( Commands.GroupDelete, FExecuteAction::CreateSP(this, &FMatinee::OnContextGroupDelete), FCanExecuteAction::CreateSP(this, &FMatinee::CanGroupDelete) );
 	ToolkitCommands->MapAction( Commands.GroupCreateTab, FExecuteAction::CreateSP(this, &FMatinee::OnContextGroupCreateTab), FCanExecuteAction::CreateSP(this, &FMatinee::CanGroupCreateTab) );
 	ToolkitCommands->MapAction( Commands.GroupRemoveFromTab, FExecuteAction::CreateSP(this, &FMatinee::OnContextGroupRemoveFromTab) );
 	ToolkitCommands->MapAction( 
 		Commands.RemoveFromGroupFolder, 
-		FExecuteAction::CreateSP(this, &FMatinee::OnContextGroupChangeGroupFolder, FMatineeCommands::EGroupAction::Type::RemoveFromGroupFolder, -1)
+		FExecuteAction::CreateSP(this, &FMatinee::OnContextGroupChangeGroupFolder, FMatineeCommands::EGroupAction::RemoveFromGroupFolder, -1) 
 		);
 
 	//Track Context Menu
@@ -1228,13 +1229,13 @@ void FMatinee::BindCommands()
 	ToolkitCommands->MapAction( Commands.ExportAnimTrackFBX, FExecuteAction::CreateSP(this, &FMatinee::OnContextTrackExportAnimFBX) );
 
 	//Background Context Menu
-	ToolkitCommands->MapAction( Commands.NewFolder, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewFolder) );
-	ToolkitCommands->MapAction( Commands.NewEmptyGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewEmptyGroup) );
-	ToolkitCommands->MapAction( Commands.NewCameraGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewCameraGroup) );
-	ToolkitCommands->MapAction( Commands.NewParticleGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewParticleGroup) );
-	ToolkitCommands->MapAction( Commands.NewSkeletalMeshGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewSkeletalMeshGroup) );
-	ToolkitCommands->MapAction( Commands.NewLightingGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewLightingGroup) );
-	ToolkitCommands->MapAction( Commands.NewDirectorGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::Type::NewDirectorGroup) );
+	ToolkitCommands->MapAction( Commands.NewFolder, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewFolder) );
+	ToolkitCommands->MapAction( Commands.NewEmptyGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewEmptyGroup) );
+	ToolkitCommands->MapAction( Commands.NewCameraGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewCameraGroup) );
+	ToolkitCommands->MapAction( Commands.NewParticleGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewParticleGroup) );
+	ToolkitCommands->MapAction( Commands.NewSkeletalMeshGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewSkeletalMeshGroup) );
+	ToolkitCommands->MapAction( Commands.NewLightingGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewLightingGroup) );
+	ToolkitCommands->MapAction( Commands.NewDirectorGroup, FExecuteAction::CreateSP(this, &FMatinee::OnContextNewGroup, FMatineeCommands::EGroupAction::NewDirectorGroup) );
 
 	// Menu
 	ToolkitCommands->MapAction(Commands.ToggleCurveEditor,
@@ -1249,11 +1250,11 @@ void FMatinee::BindCommands()
 		);
 
 	//Key Context Menu
-	ToolkitCommands->MapAction( Commands.KeyModeCurveAuto, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::Type::KeyModeCurveAuto) );
-	ToolkitCommands->MapAction( Commands.KeyModeCurveAutoClamped, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::Type::KeyModeCurveAutoClamped) );
-	ToolkitCommands->MapAction( Commands.KeyModeCurveBreak, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::Type::KeyModeCurveBreak) );
-	ToolkitCommands->MapAction( Commands.KeyModeLinear, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::Type::KeyModeLinear) );
-	ToolkitCommands->MapAction( Commands.KeyModeConstant, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::Type::KeyModeConstant) );
+	ToolkitCommands->MapAction( Commands.KeyModeCurveAuto, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::KeyModeCurveAuto) );
+	ToolkitCommands->MapAction( Commands.KeyModeCurveAutoClamped, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::KeyModeCurveAutoClamped) );
+	ToolkitCommands->MapAction( Commands.KeyModeCurveBreak, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::KeyModeCurveBreak) );
+	ToolkitCommands->MapAction( Commands.KeyModeLinear, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::KeyModeLinear) );
+	ToolkitCommands->MapAction( Commands.KeyModeConstant, FExecuteAction::CreateSP(this, &FMatinee::OnContextKeyInterpMode, FMatineeCommands::EKeyAction::KeyModeConstant) );
 	ToolkitCommands->MapAction( Commands.KeySetTime, FExecuteAction::CreateSP(this, &FMatinee::OnContextSetKeyTime) );
 	ToolkitCommands->MapAction( Commands.KeySetValue, FExecuteAction::CreateSP(this, &FMatinee::OnContextSetValue) );
 	ToolkitCommands->MapAction( Commands.KeySetBool, FExecuteAction::CreateSP(this, &FMatinee::OnContextSetBool) );
@@ -1266,19 +1267,19 @@ void FMatinee::BindCommands()
 	ToolkitCommands->MapAction( Commands.ToggleKeyFlip, FExecuteAction::CreateSP(this, &FMatinee::OnFlipToggleKey) );
 
 	ToolkitCommands->MapAction( Commands.KeySetConditionAlways, 
-		FExecuteAction::CreateSP(this, &FMatinee::OnKeyContext_SetCondition, FMatineeCommands::EKeyAction::Type::ConditionAlways),
+		FExecuteAction::CreateSP(this, &FMatinee::OnKeyContext_SetCondition, FMatineeCommands::EKeyAction::ConditionAlways),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FMatinee::KeyContext_IsSetConditionToggled, FMatineeCommands::EKeyAction::Type::ConditionAlways)
+		FIsActionChecked::CreateSP(this, &FMatinee::KeyContext_IsSetConditionToggled, FMatineeCommands::EKeyAction::ConditionAlways)
 		);
 	ToolkitCommands->MapAction( Commands.KeySetConditionGoreEnabled, 
-		FExecuteAction::CreateSP(this, &FMatinee::OnKeyContext_SetCondition, FMatineeCommands::EKeyAction::Type::ConditionGoreEnabled),
+		FExecuteAction::CreateSP(this, &FMatinee::OnKeyContext_SetCondition, FMatineeCommands::EKeyAction::ConditionGoreEnabled),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FMatinee::KeyContext_IsSetConditionToggled, FMatineeCommands::EKeyAction::Type::ConditionGoreEnabled)
+		FIsActionChecked::CreateSP(this, &FMatinee::KeyContext_IsSetConditionToggled, FMatineeCommands::EKeyAction::ConditionGoreEnabled)
 		);
 	ToolkitCommands->MapAction( Commands.KeySetConditionGoreDisabled, 
-		FExecuteAction::CreateSP(this, &FMatinee::OnKeyContext_SetCondition, FMatineeCommands::EKeyAction::Type::ConditionGoreDisabled),
+		FExecuteAction::CreateSP(this, &FMatinee::OnKeyContext_SetCondition, FMatineeCommands::EKeyAction::ConditionGoreDisabled),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FMatinee::KeyContext_IsSetConditionToggled, FMatineeCommands::EKeyAction::Type::ConditionGoreDisabled)
+		FIsActionChecked::CreateSP(this, &FMatinee::KeyContext_IsSetConditionToggled, FMatineeCommands::EKeyAction::ConditionGoreDisabled)
 		);
 
 	ToolkitCommands->MapAction( Commands.AnimKeyLoop, FExecuteAction::CreateSP(this, &FMatinee::OnSetAnimKeyLooping, true) );
@@ -2638,6 +2639,7 @@ void FMatinee::NotifyPreChange( UProperty* PropertyAboutToChange )
 void FMatinee::NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, UProperty* PropertyThatChanged )
 {
 	CurveEd->CurveChanged();
+	CurveEd->DrawViewport();
 
 	// Dirty the track window viewports
 	InvalidateTrackWindowViewports();

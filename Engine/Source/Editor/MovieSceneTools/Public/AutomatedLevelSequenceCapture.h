@@ -15,7 +15,7 @@ class FSceneViewport;
 class ULevelSequenceBurnInOptions;
 struct FMovieSceneTimeController_FrameStep;
 
-UCLASS(config=EditorPerProjectUserSettings, PerObjectConfig, BlueprintType)
+UCLASS(config=EditorPerProjectUserSettings, PerObjectConfig)
 class MOVIESCENETOOLS_API UAutomatedLevelSequenceCapture : public UMovieSceneCapture
 {
 public:
@@ -29,10 +29,6 @@ public:
 	/** A level sequence asset to playback at runtime - used where the level sequence does not already exist in the world. */
 	UPROPERTY(BlueprintReadWrite, Category=Animation)
 	FSoftObjectPath LevelSequenceAsset;
-
-	/** Optional shot name to render. The frame range to render will be set to the shot frame range. */
-	UPROPERTY(BlueprintReadWrite, Category=Animation)
-	FString ShotName;
 
 	/** When enabled, the StartFrame setting will override the default starting frame number */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category=Animation, AdvancedDisplay)
@@ -63,10 +59,6 @@ public:
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = Animation, AdvancedDisplay, meta = (Units = Seconds, ClampMin = 0))
 	float DelayBeforeShotWarmUp;
 
-	/** The number of seconds to wait (in real-time) at every frame.  Useful for allowing post processing effects to settle down before capturing the animation. */
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = Animation, AdvancedDisplay, meta = (Units = Seconds, ClampMin = 0))
-	float DelayEveryFrame;
-
 	UPROPERTY(Transient, EditAnywhere, BlueprintReadWrite, Category=CaptureSettings, AdvancedDisplay, meta=(EditInline))
 	ULevelSequenceBurnInOptions* BurnInOptions;
 
@@ -75,7 +67,7 @@ public:
 	bool bWriteEditDecisionList;
 
 	/** Whether to write Final Cut Pro XML files (XMLs) if the sequence contains shots */
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category=Sequence)
+	UPROPERTY(config, EditAnywhere, Category=Sequence)
 	bool bWriteFinalCutProXML;
 
 public:
@@ -174,6 +166,9 @@ private:
 
 	/** The current shot movie that is rendering */
 	int32 ShotIndex;
+
+	/** The number of seconds to wait (in real-time) at every frame.  Useful for allowing post processing effects to settle down before capturing the animation. */
+	float DelayEveryFrame;
 
 	FLevelSequencePlayerSnapshot CachedState;
 

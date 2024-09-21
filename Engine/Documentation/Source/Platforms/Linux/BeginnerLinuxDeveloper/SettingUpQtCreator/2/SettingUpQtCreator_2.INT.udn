@@ -1,4 +1,4 @@
-Availability: Docs
+﻿Availability: Public
 Title: 2 - Configuring Qt Creator to Run UE4
 Crumbs:%ROOT%
 Description:Learn how to configure your IDE to run UE4 in Debug and Release mode.

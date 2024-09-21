@@ -397,8 +397,8 @@ public:
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
 	template <uint32 MaxNumUpdates>
 	void InitRHIForStreaming(
-		FRHIVertexBuffer* IntermediateTangentsBuffer,
-		FRHIVertexBuffer* IntermediateTexCoordBuffer,
+		FVertexBufferRHIParamRef IntermediateTangentsBuffer,
+		FVertexBufferRHIParamRef IntermediateTexCoordBuffer,
 		TRHIResourceUpdateBatcher<MaxNumUpdates>& Batcher)
 	{
 		check(TangentsVertexBuffer.VertexBufferRHI && TexCoordVertexBuffer.VertexBufferRHI);
@@ -492,9 +492,6 @@ public:
 	{
 		return IsValidRef(TangentsVertexBuffer.VertexBufferRHI) && IsValidRef(TexCoordVertexBuffer.VertexBufferRHI);
 	}
-
-	FRHIShaderResourceView* GetTangentsSRV() const { return TangentsSRV; }
-	FRHIShaderResourceView* GetTexCoordsSRV() const { return TextureCoordinatesSRV; }
 private:
 
 	/** The vertex data storage type */

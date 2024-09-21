@@ -33,7 +33,6 @@ public:
 	{
 		return true;
 	}
-	
 
 	virtual bool HasLocalNetOwner() const override
 	{

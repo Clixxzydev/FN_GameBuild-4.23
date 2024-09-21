@@ -46,14 +46,6 @@ public:
 	static TSharedRef<SWidget> ConstructPinTypeImage(TAttribute<const FSlateBrush*> PrimaryIcon, TAttribute<FSlateColor> PrimaryColor, TAttribute<const FSlateBrush*> SecondaryIcon, TAttribute<FSlateColor> SecondaryColor );
 	static TSharedRef<SWidget> ConstructPinTypeImage(UEdGraphPin* Pin);
 
-	/** Which type of selector should be used: compact or full mode, or not a selector at all, but just the type image. */
-	enum class ESelectorType : uint8
-	{
-		None,
-		Compact,
-		Full
-	};
-
 	SLATE_BEGIN_ARGS( SPinTypeSelector )
 		: _TargetPinType()
 		, _Schema(nullptr)
@@ -62,7 +54,7 @@ public:
 		, _TreeViewWidth(300.f)
 		, _TreeViewHeight(400.f)
 		, _Font( FEditorStyle::GetFontStyle( TEXT("NormalFont") ) )
-		, _SelectorType( ESelectorType::Full )
+		, _bCompactSelector( false )
 		{}
 		SLATE_ATTRIBUTE( FEdGraphPinType, TargetPinType )
 		SLATE_ARGUMENT( const UEdGraphSchema_K2*, Schema )
@@ -73,7 +65,7 @@ public:
 		SLATE_EVENT( FOnPinTypeChanged, OnPinTypePreChanged )
 		SLATE_EVENT( FOnPinTypeChanged, OnPinTypeChanged )
 		SLATE_ATTRIBUTE( FSlateFontInfo, Font )
-		SLATE_ARGUMENT( ESelectorType, SelectorType )
+		SLATE_ARGUMENT( bool, bCompactSelector )
 	SLATE_END_ARGS()
 public:
 	void Construct(const FArguments& InArgs, FGetPinTypeTree GetPinTypeTreeFunc);
@@ -133,8 +125,8 @@ protected:
 	/** TRUE when the right mouse button is pressed, keeps from handling a right click that does not begin in the widget */
 	bool bIsRightMousePressed;
 
-	/** Whether the selector is using the compact or full mode, or not a selector at all, but just the type image.*/
-	ESelectorType SelectorType;
+	/** TRUE if displaying a compact selector widget, some functionality is enabled in different ways if this is TRUE */
+	bool bIsCompactSelector;
 
 	/** Holds a cache of the allowed Object Reference types for the last sub-menu opened. */
 	TArray<FObjectReferenceListItem> AllowedObjectReferenceTypes;

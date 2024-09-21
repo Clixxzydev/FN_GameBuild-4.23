@@ -4,12 +4,8 @@
 #include "SQLiteCore.h"
 #include "IncludeSQLite.h"
 
-#include "Misc/Paths.h"
-#include "HAL/FileManager.h"
 #include "Misc/AssertionMacros.h"
 #include "Containers/StringConv.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogSQLiteDatabase, Log, All);
 
 FSQLiteDatabase::FSQLiteDatabase()
 	: Database(nullptr)
@@ -68,26 +64,7 @@ bool FSQLiteDatabase::Open(const TCHAR* InFilename, const ESQLiteDatabaseOpenMod
 	}
 	checkf(OpenFlags != 0, TEXT("SQLite open flags were zero! Unhandled ESQLiteDatabaseOpenMode?"));
 
-	if (OpenFlags & SQLITE_OPEN_CREATE)
-	{
-		// Try to ensure that the outer directory exists if we're allowed to create the database file (SQLite won't do this for you)
-		IFileManager::Get().MakeDirectory(*FPaths::GetPath(InFilename), true);
-	}
-
-	if (sqlite3_open_v2(TCHAR_TO_UTF8(InFilename), &Database, OpenFlags, nullptr) != SQLITE_OK)
-	{
-		if (Database)
-		{
-			UE_LOG(LogSQLiteDatabase, Warning, TEXT("Failed to open database '%s': %s"), InFilename, *GetLastError());
-
-			// Partially opened a database - try and close it
-			sqlite3_close(Database);
-			Database = nullptr;
-		}
-		return false;
-	}
-
-	return true;
+	return sqlite3_open_v2(TCHAR_TO_UTF8(InFilename), &Database, OpenFlags, nullptr) == SQLITE_OK;
 }
 
 bool FSQLiteDatabase::Close()
@@ -107,16 +84,6 @@ bool FSQLiteDatabase::Close()
 	return true;
 }
 
-FString FSQLiteDatabase::GetFilename() const
-{
-	const char* FilenameStr = Database ? sqlite3_db_filename(Database, "main") : nullptr;
-	if (FilenameStr)
-	{
-		return UTF8_TO_TCHAR(FilenameStr);
-	}
-	return FString();
-}
-
 bool FSQLiteDatabase::Execute(const TCHAR* InStatement)
 {
 	if (!Database)
@@ -131,26 +98,14 @@ bool FSQLiteDatabase::Execute(const TCHAR* InStatement)
 		return false;
 	}
 
-	// Execute it
-	return Statement.Execute();
-}
-
-int64 FSQLiteDatabase::Execute(const TCHAR* InStatement, TFunctionRef<ESQLitePreparedStatementExecuteRowResult(const FSQLitePreparedStatement&)> InCallback)
-{
-	if (!Database)
+	// Step it to completion (or error)
+	ESQLitePreparedStatementStepResult StepResult = ESQLitePreparedStatementStepResult::Row;
+	while (StepResult == ESQLitePreparedStatementStepResult::Row)
 	{
-		return false;
+		StepResult = Statement.Step();
 	}
 
-	// Create a prepared statement
-	FSQLitePreparedStatement Statement(*this, InStatement);
-	if (!Statement.IsValid())
-	{
-		return false;
-	}
-
-	// Execute it
-	return Statement.Execute(InCallback);
+	return StepResult != ESQLitePreparedStatementStepResult::Error;
 }
 
 FSQLitePreparedStatement FSQLiteDatabase::PrepareStatement(const TCHAR* InStatement, const ESQLitePreparedStatementFlags InFlags)
@@ -168,11 +123,4 @@ FString FSQLiteDatabase::GetLastError() const
 		return UTF8_TO_TCHAR(ErrorStr);
 	}
 	return FString();
-}
-
-int64 FSQLiteDatabase::GetLastInsertRowId() const
-{
-	return Database
-		? sqlite3_last_insert_rowid(Database)
-		: 0;
 }

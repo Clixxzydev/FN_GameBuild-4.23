@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 /**
  * Animation that can be streamed instead of being loaded completely
@@ -196,7 +196,7 @@ public:
 	virtual void GetAnimationPose(FCompactPose& OutPose, FBlendedCurve& OutCurve, const FAnimExtractContext& ExtractionContext) const override;
 	virtual int32 GetNumberOfFrames() const override { return NumFrames; }
 	//~ End UAnimSequenceBase Interface
-
+	
 #if WITH_EDITOR
 	ENGINE_API void InitFrom(const UAnimSequence* InSourceSequence);
 #endif
@@ -220,4 +220,3 @@ public:
 	bool bUseRawDataOnly;
 	int32 GetChunkIndexForTime(const TArray<FAnimStreamableChunk>& Chunks, const float CurrentTime) const;
 };
-

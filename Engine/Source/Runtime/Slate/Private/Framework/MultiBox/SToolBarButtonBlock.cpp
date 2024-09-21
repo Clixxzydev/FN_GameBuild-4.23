@@ -22,7 +22,7 @@ FToolBarButtonBlock::FToolBarButtonBlock( const TSharedPtr< const FUICommandInfo
 {
 }
 
-FToolBarButtonBlock::FToolBarButtonBlock( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon, const FUIAction& InUIAction, const EUserInterfaceActionType InUserInterfaceActionType )
+FToolBarButtonBlock::FToolBarButtonBlock( const TAttribute<FText>& InLabel, const TAttribute<FText>& InToolTip, const TAttribute<FSlateIcon>& InIcon, const FUIAction& InUIAction, const EUserInterfaceActionType::Type InUserInterfaceActionType )
 	: FMultiBlock( InUIAction )
 	, LabelOverride( InLabel )
 	, ToolTipOverride( InToolTip )
@@ -211,7 +211,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 	EMultiBlockLocation::Type BlockLocation = GetMultiBlockLocation();
 	
 	// What type of UI should we create for this block?
-	EUserInterfaceActionType UserInterfaceType = ToolBarButtonBlock->UserInterfaceActionType;
+	EUserInterfaceActionType::Type UserInterfaceType = ToolBarButtonBlock->UserInterfaceActionType;
 	if ( Action.IsValid() )
 	{
 		// If we have a UICommand, then this is specified in the command.

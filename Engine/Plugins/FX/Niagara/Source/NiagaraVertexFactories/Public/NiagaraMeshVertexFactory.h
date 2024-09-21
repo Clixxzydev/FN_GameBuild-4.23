@@ -41,7 +41,6 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FNiagaraMeshUniformParameters, NIAGARAVERTE
 	SHADER_PARAMETER(int, TransformDataOffset)
 	SHADER_PARAMETER(int, ScaleDataOffset)
 	SHADER_PARAMETER(int, SizeDataOffset)
-	SHADER_PARAMETER(uint32, MaterialParamValidMask)
 	SHADER_PARAMETER(int, MaterialParamDataOffset)
 	SHADER_PARAMETER(int, MaterialParam1DataOffset)
 	SHADER_PARAMETER(int, MaterialParam2DataOffset)
@@ -156,14 +155,14 @@ public:
 	/**
 	* Retrieve the uniform buffer for this vertex factory.
 	*/
-	FORCEINLINE FRHIUniformBuffer* GetUniformBuffer()
+	FORCEINLINE FUniformBufferRHIParamRef GetUniformBuffer()
 	{
 		return MeshParticleUniformBuffer;
 	}
 	
 	//uint8* LockPreviousTransformBuffer(uint32 ParticleCount);
 	//void UnlockPreviousTransformBuffer();
-	//FRHIShaderResourceView* GetPreviousTransformBufferSRV() const;
+	//FShaderResourceViewRHIParamRef GetPreviousTransformBufferSRV() const;
 
 	/**
 	* Copy the data from another vertex factory
@@ -193,7 +192,7 @@ protected:
 	uint32 MeshFacingMode;
 
 	/** Uniform buffer with mesh particle parameters. */
-	FRHIUniformBuffer* MeshParticleUniformBuffer;
+	FUniformBufferRHIParamRef MeshParticleUniformBuffer;
 	
 	/** Used to remember this in the case that we reuse the same vertex factory for multiple renders . */
 	FNiagaraMeshInstanceVertices* InstanceVerticesCPU;

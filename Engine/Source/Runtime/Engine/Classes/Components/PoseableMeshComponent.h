@@ -23,11 +23,11 @@ class ENGINE_API UPoseableMeshComponent : public USkinnedMeshComponent
 	// although it's fine for poseablemeshcomponent to have this as external
 	// note that their signature is different, but the template would workf ine
 	const TArray<FTransform>& GetBoneSpaceTransforms() const { return BoneSpaceTransforms; }
-
+	
 	/** Temporary array of local-space (ie relative to parent bone) rotation/translation/scale for each bone. */
 	TArray<FTransform> BoneSpaceTransforms;
 public:
-
+	
 	FBoneContainer RequiredBones;
 
 	UFUNCTION(BlueprintCallable, Category="Components|PoseableMesh")

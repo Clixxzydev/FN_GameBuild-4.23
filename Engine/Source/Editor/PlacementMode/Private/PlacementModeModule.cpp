@@ -415,7 +415,7 @@ void FPlacementModeModule::RegenerateItemsForCategory(FName Category)
 		RefreshAllPlaceableClasses();
 	}
 
-	PlacementModeCategoryRefreshed.Broadcast(Category);
+	BroadcastPlacementModeCategoryRefreshed(Category);
 }
 
 void FPlacementModeModule::RefreshRecentlyPlaced()

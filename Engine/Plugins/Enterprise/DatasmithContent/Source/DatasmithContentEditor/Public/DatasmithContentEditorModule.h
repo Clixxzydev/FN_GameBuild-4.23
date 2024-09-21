@@ -16,17 +16,17 @@ class UPackage;
 class UWorld;
 
 // DATAPREP_TODO: Temporary interface to emulate future workflow. Interface to trigger build world and 'finalize' from data prep editor
-class IDataprepImporterInterface
+class IDataPrepImporterInterface
 {
 public:
-	virtual ~IDataprepImporterInterface() = default;
+	virtual ~IDataPrepImporterInterface() = default;
 
 	/**
-	 * @param Namespace			The namespace in which to generate asset's unique ids.
+	 * @param GUID				The GUID to use as a seed when generating unique ids.
 	 * @param ImportWorld		The destination world that we will spawn the actors in.
 	 * @param DatasmithScene	The DatasmithScene that we will apply the data prep pipeline on.
 	 */
-	virtual bool Initialize(const FString& Namespace, UWorld* ImportWorld, UDatasmithScene* DatasmithScene) = 0;
+	virtual bool Initialize(const FGuid& Guid, UWorld* ImportWorld, UDatasmithScene* DatasmithScene) = 0;
 	virtual bool BuildWorld(TArray<TWeakObjectPtr<UObject>>& OutAssets) = 0;
 	virtual bool SetFinalWorld(UWorld* FinalWorld) = 0;
 	virtual bool FinalizeAssets(const TArray<TWeakObjectPtr<UObject>>& Assets) = 0;
@@ -35,7 +35,7 @@ public:
 
 DECLARE_DELEGATE_TwoParams( FOnSpawnDatasmithSceneActors, class ADatasmithSceneActor*, bool );
 DECLARE_DELEGATE_ThreeParams( FOnCreateDatasmithSceneEditor, const EToolkitMode::Type, const TSharedPtr< class IToolkitHost >&, class UDatasmithScene*);
-DECLARE_DELEGATE_RetVal(TSharedPtr<IDataprepImporterInterface>, FOnCreateDatasmithImportHandler );
+DECLARE_DELEGATE_RetVal(TSharedPtr<IDataPrepImporterInterface>, FOnCreateDatasmithImportHandler );
 
 struct FImporterDescription
 {

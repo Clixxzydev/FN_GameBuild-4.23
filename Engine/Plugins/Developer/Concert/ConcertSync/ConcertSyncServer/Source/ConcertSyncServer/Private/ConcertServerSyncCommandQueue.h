@@ -59,17 +59,6 @@ public:
 	FConcertServerSyncCommandQueue& operator=(const FConcertServerSyncCommandQueue&) = delete;
 
 	/**
-	 * Register this endpoint with the queue.
-	 * @note This must be called before assigning work or properties to the endpoint.
-	 */
-	void RegisterEndpoint(const FGuid& InEndpointId);
-
-	/**
-	 * Unregister this endpoint from the queue.
-	 */
-	void UnregisterEndpoint(const FGuid& InEndpointId);
-
-	/**
 	 * Set the command processing method for the given endpoint.
 	 */
 	void SetCommandProcessingMethod(const FGuid& InEndpointId, const ESyncCommandProcessingMethod InProcessingMethod);
@@ -105,15 +94,15 @@ public:
 	 */
 	void ClearQueue();
 
-	/**
-	 * Reset the queue back to its empty state with no endpoints registered.
-	 */
-	void ResetQueue();
-
 private:
 	struct FEndpointSyncCommandQueue
 	{
-		ESyncCommandProcessingMethod ProcessingMethod = ESyncCommandProcessingMethod::ProcessAll;
+		FEndpointSyncCommandQueue()
+			: ProcessingMethod(ESyncCommandProcessingMethod::ProcessAll)
+		{
+		}
+
+		ESyncCommandProcessingMethod ProcessingMethod;
 		TArray<FSyncCommand> CommandQueue;
 	};
 

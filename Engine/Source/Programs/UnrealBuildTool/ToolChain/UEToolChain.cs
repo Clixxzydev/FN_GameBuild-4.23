@@ -12,8 +12,14 @@ namespace UnrealBuildTool
 {
 	abstract class UEToolChain
 	{
-		public UEToolChain()
+		/// <summary>
+		/// The C++ platform that this toolchain supports
+		/// </summary>
+		public readonly CppPlatform CppPlatform;
+
+		public UEToolChain(CppPlatform InCppPlatform)
 		{
+			CppPlatform = InCppPlatform;
 		}
 
 		public virtual string GetVersionInfo()
@@ -24,17 +30,6 @@ namespace UnrealBuildTool
 		public abstract CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, List<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, List<Action> Actions);
 
 		public virtual CPPOutput CompileRCFiles(CppCompileEnvironment Environment, List<FileItem> InputFiles, DirectoryReference OutputDir, List<Action> Actions)
-		{
-			CPPOutput Result = new CPPOutput();
-			return Result;
-		}
-
-		public virtual CPPOutput CompileISPCFiles(CppCompileEnvironment Environment, List<FileItem> InputFiles, DirectoryReference OutputDir,List<Action> Actions)
-		{
-			CPPOutput Result = new CPPOutput();
-			return Result;
-		}
-		public virtual CPPOutput GenerateISPCHeaders(CppCompileEnvironment Environment, List<FileItem> InputFiles, DirectoryReference OutputDir, List<Action> Actions)
 		{
 			CPPOutput Result = new CPPOutput();
 			return Result;
@@ -85,13 +80,6 @@ namespace UnrealBuildTool
 		{
 			return true;
 		}
-		
-		public virtual FileReference GetDebugFile(FileReference OutputFile, string DebugExtension)
-		{
-			//  by default, just change the extension to the debug extension
-			return OutputFile.ChangeExtension(DebugExtension);
-		}
-
 
 		public virtual void SetupBundleDependencies(List<UEBuildBinary> Binaries, string GameName)
 		{

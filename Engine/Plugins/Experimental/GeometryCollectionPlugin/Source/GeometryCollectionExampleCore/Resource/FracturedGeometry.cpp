@@ -1857,64 +1857,18 @@ const TArray<FTransform> FracturedGeometry::RawTransformArray = {
    FTransform(FQuat(0, 0, 0, 1), FVector(-5.27474, -31.0959, 32.0566), FVector(1, 1, 1)),
 };
 
-const TArray<int32> FracturedGeometry::RawLevelArray = {
-   0,
-   1,
-   1,
-   1,
-   1,
-   1,
-   1,
-   1,
-   1,
-   1,
-   1,
-};
-
-const TArray<int32> FracturedGeometry::RawParentArray = {
-  -1,
-   0, 
-   0, 
-   0, 
-   0, 
-   0, 
-   0, 
-   0, 
-   0, 
-   0, 
-   0, 
-};
-
-const TArray<TSet<int32>> FracturedGeometry::RawChildrenArray = {
-
-};
-
-const TArray<int32> FracturedGeometry::RawSimulationTypeArray = {
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0
-};
-
-const TArray<int32> FracturedGeometry::RawStatusFlagsArray = {
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0,
-   0
+const TArray<FGeometryCollectionBoneNode> FracturedGeometry::RawBoneHierarchyArray = {
+   FGeometryCollectionBoneNode(0, -1, 0),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
+   FGeometryCollectionBoneNode(1, 0, 1),
 };
 
 FracturedGeometry::FracturedGeometry()
@@ -1930,11 +1884,7 @@ GlobalFracturedGeometry::GlobalFracturedGeometry()
 	, RawIndicesArray(RawIndicesArray1)
 	, RawBoneMapArray(FracturedGeometry::RawBoneMapArray)
 	, RawTransformArray(FracturedGeometry::RawTransformArray)
-	, RawLevelArray(FracturedGeometry::RawLevelArray)
-	, RawParentArray(FracturedGeometry::RawParentArray)
-	, RawChildrenArray(FracturedGeometry::RawChildrenArray)
-	, RawSimulationTypeArray(FracturedGeometry::RawSimulationTypeArray)
-	, RawStatusFlagsArray(FracturedGeometry::RawStatusFlagsArray)
+	, RawBoneHierarchyArray(FracturedGeometry::RawBoneHierarchyArray)
 {
 	// The FracturedGeometry data set has lots of free and coincident vertices.
 	// We're going to concatenate 2 copies of it.

@@ -6,14 +6,12 @@
 using namespace Audio;
 
 FDynamicDelayAPF::FDynamicDelayAPF(float InG, int32 InMinDelay, int32 InMaxDelay, int32 InMaxNumInternalBufferSamples)
-:	MinDelay(InMinDelay)
+:	G(InG)
+,	MinDelay(InMinDelay)
 ,	MaxDelay(InMaxDelay)
 ,	NumDelaySamples(InMinDelay - 1)
 ,	NumInternalBufferSamples(InMaxNumInternalBufferSamples)
 {
-	G.SetValueInterrupt(0.0f);
-	G.Init(48000); // TODO: use actual sample rate (will warp ease time slightly right now)
-
 	checkf(NumDelaySamples >= 0, TEXT("Minimum delay must be atleast 1"));
 	// NumInternalBufferSamples must be less than the length of the delay to support buffer indexing logic.
 	int32 MaxBufferSamples = FMath::Min(NumDelaySamples, InMaxNumInternalBufferSamples);
@@ -101,35 +99,19 @@ void FDynamicDelayAPF::ProcessAudioBlock(const float* InSamples, const AlignedFl
 	// w[n - d]
 	FractionalDelayLine->ProcessAudio(WorkBufferA, InFractionalDelays, WorkBufferB);
 
+	// w[n] = x[n] + G * w[n - d]
 	DelayLineInput.Reset(InNum);
 	DelayLineInput.AddUninitialized(InNum);
-
-	// Cache the start and end values for G (in this process callback)
-	const float CurrG = G.GetValue(0);
-
-	for (int i = 0; i < InNum; ++i)
-	{
-		G.GetValue();
-	}
-
-	const float EndG = G.GetValue(0);
-
-	// WorkBufferA = G * WorkBufferB
-	FMemory::Memcpy(WorkBufferA.GetData(), WorkBufferB.GetData(), InNum * sizeof(float));
-
-	// w[n] = x[n] + G * w[n - d]
-	FadeBufferFast(WorkBufferA.GetData(), InNum, CurrG, EndG);
-	SumBuffers(InSamples, WorkBufferA.GetData(), DelayLineInput.GetData(), InNum);
-
+	BufferWeightedSumFast(WorkBufferB.GetData(), G, InSamples, DelayLineInput.GetData(), InNum);
+	
 	BufferUnderflowClampFast(DelayLineInput);
 
+	// y[n] = -G w[n] + w[n - d]
+	BufferWeightedSumFast(DelayLineInput.GetData(), -G, WorkBufferB.GetData(), OutSamples, InNum);
+	
 	// Update delay line
 	IntegerDelayLine->RemoveSamples(InNum);
 	IntegerDelayLine->AddSamples(DelayLineInput.GetData(), InNum);
-
-	// y[n] = -G w[n] + w[n - d]
-	FadeBufferFast(DelayLineInput.GetData(), InNum, -CurrG, -EndG);
-	SumBuffers(DelayLineInput.GetData(), WorkBufferB.GetData(), OutSamples, InNum);
 }
 
 void FDynamicDelayAPF::Reset() 

@@ -864,6 +864,18 @@ bool UDemoNetDriver::InitConnect(FNetworkNotify* InNotify, const FURL& ConnectUR
 	ServerConnection = NewObject<UNetConnection>(GetTransientPackage(), UDemoNetConnection::StaticClass());
 	ServerConnection->InitConnection(this, USOCK_Pending, ConnectURL, 1000000);
 
+	TArray<FString> UserNames;
+
+	if (GetWorld()->GetGameInstance()->GetFirstGamePlayer() != nullptr)
+	{
+		FUniqueNetIdRepl ViewerId = GetWorld()->GetGameInstance()->GetFirstGamePlayer()->GetPreferredUniqueNetId();
+
+		if (ViewerId.IsValid())
+		{ 
+			UserNames.Add(ViewerId.ToString());
+		}
+	}
+
 	const TCHAR* const LevelPrefixOverrideOption = DemoURL.GetOption(TEXT("LevelPrefixOverride="), nullptr);
 	if (LevelPrefixOverrideOption)
 	{
@@ -893,24 +905,13 @@ bool UDemoNetDriver::InitConnect(FNetworkNotify* InNotify, const FURL& ConnectUR
 	bWasStartStreamingSuccessful = true;
 
 	ActiveReplayName = DemoURL.Map;
-
-	TArray<int32> UserIndices;
-	for (FLocalPlayerIterator It(GEngine, World); It; ++It)
-	{
-		if (*It)
-		{
-			UserIndices.Add(It->GetControllerId());
-		}
-	}
-	
-	FStartStreamingParameters Params;
-	Params.CustomName = DemoURL.Map;
-	Params.DemoURL = GetDemoURL();
-	Params.UserIndices = MoveTemp(UserIndices);
-	Params.bRecord = false;
-	Params.ReplayVersion = FNetworkVersion::GetReplayVersion();
-
-	ReplayStreamer->StartStreaming(Params, FStartStreamingCallback::CreateUObject(this, &UDemoNetDriver::ReplayStreamingReady));
+	ReplayStreamer->StartStreaming( 
+		DemoURL.Map, 
+		FString(),		// Friendly name isn't important for loading an existing replay.
+		UserNames, 
+		false, 
+		FNetworkVersion::GetReplayVersion(), 
+		FStartStreamingCallback::CreateUObject(this, &UDemoNetDriver::ReplayStreamingReady));
 
 	return bWasStartStreamingSuccessful;
 }
@@ -1077,28 +1078,32 @@ bool UDemoNetDriver::InitListen(FNetworkNotify* InNotify, FURL& ListenURL, bool 
 
 	bRecordMapChanges = ListenURL.GetOption(TEXT("RecordMapChanges"), nullptr) != nullptr;
 
-	TArray<int32> UserIndices;
-	for (FLocalPlayerIterator It(GEngine, World); It; ++It)
+	TArray<FString> UserNames;
+	AGameStateBase* GameState = GetWorld()->GetGameState();
+
+	// If a client is recording a replay, GameState may not have replicated yet
+	if (GameState != nullptr)
 	{
-		if (*It)
+		for (int32 i = 0; i < GameState->PlayerArray.Num(); i++)
 		{
-			UserIndices.Add(It->GetControllerId());
+			APlayerState* PlayerState = GameState->PlayerArray[i];
+			if (PlayerState && !PlayerState->bIsABot && !PlayerState->bIsSpectator)
+			{
+				UserNames.Add(PlayerState->UniqueId.ToString());
+			}
 		}
 	}
 
 	bIsWaitingForStream = true;
 
 	ActiveReplayName = DemoURL.Map;
-
-	FStartStreamingParameters Params;
-	Params.CustomName = DemoURL.Map;
-	Params.FriendlyName = FriendlyNameOption != nullptr ? FString(FriendlyNameOption) : World->GetMapName();
-	Params.DemoURL = GetDemoURL();
-	Params.UserIndices = MoveTemp(UserIndices);
-	Params.bRecord = true;
-	Params.ReplayVersion = FNetworkVersion::GetReplayVersion();
-
-	ReplayStreamer->StartStreaming(Params, FStartStreamingCallback::CreateUObject(this, &UDemoNetDriver::ReplayStreamingReady));
+	ReplayStreamer->StartStreaming(
+		DemoURL.Map,
+		FriendlyNameOption != nullptr ? FString(FriendlyNameOption) : World->GetMapName(),
+		UserNames,
+		true,
+		FNetworkVersion::GetReplayVersion(),
+		FStartStreamingCallback::CreateUObject(this, &UDemoNetDriver::ReplayStreamingReady));
 
 	AddNewLevel(World->GetOuter()->GetName());
 
@@ -1601,7 +1606,7 @@ void UDemoNetDriver::StopDemo()
 	{
 		UE_LOG(LogDemo, Log, TEXT("StopDemo: No demo is playing"));
 		ClearReplayTasks();
-		ActiveReplayName.Empty();
+		ActiveReplayName = FString();
 		ResetDemoState();
 		return;
 	}
@@ -1628,7 +1633,7 @@ void UDemoNetDriver::StopDemo()
 
 	ReplayStreamer->StopStreaming();
 	ClearReplayTasks();
-	ActiveReplayName.Empty();
+	ActiveReplayName = FString();
 	ResetDemoState();
 
 	check(!IsRecording() && !IsPlaying());
@@ -2667,7 +2672,9 @@ void UDemoNetDriver::TickDemoRecordFrame(float DeltaSeconds)
 					// We check ActorInfo->LastNetUpdateTime < KINDA_SMALL_NUMBER to force at least one update for each actor
 					const bool bWasRecentlyRelevant = (ActorInfo->LastNetUpdateTime < KINDA_SMALL_NUMBER) || ((Time - ActorInfo->LastNetUpdateTime) < RelevantTimeout);
 
-					bool bIsRelevant = !bUseNetRelevancy || Actor->bAlwaysRelevant || Actor == ClientConnection->PlayerController || (ActorInfo->ForceRelevantFrame >= ReplicationFrame);
+					bool bIsRelevant = !bUseNetRelevancy || Actor->bAlwaysRelevant || Actor == ClientConnection->PlayerController || ActorInfo->bForceRelevantNextUpdate;
+
+					ActorInfo->bForceRelevantNextUpdate = false;
 
 					if (!bIsRelevant)
 					{
@@ -2908,7 +2915,7 @@ bool UDemoNetDriver::ReplicatePrioritizedActor(const FActorPriority& ActorPriori
 		const double ClampedExtraTime = FMath::Clamp(ExtraTime, 0.0, NetUpdateDelay);
 
 		// Try to spread the updates across multiple frames to smooth out spikes.
-		ActorInfo->NextUpdateTime = (DemoCurrentTime + NextUpdateDelta - ClampedExtraTime + ((UpdateDelayRandomStream.FRand() - 0.5) * Params.ServerTickTime));
+		ActorInfo->NextUpdateTime = (DemoCurrentTime + NextUpdateDelta - ClampedExtraTime + ((FMath::SRand() - 0.5) * Params.ServerTickTime));
 
 		Actor->CallPreReplication(this);
 
@@ -4795,6 +4802,43 @@ bool UDemoNetDriver::FastForwardLevels(const FGotoResult& GotoResult)
 
 	LevelsPendingFastForward.Reset();
 
+	// It's possible that the level we're streaming in may spawn Dynamic Actors.
+	// In that case, we want to make sure we track them so we can process them below.
+	// We only care about the actors if they're outered to the Level.
+	struct FDynamicActorTracker
+	{
+		FDynamicActorTracker(UWorld* InTrackWorld, TSet<ULevel*>& InCareAboutLevels, TSet<TWeakObjectPtr<AActor>>& InActorSet) :
+			TrackWorld(InTrackWorld),
+			CareAboutLevels(InCareAboutLevels),
+			ActorSet(InActorSet)
+		{
+			FOnActorSpawned::FDelegate TrackActorDelegate = FOnActorSpawned::FDelegate::CreateRaw(this, &FDynamicActorTracker::TrackActor);
+			TrackActorHandle = TrackWorld->AddOnActorSpawnedHandler(TrackActorDelegate);
+		}
+
+		~FDynamicActorTracker()
+		{
+			TrackWorld->RemoveOnActorSpawnedHandler(TrackActorHandle);
+		}
+
+	private:
+
+		void TrackActor(AActor* Actor)
+		{
+			if (Actor && CareAboutLevels.Contains(Actor->GetLevel()))
+			{
+				UE_LOG(LogDemo, Verbose, TEXT("FastForwardLevels - Sublevel spawned dynamic actor."));
+				ActorSet.Add(Actor);
+			}
+		}
+
+		UWorld* TrackWorld;
+		TSet<ULevel*> CareAboutLevels;
+		TSet<TWeakObjectPtr<AActor>>& ActorSet;
+		FDelegateHandle TrackActorHandle;
+
+	} ActorTracker(World, LocalLevels, StartupActors);
+
 	{
 		TGuardValue<bool> FastForward(bIsFastForwarding, true);
 		FScopedIgnoreOpenChannels ScopedIgnoreChannels(ServerConnection);
@@ -4850,25 +4894,23 @@ bool UDemoNetDriver::FastForwardLevels(const FGotoResult& GotoResult)
 
 			// Since we know this is an actor channel, should be safe to do a static_cast.
 			UActorChannel* const ActorChannel = static_cast<UActorChannel*>(Channel);
-			if (AActor* Actor = ActorChannel->GetActor())
+			AActor* Actor = ActorChannel->GetActor();
+
+			// We only need to consider startup actors, or dynamic that were spawned and outered
+			// to one of our sublevels.
+			if (Actor == nullptr || !StartupActors.Contains(Actor))
 			{
-				const bool bDynamicInLevel = !Actor->IsNetStartupActor() && LocalLevels.Contains(Actor->GetLevel());
+				continue;
+			}
 
-				// We only need to consider startup actors, or dynamic that were spawned and outered
-				// to one of our sublevels.
-				if (bDynamicInLevel || StartupActors.Contains(Actor))
-				{
-					ChannelsToUpdate.Add(ActorChannel);
+			ChannelsToUpdate.Add(ActorChannel);
+			if (const FObjectReplicator* const ActorReplicator = ActorChannel->ActorReplicator.Get())
+			{
+				FReceivingRepState* ReceivingRepState = ActorReplicator->RepState->GetReceivingRepState();
+				FRepShadowDataBuffer ShadowData(ReceivingRepState->StaticBuffer.GetData());
+				FConstRepObjectDataBuffer ActorData(Actor);
 
-					if (const FObjectReplicator* const ActorReplicator = ActorChannel->ActorReplicator.Get())
-					{
-						FReceivingRepState* ReceivingRepState = ActorReplicator->RepState->GetReceivingRepState();
-						FRepShadowDataBuffer ShadowData(ReceivingRepState->StaticBuffer.GetData());
-						FConstRepObjectDataBuffer ActorData(Actor);
-
-						ActorReplicator->RepLayout->DiffProperties(&(ReceivingRepState->RepNotifies), ShadowData, ActorData, EDiffPropertiesFlags::Sync);
-					}
-				}
+				ActorReplicator->RepLayout->DiffProperties(&(ReceivingRepState->RepNotifies), ShadowData, ActorData, EDiffPropertiesFlags::Sync);
 			}
 		}
 
@@ -5791,14 +5833,7 @@ void UDemoNetConnection::HandleClientPlayer(APlayerController* PC, UNetConnectio
 
 	int32 SavedNetSpeed = LocalPlayer ? LocalPlayer->CurrentNetSpeed : 0;
 
-	if (LocalPlayer != nullptr)
-	{
-		Super::HandleClientPlayer(PC, NetConnection);
-	}
-	else
-	{
-		DemoDriver->RestoreConnectionPostScrub(PC, NetConnection);
-	}
+	Super::HandleClientPlayer(PC, NetConnection);
 	
 	// Restore the netspeed if we're a local replay
 	if (DemoDriver->bIsLocalReplay && LocalPlayer)
@@ -5817,6 +5852,12 @@ void UDemoNetConnection::HandleClientPlayer(APlayerController* PC, UNetConnectio
 			break;
 		}
 	}
+}
+
+TSharedPtr<FInternetAddr> UDemoNetConnection::GetInternetAddr()
+{
+	// Does not use MappedClientConnections
+	return TSharedPtr<FInternetAddr>();
 }
 
 bool UDemoNetConnection::ClientHasInitializedLevelFor(const AActor* TestActor) const
@@ -6310,25 +6351,8 @@ bool UDemoNetDriver::UpdateExternalDataForActor(AActor* Actor)
 
 bool UDemoNetDriver::ShouldReplicateFunction(AActor* Actor, UFunction* Function) const
 {
-	bool bShouldRecordMulticast = (Function && Function->FunctionFlags & FUNC_NetMulticast) && IsRecording();
-	if (bShouldRecordMulticast)
-	{
-		FString FuncPathName = GetPathNameSafe(Function);
-		int32 Idx = MulticastRecordOptions.IndexOfByPredicate([FuncPathName](const FMulticastRecordOptions& Options) { return (Options.FuncPathName == FuncPathName); });
-		if (Idx != INDEX_NONE)
-		{
-			if (World && World->IsRecordingClientReplay())
-			{
-				bShouldRecordMulticast = bShouldRecordMulticast && !MulticastRecordOptions[Idx].bClientSkip;
-			}
-			else
-			{
-				bShouldRecordMulticast = bShouldRecordMulticast && !MulticastRecordOptions[Idx].bServerSkip;
-			}
-		}
-	}
-
-	return bShouldRecordMulticast || Super::ShouldReplicateFunction(Actor, Function);
+	const bool bRecordingMulticast = (Function && Function->FunctionFlags & FUNC_NetMulticast) && IsRecording();
+	return bRecordingMulticast || Super::ShouldReplicateFunction(Actor, Function);
 }
 
 bool UDemoNetDriver::ShouldReplicateActor(AActor* Actor) const

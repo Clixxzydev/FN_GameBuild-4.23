@@ -155,6 +155,11 @@ void ANavLinkProxy::PostLoad()
 	{
 		Link.InitializeAreaClass();
 	}
+	
+	if (SmartLinkComp)
+	{
+		SmartLinkComp->SetNavigationRelevancy(bSmartLinkIsRelevant);
+	}
 }
 
 #if ENABLE_VISUAL_LOG

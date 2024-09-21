@@ -66,7 +66,7 @@ void FVisualizeComplexityApplyPS::SetParameters(
 	bool bShowError
 	)
 {
-	FRHIPixelShader* ShaderRHI = GetPixelShader();
+	const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 	FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, Context.View.ViewUniformBuffer);
 

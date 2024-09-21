@@ -624,37 +624,31 @@ struct FDynamicStats
 	static TStatId CreateStatId( const FString& StatNameOrDescription )
 	{
 #if	STATS
-		return CreateStatIdInternal<TStatGroup>( FName( *StatNameOrDescription ), EStatDataType::ST_int64, true);
+		return CreateStatId<TStatGroup>( FName( *StatNameOrDescription ) );
 #endif // STATS
 
 		return TStatId();
 	}
 
 	template< typename TStatGroup >
-	static TStatId CreateStatIdInt64(const FString& StatNameOrDescription)
+	static TStatId CreateStatId( const FName StatNameOrDescription )
 	{
 #if	STATS
-		return CreateStatIdInternal<TStatGroup>(FName(*StatNameOrDescription), EStatDataType::ST_int64, false);
+		FStartupMessages::Get().AddMetadata( StatNameOrDescription, nullptr,
+			TStatGroup::GetGroupName(),
+			TStatGroup::GetGroupCategory(),
+			TStatGroup::GetDescription(),
+			true, EStatDataType::ST_int64, true, false );
+
+		TStatId StatID = IStatGroupEnableManager::Get().GetHighPerformanceEnableForStat( StatNameOrDescription,
+			TStatGroup::GetGroupName(),
+			TStatGroup::GetGroupCategory(),
+			TStatGroup::DefaultEnable,
+			true, EStatDataType::ST_int64, nullptr, true, false );
+
+		return StatID;
 #endif // STATS
 
-		return TStatId();
-	}
-
-	template< typename TStatGroup >
-	static TStatId CreateStatIdDouble(const FString& StatNameOrDescription)
-	{
-#if	STATS
-		return CreateStatIdInternal<TStatGroup>(FName(*StatNameOrDescription), EStatDataType::ST_double, false);
-#endif // STATS
-		return TStatId();
-	}
-
-	template< typename TStatGroup >
-	static TStatId CreateStatId(const FName StatNameOrDescription, bool IsTimer = true)
-	{
-#if	STATS
-		return CreateStatIdInternal<TStatGroup>(StatNameOrDescription, EStatDataType::ST_int64, IsTimer);
-#endif // STATS
 		return TStatId();
 	}
 
@@ -689,26 +683,4 @@ struct FDynamicStats
 
 		return TStatId();
 	}
-
-#if	STATS
-private: // private since this can only be declared if STATS is defined, due to EStatDataType in signature
-	template< typename TStatGroup >
-	static TStatId CreateStatIdInternal(const FName StatNameOrDescription, EStatDataType::Type Type, bool IsTimer)
-	{
-
-		FStartupMessages::Get().AddMetadata(StatNameOrDescription, nullptr,
-			TStatGroup::GetGroupName(),
-			TStatGroup::GetGroupCategory(),
-			TStatGroup::GetDescription(),
-			true, Type, IsTimer, false);
-
-		TStatId StatID = IStatGroupEnableManager::Get().GetHighPerformanceEnableForStat(StatNameOrDescription,
-			TStatGroup::GetGroupName(),
-			TStatGroup::GetGroupCategory(),
-			TStatGroup::DefaultEnable,
-			true, Type, nullptr, IsTimer, false);
-
-		return StatID;
-	}
-#endif // STATS
 };

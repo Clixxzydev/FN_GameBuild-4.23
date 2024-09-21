@@ -335,7 +335,7 @@ struct FParameterGroupData
  * Warning: Creating new materials directly increases shader compile times!  Consider creating a Material Instance off of an existing material instead.
  */
 UCLASS(hidecategories=Object, MinimalAPI, BlueprintType)
-class ENGINE_VTABLE UMaterial : public UMaterialInterface
+class UMaterial : public UMaterialInterface
 {
 	GENERATED_UCLASS_BODY()
 
@@ -625,35 +625,35 @@ public:
 	uint32 bUsedAsSpecialEngineMaterial:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with skeletal meshes.  
+	 * Indicates that the material and its instances can be use with skeletal meshes.  
 	 * This will result in the shaders required to support skeletal meshes being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithSkeletalMesh:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with editor compositing  
+	 * Indicates that the material and its instances can be use with editor compositing  
 	 * This will result in the shaders required to support editor compositing being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithEditorCompositing:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with particle sprites 
+	 * Indicates that the material and its instances can be use with particle sprites 
 	 * This will result in the shaders required to support particle sprites being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithParticleSprites:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with beam trails
+	 * Indicates that the material and its instances can be use with beam trails
 	 * This will result in the shaders required to support beam trails being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithBeamTrails:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with mesh particles
+	 * Indicates that the material and its instances can be use with mesh particles
 	 * This will result in the shaders required to support mesh particles being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
@@ -661,7 +661,7 @@ public:
 
 
 	/**
-	* Indicates that the material and its instances can be used with Niagara sprites (meshes and ribbons, respectively)
+	* Indicates that the material and its instances can be use with Niagara sprites (meshes and ribbons, respectively)
 	* This will result in the shaders required to support Niagara sprites being compiled which will increase shader compile time and memory usage.
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Usage)
@@ -677,56 +677,49 @@ public:
 	uint32 bUsedWithGeometryCache : 1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with static lighting
+	 * Indicates that the material and its instances can be use with static lighting
 	 * This will result in the shaders required to support static lighting being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithStaticLighting:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with morph targets
+	 * Indicates that the material and its instances can be use with morph targets
 	 * This will result in the shaders required to support morph targets being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithMorphTargets:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with spline meshes
+	 * Indicates that the material and its instances can be use with spline meshes
 	 * This will result in the shaders required to support spline meshes being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithSplineMeshes:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with instanced static meshes
+	 * Indicates that the material and its instances can be use with instanced static meshes
 	 * This will result in the shaders required to support instanced static meshes being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithInstancedStaticMeshes:1;
 
-	/**
-	 * Indicates that the material and its instances can be use with geometry collections
-	 * This will result in the shaders required to support geometry collections being compiled which will increase shader compile time and memory usage.
-	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Usage)
-	uint32 bUsedWithGeometryCollections : 1;
-
 	/** 
-	 * Indicates that the material and its instances can be used with distortion
+	 * Indicates that the material and its instances can be use with distortion
 	 * This will result in the shaders required to support distortion being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY()
 	uint32 bUsesDistortion:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with clothing
+	 * Indicates that the material and its instances can be use with clothing
 	 * This will result in the shaders required to support clothing being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Usage)
 	uint32 bUsedWithClothing:1;
 
 	/** 
-	 * Indicates that the material and its instances can be used with Slate UI and UMG
+	 * Indicates that the material and its instances can be use with Slate UI and UMG
 	 * This will result in the shaders required to support UI materials being compiled which will increase shader compile time and memory usage.
 	 */
 	UPROPERTY()
@@ -849,10 +842,6 @@ public:
 	UPROPERTY(EditAnywhere, Category=Material)
 	uint32 bUseMaterialAttributes:1;
 
-	/** when true, the material casts ray tracing shadows. */
-	UPROPERTY(EditAnywhere, Category = Material)
-	uint32 bCastRayTracedShadows : 1;
-
 	/** When true, translucent materials are fogged. Defaults to true. */
 	UPROPERTY(EditAnywhere, Category=Translucency, meta=(DisplayName = "Apply Fogging"))
 	uint32 bUseTranslucencyVertexFog:1;
@@ -860,10 +849,6 @@ public:
 	/** When true, translucent materials have fog computed for every pixel, which costs more but fixes artifacts due to low tessellation. */
 	UPROPERTY(EditAnywhere, Category=Translucency)
 	uint32 bComputeFogPerPixel:1;
-
-	/** When true, translucent materials will output motion vectors in velocity pass. */
-	UPROPERTY(EditAnywhere, Category = Translucency, meta = (DisplayName = "Output Velocity"))
-	uint32 bOutputTranslucentVelocity : 1;
 
 	/** If true the compilation environment will be changed to remove the global COMPILE_SHADERS_FOR_DEVELOPMENT flag. */
 	UPROPERTY(transient, duplicatetransient)
@@ -964,7 +949,7 @@ private:
 	 * This is used to link uniform texture expressions which were stored in the DDC with the UTextures that they reference.
 	 */
 	UPROPERTY(transient)
-	TArray<UObject*> ExpressionTextureReferences;
+	TArray<UTexture*> ExpressionTextureReferences;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
@@ -1023,12 +1008,10 @@ public:
 	ENGINE_API virtual bool IsTwoSided() const override;
 	ENGINE_API virtual bool IsDitheredLODTransition() const override;
 	ENGINE_API virtual bool IsTranslucencyWritingCustomDepth() const override;
-	ENGINE_API virtual bool IsTranslucencyWritingVelocity() const override;
 	ENGINE_API virtual bool IsMasked() const override;
 	ENGINE_API virtual bool IsUIMaterial() const { return MaterialDomain == MD_UI; }
 	ENGINE_API virtual bool IsPostProcessMaterial() const { return MaterialDomain == MD_PostProcess; }
 	ENGINE_API virtual USubsurfaceProfile* GetSubsurfaceProfile_Internal() const override;
-	ENGINE_API virtual bool CastsRayTracedShadows() const override;
 
 	ENGINE_API void SetShadingModel(EMaterialShadingModel NewModel) { ensure(ShadingModel < MSM_NUM); ShadingModel = NewModel; ShadingModels = FMaterialShadingModelField(ShadingModel); }
 
@@ -1497,10 +1480,10 @@ private:
 	 * Caller is responsible for deleting OutCachedMaterialResources.
 	 * Note: This modifies material variables used for rendering and is assumed to be called within a FMaterialUpdateContext!
 	 */
-	void CacheResourceShadersForCooking(EShaderPlatform Platform, TArray<FMaterialResource*>& OutCachedMaterialResources, const ITargetPlatform* TargetPlatform = nullptr);
+	void CacheResourceShadersForCooking(EShaderPlatform Platform, TArray<FMaterialResource*>& OutCachedMaterialResources);
 
 	/** Caches shader maps for an array of material resources. */
-	void CacheShadersForResources(EShaderPlatform ShaderPlatform, const TArray<FMaterialResource*>& ResourcesToCache, const ITargetPlatform* TargetPlatform = nullptr);
+	void CacheShadersForResources(EShaderPlatform ShaderPlatform, const TArray<FMaterialResource*>& ResourcesToCache, bool bApplyCompletedShaderMapForRendering);
 
 	/**
 	 * If there is some texture reference used by a TextureProperty node in any expressions, this function
@@ -1688,7 +1671,7 @@ public:
 #endif
 
 	/** Appends textures referenced by expressions, including nested functions. */
-	ENGINE_API virtual void AppendReferencedTextures(TArray<UObject*>& InOutTextures) const override;
+	ENGINE_API virtual void AppendReferencedTextures(TArray<UTexture*>& InOutTextures) const override;
 
 protected:
 
@@ -1840,65 +1823,6 @@ private:
 
 		return nullptr;
 	}
-
-#if WITH_EDITOR
-
-	template<typename ParameterType, typename ...Arguments>
-	bool SetParameterValueEditorOnly(FName InParameterName, Arguments... Args)
-	{
-		// Warning: in the case of duplicate parameters with different default values, this will find the first in the expression array, not necessarily the one that's used for rendering
-
-		// Lambda which calls SetParameterValue on a given parameter and triggers a PostEditChange event if successful
-		auto TrySetParameterValue = [&](ParameterType* Parameter) -> bool
-		{
-			if (Parameter && Parameter->SetParameterValue(InParameterName, Args...))
-			{
-				if (UProperty* ParamProperty = FindField<UProperty>(ParameterType::StaticClass(), "DefaultValue"))
-				{
-					FPropertyChangedEvent PropertyChangedEvent(ParamProperty);
-					Parameter->PostEditChangeProperty(PropertyChangedEvent);
-					return true;
-				}
-			}
-			return false;
-		};
-
-		for (UMaterialExpression* Expression : Expressions)
-		{
-			if (TrySetParameterValue(Cast<ParameterType>(Expression)))
-			{
-				return true;
-			}
-			else if (UMaterialExpressionMaterialFunctionCall* FunctionCall = Cast<UMaterialExpressionMaterialFunctionCall>(Expression))
-			{
-				if (FunctionCall->MaterialFunction)
-				{
-					TArray<UMaterialFunctionInterface*> Functions;
-					Functions.Add(FunctionCall->MaterialFunction);
-					FunctionCall->MaterialFunction->GetDependentFunctions(Functions);
-
-					for (UMaterialFunctionInterface* Function : Functions)
-					{
-						const TArray<UMaterialExpression*>* ExpressionPtr = Function->GetFunctionExpressions();
-						if (ExpressionPtr)
-						{
-							for (UMaterialExpression* FunctionExpression : *ExpressionPtr)
-							{
-								if (TrySetParameterValue(Cast<ParameterType>(FunctionExpression)))
-								{
-									return true;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		return false;
-	}
-
-#endif // WITH_EDITOR
 
 };
 

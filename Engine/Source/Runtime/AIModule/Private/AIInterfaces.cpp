@@ -33,7 +33,7 @@ namespace
 	}
 }
 
-FGenericTeamId::FAttitudeSolverFunction FGenericTeamId::AttitudeSolverImpl = &DefaultTeamAttitudeSolver;
+FGenericTeamId::FAttitudeSolverFunction* FGenericTeamId::AttitudeSolverImpl = &DefaultTeamAttitudeSolver;
 
 ETeamAttitude::Type FGenericTeamId::GetAttitude(const AActor* A, const AActor* B)
 {
@@ -42,14 +42,9 @@ ETeamAttitude::Type FGenericTeamId::GetAttitude(const AActor* A, const AActor* B
 	return TeamAgentA == NULL || B == NULL ? ETeamAttitude::Neutral : TeamAgentA->GetTeamAttitudeTowards(*B);
 }
 
-void FGenericTeamId::SetAttitudeSolver(const FGenericTeamId::FAttitudeSolverFunction& Solver)
+void FGenericTeamId::SetAttitudeSolver(FGenericTeamId::FAttitudeSolverFunction* Solver)
 {
 	AttitudeSolverImpl = Solver;
-}
-
-void FGenericTeamId::ResetAttitudeSolver()
-{
-	AttitudeSolverImpl = &DefaultTeamAttitudeSolver;
 }
 
 //----------------------------------------------------------------------//

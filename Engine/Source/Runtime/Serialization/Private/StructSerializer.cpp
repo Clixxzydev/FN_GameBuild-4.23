@@ -242,7 +242,7 @@ void FStructSerializer::Serialize( const void* Struct, UStruct& TypeInfo, IStruc
 				StateStack.Push(CurrentState);
 
 				USetProperty* SetProperty = CastChecked<USetProperty>(CurrentState.ValueProperty);
-				FScriptSetHelper SetHelper(SetProperty, SetProperty->ContainerPtrToValuePtr<void>(CurrentState.ValueData));
+				FScriptSetHelper SetHelper(SetProperty, CurrentState.ValueData);
 				UProperty* ValueProperty = SetProperty->ElementProp;
 
 				// push elements on stack

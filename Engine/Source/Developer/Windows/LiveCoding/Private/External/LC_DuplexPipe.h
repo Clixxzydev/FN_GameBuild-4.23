@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 #include "LC_Commands.h"
-#include "LC_Platform.h"
+
 
 class DuplexPipe
 {
@@ -17,39 +17,25 @@ public:
 
 	// send command, synchronous
 	template <typename T>
-	void SendCommandAndWaitForAck(const T& command, const void* payload, size_t payloadSize) const
+	void SendCommandAndWaitForAck(const T& command) const
 	{
-		// send the header and command, and wait for the ACK to be received
-		const commands::Header header = { T::ID, static_cast<uint32_t>(payloadSize) };
-		Send(&header, sizeof(commands::Header));
-		Send(&command, sizeof(T));
-
-		if (payloadSize != 0u)
-		{
-			LC_ASSERT(payload != nullptr, "Cannot send command payload.");
-			Send(payload, payloadSize);
-		}
+		// send the command ID and the command, and wait for ACK to come in
+		const uint32_t commandId = T::ID;
+		Send(&commandId, sizeof(commandId));
+		Send(&command, sizeof(command));
 
 		commands::Acknowledge ack = {};
 		Read(&ack, sizeof(commands::Acknowledge));
 	}
 
-	// receive command header
-	bool ReceiveHeader(commands::Header* header) const;
+	// receive command ID
+	bool ReceiveCommandId(uint32_t* id) const;
 
-	// receive any command
 	template <typename T>
-	bool ReceiveCommand(T* command, void* payload, size_t payloadSize) const
+	bool ReceiveCommand(T* command) const
 	{
-		// receive command and optional payload
-		bool success = Read(command, sizeof(T));
-
-		if (payloadSize != 0u)
-		{
-			LC_ASSERT(payload != nullptr, "Cannot receive command payload.");
-			success &= Read(payload, payloadSize);
-		}
-
+		// receive command
+		const bool success = Read(command, sizeof(T));
 		return success;
 	}
 

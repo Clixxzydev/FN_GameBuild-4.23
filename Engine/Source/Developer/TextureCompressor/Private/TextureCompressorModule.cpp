@@ -422,8 +422,7 @@ static void GenerateSharpenedMipB8G8R8A8Templ(
 	FVector4 AlphaThresholds,
 	const FImageKernel2D& Kernel,
 	uint32 ScaleFactor,
-	bool bSharpenWithoutColorShift,
-	bool bUnfiltered)
+	bool bSharpenWithoutColorShift )
 {
 	check( SourceImageData.SizeX == ScaleFactor * DestImageData.SizeX || DestImageData.SizeX == 1 );
 	check( SourceImageData.SizeY == ScaleFactor * DestImageData.SizeY || DestImageData.SizeY == 1 );
@@ -449,11 +448,7 @@ static void GenerateSharpenedMipB8G8R8A8Templ(
 
 			FLinearColor FilteredColor(0, 0, 0, 0);
 
-			if ( bUnfiltered )
-			{
-				FilteredColor = LookupSourceMip<AddressMode>(SourceImageData, SourceX + 0, SourceY + 0);
-			}
-			else if ( bSharpenWithoutColorShift )
+			if ( bSharpenWithoutColorShift )
 			{
 				FLinearColor SharpenedColor(0, 0, 0, 0);
 
@@ -542,27 +537,26 @@ static void GenerateSharpenedMipB8G8R8A8(
 	FVector4 AlphaThresholds,
 	const FImageKernel2D &Kernel,
 	uint32 ScaleFactor,
-	bool bSharpenWithoutColorShift,
-	bool bUnfiltered
+	bool bSharpenWithoutColorShift
 	)
 {
 	switch(AddressMode)
 	{
 	case MGTAM_Wrap:
-		GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Wrap>(SourceImageData, DestImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift, bUnfiltered);
+		GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Wrap>(SourceImageData, DestImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift);
 		break;
 	case MGTAM_Clamp:
-		GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Clamp>(SourceImageData, DestImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift, bUnfiltered);
+		GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Clamp>(SourceImageData, DestImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift);
 		break;
 	case MGTAM_BorderBlack:
-		GenerateSharpenedMipB8G8R8A8Templ<MGTAM_BorderBlack>(SourceImageData, DestImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift, bUnfiltered);
+		GenerateSharpenedMipB8G8R8A8Templ<MGTAM_BorderBlack>(SourceImageData, DestImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift);
 		break;
 	default:
 		check(0);
 	}
 
 	// For volume texture, do the average between the 2.
-	if (SourceImageData2.IsValid() && !bUnfiltered)
+	if (SourceImageData2.IsValid())
 	{
 		FImage Temp(DestImageData.SizeX, DestImageData.SizeY, 1, ERawImageFormat::RGBA32F);
 		FImageView2D TempImageData (Temp, 0);
@@ -570,13 +564,13 @@ static void GenerateSharpenedMipB8G8R8A8(
 		switch(AddressMode)
 		{
 		case MGTAM_Wrap:
-			GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Wrap>(SourceImageData2, TempImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift, bUnfiltered);
+			GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Wrap>(SourceImageData2, TempImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift);
 			break;
 		case MGTAM_Clamp:
-			GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Clamp>(SourceImageData2, TempImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift, bUnfiltered);
+			GenerateSharpenedMipB8G8R8A8Templ<MGTAM_Clamp>(SourceImageData2, TempImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift);
 			break;
 		case MGTAM_BorderBlack:
-			GenerateSharpenedMipB8G8R8A8Templ<MGTAM_BorderBlack>(SourceImageData2, TempImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift, bUnfiltered);
+			GenerateSharpenedMipB8G8R8A8Templ<MGTAM_BorderBlack>(SourceImageData2, TempImageData, bDitherMipMapAlpha, AlphaCoverages, AlphaThresholds, Kernel, ScaleFactor, bSharpenWithoutColorShift);
 			break;
 		default:
 			check(0);
@@ -687,16 +681,23 @@ static void GenerateTopMip(const FImage& SrcImage, FImage& DestImage, const FTex
 			FVector4(0, 0, 0, 0),
 			KernelDownsample,
 			1,
-			Settings.bSharpenWithoutColorShift,
-			Settings.MipGenSettings == TMGS_Unfiltered);
+			Settings.bSharpenWithoutColorShift
+			);
 	}
 }
 
-void ITextureCompressorModule::GenerateMipChain(
+/**
+ * Generate a full mip chain. The input mip chain must have one or more mips.
+ * @param Settings - Preprocess settings.
+ * @param BaseImage - An image that will serve as the source for the generation of the mip chain.
+ * @param OutMipChain - An array that will contain the resultant mip images. Generated mip levels are appended to the array.
+ * @param MipChainDepth - number of mip images to produce. Mips chain is finished when either a 1x1 mip is produced or 'MipChainDepth' images have been produced.
+ */
+static void GenerateMipChain(
 	const FTextureBuildSettings& Settings,
 	const FImage& BaseImage,
 	TArray<FImage> &OutMipChain,
-	uint32 MipChainDepth 
+	uint32 MipChainDepth = MAX_uint32
 	)
 {
 	check(BaseImage.Format == ERawImageFormat::RGBA32F);
@@ -774,8 +775,8 @@ void ITextureCompressorModule::GenerateMipChain(
 				Settings.AlphaCoverageThresholds,
 				KernelDownsample,
 				2,
-				Settings.bSharpenWithoutColorShift,
-				Settings.MipGenSettings == TMGS_Unfiltered);
+				Settings.bSharpenWithoutColorShift
+				);
 
 			// generate IntermediateDstImage:
 			if ( Settings.bDownsampleWithAverage )
@@ -791,8 +792,8 @@ void ITextureCompressorModule::GenerateMipChain(
 					Settings.AlphaCoverageThresholds,
 					KernelSimpleAverage,
 					2,
-					Settings.bSharpenWithoutColorShift,
-					Settings.MipGenSettings == TMGS_Unfiltered);
+					Settings.bSharpenWithoutColorShift
+					);
 			}
 		}
 
@@ -1373,7 +1374,17 @@ static void GenerateAngularFilteredMips(TArray<FImage>& InOutMipChain, int32 Num
 	}
 }
 
-void ITextureCompressorModule::AdjustImageColors(FImage& Image, const FTextureBuildSettings& InBuildSettings)
+/*------------------------------------------------------------------------------
+	Image Processing.
+------------------------------------------------------------------------------*/
+
+/**
+ * Adjusts the colors of the image using the specified settings
+ *
+ * @param	Image			Image to adjust
+ * @param	InBuildSettings	Image build settings
+ */
+static void AdjustImageColors( FImage& Image, const FTextureBuildSettings& InBuildSettings )
 {
 	const FColorAdjustmentParameters& InParams = InBuildSettings.ColorAdjustment;
 	check( Image.SizeX > 0 && Image.SizeY > 0 );
@@ -2010,11 +2021,6 @@ private:
 		NumOutputMips = FMath::Min(NumOutputMips, MaxDestMipCount);
 
 		int32 NumSourceMips = InSourceMips.Num();
-
-		if (BuildSettings.MipGenSettings == TMGS_LeaveExistingMips)
-		{
-			NumOutputMips = InSourceMips.Num();
-		}
 
 		if (BuildSettings.MipGenSettings != TMGS_LeaveExistingMips || bLongLatCubemap)
 		{

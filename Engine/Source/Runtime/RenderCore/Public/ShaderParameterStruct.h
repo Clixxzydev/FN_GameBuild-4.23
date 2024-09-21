@@ -69,54 +69,24 @@ FORCEINLINE void ValidateShaderParameters(const FShader* Shader, const FShaderPa
 
 #endif // !DO_CHECK
 
-template<typename TShaderClass>
-FORCEINLINE void ValidateShaderParameters(const TShaderClass* Shader, const typename TShaderClass::FParameters& Parameters)
-{
-	const typename TShaderClass::FParameters* ParameterPtr = &Parameters;
-	return ValidateShaderParameters(Shader, TShaderClass::FParameters::FTypeInfo::GetStructMetadata(), ParameterPtr);
-}
-
 
 /** Set compute shader UAVs. */
 template<typename TRHICmdList, typename TShaderClass, typename TShaderRHI>
 inline void SetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, TShaderRHI* ShadeRHI, const typename TShaderClass::FParameters& Parameters)
-{
-	checkf(
-		Shader->Bindings.UAVs.Num() == 0 && Shader->Bindings.GraphUAVs.Num() == 0,
-		TEXT("TShaderRHI Can't have compute shader to be set. UAVs are not supported on vertex, tessellation and geometry shaders."));
-}
+{}
 
 template<typename TRHICmdList, typename TShaderClass>
-inline void SetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, FRHIPixelShader* ShadeRHI, const typename TShaderClass::FParameters& Parameters)
-{
-	// Pixelshader UAVs are bound together with rendertargets using BeginRenderPass
-}
-
-template<typename TRHICmdList, typename TShaderClass>
-inline void SetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, FRHIComputeShader* ShadeRHI, const typename TShaderClass::FParameters& Parameters)
+inline void SetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, FComputeShaderRHIParamRef ShadeRHI, const typename TShaderClass::FParameters& Parameters)
 {
 	const FShaderParameterBindings& Bindings = Shader->Bindings;
 
 	const typename TShaderClass::FParameters* ParametersPtr = &Parameters;
 	const uint8* Base = reinterpret_cast<const uint8*>(ParametersPtr);
 
-	// UAVs
-	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.UAVs)
-	{
-		FRHIUnorderedAccessView* ShaderParameterRef = *(FRHIUnorderedAccessView**)(Base + ParameterBinding.ByteOffset);
-
-		if (DO_CHECK && !ShaderParameterRef)
-		{
-			EmitNullShaderParameterFatalError(Shader, TShaderClass::FParameters::FTypeInfo::GetStructMetadata(), ParameterBinding.ByteOffset);
-		}
-
-		RHICmdList.SetUAVParameter(ShadeRHI, ParameterBinding.BaseIndex, ShaderParameterRef);
-	}
-
 	// Graph UAVs
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphUAVs)
 	{
-		auto GraphUAV = *reinterpret_cast<FRDGUnorderedAccessView* const*>(Base + ParameterBinding.ByteOffset);
+		auto GraphUAV = *reinterpret_cast<const FRDGTextureUAV* const*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK)
 		{
@@ -126,29 +96,25 @@ inline void SetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, F
 			}
 			else
 			{
-				GraphUAV->MarkResourceAsUsed();
+				// Mark this resource as used by the pass for inefficient pass resource dependency debugging purpose.
+				GraphUAV->bIsActuallyUsedByPass = true;
 			}
 		}
 
 		checkSlow(GraphUAV);
-		RHICmdList.SetUAVParameter(ShadeRHI, ParameterBinding.BaseIndex, GraphUAV->GetRHI());
+		RHICmdList.SetUAVParameter(ShadeRHI, ParameterBinding.BaseIndex, GraphUAV->CachedRHI.UAV);
 	}
 }
 
 
 /** Unset compute shader UAVs. */
 template<typename TRHICmdList, typename TShaderClass>
-inline void UnsetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, FRHIComputeShader* ShadeRHI)
+inline void UnsetShaderUAVs(TRHICmdList& RHICmdList, const TShaderClass* Shader, FComputeShaderRHIParamRef ShadeRHI)
 {
 	// TODO(RDG): Once all shader sets their parameter through this, can refactor RHI so all UAVs of a shader get unset through a single RHI function call.
 	const FShaderParameterBindings& Bindings = Shader->Bindings;
 
 	checkf(Bindings.RootParameterBufferIndex == FShaderParameterBindings::kInvalidBufferIndex, TEXT("Can't use UnsetShaderUAVs() for root parameter buffer index."));
-
-	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.UAVs)
-	{
-		RHICmdList.SetUAVParameter(ShadeRHI, ParameterBinding.BaseIndex, nullptr);
-	}
 
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphUAVs)
 	{
@@ -179,7 +145,7 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderClass* Sha
 	// Textures
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.Textures)
 	{
-		auto ShaderParameterRef = *(FRHITexture**)(Base + ParameterBinding.ByteOffset);
+		auto ShaderParameterRef = *reinterpret_cast<const FTextureRHIParamRef*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK && !ShaderParameterRef)
 		{
@@ -192,7 +158,7 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderClass* Sha
 	// SRVs
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.SRVs)
 	{
-		FRHIShaderResourceView* ShaderParameterRef = *(FRHIShaderResourceView**)(Base + ParameterBinding.ByteOffset);
+		auto ShaderParameterRef = *reinterpret_cast<const FShaderResourceViewRHIParamRef*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK && !ShaderParameterRef)
 		{
@@ -205,7 +171,7 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderClass* Sha
 	// Samplers
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.Samplers)
 	{
-		FRHISamplerState* ShaderParameterRef = *(FRHISamplerState**)(Base + ParameterBinding.ByteOffset);
+		auto ShaderParameterRef = *reinterpret_cast<const FSamplerStateRHIParamRef*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK && !ShaderParameterRef)
 		{
@@ -218,7 +184,7 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderClass* Sha
 	// Graph Textures
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphTextures)
 	{
-		auto GraphTexture = *reinterpret_cast<FRDGTexture* const*>(Base + ParameterBinding.ByteOffset);
+		auto GraphTexture = *reinterpret_cast<const FRDGTexture* const*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK)
 		{
@@ -228,21 +194,19 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderClass* Sha
 			}
 			else
 			{
-				GraphTexture->MarkResourceAsUsed();
+				// Mark this resource as used by the pass for inefficient pass resource dependency debugging purpose.
+				GraphTexture->bIsActuallyUsedByPass = true;
 			}
 		}
 
 		checkSlow(GraphTexture);
-		RHICmdList.SetShaderTexture(ShadeRHI, ParameterBinding.BaseIndex, GraphTexture->GetRHI());
+		RHICmdList.SetShaderTexture(ShadeRHI, ParameterBinding.BaseIndex, GraphTexture->GetRHITexture());
 	}
-	
-	// UAVs for compute shaders
-	SetShaderUAVs(RHICmdList, Shader, ShadeRHI, Parameters);	//HACKHACK: Bind UAVs before SRVs as a workaround for D3D11 RHI unbinding SRVs when binding a UAV on the same resource even when the views don't overlap.
 
 	// Graph SRVs
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphSRVs)
 	{
-		auto GraphSRV = *reinterpret_cast<FRDGShaderResourceView* const*>(Base + ParameterBinding.ByteOffset);
+		auto GraphSRV = *reinterpret_cast<const FRDGTextureSRV* const*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK)
 		{
@@ -252,13 +216,17 @@ inline void SetShaderParameters(TRHICmdList& RHICmdList, const TShaderClass* Sha
 			}
 			else
 			{
-				GraphSRV->MarkResourceAsUsed();
+				// Mark this resource as used by the pass for inefficient pass resource dependency debugging purpose.
+				GraphSRV->bIsActuallyUsedByPass = true;
 			}
 		}
 
 		checkSlow(GraphSRV);
-		RHICmdList.SetShaderResourceViewParameter(ShadeRHI, ParameterBinding.BaseIndex, GraphSRV->GetRHI());
+		RHICmdList.SetShaderResourceViewParameter(ShadeRHI, ParameterBinding.BaseIndex, GraphSRV->CachedRHI.SRV);
 	}
+
+	// Graph UAVs for compute shaders
+	SetShaderUAVs(RHICmdList, Shader, ShadeRHI, Parameters);
 
 	// Reference structures
 	for (const FShaderParameterBindings::FParameterStructReference& ParameterBinding : Bindings.ParameterReferences)
@@ -291,7 +259,7 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 	// Textures
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.Textures)
 	{
-		auto ShaderParameterRef = *(FRHITexture**)(Base + ParameterBinding.ByteOffset);
+		auto ShaderParameterRef = *reinterpret_cast<const FTextureRHIParamRef*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK && !ShaderParameterRef)
 		{
@@ -304,7 +272,7 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 	// SRVs
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.SRVs)
 	{
-		FRHIShaderResourceView* ShaderParameterRef = *(FRHIShaderResourceView**)(Base + ParameterBinding.ByteOffset);
+		auto ShaderParameterRef = *reinterpret_cast<const FShaderResourceViewRHIParamRef*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK && !ShaderParameterRef)
 		{
@@ -314,23 +282,10 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 		RTBindingsWriter.SetSRV(ParameterBinding.BaseIndex, ShaderParameterRef);
 	}
 
-	// UAVs
-	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.UAVs)
-	{
-		FRHIUnorderedAccessView* ShaderParameterRef = *(FRHIUnorderedAccessView**)(Base + ParameterBinding.ByteOffset);
-
-		if (DO_CHECK && !ShaderParameterRef)
-		{
-			EmitNullShaderParameterFatalError(Shader, TShaderClass::FParameters::FTypeInfo::GetStructMetadata(), ParameterBinding.ByteOffset);
-		}
-
-		RTBindingsWriter.SetUAV(ParameterBinding.BaseIndex, ShaderParameterRef);
-	}
-
 	// Samplers
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.Samplers)
 	{
-		FRHISamplerState* ShaderParameterRef = *(FRHISamplerState**)(Base + ParameterBinding.ByteOffset);
+		auto ShaderParameterRef = *reinterpret_cast<const FSamplerStateRHIParamRef*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK && !ShaderParameterRef)
 		{
@@ -343,7 +298,7 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 	// Graph Textures
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphTextures)
 	{
-		auto GraphTexture = *reinterpret_cast<FRDGTexture* const*>(Base + ParameterBinding.ByteOffset);
+		auto GraphTexture = *reinterpret_cast<const FRDGTexture* const*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK)
 		{
@@ -353,18 +308,19 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 			}
 			else
 			{
-				GraphTexture->MarkResourceAsUsed();
+				// Mark this resource as used by the pass for inefficient pass resource dependency debugging purpose.
+				GraphTexture->bIsActuallyUsedByPass = true;
 			}
 		}
 
 		checkSlow(GraphTexture);
-		RTBindingsWriter.SetTexture(ParameterBinding.BaseIndex, GraphTexture->GetRHI());
+		RTBindingsWriter.SetTexture(ParameterBinding.BaseIndex, GraphTexture->GetRHITexture());
 	}
 
 	// Graph SRVs
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphSRVs)
 	{
-		auto GraphSRV = *reinterpret_cast<FRDGShaderResourceView* const*>(Base + ParameterBinding.ByteOffset);
+		auto GraphSRV = *reinterpret_cast<const FRDGResource* const*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK)
 		{
@@ -374,18 +330,19 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 			}
 			else
 			{
-				GraphSRV->MarkResourceAsUsed();
+				// Mark this resource as used by the pass for inefficient pass resource dependency debugging purpose.
+				GraphSRV->bIsActuallyUsedByPass = true;
 			}
 		}
 
 		checkSlow(GraphSRV);
-		RTBindingsWriter.SetSRV(ParameterBinding.BaseIndex, GraphSRV->GetRHI());
+		RTBindingsWriter.SetSRV(ParameterBinding.BaseIndex, GraphSRV->CachedRHI.SRV);
 	}
 
 	// Render graph UAVs
 	for (const FShaderParameterBindings::FResourceParameter& ParameterBinding : Bindings.GraphUAVs)
 	{
-		auto UAV = *reinterpret_cast<FRDGUnorderedAccessView* const*>(Base + ParameterBinding.ByteOffset);
+		auto UAV = *reinterpret_cast<const FRDGResource* const*>(Base + ParameterBinding.ByteOffset);
 
 		if (DO_CHECK)
 		{
@@ -395,12 +352,13 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 			}
 			else
 			{
-				UAV->MarkResourceAsUsed();
+				// Mark this resource as used by the pass for inefficient pass resource dependency debugging purpose.
+				UAV->bIsActuallyUsedByPass = true;
 			}
 		}
 
 		checkSlow(UAV);
-		RTBindingsWriter.SetUAV(ParameterBinding.BaseIndex, UAV->GetRHI());
+		RTBindingsWriter.SetUAV(ParameterBinding.BaseIndex, UAV->CachedRHI.UAV);
 	}
 
 	// Referenced uniform buffers
@@ -422,7 +380,7 @@ void SetShaderParameters(FRayTracingShaderBindingsWriter& RTBindingsWriter, cons
 		// Do not do any validation at some resources may have been removed from the structure because known to not be used by the shader.
 		EUniformBufferValidation Validation = EUniformBufferValidation::None;
 
-		FRHIUniformBuffer* RootUniformBuffer = CreateUniformBufferImmediate(Parameters, UniformBuffer_SingleDraw, Validation);
+		FUniformBufferRHIParamRef RootUniformBuffer = CreateUniformBufferImmediate(Parameters, UniformBuffer_SingleDraw, Validation);
 		RTBindingsWriter.SetUniformBuffer(Bindings.RootParameterBufferIndex, RootUniformBuffer);
 	}
 }

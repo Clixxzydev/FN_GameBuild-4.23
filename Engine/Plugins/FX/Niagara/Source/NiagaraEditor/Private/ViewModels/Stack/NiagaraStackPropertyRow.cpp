@@ -30,12 +30,6 @@ bool UNiagaraStackPropertyRow::GetIsEnabled() const
 	return OwningNiagaraNode == nullptr || OwningNiagaraNode->GetDesiredEnabledState() == ENodeEnabledState::Enabled;
 }
 
-void UNiagaraStackPropertyRow::FinalizeInternal()
-{
-	Super::FinalizeInternal();
-	DetailTreeNode.Reset();
-}
-
 void UNiagaraStackPropertyRow::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
 {
 	TArray<TSharedRef<IDetailTreeNode>> NodeChildren;

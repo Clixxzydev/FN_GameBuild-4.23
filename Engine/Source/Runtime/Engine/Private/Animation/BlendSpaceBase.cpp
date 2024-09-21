@@ -553,18 +553,6 @@ bool UBlendSpaceBase::IsValidAdditiveType(EAdditiveAnimationType AdditiveType) c
 	return false;
 }
 
-void UBlendSpaceBase::ResetToRefPose(FCompactPose& OutPose)
-{
-	if (IsValidAdditive())
-	{
-		OutPose.ResetToAdditiveIdentity();
-	}
-	else
-	{
-		OutPose.ResetToRefPose();
-	}
-}
-
 void UBlendSpaceBase::GetAnimationPose(TArray<FBlendSampleData>& BlendSampleDataCache, /*out*/ FCompactPose& OutPose, /*out*/ FBlendedCurve& OutCurve)
 {
 	SCOPE_CYCLE_COUNTER(STAT_BlendSpace_GetAnimPose);
@@ -572,7 +560,7 @@ void UBlendSpaceBase::GetAnimationPose(TArray<FBlendSampleData>& BlendSampleData
 
 	if(BlendSampleDataCache.Num() == 0)
 	{
-		ResetToRefPose(OutPose);
+		OutPose.ResetToRefPose();
 		return;
 	}
 
@@ -617,12 +605,12 @@ void UBlendSpaceBase::GetAnimationPose(TArray<FBlendSampleData>& BlendSampleData
 			}
 			else
 			{
-				ResetToRefPose(Pose);
+				Pose.ResetToRefPose();
 			}
 		}
 		else
 		{
-			ResetToRefPose(Pose);
+			Pose.ResetToRefPose();
 		}
 	}
 

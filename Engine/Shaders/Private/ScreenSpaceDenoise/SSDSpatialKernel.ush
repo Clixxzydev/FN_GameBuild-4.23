@@ -19,7 +19,7 @@
 	// Depends only based of the sample's hit distance and metadata.
 	#define SIGNAL_WORLD_FREQUENCY_HIT_DISTANCE 3
 
-	// Uses FSSDSignalSample::WorldBluringRadius precomputed in the sample.
+	// Uses FSSFSignalSample::WorldBluringRadius precomputed in the sample.
 	#define SIGNAL_WORLD_FREQUENCY_PRECOMPUTED_BLURING_RADIUS 4
 
 
@@ -36,7 +36,7 @@ FSSDSignalAccumulatorArray CreateSignalAccumulatorArray()
 {
 	FSSDSignalAccumulatorArray Accumulators;
 	
-	UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+	FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 	for (uint i = 0; i < MAX_SIGNAL_MULTIPLEXING; i++)
 	{
 		Accumulators.Array[i] = CreateSignalAccumulator();
@@ -91,9 +91,6 @@ struct FSSDKernelConfig
 	// Whether the bilateral distance should be maxed with reference bilateral distance.
 	bool bMaxWithRefBilateralDistance;
 
-	// Whether the spherical harmonic of a sample should be computed before accumulation.
-	bool bComputeSampleColorSH;
-
 	// The color space that has been encoded in the buffer.
 	uint BufferColorSpace[MAX_SIGNAL_MULTIPLEXING];
 	
@@ -126,7 +123,7 @@ struct FSSDKernelConfig
 	float2 BufferUV;
 
 	// Metadata of the scene for the bilateral therm.
-	FSSDSampleSceneInfos RefSceneMetadata;
+	FSSFSampleSceneInfos RefSceneMetadata;
 
 	// Runtime to force the first sample of the kernel to be accumulated.
 	bool bForceKernelCenterAccumulation;
@@ -157,10 +154,9 @@ FSSDKernelConfig CreateKernelConfig()
 	KernelConfig.bNormalizeSample = false;
 	KernelConfig.bMinSamplePairInvFrequency = false;
 	KernelConfig.bMaxWithRefBilateralDistance = false;
-	KernelConfig.bComputeSampleColorSH = false;
 	
 	{
-		UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+		FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 		for (uint MultiplexId = 0; MultiplexId < MAX_SIGNAL_MULTIPLEXING; MultiplexId++)
 		{
 			KernelConfig.BufferColorSpace[MultiplexId] = STANDARD_BUFFER_COLOR_SPACE;
@@ -184,7 +180,7 @@ FSSDKernelConfig CreateKernelConfig()
 	KernelConfig.SampleTrackId = 0;
 
 	{	
-		UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+		FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 		for (uint MultiplexId = 0; MultiplexId < MAX_SIGNAL_MULTIPLEXING; MultiplexId++)
 		{
 			KernelConfig.RefBilateralDistance[MultiplexId] = 0.0;
@@ -202,27 +198,16 @@ static const float kWaveletFilterWeights5x5[] = { 3.0 / 8.0, 1.0 / 4.0, 1.0 / 16
 
 //------------------------------------------------------- SHARED SAMPLING
 
-FSSDSignalSample TransformSignalSampleForAccumulation(
+FSSFSignalSample TransformSignalSampleForAccumulation(
 	FSSDKernelConfig KernelConfig,
 	uint MultiplexId,
-	FSSDSampleSceneInfos SampleSceneMetadata,
-	FSSDSignalSample Sample,
-	uint2 SamplePixelCoord)
+	FSSFSignalSample Sample)
 {
-	// Transform the color space.
 	// TODO: could pass down information that this sample may be normalized.
 	Sample = TransformSignal(
 		Sample, 
 		/* SrcBasis  = */ KernelConfig.BufferColorSpace[MultiplexId], 
 		/* DestBasis = */ KernelConfig.AccumulatorColorSpace[MultiplexId]);
-	
-	// Compute the spherical harmonic of the sample.
-	#if CONFIG_SIGNAL_COLOR_SH
-	if (KernelConfig.bComputeSampleColorSH)
-	{
-		Sample.ColorSH = ComputeSampleColorSH(SampleSceneMetadata, Sample, SamplePixelCoord);
-	}
-	#endif
 
 	return Sample;
 }
@@ -248,14 +233,14 @@ void SampleMultiplexedSignals(
 	Texture2D SignalBuffer2,
 	Texture2D SignalBuffer3,
 	float2 SampleBufferUV,
-	out FSSDSampleSceneInfos OutSampleSceneMetadata,
+	out FSSFSampleSceneInfos OutSampleSceneMetadata,
 	out FSSDSignalArray OutMultiplexedSamples)
 {
 	// Sample the meta data of the sample.	
 	float2 SampleViewportUV = BufferUVToViewportUV(SampleBufferUV);
 	float2 SampleScreenPosition = ViewportUVToScreenPos(SampleViewportUV);
 	
-	FSSDSampleSceneInfos SampleSceneMetadata;
+	FSSFSampleSceneInfos SampleSceneMetadata;
 	if (KernelConfig.bPreviousFrameMetadata)
 	{
 		OutSampleSceneMetadata = FetchPrevSceneInfos(SampleScreenPosition, SampleBufferUV);
@@ -284,7 +269,7 @@ void AccumulateSampledMultiplexedSignals(
 	FSSDKernelConfig KernelConfig,
 	inout FSSDSignalAccumulatorArray Accumulators,
 	float2 SampleBufferUV,
-	FSSDSampleSceneInfos SampleSceneMetadata,
+	FSSFSampleSceneInfos SampleSceneMetadata,
 	FSSDSignalArray MultiplexedSamples,
 	float KernelSampleWeight,
 	const bool bForceSample,
@@ -296,18 +281,16 @@ void AccumulateSampledMultiplexedSignals(
 	// When sampling the previous frame, need to be forgiving in the world based bilateral rejection because TAA jitter.
 	const float WorldBluringDistanceForgiveness = KernelConfig.bPreviousFrameMetadata ? 3 : 1.0;
 	
-	UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+	FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 	for (uint SignalMultiplexId = 0; SignalMultiplexId < MAX_SIGNAL_MULTIPLEXING; SignalMultiplexId++)
 	{
 		// Compute at compile time the id of the signal being processed.
 		const uint BatchedSignalId = ComputeSignalBatchIdFromSignalMultiplexId(KernelConfig, SignalMultiplexId);
-		
-		// TODO: direction of the ray should be cached by injest or output by RGS, otherwise ends up with VGPR pressure because of SampleBufferUV.
-		uint2 NeighborPixelCoord = floor(SampleBufferUV * KernelConfig.BufferSizeAndInvSize.xy);
 
 		// Fetch and pre process the sample for accumulation.
-		FSSDSignalSample Sample = MultiplexedSamples.Array[SignalMultiplexId];
-		Sample = TransformSignalSampleForAccumulation(KernelConfig, SignalMultiplexId, SampleSceneMetadata, Sample, NeighborPixelCoord);
+		FSSFSignalSample Sample = MultiplexedSamples.Array[SignalMultiplexId];
+		
+		Sample = TransformSignalSampleForAccumulation(KernelConfig, SignalMultiplexId, Sample);
 		
 		// Compute the bluring radius of pixel itself.
 		float SamplePixelWorldBluringRadius = ComputeWorldBluringRadiusCausedByPixelSize(SampleSceneMetadata);
@@ -319,7 +302,7 @@ void AccumulateSampledMultiplexedSignals(
 		if (KernelConfig.BilateralDistanceComputation == SIGNAL_WORLD_FREQUENCY_PRECOMPUTED_BLURING_RADIUS)
 		{
 			// TODO: this is ineficient, could fetch the normalised WorldBluringRadius instead of SafeRcp().
-			SignalConvolutionBluringRadius = Sample.WorldBluringRadius * SafeRcp(Sample.SampleCount);
+			SignalConvolutionBluringRadius = Sample.WorldBluringRadius * SafeRcp(Sample.AccumulatedSampleCount);
 		}
 
 		// Compute the final world distance to use for bilateral rejection.
@@ -356,6 +339,8 @@ void AccumulateSampledMultiplexedSignals(
 			KernelConfig.RefSceneMetadata,
 			SampleSceneMetadata);
 		
+		// TODO: direction of the ray should be cached by injest or output by RGS, otherwise ends up with VGPR pressure because of SampleBufferUV.
+		uint2 NeighborPixelCoord = floor(SampleBufferUV * KernelConfig.BufferSizeAndInvSize.xy);
 		float RatioEstimatorWeight = GetRatioEstimatorWeight(
 			KernelConfig.RefSceneMetadata, SampleSceneMetadata, Sample, NeighborPixelCoord);
 
@@ -371,7 +356,7 @@ void AccumulateSampledMultiplexedSignals(
 
 		// TODO: bIsOutsideFrustum could afect number of samples for DRB.
 		FLATTEN
-		if (SampleInfos.Sample.SampleCount != 0 && !bIsOutsideFrustum)
+		if (SampleInfos.Sample.AccumulatedSampleCount != 0 && !bIsOutsideFrustum)
 		{
 			AccumulateSample(
 				/* inout */ Accumulators.Array[SignalMultiplexId],
@@ -395,7 +380,7 @@ void SampleAndAccumulateMultiplexedSignals(
 	float KernelSampleWeight,
 	const bool bForceSample)
 {
-	FSSDSampleSceneInfos SampleSceneMetadata;
+	FSSFSampleSceneInfos SampleSceneMetadata;
 	FSSDSignalArray MultiplexedSamples;
 	
 	// Stores in SGPR whether this sample is outside the viewport, to avoid VGPR pressure to keep SampleBufferUV after texture fetches.
@@ -432,11 +417,11 @@ void SampleAndAccumulateMultiplexedSignalsPair(
 	float2 SampleBufferUV[2],
 	float KernelSampleWeight)
 {
-	FSSDSampleSceneInfos SampleSceneMetadata[2];
+	FSSFSampleSceneInfos SampleSceneMetadata[2];
 	FSSDSignalArray MultiplexedSamples[2];
 	bool bIsOutsideFrustum[2];
 
-	UNROLL_N(2)
+	FIX_UNROLL(2)
 	for (uint PairFetchId = 0; PairFetchId < 2; PairFetchId++)
 	{
 		// Stores in SGPR whether this sample is outside the viewport, to avoid VGPR pressure to keep SampleBufferUV after texture fetches.
@@ -456,7 +441,7 @@ void SampleAndAccumulateMultiplexedSignalsPair(
 	// Take the min inverse frequency per signal if desired.
 	if (KernelConfig.bMinSamplePairInvFrequency)
 	{
-		UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+		FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 		for (uint SignalMultiplexId = 0; SignalMultiplexId < MAX_SIGNAL_MULTIPLEXING; SignalMultiplexId++)
 		{
 			float MinInvFrequency = min(
@@ -472,7 +457,7 @@ void SampleAndAccumulateMultiplexedSignalsPair(
 		}
 	}
 
-	UNROLL_N(2)
+	FIX_UNROLL(2)
 	for (uint PairAccumulateId = 0; PairAccumulateId < 2; PairAccumulateId++)
 	{
 		AccumulateSampledMultiplexedSignals(
@@ -492,7 +477,7 @@ void StartAccumulatingCluster(
 	inout FSSDSignalAccumulatorArray Accumulators,
 	FSSDSampleClusterInfo ClusterInfo)
 {
-	UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+	FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 	for (uint SignalMultiplexId = 0; SignalMultiplexId < MAX_SIGNAL_MULTIPLEXING; SignalMultiplexId++)
 	{
 		StartAccumulatingCluster(
@@ -504,7 +489,7 @@ void StartAccumulatingCluster(
 
 void DijestAccumulatedClusterSamples(inout FSSDSignalAccumulatorArray Accumulators, uint RingId, uint SampleCount)
 {
-	UNROLL_N(MAX_SIGNAL_MULTIPLEXING)
+	FIX_UNROLL(MAX_SIGNAL_MULTIPLEXING)
 	for (uint SignalMultiplexId = 0; SignalMultiplexId < MAX_SIGNAL_MULTIPLEXING; SignalMultiplexId++)
 	{
 		DijestAccumulatedClusterSamples(
@@ -561,7 +546,7 @@ void AccumulateBilinear(
 		KernelConfig.BufferSizeAndInvSize.zw,
 		MipLevelPow2, rcp(MipLevelPow2));
 	
-	UNROLL_N(4)
+	FIX_UNROLL(4)
 	for (uint i = 0; i < 4; i++)
 	{
 		float2 SampleOffset = BilinearSamplingOffsets2x2[i];
@@ -862,7 +847,7 @@ void ConvolveStackowiakKernel(
 		LOOP
 		for (uint BatchId = 0; BatchId < BatchCountCount; BatchId++)
 		{
-			UNROLL_N(2)
+			FIX_UNROLL(2)
 			for (uint SampleBatchId = 0; SampleBatchId < 2; SampleBatchId++)
 			{
 				const uint SampleId = (BatchCountCount - BatchId) * kSamplingBatchSize - 1 - SampleBatchId;
@@ -894,10 +879,10 @@ void ConvolveStackowiakKernel(
 				if (SampleId == NextClusterBoundary && (SampleBatchId % 2) == 0)
 				{
 					// Compute the number samples that have been accumulated for this sample.
-					uint SampleCountForCluster = min(CurrentRingId * StocasticSamplesPerCluster, SampleCount - SampleId);
+					uint AccumulatedSampleCountForCluster = min(CurrentRingId * StocasticSamplesPerCluster, SampleCount - SampleId);
 
 					// Digest all acumulators.
-					DijestAccumulatedClusterSamples(/* inout */ Accumulators, CurrentRingId, SampleCountForCluster);
+					DijestAccumulatedClusterSamples(/* inout */ Accumulators, CurrentRingId, AccumulatedSampleCountForCluster);
 				
 					BRANCH
 					if (!KernelConfig.bSampleKernelCenter && SampleId == 1)

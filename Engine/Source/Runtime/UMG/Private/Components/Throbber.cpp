@@ -9,8 +9,6 @@
 /////////////////////////////////////////////////////
 // UThrobber
 
-static FSlateBrush* DefaultThrobberBrush = nullptr;
-
 UThrobber::UThrobber(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -20,16 +18,9 @@ UThrobber::UThrobber(const FObjectInitializer& ObjectInitializer)
 	bAnimateHorizontally = true;
 	bAnimateOpacity = true;
 
-	if (DefaultThrobberBrush == nullptr)
-	{
-		// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BE DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
-		DefaultThrobberBrush = new FSlateBrush(*FCoreStyle::Get().GetBrush("Throbber.Chunk"));
-
-		// Unlink UMG default colors from the editor settings colors.
-		DefaultThrobberBrush->UnlinkColors();
-	}
-
-	Image = *DefaultThrobberBrush;
+	// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BY DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
+	static const FSlateBrush StaticImage = *FCoreStyle::Get().GetBrush("Throbber.Chunk");
+	Image = StaticImage;
 }
 
 void UThrobber::ReleaseSlateResources(bool bReleaseChildren)

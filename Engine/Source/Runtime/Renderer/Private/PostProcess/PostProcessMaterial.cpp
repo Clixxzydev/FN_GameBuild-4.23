@@ -16,7 +16,6 @@
 #include "ClearQuad.h"
 #include "Materials/MaterialExpressionSceneTexture.h"
 #include "RHI/Public/PipelineStateCache.h"
-#include "PostProcessing.h"
 #include "PostProcessMobile.h"
 
 static TAutoConsoleVariable<int32> CVarPostProcessAllowStencilTest(
@@ -67,23 +66,23 @@ public:
 	/**
 	  * Only compile these shaders for post processing domain materials
 	  */
-	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
-	{
-		return ShouldCachePostProcessMaterial(MaterialTarget, Parameters.Platform, Parameters.Material)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material)
+	{		
+		return ShouldCachePostProcessMaterial(MaterialTarget, Platform, Material)
 			// compile mobile axis switched versions only for after tonemapper passes
-			&& (bSwitchVerticalAxis == false || (RHINeedsToSwitchVerticalAxis(Parameters.Platform) && Parameters.Material->GetBlendableLocation() == BL_AfterTonemapping));
+			&& (bSwitchVerticalAxis == false || (RHINeedsToSwitchVerticalAxis(Platform) && Material->GetBlendableLocation() == BL_AfterTonemapping));
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const class FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FMaterialShader::ModifyCompilationEnvironment(Platform, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL"), 1);
 		OutEnvironment.SetDefine(TEXT("NEEDTOSWITCHVERTICLEAXIS"), bSwitchVerticalAxis);
 
 		if (MaterialTarget == EPostProcessMaterialTarget::Mobile)
 		{
-			OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Parameters.Material->GetBlendableLocation() != BL_AfterTonemapping) ? 1 : 0);
+			OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Material->GetBlendableLocation() != BL_AfterTonemapping) ? 1 : 0);
 		}
 	}
 	
@@ -96,7 +95,7 @@ public:
 
 	void SetParameters(FRHICommandList& RHICmdList, const FRenderingCompositePassContext& Context, const FMaterialRenderProxy* Proxy)
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 		FMaterialShader::SetParameters(RHICmdList, ShaderRHI, Proxy, *Proxy->GetMaterial(Context.View.GetFeatureLevel()), Context.View, Context.View.ViewUniformBuffer, ESceneTextureSetupMode::All);
 		PostprocessParameter.SetVS(ShaderRHI, Context, TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI());
 	}
@@ -133,27 +132,28 @@ public:
 	/**
 	  * Only compile these shaders for post processing domain materials
 	  */
-	static bool ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material)
 	{
-		return ShouldCachePostProcessMaterial(MaterialTarget, Parameters.Platform, Parameters.Material)
+		return ShouldCachePostProcessMaterial(MaterialTarget, Platform, Material)
 			// compile mobile axis switched versions only for after tonemapper passes
-			&& (bSwitchVerticalAxis == false || (RHINeedsToSwitchVerticalAxis(Parameters.Platform) && Parameters.Material->GetBlendableLocation() == BL_AfterTonemapping));
+			&& (bSwitchVerticalAxis == false || (RHINeedsToSwitchVerticalAxis(Platform) && Material->GetBlendableLocation() == BL_AfterTonemapping));
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const class FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FMaterialShader::ModifyCompilationEnvironment(Platform, OutEnvironment);
 
 		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL"), 1);
 		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_UV_POLICY"), UVPolicy);
 
-		EBlendableLocation Location = EBlendableLocation(Parameters.Material->GetBlendableLocation());
+		EBlendableLocation Location = EBlendableLocation(Material->GetBlendableLocation());
 		OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_AFTER_TAA_UPSAMPLE"), (Location == BL_AfterTonemapping || Location == BL_ReplacingTonemapper) ? 1 : 0);
 
 		OutEnvironment.SetDefine(TEXT("NEEDTOSWITCHVERTICLEAXIS"), bSwitchVerticalAxis);
 
 		if (MaterialTarget == EPostProcessMaterialTarget::Mobile)
 		{
+			OutEnvironment.SetDefine(TEXT("MOBILE_FORCE_DEPTH_TEXTURE_READS"), 1); // Ensure post process materials will not attempt depth buffer fetch operations.
 			OutEnvironment.SetDefine(TEXT("POST_PROCESS_MATERIAL_BEFORE_TONEMAP"), (Location != BL_AfterTonemapping) ? 1 : 0);
 		}
 	}
@@ -168,7 +168,7 @@ public:
 	template <typename TRHICmdList>
 	void SetParameters(TRHICmdList& RHICmdList, const FRenderingCompositePassContext& Context, const FMaterialRenderProxy* Proxy)
 	{
-		FRHIPixelShader* ShaderRHI = GetPixelShader();
+		const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 		FMaterialShader::SetParameters(RHICmdList, ShaderRHI, Proxy, *Proxy->GetMaterial(Context.View.GetFeatureLevel()), Context.View, Context.View.ViewUniformBuffer, ESceneTextureSetupMode::All);
 		PostprocessParameter.SetPS(RHICmdList, ShaderRHI, Context, TStaticSamplerState<SF_Point,AM_Clamp,AM_Clamp,AM_Clamp>::GetRHI());
@@ -310,7 +310,7 @@ void FRCPassPostProcessMaterial::Process(FRenderingCompositePassContext& Context
 
 	const FSceneRenderTargetItem* CustomDepthStencilTarget = nullptr;
 
-	FRHIDepthStencilState* DepthStencilState;
+	FDepthStencilStateRHIParamRef DepthStencilState;
 	uint32 StencilRefValue = 0;
 
 	if (bDoStencilTest)
@@ -339,7 +339,7 @@ void FRCPassPostProcessMaterial::Process(FRenderingCompositePassContext& Context
 			Swap(SceneContext.CustomDepth, CustomDepthStencilCopy);
 		}
 
-		static FRHIDepthStencilState* StencilStates[] =
+		static const FDepthStencilStateRHIParamRef StencilStates[] =
 		{
 			TStaticDepthStencilState<false, CF_Always, true, CF_Less>::GetRHI(),
 			TStaticDepthStencilState<false, CF_Always, true, CF_LessEqual>::GetRHI(),
@@ -360,11 +360,11 @@ void FRCPassPostProcessMaterial::Process(FRenderingCompositePassContext& Context
 		DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 	}
 
-	FRHIBlendState* BlendState = TStaticBlendState<>::GetRHI();
+	FBlendStateRHIParamRef BlendState = TStaticBlendState<>::GetRHI();
 	bool bDoOutputBlend = Material->GetBlendableOutputAlpha() && CVarPostProcessAllowBlendModes.GetValueOnRenderThread() != 0;
 	if (bDoOutputBlend)
 	{
-		static FRHIBlendState* BlendStates[] =
+		static const FBlendStateRHIParamRef BlendStates[] =
 		{
 			TStaticBlendState<>::GetRHI(),
 			TStaticBlendState<>::GetRHI(),
@@ -372,7 +372,6 @@ void FRCPassPostProcessMaterial::Process(FRenderingCompositePassContext& Context
 			TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One>::GetRHI(),
 			TStaticBlendState<CW_RGB, BO_Add, BF_DestColor, BF_Zero>::GetRHI(),
 			TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI(),
-			TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI(),
 		};
 		static_assert(EBlendMode::BLEND_MAX == ARRAY_COUNT(BlendStates), "Ensure that all EBlendMode values are accounted for.");
 
@@ -394,76 +393,11 @@ void FRCPassPostProcessMaterial::Process(FRenderingCompositePassContext& Context
 		{
 			DestRenderTarget = &PassOutputs[0].RequestSurface(Context);
 
-			FRHITexture* DstTexture = DestRenderTarget->TargetableTexture;
-			FRHITexture* SrcTexture = GetInput(ePId_Input0)->GetOutput()->RequestSurface(Context).ShaderResourceTexture;
-
-			// CopyResource() can only be called when format and size match. Otherwise must use shader to do stretch & format conversion.
-			if (DstTexture->GetFormat() == SrcTexture->GetFormat() && DstTexture->GetSizeXYZ() == SrcTexture->GetSizeXYZ())
-			{
 			Context.RHICmdList.CopyTexture(
-					SrcTexture,
-					DstTexture,
+				GetInput(ePId_Input0)->GetOutput()->RequestSurface(Context).ShaderResourceTexture,
+				DestRenderTarget->TargetableTexture,
 				FRHICopyTextureInfo()
 				);
-		}
-			else
-			{
-				TShaderMap<FGlobalShaderType>* GlobalShaderMap = GetGlobalShaderMap(Context.View.FeatureLevel);
-
-				FIntRect DstRect = Context.GetSceneColorDestRect(*DestRenderTarget);
-				FIntRect SrcRect = Context.SceneColorViewRect;
-
-				FRHIRenderPassInfo RPInfo = FRHIRenderPassInfo(
-					DstTexture,
-					MakeRenderTargetActions(Context.GetLoadActionForRenderTarget(*DestRenderTarget), ERenderTargetStoreAction::EStore)
-					);
-
-				Context.RHICmdList.BeginRenderPass(RPInfo, TEXT("Copy Rect"));
-				{
-					Context.SetViewportAndCallRHI(DstRect);
-
-					FGraphicsPipelineStateInitializer GraphicsPSOInit;
-					Context.RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-
-					GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-					GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
-					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
-
-					auto VS = GlobalShaderMap->GetShader<FPostProcessVS>();
-					auto PS = GlobalShaderMap->GetShader<FCopyRectPS>();
-
-					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
-					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = GETSAFERHISHADER_VERTEX(VS);
-					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = GETSAFERHISHADER_PIXEL(PS);
-					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-
-					SetGraphicsPipelineState(Context.RHICmdList, GraphicsPSOInit);
-
-					FCopyRectPS::FParameters PixelParams;
-					PixelParams.SrcTexture = SrcTexture;
-					PixelParams.SrcSampler = TStaticSamplerState<>::GetRHI();
-
-					SetShaderParameters(Context.RHICmdList, PS, PS->GetPixelShader(), PixelParams);
-
-					DrawRectangle(
-						Context.RHICmdList,
-						DstRect.Min.X,
-						DstRect.Min.Y,
-						DstRect.Width(),
-						DstRect.Height(),
-						SrcRect.Min.X,
-						SrcRect.Min.Y,
-						SrcRect.Width(),
-						SrcRect.Height(),
-						DstTexture->GetTexture2D()->GetSizeXY(),
-						SrcTexture->GetTexture2D()->GetSizeXY(),
-						VS,
-						EDRF_UseTriangleOptimization
-						);
-				}
-				Context.RHICmdList.EndRenderPass();
-				Context.RHICmdList.CopyToResolveTarget(DestRenderTarget->TargetableTexture, DestRenderTarget->ShaderResourceTexture, FResolveParams());
-			}
 		}
 
 		DestRenderTargetLoadAction = ERenderTargetLoadAction::ELoad;

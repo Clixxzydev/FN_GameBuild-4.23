@@ -26,12 +26,10 @@ void UBoneProxy::Tick(float DeltaTime)
 	{
 		if (UDebugSkelMeshComponent* Component = SkelMeshComponent.Get())
 		{
-			TArray<FTransform> LocalBoneTransforms = Component->GetBoneSpaceTransforms();
-
 			int32 BoneIndex = Component->GetBoneIndex(BoneName);
-			if (LocalBoneTransforms.IsValidIndex(BoneIndex))
+			if (Component->BoneSpaceTransforms.IsValidIndex(BoneIndex))
 			{
-				FTransform LocalTransform = LocalBoneTransforms[BoneIndex];
+				FTransform LocalTransform = Component->BoneSpaceTransforms[BoneIndex];
 				FTransform BoneTransform = Component->GetBoneTransform(BoneIndex);
 
 				if (bLocalLocation)

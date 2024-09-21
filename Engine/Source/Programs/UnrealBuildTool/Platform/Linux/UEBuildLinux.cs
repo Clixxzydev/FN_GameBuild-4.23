@@ -150,13 +150,13 @@ namespace UnrealBuildTool
 		/// Constructor
 		/// </summary>
 		public LinuxPlatform(LinuxPlatformSDK InSDK) 
-			: this(UnrealTargetPlatform.Linux, InSDK)
+			: this(UnrealTargetPlatform.Linux, CppPlatform.Linux, InSDK)
 		{
 			SDK = InSDK;
 		}
 
-		public LinuxPlatform(UnrealTargetPlatform UnrealTarget, LinuxPlatformSDK InSDK)
-			: base(UnrealTarget)
+		public LinuxPlatform(UnrealTargetPlatform UnrealTarget, CppPlatform InCppPlatform, LinuxPlatformSDK InSDK)
+			: base(UnrealTarget, InCppPlatform)
 		{
 			SDK = InSDK;
 		}
@@ -297,8 +297,7 @@ namespace UnrealBuildTool
 			// [bschaefer] 2018-08-24: disabling XGE due to a bug where XGE seems to be lower casing folders names that are headers ie. misc/Header.h vs Misc/Header.h
 			// [bschaefer] 2018-10-04: enabling XGE as an update in xgConsole seems to have fixed it for me
 			// [bschaefer] 2018-12-17: disable XGE again, as the same issue before seems to still be happening but intermittently
-			// [bschaefer] 2019-6-13: enable XGE, as the bug from before is now fixed
-			return BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64;
+			return false; //BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64;
 		}
 
 		public override bool CanUseParallelExecutor()
@@ -319,17 +318,13 @@ namespace UnrealBuildTool
 			if (FileName.StartsWith("lib"))
 			{
 				return IsBuildProductName(FileName, 3, FileName.Length - 3, NamePrefixes, NameSuffixes, ".a")
-					|| IsBuildProductName(FileName, 3, FileName.Length - 3, NamePrefixes, NameSuffixes, ".so")
-					|| IsBuildProductName(FileName, 3, FileName.Length - 3, NamePrefixes, NameSuffixes, ".sym")
-					|| IsBuildProductName(FileName, 3, FileName.Length - 3, NamePrefixes, NameSuffixes, ".debug");
+					|| IsBuildProductName(FileName, 3, FileName.Length - 3, NamePrefixes, NameSuffixes, ".so");
 			}
 			else
 			{
 				return IsBuildProductName(FileName, NamePrefixes, NameSuffixes, "")
 					|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".so")
-					|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".a")
-					|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".sym")
-					|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".debug");
+					|| IsBuildProductName(FileName, NamePrefixes, NameSuffixes, ".a");
 			}
 		}
 
@@ -523,6 +518,12 @@ namespace UnrealBuildTool
 				);
 			}
 
+			// for now only hide by default monolithic builds.
+			if (Target.LinkType == TargetLinkType.Monolithic)
+			{
+				CompileEnvironment.bHideSymbolsByDefault = true;
+			}
+
 			// link with Linux libraries.
 			LinkEnvironment.AdditionalLibraries.Add("pthread");
 
@@ -551,9 +552,10 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Creates a toolchain instance for the given platform.
 		/// </summary>
+		/// <param name="CppPlatform">The platform to create a toolchain for</param>
 		/// <param name="Target">The target being built</param>
 		/// <returns>New toolchain instance.</returns>
-		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
+		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
 		{
 			LinuxToolChainOptions Options = LinuxToolChainOptions.None;
 
@@ -591,7 +593,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// This is the SDK version we support
 		/// </summary>
-		static string ExpectedSDKVersion = "v15_clang-8.0.1-centos7";	// now unified for all the architectures
+		static string ExpectedSDKVersion = "v13_clang-7.0.1-centos7";	// now unified for all the architectures
 
 		/// <summary>
 		/// Platform name (embeds architecture for now)

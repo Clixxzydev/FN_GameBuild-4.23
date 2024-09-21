@@ -22,7 +22,8 @@
 #include "SurfaceIterators.h"
 #include "ScopedTransaction.h"
 #include "FunctionalTest.h"
-#include "MaterialList.h"
+
+#include "PropertyCustomizationHelpers.h"
 
 #define LOCTEXT_NAMESPACE "FLevelEditorGenericDetails"
 

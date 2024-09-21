@@ -6,7 +6,7 @@
 
 #include "Dom/JsonObject.h"
 
-#include "DisplayClusterLog.h"
+#include "Misc/DisplayClusterLog.h"
 
 
 FDisplayClusterClusterEventsClient::FDisplayClusterClusterEventsClient() :

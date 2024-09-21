@@ -55,15 +55,15 @@ public:
 		++Iter;
 		GetCurrent();
 	}
-	ULocalPlayer* operator*() const
+	ULocalPlayer* operator*()
 	{
 		return *Iter;
 	}
-	ULocalPlayer* operator->() const
+	ULocalPlayer* operator->()
 	{
 		return *Iter;
 	}
-	explicit operator bool() const
+	operator bool()
 	{
 		return (bool)Iter;
 	}
@@ -112,15 +112,15 @@ public:
 	{
 		Next();
 	}
-	T* operator*() const
+	T* operator*()
 	{
 		return Current;
 	}
-	T* operator->() const
+	T* operator->()
 	{
 		return Current;
 	}
-	explicit operator bool() const
+	operator bool()
 	{
 		return (Current!=NULL);
 	}

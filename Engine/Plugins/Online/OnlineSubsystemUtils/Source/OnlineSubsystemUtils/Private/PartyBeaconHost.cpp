@@ -743,7 +743,10 @@ EPartyReservationResult::Type APartyBeaconHost::UpdatePartyReservation(const FPa
 										{
 											FormerReservation.Dump();
 										}
-										int32 NumReservationsRemoved = FormerReservation.RemoveAllPartyMembers(PlayerRes);
+										int32 NumReservationsRemoved = FormerReservation.PartyMembers.RemoveAll([&PlayerRes](const FPlayerReservation& OtherRes)
+										{
+											return OtherRes.UniqueId == PlayerRes.UniqueId;
+										});
 
 										State->NumConsumedReservations -= NumReservationsRemoved;
 										UE_LOG(LogPartyBeacon, Verbose, TEXT("APartyBeaconHost::UpdatePartyReservation: Removed %d players, setting NumConsumedReservations to %d"), NumReservationsRemoved, State->NumConsumedReservations);

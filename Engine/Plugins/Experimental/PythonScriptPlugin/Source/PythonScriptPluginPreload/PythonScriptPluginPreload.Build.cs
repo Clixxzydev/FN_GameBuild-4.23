@@ -13,18 +13,11 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
-			if (Target.bBuildEditor)
-			{
-				PrivateIncludePathModuleNames.AddRange(
-					new string[] {
-						"Python",
-					}
-				);
-			}
-			else
-			{
-				PrivateDefinitions.Add("WITH_PYTHON=0");
-			}
+			PrivateIncludePathModuleNames.AddRange(
+				new string[] {
+					"Python",
+				}
+			);
 		}
 	}
 }

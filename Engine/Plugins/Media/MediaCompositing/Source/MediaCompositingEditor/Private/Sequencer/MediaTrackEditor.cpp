@@ -304,8 +304,10 @@ void FMediaTrackEditor::HandleAddMediaTrackMenuEntryExecute()
 
 	if (GetSequencer().IsValid())
 	{
-		GetSequencer()->OnAddTrack(NewTrack, FGuid());
+		GetSequencer()->OnAddTrack(NewTrack);
 	}
+
+	GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 }
 
 

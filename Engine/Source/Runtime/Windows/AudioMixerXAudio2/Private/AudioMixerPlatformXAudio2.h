@@ -93,8 +93,10 @@ namespace Audio
 
 		typedef TArray<long> TChannelTypeMap;
 		
+#if PLATFORM_WINDOWS
 		// Handle to XAudio2DLL
-		HMODULE XAudio2Dll;
+		static HMODULE XAudio2Dll;
+#endif //PLATFORM_WINDOWS
 
 		// Bool indicating that the default audio device changed
 		// And that we need to restart the audio device.
@@ -108,7 +110,9 @@ namespace Audio
 		FCriticalSection AudioDeviceSwapCriticalSection;
 		FString OriginalAudioDeviceId;
 		FString NewAudioDeviceId;
-		FThreadSafeBool bMoveAudioStreamToNewAudioDevice;
+
+		// Because certain device drivers tend to spam IMMNotificationClient callbacks,
+		// We rate limit our device swap using time below:
 		double LastDeviceSwapTime;
 
 		// When we are running the null device,

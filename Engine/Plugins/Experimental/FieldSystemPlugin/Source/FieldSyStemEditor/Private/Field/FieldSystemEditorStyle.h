@@ -12,9 +12,8 @@ public:
 		const FVector2D Icon16x16(16.f, 16.f);
 		const FVector2D Icon64x64(64.f, 64.f);
 
-#if !IS_MONOLITHIC
-		SetContentRoot(FPaths::EnginePluginsDir() / TEXT("Experimental/FieldSystemPlugin/Resources"));
-#endif
+		FString PluginBasePath = FPaths::GetPath(FModuleManager::Get().GetModuleFilename("FieldSystemEditor"));
+		SetContentRoot(PluginBasePath / TEXT("../../Resources"));
 
 		Set("ClassIcon.FieldSystem", new FSlateImageBrush(RootToContentDir(TEXT("FieldSystem_16x.png")), Icon16x16));
 		Set("ClassThumbnail.FieldSystem", new FSlateImageBrush(RootToContentDir(TEXT("FieldSystem_64x.png")), Icon64x64));

@@ -91,7 +91,7 @@ public:
 	FORCEINLINE const D3D_FEATURE_LEVEL GetFeatureLevel() const { return Desc.MaxSupportedFeatureLevel; }
 	FORCEINLINE ID3D12Device* GetD3DDevice() const { return RootDevice.GetReference(); }
 	FORCEINLINE ID3D12Device1* GetD3DDevice1() const { return RootDevice1.GetReference(); }
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 	FORCEINLINE ID3D12Device2* GetD3DDevice2() const { return RootDevice2.GetReference(); }
 #endif
 #if D3D12_RHI_RAYTRACING
@@ -158,7 +158,7 @@ public:
 
 	FORCEINLINE void CreateDXGIFactory()
 	{
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 		VERIFYD3D12RESULT(::CreateDXGIFactory(IID_PPV_ARGS(DxgiFactory.GetInitReference())));
 		VERIFYD3D12RESULT(DxgiFactory->QueryInterface(IID_PPV_ARGS(DxgiFactory2.GetInitReference())));
 #endif
@@ -185,8 +185,7 @@ public:
 		const D3D12_RESOURCE_STATES& InitialUsage,
 		const D3D12_CLEAR_VALUE* ClearValue,
 		FD3D12Resource** ppOutResource,
-		const TCHAR* Name,
-		bool bVerifyHResult = true);
+		const TCHAR* Name);
 
 	HRESULT CreatePlacedResource(const D3D12_RESOURCE_DESC& Desc,
 		FD3D12Heap* BackingHeap,
@@ -194,8 +193,7 @@ public:
 		const D3D12_RESOURCE_STATES& InitialUsage,
 		const D3D12_CLEAR_VALUE* ClearValue,
 		FD3D12Resource** ppOutResource,
-		const TCHAR* Name,
-		bool bVerifyHResult = true);
+		const TCHAR* Name);
 
 	HRESULT CreateBuffer(D3D12_HEAP_TYPE HeapType,
 		FRHIGPUMask CreationNode,
@@ -314,7 +312,7 @@ protected:
 	// LDA setups have one ID3D12Device
 	TRefCountPtr<ID3D12Device> RootDevice;
 	TRefCountPtr<ID3D12Device1> RootDevice1;
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 	TRefCountPtr<ID3D12Device2> RootDevice2;
 #endif
 #if D3D12_RHI_RAYTRACING

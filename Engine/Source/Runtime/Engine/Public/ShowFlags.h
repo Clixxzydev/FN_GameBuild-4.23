@@ -22,7 +22,6 @@ enum EShowFlagGroup
 	SFG_LightingComponents,
 	SFG_LightingFeatures,
 	SFG_Hidden,
-	SFG_Transient, // Hidden, and don't serialize it
 	SFG_Max
 };
 

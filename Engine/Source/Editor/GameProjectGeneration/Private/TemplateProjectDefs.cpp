@@ -9,39 +9,31 @@ namespace
 
 FText GetLocalizedText(const TArray<FLocalizedTemplateString>& LocalizedStrings)
 {
-	auto FindLocalizedStringForCulture = [&LocalizedStrings](const FString& InCulture)
-	{
-		return LocalizedStrings.FindByPredicate([&InCulture](const FLocalizedTemplateString& LocalizedString)
-		{
-			return InCulture == LocalizedString.Language;
-		});
-	};
+	const FString DefaultCultureISOLanguageName = "en";
+	const FString CurrentCultureISOLanguageName = FInternationalization::Get().GetCurrentCulture()->GetTwoLetterISOLanguageName();
+	FText FallbackText;
 
-	const FString CurrentLanguage = FInternationalization::Get().GetCurrentLanguage()->GetName();
-
-	// Try and find a prioritized localized translation
+	for ( const FLocalizedTemplateString& LocalizedString : LocalizedStrings )
 	{
-		const TArray<FString> PrioritizedCultureNames = FInternationalization::Get().GetPrioritizedCultureNames(CurrentLanguage);
-		for (const FString& CultureName : PrioritizedCultureNames)
+		if ( LocalizedString.Language == CurrentCultureISOLanguageName )
 		{
-			if (const FLocalizedTemplateString* LocalizedStringForCulture = FindLocalizedStringForCulture(CultureName))
-			{
-				return FText::FromString(LocalizedStringForCulture->Text);
-			}
+			return FText::FromString(LocalizedString.Text);
+		}
+
+		if ( LocalizedString.Language == DefaultCultureISOLanguageName )
+		{
+			FallbackText = FText::FromString(LocalizedString.Text);
 		}
 	}
 
-	// We failed to find a localized translation, see if we have English text available to use
-	if (CurrentLanguage != TEXT("en"))
+	// Did we find an English fallback?
+	if ( !FallbackText.IsEmpty() )
 	{
-		if (const FLocalizedTemplateString* LocalizedStringForEnglish = FindLocalizedStringForCulture(TEXT("en")))
-		{
-			return FText::FromString(LocalizedStringForEnglish->Text);
-		}
+		return FallbackText;
 	}
 
 	// We failed to find English, see if we have any translations available to use
-	if (LocalizedStrings.Num() > 0)
+	if ( LocalizedStrings.Num() )
 	{
 		return FText::FromString(LocalizedStrings[0].Text);
 	}

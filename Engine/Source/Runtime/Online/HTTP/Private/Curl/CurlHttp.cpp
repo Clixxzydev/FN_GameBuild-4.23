@@ -196,32 +196,27 @@ FString FCurlHttpRequest::GetURLParameter(const FString& ParameterName) const
 {
 	TArray<FString> StringElements;
 
-	//Parameters start after "?" in url
-	FString Path, Parameters;
-	if (URL.Split(TEXT("?"), &Path, &Parameters))
+	int32 NumElems = URL.ParseIntoArray(StringElements, TEXT("&"), true);
+	check(NumElems == StringElements.Num());
+	
+	FString ParamValDelimiter(TEXT("="));
+	for (int Idx = 0; Idx < NumElems; ++Idx )
 	{
-		int32 NumElems = Parameters.ParseIntoArray(StringElements, TEXT("&"), true);
-		check(NumElems == StringElements.Num());
-		
-		FString ParamValDelimiter(TEXT("="));
-		for (int Idx = 0; Idx < NumElems; ++Idx )
+		FString Param, Value;
+		if (StringElements[Idx].Split(ParamValDelimiter, &Param, &Value) && Param == ParameterName)
 		{
-			FString Param, Value;
-			if (StringElements[Idx].Split(ParamValDelimiter, &Param, &Value) && Param == ParameterName)
-			{
-				// unescape
-				auto Converter = StringCast<ANSICHAR>(*Value);
-				char * EscapedAnsi = (char *)Converter.Get();
-				int32 EscapedLength = Converter.Length();
+			// unescape
+			auto Converter = StringCast<ANSICHAR>(*Value);
+			char * EscapedAnsi = (char *)Converter.Get();
+			int32 EscapedLength = Converter.Length();
 
-				int32 UnescapedLength = 0;	
-				char * UnescapedAnsi = curl_easy_unescape(EasyHandle, EscapedAnsi, EscapedLength, &UnescapedLength);
-				
-				FString UnescapedValue(ANSI_TO_TCHAR(UnescapedAnsi));
-				curl_free(UnescapedAnsi);
-				
-				return UnescapedValue;
-			}
+			int32 UnescapedLength = 0;	
+			char * UnescapedAnsi = curl_easy_unescape(EasyHandle, EscapedAnsi, EscapedLength, &UnescapedLength);
+			
+			FString UnescapedValue(ANSI_TO_TCHAR(UnescapedAnsi));
+			curl_free(UnescapedAnsi);
+			
+			return UnescapedValue;
 		}
 	}
 
@@ -1154,11 +1149,11 @@ void FCurlHttpRequest::FinishedRequest()
 				CompletionStatus = EHttpRequestStatus::Failed_ConnectionError;
 			}
 		}
-		// Call delegate with failure
-		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
-
-		//Delegate needs to know about the errors -- so nuke Response (since connection failed) afterwards...
+		// No response since connection failed
 		Response = NULL;
+
+		// Call delegate with failure
+		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this),NULL,false);
 	}
 }
 

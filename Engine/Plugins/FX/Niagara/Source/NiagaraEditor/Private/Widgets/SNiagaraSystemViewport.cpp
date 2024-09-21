@@ -17,10 +17,6 @@
 #include "EditorViewportCommands.h"
 #include "AdvancedPreviewScene.h"
 #include "ImageUtils.h"
-#include "Engine/Canvas.h"
-#include "Engine/Font.h"
-#include "CanvasItem.h"
-#include "DrawDebugHelpers.h"
 
 #define LOCTEXT_NAMESPACE "SNiagaraSystemViewport"
 
@@ -46,9 +42,7 @@ public:
 
 	virtual void SetIsSimulateInEditorViewport(bool bInIsSimulateInEditorViewport)override;
 
-	void DrawInstructionCounts(UNiagaraSystem* ParticleSystem, FCanvas* Canvas, float& CurrentX, float& CurrentY, UFont* Font, const float FontHeight);
-
-	TWeakPtr<SNiagaraSystemViewport> NiagaraViewportPtr;
+	TSharedPtr<SNiagaraSystemViewport> NiagaraViewport;
 	bool bCaptureScreenShot;
 	TWeakObjectPtr<UObject> ScreenShotOwner;
 
@@ -59,7 +53,7 @@ FNiagaraSystemViewportClient::FNiagaraSystemViewportClient(FAdvancedPreviewScene
 	: FEditorViewportClient(nullptr, &InPreviewScene, StaticCastSharedRef<SEditorViewport>(InNiagaraEditorViewport))
 	, OnScreenShotCaptured(InOnScreenShotCaptured)
 {
-	NiagaraViewportPtr = InNiagaraEditorViewport;
+	NiagaraViewport = InNiagaraEditorViewport;
 
 	// Setup defaults for the common draw helper.
 	DrawHelper.bDrawPivot = false;
@@ -97,9 +91,8 @@ void FNiagaraSystemViewportClient::Tick(float DeltaSeconds)
 	}
 }
 
-void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
+void FNiagaraSystemViewportClient::Draw(FViewport* InViewport,FCanvas* Canvas)
 {
-	TSharedPtr<SNiagaraSystemViewport> NiagaraViewport = NiagaraViewportPtr.Pin();
 	UNiagaraSystem* ParticleSystem = NiagaraViewport.IsValid() ? NiagaraViewport->GetPreviewComponent()->GetAsset() : nullptr;
 
 	if (NiagaraViewport.IsValid() && NiagaraViewport->GetDrawElement(SNiagaraSystemViewport::EDrawElements::Bounds))
@@ -114,19 +107,6 @@ void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 	}
 
 	FEditorViewportClient::Draw(InViewport, Canvas);
-
-	if (NiagaraViewport.IsValid() )
-	{
-		float CurrentX = 10.0f;
-		float CurrentY = 50.0f;
-		UFont* Font = GEngine->GetSmallFont();
-		const float FontHeight = Font->GetMaxCharHeight() * 1.1f;
-
-		if ( NiagaraViewport->GetDrawElement(SNiagaraSystemViewport::EDrawElements::InstructionCounts) )
-		{
-			DrawInstructionCounts(ParticleSystem, Canvas, CurrentX, CurrentY, Font, FontHeight);
-		}
-	}
 
 	if (bCaptureScreenShot && ScreenShotOwner.IsValid() && OnScreenShotCaptured.IsBound())
 	{
@@ -156,50 +136,6 @@ void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 
 		bCaptureScreenShot = false;
 		ScreenShotOwner.Reset();
-	}
-}
-
-void FNiagaraSystemViewportClient::DrawInstructionCounts(UNiagaraSystem* ParticleSystem, FCanvas* Canvas, float& CurrentX, float& CurrentY, UFont* Font, const float FontHeight)
-{
-	Canvas->DrawShadowedString(CurrentX, CurrentY, TEXT("Instruction Counts"), Font, FLinearColor::White);
-	CurrentY += FontHeight;
-
-	for (const FNiagaraEmitterHandle& EmitterHandle : ParticleSystem->GetEmitterHandles())
-	{
-		UNiagaraEmitter* Emitter = EmitterHandle.GetInstance();
-		if (Emitter == nullptr)
-		{
-			continue;
-		}
-
-		Canvas->DrawShadowedString(CurrentX + 10.0f, CurrentY, *FString::Printf(TEXT("Emitter %s"), *EmitterHandle.GetName().ToString()), Font, FLinearColor::White);
-		CurrentY += FontHeight;
-
-		TArray<UNiagaraScript*> EmitterScripts;
-		Emitter->GetScripts(EmitterScripts);
-
-		for (UNiagaraScript* Script : EmitterScripts)
-		{
-			uint32 NumInstructions = 0;
-			if (Script->GetUsage() == ENiagaraScriptUsage::ParticleGPUComputeScript)
-			{
-				FNiagaraShader* Shader = Script->GetRenderThreadScript()->GetShaderGameThread();
-				if (Shader != nullptr)
-				{
-					NumInstructions = Shader->GetNumInstructions();
-				}
-			}
-			else
-			{
-				NumInstructions = Script->GetVMExecutableData().LastOpCount;
-			}
-
-			if (NumInstructions > 0)
-			{
-				Canvas->DrawShadowedString(CurrentX + 20.0f, CurrentY, *FString::Printf(TEXT("%s = %u"), *Script->GetName(), NumInstructions), Font, FLinearColor::White);
-				CurrentY += FontHeight;
-			}
-		}
 	}
 }
 
@@ -376,23 +312,14 @@ void SNiagaraSystemViewport::BindCommands()
 	CommandList->MapAction(
 		Commands.TogglePreviewGrid,
 		FExecuteAction::CreateSP( this, &SNiagaraSystemViewport::TogglePreviewGrid ),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP( this, &SNiagaraSystemViewport::IsTogglePreviewGridChecked )
-	);
-
-	CommandList->MapAction(
-		Commands.ToggleInstructionCounts,
-		FExecuteAction::CreateLambda([Viewport=this]() { Viewport->ToggleDrawElement(EDrawElements::InstructionCounts); Viewport->RefreshViewport(); }),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([Viewport=this]() -> bool { return Viewport->GetDrawElement(EDrawElements::InstructionCounts); })
-	);
-
+								  FCanExecuteAction(),
+								  FIsActionChecked::CreateSP( this, &SNiagaraSystemViewport::IsTogglePreviewGridChecked ) );
+	
 	CommandList->MapAction(
 		Commands.TogglePreviewBackground,
 		FExecuteAction::CreateSP( this, &SNiagaraSystemViewport::TogglePreviewBackground ),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP( this, &SNiagaraSystemViewport::IsTogglePreviewBackgroundChecked )
-	);
+								  FCanExecuteAction(),
+								  FIsActionChecked::CreateSP( this, &SNiagaraSystemViewport::IsTogglePreviewBackgroundChecked ) );
 
 	CommandList->MapAction(
 		Commands.ToggleOrbit,

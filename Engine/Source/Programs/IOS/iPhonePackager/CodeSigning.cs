@@ -248,9 +248,12 @@ namespace iPhonePackager
 						DateTime EffectiveDate = cert.NotBefore.ToUniversalTime();
 						DateTime ExpirationDate = cert.NotAfter.ToUniversalTime();
 						DateTime Now = DateTime.UtcNow;
-
+						string Subject = cert.Subject;
+						int SubjStart = Subject.IndexOf("CN=") + 3;
+						int SubjEnd = Subject.IndexOf(",", SubjStart);
+						cert.FriendlyName = Subject.Substring(SubjStart, (SubjEnd - SubjStart));
 						bool bCertTimeIsValid = (EffectiveDate < Now) && (ExpirationDate > Now);
-						Program.LogVerbose("CERTIFICATE-Name:{0},Validity:{1},StartDate:{2},EndDate:{3}", CryptoAdapter.GetFriendlyNameFromCert(cert), bCertTimeIsValid ? "VALID" : "EXPIRED", EffectiveDate.ToString("o"), ExpirationDate.ToString("o"));
+						Program.LogVerbose("CERTIFICATE-Name:{0},Validity:{1},StartDate:{2},EndDate:{3}", cert.FriendlyName, bCertTimeIsValid ? "VALID" : "EXPIRED", EffectiveDate.ToString("o"), ExpirationDate.ToString("o"));
 
 						start = CertToolData.IndexOf(header, start);
 					}
@@ -272,7 +275,7 @@ namespace iPhonePackager
 					DateTime Now = DateTime.UtcNow;
 
 					bool bCertTimeIsValid = (EffectiveDate < Now) && (ExpirationDate > Now);
-					Program.LogVerbose("CERTIFICATE-Name:{0},Validity:{1},StartDate:{2},EndDate:{3}", CryptoAdapter.GetFriendlyNameFromCert(TestCert), bCertTimeIsValid ? "VALID" : "EXPIRED", EffectiveDate.ToString("o"), ExpirationDate.ToString("o"));
+					Program.LogVerbose("CERTIFICATE-Name:{0},Validity:{1},StartDate:{2},EndDate:{3}", TestCert.FriendlyName, bCertTimeIsValid ? "VALID" : "EXPIRED", EffectiveDate.ToString("o"), ExpirationDate.ToString("o"));
 				}
 
 				FoundCerts = Store.Certificates.Find(X509FindType.FindBySubjectName, "iPhone Distribution", false);
@@ -284,7 +287,7 @@ namespace iPhonePackager
 					DateTime Now = DateTime.UtcNow;
 
 					bool bCertTimeIsValid = (EffectiveDate < Now) && (ExpirationDate > Now);
-					Program.LogVerbose("CERTIFICATE-Name:{0},Validity:{1},StartDate:{2},EndDate:{3}", CryptoAdapter.GetFriendlyNameFromCert(TestCert), bCertTimeIsValid ? "VALID" : "EXPIRED", EffectiveDate.ToString("o"), ExpirationDate.ToString("o"));
+					Program.LogVerbose("CERTIFICATE-Name:{0},Validity:{1},StartDate:{2},EndDate:{3}", TestCert.FriendlyName, bCertTimeIsValid ? "VALID" : "EXPIRED", EffectiveDate.ToString("o"), ExpirationDate.ToString("o"));
 				}
 
 				Store.Close();
@@ -381,7 +384,7 @@ namespace iPhonePackager
 					{
 						SelectedProvision = p.ProvisionName;
 						SelectedFile = Path.GetFileName(Provision);
-						SelectedCert = CryptoAdapter.GetFriendlyNameFromCert(Cert);
+						SelectedCert = Cert.FriendlyName;
 					}
 				}
 				Program.LogVerbose("PROVISION-File:{0},Name:{1},Validity:{2},StartDate:{3},EndDate:{4},Type:{5}", Path.GetFileName(Provision), p.ProvisionName, Validity, EffectiveDate.ToString(), ExpirationDate.ToString(), bDistribution ? "DISTRIBUTION" : "DEVELOPMENT");
@@ -428,6 +431,10 @@ namespace iPhonePackager
 
 						if (ValidInTimeCert != null)
 						{
+							int StartIndex = SourceCert.SubjectName.Name.IndexOf("CN=") + 3;
+							int EndIndex = SourceCert.SubjectName.Name.IndexOf(", ", StartIndex);
+							SourceCert.FriendlyName = SourceCert.SubjectName.Name.Substring(StartIndex, EndIndex - StartIndex);
+
 							// Found a cert in the valid time range, quit now!
 							Result = ValidInTimeCert;
 							break;
@@ -457,7 +464,7 @@ namespace iPhonePackager
 
 						bool bCertTimeIsValid = (EffectiveDate < Now) && (ExpirationDate > Now);
 
-						Program.LogVerbose ("  .. .. Installed certificate '{0}' is {1} (range '{2}' to '{3}')", CryptoAdapter.GetFriendlyNameFromCert(TestCert), bCertTimeIsValid ? "valid (choosing it)" : "EXPIRED", TestCert.GetEffectiveDateString (), TestCert.GetExpirationDateString ());
+						Program.LogVerbose ("  .. .. Installed certificate '{0}' is {1} (range '{2}' to '{3}')", TestCert.FriendlyName, bCertTimeIsValid ? "valid (choosing it)" : "EXPIRED", TestCert.GetEffectiveDateString (), TestCert.GetExpirationDateString ());
 						if (bCertTimeIsValid)
 						{
 							ValidInTimeCert = TestCert;
@@ -692,7 +699,7 @@ namespace iPhonePackager
 			}
 			else
 			{
-				Program.Log("... Found matching certificate '{0}' (valid from {1} to {2})", CryptoAdapter.GetFriendlyNameFromCert(SigningCert), SigningCert.GetEffectiveDateString(), SigningCert.GetExpirationDateString());
+				Program.Log("... Found matching certificate '{0}' (valid from {1} to {2})", SigningCert.FriendlyName, SigningCert.GetEffectiveDateString(), SigningCert.GetExpirationDateString());
 			}
 		}
 

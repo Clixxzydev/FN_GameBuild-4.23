@@ -171,29 +171,27 @@ FLinkerSave::FLinkerSave(UPackage* InParent, bool bForceByteSwapping, bool bInSa
 #endif // USE_STABLE_LOCALIZATION_KEYS
 	}
 }
-
-bool FLinkerSave::CloseAndDestroySaver()
+/**
+ * Detaches file saver and hence file handle.
+ */
+void FLinkerSave::Detach()
 {
-	bool bSuccess = true;
 	if (Saver)
 	{
-		// first, do an explicit close to check for archive errors
-		bSuccess = Saver->Close();
-		// then, destroy it
 		delete Saver;
 	}
 	Saver = nullptr;
-	return bSuccess;
 }
 
 FLinkerSave::~FLinkerSave()
 {
-	CloseAndDestroySaver();
+	// Detach file saver/ handle.
+	Detach();
 }
 
-int32 FLinkerSave::MapName(FNameEntryId Id) const
+int32 FLinkerSave::MapName(const FName& Name) const
 {
-	const int32* IndexPtr = NameIndices.Find(Id);
+	const int32* IndexPtr = NameIndices.Find(Name);
 
 	if (IndexPtr)
 	{
@@ -277,7 +275,7 @@ FString FLinkerSave::GetArchiveName() const
 
 FArchive& FLinkerSave::operator<<( FName& InName )
 {
-	int32 Save = MapName(InName.GetDisplayIndex());
+	int32 Save = MapName(InName);
 
 	check(GetSerializeContext());
 	ensureMsgf(Save != INDEX_NONE, TEXT("Name \"%s\" is not mapped when saving %s (object: %s, property: %s)"), 

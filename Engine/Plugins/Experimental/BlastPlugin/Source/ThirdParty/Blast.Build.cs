@@ -89,6 +89,7 @@ public class Blast : ModuleRules
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
+                            "Engine",
                             "PhysX",
             });
 

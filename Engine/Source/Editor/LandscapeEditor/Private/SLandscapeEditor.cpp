@@ -104,7 +104,7 @@ void FLandscapeToolKit::Init(const TSharedPtr<IToolkitHost>& InitToolkitHost)
 	MAP_TOOL("Noise");
 	MAP_TOOL("Retopologize");
 	MAP_TOOL("Visibility");
-	MAP_TOOL("BlueprintBrush");
+	MAP_TOOL("BPCustom");
 
 	MAP_TOOL("Select");
 	MAP_TOOL("AddComponent");
@@ -525,18 +525,11 @@ bool SLandscapeEditor::GetIsPropertyVisible(const FPropertyAndParent& PropertyAn
 				return false;
 			}
 		}
-		if (Property.HasMetaData("ShowForBlueprintBrushTool"))
+		if (Property.HasMetaData("ShowForBPCustomTool"))
 		{
 			const FName CurrentToolName = LandscapeEdMode->CurrentTool->GetToolName();
 
-			if (CurrentToolName != TEXT("BlueprintBrush"))
-			{
-				return false;
-			}
-		}
-		if (Property.HasMetaData("ShowForLandscapeLayerSystem"))
-		{
-			if (!LandscapeEdMode->HasLandscapeLayersContent())
+			if (CurrentToolName != TEXT("BPCustom"))
 			{
 				return false;
 			}

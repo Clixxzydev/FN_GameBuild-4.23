@@ -7,19 +7,19 @@
 /** Is an entity visible? */
 struct SLATECORE_API EVisibility
 {
-	/** Visible and hit-testable (can interact with cursor). Default value. */
+	/** Default widget visibility - visible and can interact with the cursor */
 	static const EVisibility Visible;
 
-	/** Not visible and takes up no space in the layout (obviously not hit-testable). */
+	/** Not visible and takes up no space in the layout; can never be clicked on because it takes up no space. */
 	static const EVisibility Collapsed;
 
-	/** Not visible but occupies layout space (obviously not hit-testable). */
+	/** Not visible, but occupies layout space. Not interactive for obvious reasons. */
 	static const EVisibility Hidden;
 
-	/** Visible but not hit-testable (cannot interact with cursor) and children in the hierarchy (if any) are also not hit-testable. */
+	/** Visible to the user, but only as art. The cursors hit tests will never see this widget. */
 	static const EVisibility HitTestInvisible;
 
-	/** Visible but not hit-testable (cannot interact with cursor) and doesn't affect hit-testing on children (if any). */
+	/** Same as HitTestInvisible, but doesn't apply to child widgets. */
 	static const EVisibility SelfHitTestInvisible;
 
 	/** Any visibility will do */

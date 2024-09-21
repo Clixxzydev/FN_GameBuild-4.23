@@ -31,8 +31,7 @@ inline bool DoesPlatformSupportDistanceFieldAO(EShaderPlatform Platform)
 	return Platform == SP_PCD3D_SM5 || Platform == SP_PS4 || Platform == SP_XBOXONE_D3D12
 		|| IsMetalSM5Platform(Platform)
 		|| IsVulkanSM5Platform(Platform)
-		|| Platform == SP_SWITCH || Platform == SP_SWITCH_FORWARD
-		|| FDataDrivenShaderPlatformInfo::GetInfo(Platform).bSupportsDistanceFields;
+		|| Platform == SP_SWITCH || Platform == SP_SWITCH_FORWARD;
 }
 
 extern FIntPoint GetBufferSizeForAO();
@@ -156,7 +155,7 @@ public:
 		ObjectTilesIndirectArguments.SetBuffer(RHICmdList, ShaderRHI, TileIntersectionResources.ObjectTilesIndirectArguments);
 	}
 
-	void GetUAVs(FTileIntersectionResources& TileIntersectionResources, TArray<FRHIUnorderedAccessView*>& UAVs)
+	void GetUAVs(FTileIntersectionResources& TileIntersectionResources, TArray<FUnorderedAccessViewRHIParamRef>& UAVs)
 	{
 		uint32 MaxIndex = 0;
 		
@@ -348,9 +347,9 @@ public:
 		AOBufferBilinearUVMax.Bind(ParameterMap, TEXT("AOBufferBilinearUVMax"));
 	}
 
-	void Set(FRHICommandList& RHICmdList, FRHIPixelShader* ShaderRHI, const FViewInfo& View, const TRefCountPtr<IPooledRenderTarget>& DistanceFieldAOBentNormal)
+	void Set(FRHICommandList& RHICmdList, const FPixelShaderRHIParamRef& ShaderRHI, const FViewInfo& View, const TRefCountPtr<IPooledRenderTarget>& DistanceFieldAOBentNormal)
 	{
-		FRHITexture* BentNormalAO = DistanceFieldAOBentNormal ? DistanceFieldAOBentNormal->GetRenderTargetItem().ShaderResourceTexture : GWhiteTexture->TextureRHI;
+		FTextureRHIParamRef BentNormalAO = DistanceFieldAOBentNormal ? DistanceFieldAOBentNormal->GetRenderTargetItem().ShaderResourceTexture : GWhiteTexture->TextureRHI;
 		SetTextureParameter(RHICmdList, ShaderRHI, BentNormalAOTexture, BentNormalAOSampler, TStaticSamplerState<SF_Bilinear>::GetRHI(), BentNormalAO);
 
 		FIntPoint const AOBufferSize = GetBufferSizeForAO();

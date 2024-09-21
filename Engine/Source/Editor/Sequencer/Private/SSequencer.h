@@ -25,18 +25,13 @@ class FSequencerTimeSliderController;
 class FVirtualTrackArea;
 class ISequencerEditTool;
 class SSequencerLabelBrowser;
-class SCurveEditorTree;
 class SSequencerTrackArea;
 class SSequencerTrackOutliner;
 class SSequencerTransformBox;
-class SSequencerStretchBox;
 class SSequencerTreeView;
-class SCurveEditorPanel;
-class SDockTab;
 class USequencerSettings;
-class FSequencerTrackFilter;
 struct FPaintPlaybackRangeArgs;
-struct FSequencerSelectionCurveFilter;
+struct FSectionHandle;
 
 namespace SequencerLayoutConstants
 {
@@ -87,30 +82,6 @@ struct FSequencerBreadcrumb
 	{ }
 };
 
-
-/**
- * A widget that holds a widget that is to be refocused on completion
- */
-template<typename T>
-struct STemporarilyFocusedSpinBox : SSpinBox<T>
-{
-public:
-	void Setup()
-	{
-		PreviousFocusedWidget = FSlateApplication::Get().GetKeyboardFocusedWidget();
-	}
-
-	void Refocus()
-	{
-		if (PreviousFocusedWidget.IsValid())
-		{
-			FSlateApplication::Get().SetKeyboardFocus(PreviousFocusedWidget.Pin());
-		}
-	}
-
-private:
-	TWeakPtr<SWidget> PreviousFocusedWidget;
-};
 
 /**
  * Main sequencer UI widget
@@ -167,12 +138,6 @@ public:
 		/** Called when the user has finished dragging the selection range */
 		SLATE_EVENT( FSimpleDelegate, OnSelectionRangeEndDrag )
 
-		/** Called when the user has begun dragging a mark */
-		SLATE_EVENT(FSimpleDelegate, OnMarkBeginDrag)
-
-		/** Called when the user has finished dragging a mark */
-		SLATE_EVENT(FSimpleDelegate, OnMarkEndDrag)
-
 		/** Whether the playback range is locked */
 		SLATE_ATTRIBUTE( bool, IsPlaybackRangeLocked )
 
@@ -185,11 +150,8 @@ public:
 		/** Called when the user changes the view range */
 		SLATE_EVENT( FOnViewRangeChanged, OnViewRangeChanged )
 
-		/** Called when the user sets a marked frame */
-		SLATE_EVENT(FOnSetMarkedFrame, OnSetMarkedFrame)
-
 		/** Called when the user changes on the set of marked frames */
-		SLATE_EVENT(FOnMarkedFrameChanged, OnMarkedFrameChanged)
+		SLATE_EVENT( FOnMarkedFrameChanged, OnMarkedFrameChanged )
 
 		/** Called when all marked frames should be cleared */
 		SLATE_EVENT( FSimpleDelegate, OnClearAllMarkedFrames)
@@ -267,7 +229,7 @@ public:
 	void OnSaveMovieSceneAsClicked();
 
 	/** Called when the curve editor is shown or hidden */
-	void OnCurveEditorVisibilityChanged(bool bShouldBeVisible);
+	void OnCurveEditorVisibilityChanged();
 
 	/** Access the tree view for this sequencer */
 	TSharedPtr<SSequencerTreeView> GetTreeView() const;
@@ -275,8 +237,8 @@ public:
 	/** Generate a helper structure that can be used to transform between phsyical space and virtual space in the track area */
 	FVirtualTrackArea GetVirtualTrackArea() const;
 
-	/** Access this widget's track area widget */
-	TSharedPtr<SSequencerTrackArea> GetTrackAreaWidget() const { return TrackArea; }
+	/** Get an array of section handles for the given set of movie scene sections */
+	TArray<FSectionHandle> GetSectionHandles(const TSet<TWeakObjectPtr<UMovieSceneSection>>& DesiredSections) const;
 
 	/** @return a numeric type interface that will parse and display numbers as frames and times correctly */
 	TSharedRef<INumericTypeInterface<double>> GetNumericTypeInterface() const;
@@ -309,9 +271,6 @@ protected:
 
 private:
 	
-	/** Initalizes a list of all track filter objects */
-	void InitializeTrackFilters();
-
 	/** Handles key selection changes. */
 	void HandleKeySelectionChanged();
 
@@ -342,12 +301,8 @@ private:
 	/** Makes add button. */
 	TSharedRef<SWidget> MakeAddButton();
 
-	TSharedRef<SWidget> MakeFilterButton();
-
 	/** Makes the add menu for the toolbar. */
 	TSharedRef<SWidget> MakeAddMenu();
-
-	TSharedRef<SWidget> MakeFilterMenu();
 
 	/** Makes the general menu for the toolbar. */
 	TSharedRef<SWidget> MakeGeneralMenu();
@@ -378,6 +333,7 @@ public:
 	void FillTimeDisplayFormatMenu(FMenuBuilder& MenuBuilder);
 
 public:	
+
 	/** Makes a time range widget with the specified inner content */
 	TSharedRef<SWidget> MakeTimeRange(const TSharedRef<SWidget>& InnerContent, bool bShowWorkingRange, bool bShowViewRange, bool bShowPlaybackRange);
 
@@ -385,16 +341,6 @@ public:
 	TSharedPtr<ITimeSlider> GetTopTimeSliderWidget() const;
 
 private:
-
-	void OnResetFilters();
-	void OnTrackFilterClicked(TSharedRef<FSequencerTrackFilter> TrackFilter);
-	bool IsTrackFilterActive(TSharedRef<FSequencerTrackFilter> TrackFilter) const;
-
-	void OnEnableAllLevelFilters(bool bEnableAll);
-	void OnTrackLevelFilterClicked(const FString LevelName);
-	bool IsTrackLevelFilterActive(const FString LevelName) const;
-
-	void FillLevelFilterMenu(FMenuBuilder& InMenuBarBuilder);
 
 	/**
 	* Called when the time snap interval changes.
@@ -427,6 +373,15 @@ private:
 	{
 		return ColumnFillCoefficients[ColumnIndex];
 	}
+
+	/** Get the amount of space that the outliner spacer should fill */
+	float GetOutlinerSpacerFill() const;
+
+	/** Get the visibility of the curve area */
+	EVisibility GetCurveEditorVisibility() const;
+
+	/** Get the visibility of the track area */
+	EVisibility GetTrackAreaVisibility() const;
 
 	/**
 	 * Called when one or more assets are dropped into the widget
@@ -461,7 +416,8 @@ private:
 	/** Gets whether or not the breadcrumb trail should be visible. */
 	EVisibility GetBreadcrumbTrailVisibility() const;
 
-
+	/** Gets whether or not the curve editor toolbar should be visible. */
+	EVisibility GetCurveEditorToolBarVisibility() const;
 
 	/** Gets whether or not the bottom time slider should be visible. */
 	EVisibility GetBottomTimeSliderVisibility() const;
@@ -486,14 +442,9 @@ private:
 	/** Controls how fast Spinboxes change values. */
 	double GetSpinboxDelta() const;
 
-	/** Get minimum desired width of the current time spin box */
-	float GetPlayTimeMinDesiredWidth() const;
-
 	bool GetIsSequenceReadOnly() const;
 	void OnSetSequenceReadOnly(ECheckBoxState CheckBoxState);
 
-	/** Returns whether or not the Curve Editor is enabled. Allows us to bind to the Slate Enabled attribute. */
-	bool GetIsCurveEditorEnabled() const { return !GetIsSequenceReadOnly(); }
 public:
 	/** On Paste Command */
 	void OnPaste();
@@ -517,24 +468,14 @@ public:
 	/** This adds the specified path to the selection set to be restored the next time the tree view is refreshed. */
 	void AddAdditionalPathToSelectionSet(const FString& Path) { AdditionalSelectionsToAdd.Add(Path); }
 private:
-
 	/** Transform box widget. */
 	TSharedPtr<SSequencerTransformBox> TransformBox;
-
-	/** Stretch box widget. */
-	TSharedPtr<SSequencerStretchBox> StretchBox;
 
 	/** Section area widget */
 	TSharedPtr<SSequencerTrackArea> TrackArea;
 
 	/** Outliner widget */
 	TSharedPtr<SSequencerTrackOutliner> TrackOutliner;
-
-	/** Curve editor tree widget */
-	TSharedPtr<SCurveEditorTree> CurveEditorTree;
-
-	/** Curve editor filter that shows only the selected nodes */
-	TSharedPtr<FSequencerSelectionCurveFilter> SequencerSelectionCurveEditorFilter;
 
 	/** The breadcrumb trail widget for this sequencer */
 	TSharedPtr<SBreadcrumbTrail<FSequencerBreadcrumb>> BreadcrumbTrail;
@@ -545,11 +486,8 @@ private:
 	/** The search box for filtering tracks. */
 	TSharedPtr<SSearchBox> SearchBox;
 
-	/** The search widget for filtering curves in the Curve Editor tree. */
-	TSharedPtr<SWidget> CurveEditorSearchBox;
-
 	/** The current playback time display.*/
-	TSharedPtr<STemporarilyFocusedSpinBox<double>> PlayTimeDisplay;
+	TSharedPtr<SSpinBox<double>> PlayTimeDisplay;
 
 	/** The sequencer tree view responsible for the outliner and track areas */
 	TSharedPtr<SSequencerTreeView> TreeView;
@@ -559,9 +497,6 @@ private:
 
 	/** The top time slider widget */
 	TSharedPtr<ITimeSlider> TopTimeSlider;
-
-	/** The curve editor panel. This is created and updated even if it is not currently visible. */
-	TSharedPtr<SWidget> CurveEditorPanel;
 
 	/** Cached settings provided to the sequencer itself on creation */
 	USequencerSettings* Settings;
@@ -604,12 +539,6 @@ private:
 	/** Called when the user has finished dragging the playback range */
 	FSimpleDelegate OnPlaybackRangeEndDrag;
 
-	/** Called when the user has begun dragging a mark */
-	FSimpleDelegate OnMarkBeginDrag;
-
-	/** Called when the user has finished dragging a mark */
-	FSimpleDelegate OnMarkEndDrag;
-
 	/** Called when any widget contained within sequencer has received focus */
 	FSimpleDelegate OnReceivedFocus;
 
@@ -625,11 +554,4 @@ private:
 	TArray<FString> AdditionalSelectionsToAdd;
 
 	TSharedPtr<SWidget> TickResolutionOverlay;
-
-	/** All possible track filter objects */
-	TArray< TSharedRef<FSequencerTrackFilter> > AllTrackFilters;
-
-public:
-	static const FName CurveEditorTabName;
-
 };

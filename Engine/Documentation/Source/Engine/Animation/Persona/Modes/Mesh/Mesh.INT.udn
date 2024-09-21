@@ -11,7 +11,10 @@ tags:Skeletal Mesh
 tags:FBX Importing
 tags:Tools
 topic-image:skelMeshEditor_topic.png
-hero-image:SkeletalMeshEditorBanner.png
+
+[REGION:banner]
+![](SkeletalMeshEditorBanner.png)
+[/REGION]
 
 
 [EXCERPT:Overview]

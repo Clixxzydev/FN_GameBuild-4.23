@@ -145,12 +145,10 @@ void STakeRecorderPanel::Construct(const FArguments& InArgs)
 		CockpitWidget->GetMetaData()->SetPresetOrigin(InArgs._BasePreset);
 	}
 
-	// Add the settings immediately if the user preference tells us to
+	// Add the user settings immediately if the user preference tells us to
 	UTakeRecorderUserSettings* UserSettings = GetMutableDefault<UTakeRecorderUserSettings>();
-	UTakeRecorderProjectSettings* ProjectSettings = GetMutableDefault<UTakeRecorderProjectSettings>();
 	if (UserSettings->bShowUserSettingsOnUI)
 	{
-		LevelSequenceTakeWidget->AddExternalSettingsObject(ProjectSettings);
 		LevelSequenceTakeWidget->AddExternalSettingsObject(UserSettings);
 	}
 
@@ -408,13 +406,14 @@ TSharedRef<SWidget> STakeRecorderPanel::MakeToolBar()
 			.WidthOverride(ButtonBoxSize)
 			.HeightOverride(ButtonBoxSize)
 			[
+
 				SNew(SCheckBox)
 				.Padding(TakeRecorder::ButtonPadding)
-				.ToolTipText(LOCTEXT("ShowSettings_Tip", "Show/Hide the general user/project settings for take recorder"))
+				.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for take recorder"))
 				.Style(FEditorStyle::Get(), "ToggleButtonCheckbox")
 				.ForegroundColor(FSlateColor::UseForeground())
-				.IsChecked(this, &STakeRecorderPanel::GetSettingsCheckState)
-				.OnCheckStateChanged(this, &STakeRecorderPanel::ToggleSettings)
+				.IsChecked(this, &STakeRecorderPanel::GetUserSettingsCheckState)
+				.OnCheckStateChanged(this, &STakeRecorderPanel::ToggleUserSettings)
 				.Visibility_Lambda([this]() { return !CockpitWidget->Reviewing() ? EVisibility::Visible : EVisibility::Collapsed; })
 				[
 					SNew(STextBlock)
@@ -761,25 +760,22 @@ void STakeRecorderPanel::RefreshPanel()
 }
 
 
-ECheckBoxState STakeRecorderPanel::GetSettingsCheckState() const
+ECheckBoxState STakeRecorderPanel::GetUserSettingsCheckState() const
 {
 	return GetDefault<UTakeRecorderUserSettings>()->bShowUserSettingsOnUI ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
 
-void STakeRecorderPanel::ToggleSettings(ECheckBoxState CheckState)
+void STakeRecorderPanel::ToggleUserSettings(ECheckBoxState CheckState)
 {
 	UTakeRecorderUserSettings* UserSettings = GetMutableDefault<UTakeRecorderUserSettings>();
-	UTakeRecorderProjectSettings* ProjectSettings = GetMutableDefault<UTakeRecorderProjectSettings>();
 
 	if (LevelSequenceTakeWidget->RemoveExternalSettingsObject(UserSettings))
 	{
-		LevelSequenceTakeWidget->RemoveExternalSettingsObject(ProjectSettings);
 		UserSettings->bShowUserSettingsOnUI = false;
 	}
 	else
 	{
-		LevelSequenceTakeWidget->AddExternalSettingsObject(ProjectSettings);
 		LevelSequenceTakeWidget->AddExternalSettingsObject(UserSettings);
 		UserSettings->bShowUserSettingsOnUI = true;
 	}

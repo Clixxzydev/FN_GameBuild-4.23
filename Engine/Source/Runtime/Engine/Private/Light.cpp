@@ -16,7 +16,7 @@
 ALight::ALight(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	LightComponent = CreateDefaultSubobject<ULightComponent>(TEXT("LightComponent0"));
+	LightComponent = CreateAbstractDefaultSubobject<ULightComponent>(TEXT("LightComponent0"));
 
 	bCollideWhenPlacing = true;
 	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
@@ -232,10 +232,7 @@ ADirectionalLight::ADirectionalLight(const FObjectInitializer& ObjectInitializer
 	};
 	static FConstructorStatics ConstructorStatics;
 
-#if !WITH_EDITORONLY_DATA
-	UDirectionalLightComponent* DirectionalLightComponent;
-#endif
-	DirectionalLightComponent = CastChecked<UDirectionalLightComponent>(GetLightComponent());
+	UDirectionalLightComponent* DirectionalLightComponent = CastChecked<UDirectionalLightComponent>(GetLightComponent());
 	DirectionalLightComponent->Mobility = EComponentMobility::Stationary;
 	DirectionalLightComponent->RelativeRotation = FRotator(-46.0f, 0.0f, 0.0f);
 	// Make directional light icons big since they tend to be important

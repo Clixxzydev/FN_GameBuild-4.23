@@ -2,16 +2,20 @@
 
 #include "/Engine/Private/Common.ush"
 
+float FarPlaneDistance;
 Texture2D InDepthTexture;
 SamplerState InTextureSampler;
 
 void MainPixelShader(
 	in float2 uv : TEXCOORD0,
-	out float OutColor : SV_Target0
+	out float4 OutColor : SV_Target0
 	)
 {
-	// Treat this as a passthrough for now since source texture is a depth resource which needs the entire frame to be copied
-	// CopySubresourceRegion will not work unless we copy the entire texture an intermediate texture, which hurts performance significantly.
-	// We are no longer reversing the projection in this shader since we are setting reverse near/far in the plugin.
-	OutColor = Texture2DSample(InDepthTexture, InTextureSampler, uv).r;
+	// Max 24-bit int.
+	float MaxZ = 16777215.0f;
+
+	float depth = Texture2DSample(InDepthTexture, InTextureSampler, uv);
+	float percent = depth / MaxZ;
+
+	OutColor = 1 - percent * FarPlaneDistance;
 }

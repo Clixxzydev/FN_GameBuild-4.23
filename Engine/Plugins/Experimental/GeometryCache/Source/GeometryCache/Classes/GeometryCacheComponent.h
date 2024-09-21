@@ -179,8 +179,6 @@ public:
 	void SetManualTick(bool bInManualTick);
 	bool GetManualTick() const;
 
-	void ResetAnimationTime();
-
 	UFUNCTION(BlueprintCallable, Category = "Components|GeometryCache")
 	void TickAtThisTime(const float Time, bool bInIsRunning, bool bInBackwards, bool bInIsLooping);
 
@@ -236,7 +234,7 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = GeometryCache)
 	int32 NumTracks;
 
-	UPROPERTY(VisibleAnywhere, transient, Category = GeometryCache)
+	UPROPERTY(VisibleAnywhere, Category = GeometryCache)
 	float ElapsedTime;
 
 	/** Component local space bounds of geometry cache mesh */

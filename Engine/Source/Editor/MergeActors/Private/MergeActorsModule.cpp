@@ -134,10 +134,8 @@ void FMergeActorsModule::ShutdownModule()
 {
 	if (FSlateApplication::IsInitialized())
 	{
-		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(MergeActorsTabName);		
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(MergeActorsTabName);
 	}
-
-	MergeActorsTools.Empty();
 }
 
 

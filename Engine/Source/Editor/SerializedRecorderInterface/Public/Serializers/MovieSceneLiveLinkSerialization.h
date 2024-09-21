@@ -3,20 +3,14 @@
 #pragma once
 
 #include "Misc/FrameRate.h"
-
-#include "LiveLinkRole.h"
 #include "LiveLinkTypes.h"
-#include "LiveLinkCustomVersion.h"
-
 #include "Serializers/MovieSceneSectionSerialization.h"
 
-
-/** !!! LiveLink Track serialization is not supported !!! */
 
 struct FLiveLinkManifestHeader
 {
 
-	static const int32 cVersion = 2;
+	static const int32 cVersion = 1;
 
 	FLiveLinkManifestHeader() : Version(cVersion)
 	{
@@ -48,16 +42,18 @@ struct FLiveLinkManifestHeader
 using FLiveLinkManifestSerializer = TMovieSceneSerializer<FLiveLinkManifestHeader, FLiveLinkManifestHeader>;
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 //Header and data for individual subjects that contain the data.
 struct FLiveLinkFileHeader
 {
 	FLiveLinkFileHeader() = default;
 
-	FLiveLinkFileHeader(const FName& InSubjectName, double InSecondsDiff, TSubclassOf<ULiveLinkRole> InSubjectRole, const TSharedPtr<FLiveLinkStaticDataStruct>& InStaticData, const FName& InSerializedType, const FGuid& InGuid)
+	FLiveLinkFileHeader(const FName& InSubjectName, double InSecondsDiff, const FLiveLinkRefSkeleton& InRefSkeleton, const TArray<FName>&  InCurveNames, 
+		const FName& InSerializedType, const FGuid& InGuid)
 		: bIsManifest(false)
 		, SecondsDiff(InSecondsDiff)
 		, SubjectName(InSubjectName)
+		, CurveNames(InCurveNames) 
+		, RefSkeleton(InRefSkeleton)
 		, SerializedType(InSerializedType)
 		, Guid(InGuid)
 	{
@@ -65,22 +61,13 @@ struct FLiveLinkFileHeader
 
 	friend FArchive& operator<<(FArchive& Ar, FLiveLinkFileHeader& Header)
 	{
-		Ar.UsingCustomVersion(FLiveLinkCustomVersion::GUID);
-
 		Ar << Header.SerializedType;
 		Ar << Header.bIsManifest;
 		Ar << Header.Guid;
 		Ar << Header.SecondsDiff;
 		Ar << Header.SubjectName;
-
-		if (Ar.IsLoading())
-		{
-			if (Ar.CustomVer(FLiveLinkCustomVersion::GUID) < FLiveLinkCustomVersion::NewLiveLinkRoleSystem)
-			{
-				Ar << Header.CurveNames;
-				FLiveLinkRefSkeleton::StaticStruct()->SerializeItem(Ar, (void*)& Header.RefSkeleton, nullptr);
-			}
-		}
+		Ar << Header.CurveNames;
+		FLiveLinkRefSkeleton::StaticStruct()->SerializeItem(Ar, (void*)& Header.RefSkeleton, nullptr);
 
 		return Ar;
 	}
@@ -88,11 +75,11 @@ struct FLiveLinkFileHeader
 	bool bIsManifest;
 	double SecondsDiff;
 	FName SubjectName;
-	FName SerializedType;
-	FGuid Guid;
-
 	TArray<FName> CurveNames;
 	FLiveLinkRefSkeleton RefSkeleton;
+	FName SerializedType;
+	FGuid Guid;
 };
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+using FLiveLinkSerializedFrame = TMovieSceneSerializedFrame<FLiveLinkFrame>;
+using FLiveLinkSerializer = TMovieSceneSerializer<FLiveLinkFileHeader, FLiveLinkFrame>;

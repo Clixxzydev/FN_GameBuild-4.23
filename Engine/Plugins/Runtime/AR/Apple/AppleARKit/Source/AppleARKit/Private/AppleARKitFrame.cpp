@@ -3,17 +3,22 @@
 // AppleARKit
 #include "AppleARKitFrame.h"
 #include "AppleARKitModule.h"
-#include "AppleARKitConversion.h"
 #include "Misc/ScopeLock.h"
 
 // Default constructor
 FAppleARKitFrame::FAppleARKitFrame()
 	: Timestamp(0.0)
 #if SUPPORTS_ARKIT_1_0
+	, CapturedYImage(nullptr)
+	, CapturedCbCrImage(nullptr)
 	, CameraImage(nullptr)
 	, CameraDepth(nullptr)
 	, NativeFrame(nullptr)
 #endif
+	, CapturedYImageWidth(0)
+	, CapturedYImageHeight(0)
+	, CapturedCbCrImageWidth(0)
+	, CapturedCbCrImageHeight(0)
 	, WorldMappingState(EARWorldMappingState::NotAvailable)
 {
 };
@@ -37,13 +42,14 @@ EARWorldMappingState ToEARWorldMappingState(ARWorldMappingStatus MapStatus)
 
 #if SUPPORTS_ARKIT_1_0
 
-FAppleARKitFrame::FAppleARKitFrame( ARFrame* InARFrame, const FVector2D MinCameraUV, const FVector2D MaxCameraUV )
+FAppleARKitFrame::FAppleARKitFrame( ARFrame* InARFrame, CVMetalTextureCacheRef MetalTextureCache )
 	: Camera( InARFrame.camera )
 	, LightEstimate( InARFrame.lightEstimate )
 	, WorldMappingState(EARWorldMappingState::NotAvailable)
 {
 	// Sanity check
 	check( InARFrame );
+	check( MetalTextureCache );
 
 	// Copy timestamp
 	Timestamp = InARFrame.timestamp;
@@ -51,10 +57,42 @@ FAppleARKitFrame::FAppleARKitFrame( ARFrame* InARFrame, const FVector2D MinCamer
 	CameraImage = nullptr;
 	CameraDepth = nullptr;
 
+	// Copy / convert pass-through camera image's CVPixelBuffer to an MTLTexture so we can pass it
+	// directly to FTextureResource's.
+	// @see AppleARKitCameraTextureResource.cpp
+	CapturedYImage = nullptr;
+	CapturedYImageWidth = InARFrame.camera.imageResolution.width;
+	CapturedYImageHeight = InARFrame.camera.imageResolution.height;
+	
+	CapturedCbCrImage = nullptr;
+	CapturedCbCrImageWidth = InARFrame.camera.imageResolution.width;
+	CapturedCbCrImageHeight = InARFrame.camera.imageResolution.height;
+	
 	if ( InARFrame.capturedImage )
 	{
 		CameraImage = InARFrame.capturedImage;
 		CFRetain(CameraImage);
+
+		// Update SizeX & Y
+		CapturedYImageWidth = CVPixelBufferGetWidthOfPlane( InARFrame.capturedImage, 0 );
+		CapturedYImageHeight = CVPixelBufferGetHeightOfPlane( InARFrame.capturedImage, 0 );
+		CapturedCbCrImageWidth = CVPixelBufferGetWidthOfPlane( InARFrame.capturedImage, 1 );
+		CapturedCbCrImageHeight = CVPixelBufferGetHeightOfPlane( InARFrame.capturedImage, 1 );
+		
+		// Create a metal texture from the CVPixelBufferRef. The CVMetalTextureRef will
+		// be released in the FAppleARKitFrame destructor.
+		// NOTE: On success, CapturedImage will be a new CVMetalTextureRef with a ref count of 1
+		// 		 so we don't need to CFRetain it. The corresponding CFRelease is handled in
+		//
+		CVReturn Result = CVMetalTextureCacheCreateTextureFromImage( nullptr, MetalTextureCache, InARFrame.capturedImage, nullptr, MTLPixelFormatR8Unorm, CapturedYImageWidth, CapturedYImageHeight, /*PlaneIndex*/0, &CapturedYImage );
+		check( Result == kCVReturnSuccess );
+		check( CapturedYImage );
+		check( CFGetRetainCount(CapturedYImage) == 1);
+		
+		Result = CVMetalTextureCacheCreateTextureFromImage( nullptr, MetalTextureCache, InARFrame.capturedImage, nullptr, MTLPixelFormatRG8Unorm, CapturedCbCrImageWidth, CapturedCbCrImageHeight, /*PlaneIndex*/1, &CapturedCbCrImage );
+		check( Result == kCVReturnSuccess );
+		check( CapturedCbCrImage );
+		check( CFGetRetainCount(CapturedCbCrImage) == 1);
 	}
 
 	if (InARFrame.capturedDepthData)
@@ -71,49 +109,21 @@ FAppleARKitFrame::FAppleARKitFrame( ARFrame* InARFrame, const FVector2D MinCamer
 		WorldMappingState = ToEARWorldMappingState(InARFrame.worldMappingStatus);
 	}
 #endif
-
-#if SUPPORTS_ARKIT_3_0
-	if (FAppleARKitAvailability::SupportsARKit30())
-	{
-		if (InARFrame.detectedBody)
-		{
-			Tracked2DPose = FAppleARKitConversion::ToARPose2D(InARFrame.detectedBody);
-			
-			// Convert the joint location from the normalized arkit camera space to UE4's normalized screen space
-			const FVector2D UVSize = MaxCameraUV - MinCameraUV;
-			for (int Index = 0; Index < Tracked2DPose.JointLocations.Num(); ++Index)
-			{
-				if (Tracked2DPose.IsJointTracked[Index])
-				{
-					FVector2D& JointLocation = Tracked2DPose.JointLocations[Index];
-					JointLocation = (JointLocation - MinCameraUV) / UVSize;
-				}
-			}
-		}
-		
-		if (InARFrame.segmentationBuffer)
-		{
-			SegmentationBuffer = InARFrame.segmentationBuffer;
-			CFRetain(SegmentationBuffer);
-		}
-		
-		if (InARFrame.estimatedDepthData)
-		{
-			EstimatedDepthData = InARFrame.estimatedDepthData;
-			CFRetain(EstimatedDepthData);
-		}
-	}
-#endif
 }
 
 FAppleARKitFrame::FAppleARKitFrame( const FAppleARKitFrame& Other )
 	: Timestamp( Other.Timestamp )
+	, CapturedYImage( nullptr )
+	, CapturedCbCrImage( nullptr )
 	, CameraImage( nullptr )
 	, CameraDepth( nullptr )
+	, CapturedYImageWidth( Other.CapturedYImageWidth )
+	, CapturedYImageHeight( Other.CapturedYImageHeight )
+	, CapturedCbCrImageWidth( Other.CapturedCbCrImageWidth )
+	, CapturedCbCrImageHeight( Other.CapturedCbCrImageHeight )
 	, Camera( Other.Camera )
 	, LightEstimate( Other.LightEstimate )
 	, WorldMappingState(Other.WorldMappingState)
-	, Tracked2DPose(Other.Tracked2DPose)
 {
 	if(Other.NativeFrame != nullptr)
 	{
@@ -124,6 +134,14 @@ FAppleARKitFrame::FAppleARKitFrame( const FAppleARKitFrame& Other )
 FAppleARKitFrame::~FAppleARKitFrame()
 {
 	// Release captured image
+	if ( CapturedYImage != nullptr )
+	{
+		CFRelease( CapturedYImage );
+	}
+	if ( CapturedCbCrImage != nullptr )
+	{
+		CFRelease( CapturedCbCrImage );
+	}
 	if (CameraImage != nullptr)
 	{
 		CFRelease(CameraImage);
@@ -136,17 +154,6 @@ FAppleARKitFrame::~FAppleARKitFrame()
 	{
 		CFRelease((CFTypeRef)NativeFrame);
 	}
-#if SUPPORTS_ARKIT_3_0
-	if (SegmentationBuffer)
-	{
-		CFRelease(SegmentationBuffer);
-	}
-	
-	if (EstimatedDepthData)
-	{
-		CFRelease(EstimatedDepthData);
-	}
-#endif
 }
 
 FAppleARKitFrame& FAppleARKitFrame::operator=( const FAppleARKitFrame& Other )
@@ -157,6 +164,14 @@ FAppleARKitFrame& FAppleARKitFrame::operator=( const FAppleARKitFrame& Other )
 	}
 
 	// Release outgoing image
+	if ( CapturedYImage != nullptr )
+	{
+		CFRelease( CapturedYImage );
+	}
+	if ( CapturedCbCrImage != nullptr )
+	{
+		CFRelease( CapturedCbCrImage );
+	}
 	if (CameraImage != nullptr)
 	{
 		CFRelease(CameraImage);
@@ -178,29 +193,19 @@ FAppleARKitFrame& FAppleARKitFrame::operator=( const FAppleARKitFrame& Other )
 		NativeFrame = (void*)CFRetain((CFTypeRef)Other.NativeFrame);
 	}
 	
-#if SUPPORTS_ARKIT_3_0
-	if (SegmentationBuffer)
-	{
-		CFRelease(SegmentationBuffer);
-		SegmentationBuffer = nullptr;
-	}
-	
-	if (EstimatedDepthData)
-	{
-		CFRelease(EstimatedDepthData);
-		EstimatedDepthData = nullptr;
-	}
-#endif
-	
 	// Member-wise copy
 	Timestamp = Other.Timestamp;
+	CapturedYImage = nullptr;
+	CapturedYImageWidth = Other.CapturedYImageWidth;
+	CapturedYImageHeight = Other.CapturedYImageHeight;
+	CapturedCbCrImage = nullptr;
+	CapturedCbCrImageWidth = Other.CapturedCbCrImageWidth;
+	CapturedCbCrImageHeight = Other.CapturedCbCrImageHeight;
 	Camera = Other.Camera;
 	LightEstimate = Other.LightEstimate;
 	WorldMappingState = Other.WorldMappingState;
 
 	NativeFrame = Other.NativeFrame;
-	
-	Tracked2DPose = Other.Tracked2DPose;
 
 	return *this;
 }

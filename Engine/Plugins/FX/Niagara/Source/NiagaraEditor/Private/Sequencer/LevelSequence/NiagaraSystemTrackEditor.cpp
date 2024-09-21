@@ -56,7 +56,7 @@ void GetAnimatedParameters(UMovieScene& MovieScene, FGuid ObjectBinding, TSet<FN
 	}
 }
 
-void FNiagaraSystemTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
+void FNiagaraSystemTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding, const UClass* ObjectClass)
 {
 	if (ObjectClass->IsChildOf(UNiagaraComponent::StaticClass()))
 	{
@@ -64,11 +64,11 @@ void FNiagaraSystemTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBu
 			LOCTEXT("AddNiagaraSystemTrack", "Niagara System Life Cycle Track"),
 			LOCTEXT("AddNiagaraSystemTrackToolTip", "Add a track for controlling niagara system life cycle behavior."),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &FNiagaraSystemTrackEditor::AddNiagaraSystemTrack, ObjectBindings))
+			FUIAction(FExecuteAction::CreateSP(this, &FNiagaraSystemTrackEditor::AddNiagaraSystemTrack, ObjectBinding))
 		);
 	}
 
-	TArrayView<TWeakObjectPtr<UObject>> BoundObjects = GetSequencer()->FindBoundObjects(ObjectBindings[0], GetSequencer()->GetFocusedTemplateID());
+	TArrayView<TWeakObjectPtr<UObject>> BoundObjects = GetSequencer()->FindBoundObjects(ObjectBinding, GetSequencer()->GetFocusedTemplateID());
 
 	UNiagaraSystem* System = nullptr;
 	for (TWeakObjectPtr<UObject> BoundObject : BoundObjects)
@@ -86,7 +86,7 @@ void FNiagaraSystemTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBu
 		System->GetExposedParameters().GetUserParameters(ParameterVariables);
 
 		TSet<FNiagaraVariable> AnimatedParameters;
-		GetAnimatedParameters(*GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene(), ObjectBindings[0], AnimatedParameters);
+		GetAnimatedParameters(*GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene(), ObjectBinding, AnimatedParameters);
 
 		FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
 		for (const FNiagaraVariable& ParameterVariable : ParameterVariables)
@@ -99,69 +99,66 @@ void FNiagaraSystemTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBu
 					FText::Format(LOCTEXT("AddNiagaraParameterTrackFormat", "{0} Parameter Track"), FText::FromName(ParameterVariable.GetName())),
 					FText::Format(LOCTEXT("AddNiagaraSystemTrackToolTipFormat", "Add a track for animating the {0} parameter."), FText::FromName(ParameterVariable.GetName())),
 					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateSP(this, &FNiagaraSystemTrackEditor::AddNiagaraParameterTrack, ObjectBindings, ParameterVariable))
+					FUIAction(FExecuteAction::CreateSP(this, &FNiagaraSystemTrackEditor::AddNiagaraParameterTrack, ObjectBinding, ParameterVariable))
 				);
 			}
 		}
 	}
 }
 
-void FNiagaraSystemTrackEditor::AddNiagaraSystemTrack(TArray<FGuid> ObjectBindings)
+void FNiagaraSystemTrackEditor::AddNiagaraSystemTrack(FGuid ObjectBinding)
 {
-	UMovieScene* MovieScene = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene();
-	if (MovieScene->IsReadOnly())
+	TArrayView<TWeakObjectPtr<UObject>> BoundObjects = GetSequencer()->FindBoundObjects(ObjectBinding, GetSequencer()->GetFocusedTemplateID());
+
+	UNiagaraSystem* System = nullptr;
+	for (TWeakObjectPtr<UObject> BoundObject : BoundObjects)
 	{
-		return;
-	}
-
-	FScopedTransaction AddTrackTransaction(LOCTEXT("AddNiagaraSystemLifeCycleTrackTransaction", "Add Niagara System Life Cycle Track"));
-	MovieScene->Modify();
-
-	for (FGuid ObjectBinding : ObjectBindings)
-	{
-		TArrayView<TWeakObjectPtr<UObject>> BoundObjects = GetSequencer()->FindBoundObjects(ObjectBinding, GetSequencer()->GetFocusedTemplateID());
-
-		UNiagaraSystem* System = nullptr;
-		for (TWeakObjectPtr<UObject> BoundObject : BoundObjects)
+		UNiagaraComponent* NiagaraComponent = Cast<UNiagaraComponent>(BoundObject.Get());
+		if (NiagaraComponent != nullptr)
 		{
-			UNiagaraComponent* NiagaraComponent = Cast<UNiagaraComponent>(BoundObject.Get());
-			if (NiagaraComponent != nullptr)
-			{
-				System = NiagaraComponent->GetAsset();
-			}
-		}
-
-		if (System != nullptr)
-		{
-			UMovieSceneNiagaraSystemTrack* NiagaraSystemTrack = MovieScene->AddTrack<UMovieSceneNiagaraSystemTrack>(ObjectBinding);
-			NiagaraSystemTrack->SetDisplayName(LOCTEXT("SystemLifeCycleTrackName", "System Life Cycle"));
-			UMovieSceneNiagaraSystemSpawnSection* SpawnSection = NewObject<UMovieSceneNiagaraSystemSpawnSection>(NiagaraSystemTrack, NAME_None, RF_Transactional);
-
-			FFrameRate FrameResolution = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene()->GetTickResolution();
-			FFrameTime SpawnSectionStartTime = GetSequencer()->GetLocalTime().ConvertTo(FrameResolution);
-			FFrameTime SpawnSectionDuration;
-
-			UNiagaraSystemEditorData* SystemEditorData = Cast<UNiagaraSystemEditorData>(System->GetEditorData());
-			if (SystemEditorData != nullptr && SystemEditorData->GetPlaybackRange().HasLowerBound() && SystemEditorData->GetPlaybackRange().HasUpperBound())
-			{
-				SpawnSectionDuration = FrameResolution.AsFrameTime(SystemEditorData->GetPlaybackRange().Size<float>());
-			}
-			else
-			{
-				SpawnSectionDuration = FrameResolution.AsFrameTime(5.0);
-			}
-
-			SpawnSection->SetRange(TRange<FFrameNumber>(
-				SpawnSectionStartTime.RoundToFrame(),
-				(SpawnSectionStartTime + SpawnSectionDuration).RoundToFrame()));
-			NiagaraSystemTrack->AddSection(*SpawnSection);
+			System = NiagaraComponent->GetAsset();
 		}
 	}
-		
-	GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+
+	if (System != nullptr)
+	{
+		UMovieScene* MovieScene = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene();
+		if (MovieScene->IsReadOnly())
+		{
+			return;
+		}
+
+		FScopedTransaction AddTrackTransaction(LOCTEXT("AddNiagaraSystemLifeCycleTrackTransaction", "Add Niagara System Life Cycle Track"));
+		MovieScene->Modify();
+
+		UMovieSceneNiagaraSystemTrack* NiagaraSystemTrack = MovieScene->AddTrack<UMovieSceneNiagaraSystemTrack>(ObjectBinding);
+		NiagaraSystemTrack->SetDisplayName(LOCTEXT("SystemLifeCycleTrackName", "System Life Cycle"));
+		UMovieSceneNiagaraSystemSpawnSection* SpawnSection = NewObject<UMovieSceneNiagaraSystemSpawnSection>(NiagaraSystemTrack, NAME_None, RF_Transactional);
+
+		FFrameRate FrameResolution = GetSequencer()->GetFocusedMovieSceneSequence()->GetMovieScene()->GetTickResolution();
+		FFrameTime SpawnSectionStartTime = GetSequencer()->GetLocalTime().ConvertTo(FrameResolution);
+		FFrameTime SpawnSectionDuration;
+
+		UNiagaraSystemEditorData* SystemEditorData = Cast<UNiagaraSystemEditorData>(System->GetEditorData());
+		if (SystemEditorData != nullptr && SystemEditorData->GetPlaybackRange().HasLowerBound() && SystemEditorData->GetPlaybackRange().HasUpperBound())
+		{
+			SpawnSectionDuration = FrameResolution.AsFrameTime(SystemEditorData->GetPlaybackRange().Size<float>());
+		}
+		else
+		{
+			SpawnSectionDuration = FrameResolution.AsFrameTime(5.0);
+		}
+
+		SpawnSection->SetRange(TRange<FFrameNumber>(
+			SpawnSectionStartTime.RoundToFrame(),
+			(SpawnSectionStartTime + SpawnSectionDuration).RoundToFrame()));
+		NiagaraSystemTrack->AddSection(*SpawnSection);
+
+		GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
+	}
 }
 
-void FNiagaraSystemTrackEditor::AddNiagaraParameterTrack(TArray<FGuid> ObjectBindings, FNiagaraVariable Parameter)
+void FNiagaraSystemTrackEditor::AddNiagaraParameterTrack(FGuid ObjectBinding, FNiagaraVariable Parameter)
 {
 	FNiagaraEditorModule& NiagaraEditorModule = FModuleManager::GetModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
 	if (NiagaraEditorModule.CanCreateParameterTrackForType(*Parameter.GetType().GetScriptStruct()))
@@ -175,17 +172,14 @@ void FNiagaraSystemTrackEditor::AddNiagaraParameterTrack(TArray<FGuid> ObjectBin
 		FScopedTransaction AddTrackTransaction(LOCTEXT("AddNiagaraParameterTrackTransaction", "Add Niagara Parameter Track"));
 		MovieScene->Modify();
 
-		for (FGuid ObjectBinding : ObjectBindings)
-		{
-			UMovieSceneNiagaraParameterTrack* ParameterTrack = NiagaraEditorModule.CreateParameterTrackForType(*Parameter.GetType().GetScriptStruct(), Parameter);
-			MovieScene->AddGivenTrack(ParameterTrack, ObjectBinding);
+		UMovieSceneNiagaraParameterTrack* ParameterTrack = NiagaraEditorModule.CreateParameterTrackForType(*Parameter.GetType().GetScriptStruct(), Parameter);
+		MovieScene->AddGivenTrack(ParameterTrack, ObjectBinding);
 
-			ParameterTrack->SetParameter(Parameter);
-			ParameterTrack->SetDisplayName(FText::FromName(Parameter.GetName()));
+		ParameterTrack->SetParameter(Parameter);
+		ParameterTrack->SetDisplayName(FText::FromName(Parameter.GetName()));
 
-			UMovieSceneSection* ParameterSection = ParameterTrack->CreateNewSection();
-			ParameterTrack->AddSection(*ParameterSection);
-		}
+		UMovieSceneSection* ParameterSection = ParameterTrack->CreateNewSection();
+		ParameterTrack->AddSection(*ParameterSection);
 
 		GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 	}

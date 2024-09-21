@@ -109,7 +109,7 @@ UObject* UEditorUtilityBlueprintFactory::FactoryCreateNew(UClass* Class, UObject
 
 bool UEditorUtilityBlueprintFactory::CanCreateNew() const
 {
-	return true;
+	return GetDefault<UEditorExperimentalSettings>()->bEnableEditorUtilityBlueprints;
 }
 
 void UEditorUtilityBlueprintFactory::OnClassPicked(UClass* InChosenClass)

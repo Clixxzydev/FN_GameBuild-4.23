@@ -510,13 +510,7 @@ public:
 	 */
 	virtual FTransform GetDrawTransform(int32 BoneIndex) const
 	{
-		const TArray<FTransform>& SpaceTransforms = GetComponentSpaceTransforms();
-		if (SpaceTransforms.IsValidIndex(BoneIndex))
-		{
-			return SpaceTransforms[BoneIndex];
-		}
-
-		return FTransform::Identity;
+		return GetComponentSpaceTransforms()[BoneIndex];
 	}
 
 };

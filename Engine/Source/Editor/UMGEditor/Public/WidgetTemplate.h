@@ -26,18 +26,15 @@ public:
 	/** Constructs the widget template. */
 	virtual UWidget* Create(class UWidgetTree* Tree) = 0;
 
-	/** Gets the icon to display for this widget template. */
+	/** Gets the icon to display in the template palate for this template. */
 	virtual const FSlateBrush* GetIcon() const
 	{
 		static FSlateNoResource NullBrush;
 		return &NullBrush;
 	}
 
-	/** Gets tooltip widget for this widget template. */
+	/** Gets tooltip widget for this palette item. */
 	virtual TSharedRef<IToolTip> GetToolTip() const = 0;
-
-	/** @param OutStrings - Returns an array of strings used for filtering/searching this widget template. */
-	virtual void GetFilterStrings(TArray<FString>& OutStrings) const { OutStrings.Add(Name.ToString()); }
 
 	/** The the action to perform when the template item is double clicked */
 	virtual FReply OnDoubleClicked() { return FReply::Unhandled(); }

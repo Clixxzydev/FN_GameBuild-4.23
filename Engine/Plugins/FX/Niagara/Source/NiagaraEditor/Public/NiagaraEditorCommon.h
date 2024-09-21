@@ -52,7 +52,7 @@ public:
 };
 
 /** Interface for struct representing information about where to focus in a Niagara Script Graph after opening the editor for it. */
-struct INiagaraScriptGraphFocusInfo : public TSharedFromThis<INiagaraScriptGraphFocusInfo>
+struct INiagaraScriptGraphFocusInfo
 {
 public:
 	enum class ENiagaraScriptGraphFocusInfoType : uint8
@@ -62,24 +62,28 @@ public:
 		Pin
 	};
 
-	INiagaraScriptGraphFocusInfo(const ENiagaraScriptGraphFocusInfoType InFocusType)
-		: FocusType(InFocusType)
+	INiagaraScriptGraphFocusInfo(const uint32& InScriptUniqueAssetID, const ENiagaraScriptGraphFocusInfoType InFocusType)
+		: ScriptUniqueAssetID(InScriptUniqueAssetID)
+		, FocusType(InFocusType)
 	{
 	};
+
+	const uint32& GetScriptUniqueAssetID() const { return ScriptUniqueAssetID; };
 
 	const ENiagaraScriptGraphFocusInfoType& GetFocusType() const { return FocusType; };
 
 	virtual ~INiagaraScriptGraphFocusInfo() = 0;
 	
 private:
+	const uint32 ScriptUniqueAssetID;
 	const ENiagaraScriptGraphFocusInfoType FocusType;
 };
 
 struct FNiagaraScriptGraphNodeToFocusInfo : public INiagaraScriptGraphFocusInfo
 {
 public:
-	FNiagaraScriptGraphNodeToFocusInfo(const FGuid& InNodeGuidToFocus)
-		: INiagaraScriptGraphFocusInfo(ENiagaraScriptGraphFocusInfoType::Node)
+	FNiagaraScriptGraphNodeToFocusInfo(const uint32& InScriptUniqueAssetID, const FGuid& InNodeGuidToFocus)
+		: INiagaraScriptGraphFocusInfo(InScriptUniqueAssetID, ENiagaraScriptGraphFocusInfoType::Node)
 		, NodeGuidToFocus(InNodeGuidToFocus)
 	{
 	};
@@ -93,8 +97,8 @@ private:
 struct FNiagaraScriptGraphPinToFocusInfo : public INiagaraScriptGraphFocusInfo
 {
 public:
-	FNiagaraScriptGraphPinToFocusInfo(const FGuid& InPinGuidToFocus)
-		: INiagaraScriptGraphFocusInfo(ENiagaraScriptGraphFocusInfoType::Pin)
+	FNiagaraScriptGraphPinToFocusInfo(const uint32& InScriptUniqueAssetID, const FGuid& InPinGuidToFocus)
+		: INiagaraScriptGraphFocusInfo(InScriptUniqueAssetID, ENiagaraScriptGraphFocusInfoType::Pin)
 		, PinGuidToFocus(InPinGuidToFocus)
 	{
 	};
@@ -103,22 +107,4 @@ public:
 
 private:
 	const FGuid PinGuidToFocus;
-};
-
-struct FNiagaraScriptIDAndGraphFocusInfo
-{
-public:
-	FNiagaraScriptIDAndGraphFocusInfo(const uint32& InScriptUniqueAssetID, const TSharedPtr<INiagaraScriptGraphFocusInfo>& InScriptGraphFocusInfo)
-		: ScriptUniqueAssetID(InScriptUniqueAssetID)
-		, ScriptGraphFocusInfo(InScriptGraphFocusInfo)
-	{
-	};
-
-	const uint32& GetScriptUniqueAssetID() const { return ScriptUniqueAssetID; };
-
-	const TSharedPtr<INiagaraScriptGraphFocusInfo>& GetScriptGraphFocusInfo() const { return ScriptGraphFocusInfo; };
-
-private:
-	const uint32 ScriptUniqueAssetID;
-	const TSharedPtr<INiagaraScriptGraphFocusInfo> ScriptGraphFocusInfo;
 };

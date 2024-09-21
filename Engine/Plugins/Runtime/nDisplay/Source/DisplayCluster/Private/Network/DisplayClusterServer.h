@@ -28,7 +28,7 @@ public:
 	virtual void Shutdown();
 
 	// Returns current server state
-	bool IsRunning() const;
+	bool IsRunning();
 
 	// Server name
 	inline const FString& GetName() const
@@ -55,7 +55,7 @@ protected:
 	{ return true; }
 
 	// Allow to specify custom session class
-	virtual TSharedPtr<FDisplayClusterSessionBase> CreateSession(FSocket* InSock, const FIPv4Endpoint& InEP) = 0;
+	virtual FDisplayClusterSessionBase* CreateSession(FSocket* InSock, const FIPv4Endpoint& InEP) = 0;
 
 private:
 	// Handles incoming connections
@@ -71,11 +71,10 @@ private:
 	bool bIsRunning = false;
 	// Socket listener
 	FDisplayClusterTcpListener Listener;
+	// Sync access
+	FCriticalSection InternalsSyncScope;
 
 	// Active sessions
-	TArray<TSharedPtr<FDisplayClusterSessionBase>> Sessions;
-
-	// Sync access
-	mutable FCriticalSection InternalsCritSec;
+	TArray<FDisplayClusterSessionBase*> Sessions;
 };
 

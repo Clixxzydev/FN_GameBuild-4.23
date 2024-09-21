@@ -5,6 +5,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Misc/Attribute.h"
 #include "Layout/Margin.h"
+#include "Framework/Text/TextRange.h"
 #include "Framework/Text/TextRunRenderer.h"
 #include "Framework/Text/TextLineHighlight.h"
 #include "Framework/Text/IRun.h"

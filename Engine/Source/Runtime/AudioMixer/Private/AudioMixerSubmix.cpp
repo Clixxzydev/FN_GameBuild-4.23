@@ -5,10 +5,6 @@
 #include "AudioMixerSourceVoice.h"
 #include "Sound/SoundSubmix.h"
 #include "Sound/SoundEffectSubmix.h"
-#include "ProfilingDebugging/CsvProfiler.h"
-
-// Link to "Audio" profiling category
-CSV_DECLARE_CATEGORY_MODULE_EXTERN(AUDIOMIXER_API, Audio);
 
 namespace Audio
 {
@@ -25,13 +21,9 @@ namespace Audio
 		, NumSamples(0)
 		, SubmixAmbisonicsEncoderID(INDEX_NONE)
 		, SubmixAmbisonicsDecoderID(INDEX_NONE)
-		, InitializedOutputVolume(1.0f)
-		, OutputVolume(1.0f)
-		, TargetOutputVolume(1.0f)
 		, EnvelopeNumChannels(0)
 		, bIsRecording(false)
 		, bIsBackgroundMuted(false)
-		, bApplyOutputVolumeScale(false)
 		, OwningSubmixObject(nullptr)
 	{
 	}
@@ -59,106 +51,80 @@ namespace Audio
 
 	void FMixerSubmix::Init(USoundSubmix* InSoundSubmix)
 	{
-		check(IsInAudioThread());
 		if (InSoundSubmix != nullptr)
 		{
-			// This is a first init and needs to be synchronous
-			if (!OwningSubmixObject)
+			OwningSubmixObject = InSoundSubmix;
+
+			// Loop through the submix's presets and make new instances of effects in the same order as the presets
+			ClearSoundEffectSubmixes();
+
+			for (USoundEffectSubmixPreset* EffectPreset : InSoundSubmix->SubmixEffectChain)
 			{
-				OwningSubmixObject = InSoundSubmix;
-				InitInternal();
-			}
-			else
-			{
-				// This is a re-init and needs to be thread safe
-				check(OwningSubmixObject == InSoundSubmix);
-				SubmixCommand([this]()
+				if (EffectPreset)
 				{
-					InitInternal();
-				});
-			}
-		}
-	}
+					// Create a new effect instance using the preset
+					FSoundEffectSubmix* SubmixEffect = static_cast<FSoundEffectSubmix*>(EffectPreset->CreateNewEffect());
 
-	void FMixerSubmix::InitInternal()
-	{
-		// Set the initialized output volume
-		InitializedOutputVolume = FMath::Clamp(OwningSubmixObject->OutputVolume, 0.0f, 1.0f);
+					FSoundEffectSubmixInitData InitData;
+					InitData.SampleRate = MixerDevice->GetSampleRate();
+					InitData.PresetSettings = nullptr;
 
-		if (!FMath::IsNearlyEqual(InitializedOutputVolume, 1.0f))
-		{
-			bApplyOutputVolumeScale = true;
-		}
+					// Now set the preset
+					SubmixEffect->Init(InitData);
+					SubmixEffect->SetPreset(EffectPreset);
+					SubmixEffect->SetEnabled(true);
 
-		// Loop through the submix's presets and make new instances of effects in the same order as the presets
-		ClearSoundEffectSubmixes();
+					FSubmixEffectInfo EffectInfo;
+					EffectInfo.PresetId = EffectPreset->GetUniqueID();
+					EffectInfo.EffectInstance = SubmixEffect;
 
-		for (USoundEffectSubmixPreset* EffectPreset : OwningSubmixObject->SubmixEffectChain)
-		{
-			if (EffectPreset)
-			{
-				// Create a new effect instance using the preset
-				FSoundEffectSubmix* SubmixEffect = static_cast<FSoundEffectSubmix*>(EffectPreset->CreateNewEffect());
-
-				FSoundEffectSubmixInitData InitData;
-				InitData.SampleRate = MixerDevice->GetSampleRate();
-				InitData.PresetSettings = nullptr;
-
-				// Now set the preset
-				SubmixEffect->Init(InitData);
-				SubmixEffect->SetPreset(EffectPreset);
-				SubmixEffect->SetEnabled(true);
-
-				FSubmixEffectInfo EffectInfo;
-				EffectInfo.PresetId = EffectPreset->GetUniqueID();
-				EffectInfo.EffectInstance = SubmixEffect;
-
-				// Add the effect to this submix's chain
-				EffectSubmixChain.Add(EffectInfo);
-			}
-		}
-
-		ChannelFormat = OwningSubmixObject->ChannelFormat;
-
-		if (ChannelFormat == ESubmixChannelFormat::Ambisonics)
-		{
-			//Get the ambisonics mixer.
-			AmbisonicsMixer = MixerDevice->GetAmbisonicsMixer();
-
-			//If we do have a valid ambisonics decoder, lets use it. Otherwise, treat this submix like a device submix.
-			if (AmbisonicsMixer.IsValid())
-			{
-				if (!OwningSubmixObject->AmbisonicsPluginSettings)
-				{
-					OwningSubmixObject->AmbisonicsPluginSettings = AmbisonicsMixer->GetDefaultSettings();
+					// Add the effect to this submix's chain
+					EffectSubmixChain.Add(EffectInfo);
 				}
+			}
 
-				if (OwningSubmixObject->AmbisonicsPluginSettings != nullptr)
+			ChannelFormat = InSoundSubmix->ChannelFormat;
+			
+			if (ChannelFormat == ESubmixChannelFormat::Ambisonics)
+			{
+				//Get the ambisonics mixer.
+				AmbisonicsMixer = MixerDevice->GetAmbisonicsMixer();
+
+				//If we do have a valid ambisonics decoder, lets use it. Otherwise, treat this submix like a device submix.
+				if (AmbisonicsMixer.IsValid())
 				{
-					OnAmbisonicsSettingsChanged(OwningSubmixObject->AmbisonicsPluginSettings);
+					if (!InSoundSubmix->AmbisonicsPluginSettings)
+					{
+						InSoundSubmix->AmbisonicsPluginSettings = AmbisonicsMixer->GetDefaultSettings();
+					}
+
+					if (InSoundSubmix->AmbisonicsPluginSettings != nullptr)
+					{
+						OnAmbisonicsSettingsChanged(InSoundSubmix->AmbisonicsPluginSettings);
+					}
+					else
+					{
+						//Default to first order ambisonics.
+						NumChannels = 4;
+						const int32 NumOutputFrames = MixerDevice->GetNumOutputFrames();
+						NumSamples = NumChannels * NumOutputFrames;
+					}
 				}
 				else
 				{
-					//Default to first order ambisonics.
-					NumChannels = 4;
+					// There is no valid ambisonics decoder, so fall back to standard downmixing.
+					ChannelFormat = ESubmixChannelFormat::Device;
+					NumChannels = MixerDevice->GetNumChannelsForSubmixFormat(ChannelFormat);
 					const int32 NumOutputFrames = MixerDevice->GetNumOutputFrames();
 					NumSamples = NumChannels * NumOutputFrames;
 				}
 			}
 			else
 			{
-				// There is no valid ambisonics decoder, so fall back to standard downmixing.
-				ChannelFormat = ESubmixChannelFormat::Device;
 				NumChannels = MixerDevice->GetNumChannelsForSubmixFormat(ChannelFormat);
 				const int32 NumOutputFrames = MixerDevice->GetNumOutputFrames();
 				NumSamples = NumChannels * NumOutputFrames;
 			}
-		}
-		else
-		{
-			NumChannels = MixerDevice->GetNumChannelsForSubmixFormat(ChannelFormat);
-			const int32 NumOutputFrames = MixerDevice->GetNumOutputFrames();
-			NumSamples = NumChannels * NumOutputFrames;
 		}
 	}
 
@@ -625,7 +591,7 @@ namespace Audio
 
 		// Mix all submix audio into this submix's input scratch buffer
 		{
-			CSV_SCOPED_TIMING_STAT(Audio, SubmixChildren);
+			SCOPE_CYCLE_COUNTER(STAT_AudioMixerSubmixChildren);
 
 			// First loop this submix's child submixes mixing in their output into this submix's dry/wet buffers.
 			for (auto& ChildSubmixEntry : ChildSubmixes)
@@ -654,7 +620,7 @@ namespace Audio
 		}
 
 		{
-			CSV_SCOPED_TIMING_STAT(Audio, SubmixSource);
+			SCOPE_CYCLE_COUNTER(STAT_AudioMixerSubmixSource);
 
 			// Loop through this submix's sound sources
 			for (const auto MixerSourceVoiceIter : MixerSourceVoices)
@@ -669,7 +635,7 @@ namespace Audio
 
 		if (EffectSubmixChain.Num() > 0)
 		{
-			CSV_SCOPED_TIMING_STAT(Audio, SubmixEffectProcessing);
+			SCOPE_CYCLE_COUNTER(STAT_AudioMixerSubmixEffectProcessing);
 
 			// Setup the input data buffer
 			FSoundEffectSubmixInputData InputData;
@@ -799,30 +765,6 @@ namespace Audio
 			FMemory::Memcpy(EnvelopeValues, TempEnvelopeValues, sizeof(float)*AUDIO_MIXER_MAX_OUTPUT_CHANNELS);
 		}
 
-		// Don't necessarily need to do this if the user isn't using this feature
-		if (bApplyOutputVolumeScale)
-		{
-			const float TargetVolumeProduct = TargetOutputVolume * InitializedOutputVolume;
-			const float OutputVolumeProduct = OutputVolume * InitializedOutputVolume;
-
-			// If we've already set the volume, only need to multiply by constant
-			if (FMath::IsNearlyEqual(TargetVolumeProduct, OutputVolumeProduct))
-			{
-				Audio::MultiplyBufferByConstantInPlace(OutAudioBuffer, OutputVolumeProduct);
-			}
-			else
-			{
-				// To avoid popping, we do a fade on the buffer to the target volume
-				Audio::FadeBufferFast(OutAudioBuffer, OutputVolumeProduct, TargetVolumeProduct);
-				OutputVolume = TargetOutputVolume;
-
-				// No longer need to multiply the output buffer if we're now at 1.0
-				if (FMath::IsNearlyEqual(OutputVolume * InitializedOutputVolume, 1.0f))
-				{
-					bApplyOutputVolumeScale = false;
-				}
-			}
-		}
 
 		// Now loop through any buffer listeners and feed the listeners the result of this audio callback
 		{
@@ -1006,28 +948,9 @@ namespace Audio
 		}
 	}
 
-	void FMixerSubmix::SetDynamicOutputVolume(float InVolume)
-	{
-		InVolume = FMath::Clamp(InVolume, 0.0f, 1.0f);
-		if (!FMath::IsNearlyEqual(InVolume, TargetOutputVolume))
-		{
-			TargetOutputVolume = InVolume;
-			bApplyOutputVolumeScale = true;
-		}
-	}
-
-	void FMixerSubmix::SetOutputVolume(float InVolume)
-	{
-		InVolume = FMath::Clamp(InVolume, 0.0f, 1.0f);
-		if (!FMath::IsNearlyEqual(InitializedOutputVolume, InVolume))
-		{
-			InitializedOutputVolume = InVolume;
-			bApplyOutputVolumeScale = true;
-		}
-	}
-
 	void FMixerSubmix::BroadcastEnvelope()
 	{
+
 		if (bIsEnvelopeFollowing)
 		{
 			// Get the envelope data

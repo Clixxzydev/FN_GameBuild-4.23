@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	AnimStreamable.cpp: Animation that can be streamed instead of being loaded completely
@@ -357,7 +357,6 @@ int32 UAnimStreamable::GetChunkIndexForTime(const TArray<FAnimStreamableChunk>& 
 #if WITH_EDITOR
 void UAnimStreamable::InitFrom(const UAnimSequence* InSourceSequence)
 {
-	Modify();
 	SetSkeleton(InSourceSequence->GetSkeleton());
 	SourceSequence = InSourceSequence;
 

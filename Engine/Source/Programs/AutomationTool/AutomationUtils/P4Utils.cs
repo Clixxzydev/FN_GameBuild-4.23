@@ -1914,21 +1914,9 @@ namespace AutomationTool
 		/// Invokes p4 sync command.
 		/// </summary>
 		/// <param name="CommandLine">CommandLine to pass on to the command.</param>
-        public void Sync(string CommandLine, bool AllowSpew = true, bool SpewIsVerbose = false, int Retries=0, int MaxWait=0)
+        public void Sync(string CommandLine, bool AllowSpew = true, bool SpewIsVerbose = false)
 		{
-			string SyncCommandLine = "sync " + CommandLine;
-
-			if (MaxWait > 0)
-			{
-				SyncCommandLine = string.Format("-vnet.maxwait={0} {1}", MaxWait, SyncCommandLine);
-			}
-
-			if (Retries > 0)
-			{
-				SyncCommandLine = string.Format("-r{0} {1}", Retries, SyncCommandLine);
-			}
-
-			LogP4(SyncCommandLine, null, AllowSpew, SpewIsVerbose:SpewIsVerbose);
+			LogP4("sync " + CommandLine, null, AllowSpew, SpewIsVerbose:SpewIsVerbose);
 		}
 
 		/// <summary>
@@ -3058,8 +3046,7 @@ namespace AutomationTool
 			string CommandLine = String.Format("-z tag fstat {0}", CommandUtils.MakePathSafeToUseWithCommandLine(DepotFile));
 
 			string Output;
-			if(!LogP4Output(out Output, CommandLine, AllowSpew: false) || !Output.Contains("headRev"))
-
+			if(!LogP4Output(out Output, CommandLine, AllowSpew: false) || Output.Contains("no such file(s)"))
 			{
 				return false;
 			}

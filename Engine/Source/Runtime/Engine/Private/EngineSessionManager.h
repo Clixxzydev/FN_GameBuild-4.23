@@ -35,7 +35,6 @@ public:
 		CurrentSession.bIsDeactivated = false;
 		CurrentSession.bIsInBackground = false;
 		CurrentSession.bIsVanilla = false;
-		CurrentSession.bIsTerminating = false;
 	}
 
 	void Initialize();
@@ -68,7 +67,6 @@ private:
 	bool BeginReadWriteRecords();
 	void EndReadWriteRecords();
 	void DeleteStoredRecord(const FSessionRecord& Record);
-	void DeleteStoredRecordValues(const FString& SectionName) const;
 	void SendAbnormalShutdownReport(const FSessionRecord& Record);
 	void CreateAndWriteRecordForSession();
 	void OnCrashing();

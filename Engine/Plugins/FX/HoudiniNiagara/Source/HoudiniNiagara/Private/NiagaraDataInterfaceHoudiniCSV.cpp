@@ -75,28 +75,12 @@ static const FName GetPointLifeName("GetPointLife");
 //static const FName GetPointLifeAtTimeName("GetPointLifeAtTime");
 static const FName GetPointTypeName("GetPointType");
 
-struct FNiagaraDIHoudiniCSV_StaticDataPassToRT
-{
-	TArray<float>* FloatCSVData;
-	TArray<float>* SpawnTimes;
-	TArray<float>* LifeValues;
-	TArray<int32>* PointTypes;
-	TArray<int32>* SpecialAttributesColumnIndexes;
-	TArray<int32>* PointValueIndexes;
-
-	int32 NumRows;
-	int32 NumColumns;
-	int32 NumPoints;
-	int32 MaxNumIndexesPerPoint;
-};
 
 UNiagaraDataInterfaceHoudiniCSV::UNiagaraDataInterfaceHoudiniCSV(FObjectInitializer const& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
     HoudiniCSVAsset = nullptr;
 	LastSpawnedPointID = -1;
-
-	Proxy = MakeShared<FNiagaraDataInterfaceProxyHoudiniCSV, ESPMode::ThreadSafe>();
 }
 
 void UNiagaraDataInterfaceHoudiniCSV::PostInitProperties()
@@ -109,20 +93,30 @@ void UNiagaraDataInterfaceHoudiniCSV::PostInitProperties()
 		FNiagaraTypeRegistry::Register(FHoudiniEvent::StaticStruct(), true, true, false);
     }
 
+	FloatValuesGPUBufferDirty = true;
+	SpecialAttributesColumnIndexesGPUBufferDirty = true;
+	SpawnTimesGPUBufferDirty = true;
+	LifeValuesGPUBufferDirty = true;
+	PointTypesGPUBufferDirty = true;
+	PointValueIndexesGPUBufferDirty = true;
+
 	LastSpawnedPointID = -1;
 	LastSpawnTime = -1.0f;
-
-	PushToRenderThread();
 }
 
 void UNiagaraDataInterfaceHoudiniCSV::PostLoad()
 {
     Super::PostLoad();
 
+	FloatValuesGPUBufferDirty = true;
+	SpecialAttributesColumnIndexesGPUBufferDirty = true;
+	SpawnTimesGPUBufferDirty = true;
+	LifeValuesGPUBufferDirty = true;
+	PointTypesGPUBufferDirty = true;
+	PointValueIndexesGPUBufferDirty = true;
+
 	LastSpawnedPointID = -1;
 	LastSpawnTime = -1.0f;
-
-	PushToRenderThread();
 }
 
 #if WITH_EDITOR
@@ -136,9 +130,15 @@ void UNiagaraDataInterfaceHoudiniCSV::PostEditChangeProperty(struct FPropertyCha
 		Modify();
 		if ( HoudiniCSVAsset )
 		{
+			FloatValuesGPUBufferDirty = true;
+			SpecialAttributesColumnIndexesGPUBufferDirty = true;
+			SpawnTimesGPUBufferDirty = true;
+			LifeValuesGPUBufferDirty = true;
+			PointTypesGPUBufferDirty = true;
+			PointValueIndexesGPUBufferDirty = true;
+
 			LastSpawnedPointID = -1;
 			LastSpawnTime = -1.0f;
-			PushToRenderThread();
 		}
     }
 }
@@ -156,9 +156,14 @@ bool UNiagaraDataInterfaceHoudiniCSV::CopyToInternal(UNiagaraDataInterface* Dest
 
     CastedInterface->HoudiniCSVAsset = HoudiniCSVAsset;
 
+	CastedInterface->FloatValuesGPUBufferDirty = true;
+	CastedInterface->SpecialAttributesColumnIndexesGPUBufferDirty = true;
+	CastedInterface->SpawnTimesGPUBufferDirty = true;
+	CastedInterface->LifeValuesGPUBufferDirty = true;
+	CastedInterface->PointTypesGPUBufferDirty = true;
+	CastedInterface->PointValueIndexesGPUBufferDirty = true;
 	CastedInterface->LastSpawnedPointID = -1;
 	CastedInterface->LastSpawnTime = -1.0f;
-	CastedInterface->PushToRenderThread();
 
     return true;
 }
@@ -1847,279 +1852,39 @@ void UNiagaraDataInterfaceHoudiniCSV::GetParameterDefinitionHLSL(FNiagaraDataInt
 	OutHLSL += TEXT("int ") + BufferName + TEXT(";\n");
 }
 
-//FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetFloatValuesGPUBuffer()
-//{
-//	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
-//	if ( FloatValuesGPUBufferDirty )
-//	{
-//		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->FloatCSVData.Num() : 0;
-//		if (NumElements <= 0)
-//			return FloatValuesGPUBuffer;
-//
-//		FloatValuesGPUBuffer.Release();
-//		FloatValuesGPUBuffer.Initialize( sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
-//
-//		uint32 BufferSize = NumElements * sizeof( float );
-//		float* BufferData = static_cast<float*>( RHILockVertexBuffer( FloatValuesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
-//
-//		if ( HoudiniCSVAsset )
-//			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->FloatCSVData.GetData(), BufferSize );
-//
-//		RHIUnlockVertexBuffer( FloatValuesGPUBuffer.Buffer );
-//		FloatValuesGPUBufferDirty = false;
-//	}
-//
-//	return FloatValuesGPUBuffer;
-//}
-
-//FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetSpecialAttributesColumnIndexesGPUBuffer()
-//{
-//	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
-//	if ( SpecialAttributesColumnIndexesGPUBufferDirty )
-//	{
-//		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->SpecialAttributesColumnIndexes.Num() : 0;
-//		if (NumElements <= 0)
-//			return SpecialAttributesColumnIndexesGPUBuffer;
-//
-//		SpecialAttributesColumnIndexesGPUBuffer.Release();
-//		SpecialAttributesColumnIndexesGPUBuffer.Initialize(sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
-//
-//		uint32 BufferSize = NumElements * sizeof(int32);
-//		float* BufferData = static_cast<float*>(RHILockVertexBuffer(SpecialAttributesColumnIndexesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
-//
-//		if (HoudiniCSVAsset)
-//			FPlatformMemory::Memcpy(BufferData, HoudiniCSVAsset->SpecialAttributesColumnIndexes.GetData(), BufferSize);
-//
-//		RHIUnlockVertexBuffer(SpecialAttributesColumnIndexesGPUBuffer.Buffer);
-//		SpecialAttributesColumnIndexesGPUBufferDirty = false;
-//	}
-//
-//	return SpecialAttributesColumnIndexesGPUBuffer;
-//}
-
-//FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetSpawnTimesGPUBuffer()
-//{
-//	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
-//	if ( SpawnTimesGPUBufferDirty )
-//	{
-//		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->SpawnTimes.Num() : 0;
-//		if (NumElements <= 0)
-//			return SpawnTimesGPUBuffer;
-//
-//		SpawnTimesGPUBuffer.Release();
-//		SpawnTimesGPUBuffer.Initialize( sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
-//				
-//		uint32 BufferSize = NumElements * sizeof( float );
-//		float* BufferData = static_cast<float*>( RHILockVertexBuffer(SpawnTimesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
-//
-//		if ( HoudiniCSVAsset )
-//			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->SpawnTimes.GetData(), BufferSize );
-//
-//		RHIUnlockVertexBuffer( SpawnTimesGPUBuffer.Buffer );
-//		SpawnTimesGPUBufferDirty = false;
-//	}
-//
-//	return SpawnTimesGPUBuffer;
-//}
-
-//FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetLifeValuesGPUBuffer()
-//{
-//	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
-//	if ( LifeValuesGPUBufferDirty )
-//	{
-//		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->LifeValues.Num() : 0;
-//		if (NumElements <= 0)
-//			return LifeValuesGPUBuffer;
-//
-//		LifeValuesGPUBuffer.Release();
-//		LifeValuesGPUBuffer.Initialize( sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
-//
-//		uint32 BufferSize = NumElements * sizeof( float );
-//		float* BufferData = static_cast<float*>( RHILockVertexBuffer( LifeValuesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
-//
-//		if ( HoudiniCSVAsset )
-//			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->LifeValues.GetData(), BufferSize );
-//
-//		RHIUnlockVertexBuffer(LifeValuesGPUBuffer.Buffer );
-//		LifeValuesGPUBufferDirty = false;
-//	}
-//
-//	return LifeValuesGPUBuffer;
-//}
-
-//FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetPointTypesGPUBuffer()
-//{
-//	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
-//	if ( PointTypesGPUBufferDirty )
-//	{
-//		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->PointTypes.Num() : 0;
-//		if (NumElements <= 0)
-//			return PointTypesGPUBuffer;
-//
-//		PointTypesGPUBuffer.Release();
-//		PointTypesGPUBuffer.Initialize( sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
-//
-//		uint32 BufferSize = NumElements * sizeof(int32);
-//		int32* BufferData = static_cast<int32*>( RHILockVertexBuffer(PointTypesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
-//
-//		if ( HoudiniCSVAsset )
-//			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->PointTypes.GetData(), BufferSize );
-//
-//		RHIUnlockVertexBuffer(PointTypesGPUBuffer.Buffer );
-//		PointTypesGPUBufferDirty = false;
-//	}
-//
-//	return PointTypesGPUBuffer;
-//}
-
-//FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetPointValueIndexesGPUBuffer()
-//{
-//	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
-//	if ( PointValueIndexesGPUBufferDirty )
-//	{
-//		uint32 NumPoints = HoudiniCSVAsset ? HoudiniCSVAsset->PointValueIndexes.Num() : 0;
-//		// Add an extra to the max number so all indexes end by a -1
-//		uint32 MaxNumIndexesPerPoint = HoudiniCSVAsset ? HoudiniCSVAsset->GetMaxNumberOfPointValueIndexes() + 1: 0;
-//		uint32 NumElements = NumPoints * MaxNumIndexesPerPoint;
-//
-//		if (NumElements <= 0)
-//			return PointValueIndexesGPUBuffer;
-//
-//		TArray<int32> PointValueIndexes;
-//		PointValueIndexes.Init(-1, NumElements);
-//		if ( HoudiniCSVAsset )
-//		{
-//			// We need to flatten the nested array for HLSL conversion
-//			for ( int32 PointID = 0; PointID < HoudiniCSVAsset->PointValueIndexes.Num(); PointID++ )
-//			{
-//				TArray<int32> RowIndexes = HoudiniCSVAsset->PointValueIndexes[PointID].RowIndexes;
-//				for( int32 Idx = 0; Idx < RowIndexes.Num(); Idx++ )
-//				{
-//					PointValueIndexes[ PointID * MaxNumIndexesPerPoint + Idx ] = RowIndexes[ Idx ];
-//				}
-//			}
-//		}
-//
-//		PointValueIndexesGPUBuffer.Release();
-//		PointValueIndexesGPUBuffer.Initialize(sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
-//
-//		uint32 BufferSize = NumElements * sizeof(int32);
-//		int32* BufferData = static_cast<int32*>( RHILockVertexBuffer( PointValueIndexesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
-//		FPlatformMemory::Memcpy( BufferData, PointValueIndexes.GetData(), BufferSize );
-//		RHIUnlockVertexBuffer( PointValueIndexesGPUBuffer.Buffer );
-//
-//		PointValueIndexesGPUBufferDirty = false;
-//	}
-//
-//	return PointValueIndexesGPUBuffer;
-//}
-
-void UNiagaraDataInterfaceHoudiniCSV::PushToRenderThread()
+FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetFloatValuesGPUBuffer()
 {
-	check(Proxy);
-	FNiagaraDIHoudiniCSV_StaticDataPassToRT DataToPass;
-	FMemory::Memzero(DataToPass);
-
+	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
+	if ( FloatValuesGPUBufferDirty )
 	{
 		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->FloatCSVData.Num() : 0;
-		if (NumElements > 0)
-		{
-			DataToPass.FloatCSVData = new TArray<float>(HoudiniCSVAsset->FloatCSVData);
-		}
+		if (NumElements <= 0)
+			return FloatValuesGPUBuffer;
+
+		FloatValuesGPUBuffer.Release();
+		FloatValuesGPUBuffer.Initialize( sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
+
+		uint32 BufferSize = NumElements * sizeof( float );
+		float* BufferData = static_cast<float*>( RHILockVertexBuffer( FloatValuesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
+
+		if ( HoudiniCSVAsset )
+			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->FloatCSVData.GetData(), BufferSize );
+
+		RHIUnlockVertexBuffer( FloatValuesGPUBuffer.Buffer );
+		FloatValuesGPUBufferDirty = false;
 	}
 
-	{
-		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->SpecialAttributesColumnIndexes.Num() : 0;
-		if (NumElements > 0)
-		{
-			DataToPass.SpecialAttributesColumnIndexes = new TArray<int32>(HoudiniCSVAsset->SpecialAttributesColumnIndexes);
-		}
-	}
-
-	{
-		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->SpawnTimes.Num() : 0;
-		if (NumElements > 0)
-		{
-			DataToPass.SpawnTimes = new TArray<float>(HoudiniCSVAsset->SpawnTimes);
-		}
-	}
-
-	{
-		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->LifeValues.Num() : 0;
-		if (NumElements > 0)
-		{
-			DataToPass.LifeValues = new TArray<float>(HoudiniCSVAsset->LifeValues);
-		}
-	}
-
-	{
-		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->PointTypes.Num() : 0;
-		if (NumElements > 0)
-		{
-			DataToPass.PointTypes = new TArray<int32>(HoudiniCSVAsset->PointTypes);
-		}
-	}
-
-	{
-		uint32 NumPoints = HoudiniCSVAsset ? HoudiniCSVAsset->PointValueIndexes.Num() : 0;
-		// Add an extra to the max number so all indexes end by a -1
-		uint32 MaxNumIndexesPerPoint = HoudiniCSVAsset ? HoudiniCSVAsset->GetMaxNumberOfPointValueIndexes() + 1 : 0;
-		uint32 NumElements = NumPoints * MaxNumIndexesPerPoint;
-
-		if (NumElements > 0)
-		{
-			DataToPass.PointValueIndexes = new TArray<int32>;
-			DataToPass.PointValueIndexes->Init(-1, NumElements);
-			if (HoudiniCSVAsset)
-			{
-				// We need to flatten the nested array for HLSL conversion
-				for (int32 PointID = 0; PointID < HoudiniCSVAsset->PointValueIndexes.Num(); PointID++)
-				{
-					TArray<int32> RowIndexes = HoudiniCSVAsset->PointValueIndexes[PointID].RowIndexes;
-					for (int32 Idx = 0; Idx < RowIndexes.Num(); Idx++)
-					{
-						(*DataToPass.PointValueIndexes)[PointID * MaxNumIndexesPerPoint + Idx] = RowIndexes[Idx];
-					}
-				}
-			}
-		}
-	}
-
-	DataToPass.NumRows = GetNumberOfRows();
-	DataToPass.NumColumns = GetNumberOfColumns();
-	DataToPass.NumPoints = GetNumberOfPoints();
-	DataToPass.MaxNumIndexesPerPoint = GetMaxNumberOfIndexesPerPoints();
-
-	FNiagaraDataInterfaceProxyHoudiniCSV* ThisProxy = GetProxyAs<FNiagaraDataInterfaceProxyHoudiniCSV>();
-	ENQUEUE_RENDER_COMMAND(FNiagaraDIHoudiniCSV_ToRT) (
-		[ThisProxy, DataToPass](FRHICommandListImmediate& CmdList) mutable
-	{
-		ThisProxy->AcceptStaticDataUpdate(DataToPass);
-	}
-	);
+	return FloatValuesGPUBuffer;
 }
 
-void FNiagaraDataInterfaceProxyHoudiniCSV::AcceptStaticDataUpdate(FNiagaraDIHoudiniCSV_StaticDataPassToRT& Update)
+FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetSpecialAttributesColumnIndexesGPUBuffer()
 {
-	if (Update.FloatCSVData)
+	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
+	if ( SpecialAttributesColumnIndexesGPUBufferDirty )
 	{
-		int32 NumElements = Update.FloatCSVData->Num();
-		FloatValuesGPUBuffer.Release();
-		FloatValuesGPUBuffer.Initialize(sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
-
-		uint32 BufferSize = NumElements * sizeof(float);
-		float* BufferData = static_cast<float*>(RHILockVertexBuffer(FloatValuesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
-
-		FPlatformMemory::Memcpy(BufferData, Update.FloatCSVData->GetData(), BufferSize);
-
-		RHIUnlockVertexBuffer(FloatValuesGPUBuffer.Buffer);
-
-		delete Update.FloatCSVData;
-	}
-
-	if (Update.SpecialAttributesColumnIndexes)
-	{
-		uint32 NumElements = Update.SpecialAttributesColumnIndexes->Num();
+		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->SpecialAttributesColumnIndexes.Num() : 0;
+		if (NumElements <= 0)
+			return SpecialAttributesColumnIndexesGPUBuffer;
 
 		SpecialAttributesColumnIndexesGPUBuffer.Release();
 		SpecialAttributesColumnIndexesGPUBuffer.Initialize(sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
@@ -2127,85 +1892,131 @@ void FNiagaraDataInterfaceProxyHoudiniCSV::AcceptStaticDataUpdate(FNiagaraDIHoud
 		uint32 BufferSize = NumElements * sizeof(int32);
 		float* BufferData = static_cast<float*>(RHILockVertexBuffer(SpecialAttributesColumnIndexesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
 
-		FPlatformMemory::Memcpy(BufferData, Update.SpecialAttributesColumnIndexes->GetData(), BufferSize);
+		if (HoudiniCSVAsset)
+			FPlatformMemory::Memcpy(BufferData, HoudiniCSVAsset->SpecialAttributesColumnIndexes.GetData(), BufferSize);
 
 		RHIUnlockVertexBuffer(SpecialAttributesColumnIndexesGPUBuffer.Buffer);
-
-		delete Update.SpecialAttributesColumnIndexes;
+		SpecialAttributesColumnIndexesGPUBufferDirty = false;
 	}
 
-	if (Update.SpawnTimes)
+	return SpecialAttributesColumnIndexesGPUBuffer;
+}
+
+FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetSpawnTimesGPUBuffer()
+{
+	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
+	if ( SpawnTimesGPUBufferDirty )
 	{
-		uint32 NumElements = Update.SpawnTimes->Num();
-		
+		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->SpawnTimes.Num() : 0;
+		if (NumElements <= 0)
+			return SpawnTimesGPUBuffer;
 
 		SpawnTimesGPUBuffer.Release();
-		SpawnTimesGPUBuffer.Initialize(sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
+		SpawnTimesGPUBuffer.Initialize( sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
+				
+		uint32 BufferSize = NumElements * sizeof( float );
+		float* BufferData = static_cast<float*>( RHILockVertexBuffer(SpawnTimesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
 
-		uint32 BufferSize = NumElements * sizeof(float);
-		float* BufferData = static_cast<float*>(RHILockVertexBuffer(SpawnTimesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
+		if ( HoudiniCSVAsset )
+			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->SpawnTimes.GetData(), BufferSize );
 
-		FPlatformMemory::Memcpy(BufferData, Update.SpawnTimes->GetData(), BufferSize);
-
-		RHIUnlockVertexBuffer(SpawnTimesGPUBuffer.Buffer);
-
-		delete Update.SpawnTimes;		
+		RHIUnlockVertexBuffer( SpawnTimesGPUBuffer.Buffer );
+		SpawnTimesGPUBufferDirty = false;
 	}
 
-	if (Update.LifeValues)
+	return SpawnTimesGPUBuffer;
+}
+
+FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetLifeValuesGPUBuffer()
+{
+	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
+	if ( LifeValuesGPUBufferDirty )
 	{
-		uint32 NumElements = Update.LifeValues->Num();
+		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->LifeValues.Num() : 0;
+		if (NumElements <= 0)
+			return LifeValuesGPUBuffer;
 
 		LifeValuesGPUBuffer.Release();
-		LifeValuesGPUBuffer.Initialize(sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
+		LifeValuesGPUBuffer.Initialize( sizeof(float), NumElements, EPixelFormat::PF_R32_FLOAT, BUF_Static);
 
-		uint32 BufferSize = NumElements * sizeof(float);
-		float* BufferData = static_cast<float*>(RHILockVertexBuffer(LifeValuesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
+		uint32 BufferSize = NumElements * sizeof( float );
+		float* BufferData = static_cast<float*>( RHILockVertexBuffer( LifeValuesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
 
-		FPlatformMemory::Memcpy(BufferData, Update.LifeValues->GetData(), BufferSize);
+		if ( HoudiniCSVAsset )
+			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->LifeValues.GetData(), BufferSize );
 
-		RHIUnlockVertexBuffer(LifeValuesGPUBuffer.Buffer);
-		
-		delete Update.LifeValues;
+		RHIUnlockVertexBuffer(LifeValuesGPUBuffer.Buffer );
+		LifeValuesGPUBufferDirty = false;
 	}
 
-	if (Update.PointTypes)
+	return LifeValuesGPUBuffer;
+}
+
+FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetPointTypesGPUBuffer()
+{
+	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
+	if ( PointTypesGPUBufferDirty )
 	{
-		uint32 NumElements = Update.PointTypes->Num();
+		uint32 NumElements = HoudiniCSVAsset ? HoudiniCSVAsset->PointTypes.Num() : 0;
+		if (NumElements <= 0)
+			return PointTypesGPUBuffer;
 
 		PointTypesGPUBuffer.Release();
-		PointTypesGPUBuffer.Initialize(sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
+		PointTypesGPUBuffer.Initialize( sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
 
 		uint32 BufferSize = NumElements * sizeof(int32);
-		int32* BufferData = static_cast<int32*>(RHILockVertexBuffer(PointTypesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
+		int32* BufferData = static_cast<int32*>( RHILockVertexBuffer(PointTypesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
 
-		FPlatformMemory::Memcpy(BufferData, Update.PointTypes->GetData(), BufferSize);
+		if ( HoudiniCSVAsset )
+			FPlatformMemory::Memcpy( BufferData, HoudiniCSVAsset->PointTypes.GetData(), BufferSize );
 
-		RHIUnlockVertexBuffer(PointTypesGPUBuffer.Buffer);
-		
-		delete Update.PointTypes;
+		RHIUnlockVertexBuffer(PointTypesGPUBuffer.Buffer );
+		PointTypesGPUBufferDirty = false;
 	}
 
-	if (Update.PointValueIndexes)
+	return PointTypesGPUBuffer;
+}
+
+FRWBuffer& UNiagaraDataInterfaceHoudiniCSV::GetPointValueIndexesGPUBuffer()
+{
+	//TODO: This isn't really very thread safe. Need to move to a proxy like system where DIs can push data to the RT safely.
+	if ( PointValueIndexesGPUBufferDirty )
 	{
-		
-		uint32 NumElements = Update.PointValueIndexes->Num();
+		uint32 NumPoints = HoudiniCSVAsset ? HoudiniCSVAsset->PointValueIndexes.Num() : 0;
+		// Add an extra to the max number so all indexes end by a -1
+		uint32 MaxNumIndexesPerPoint = HoudiniCSVAsset ? HoudiniCSVAsset->GetMaxNumberOfPointValueIndexes() + 1: 0;
+		uint32 NumElements = NumPoints * MaxNumIndexesPerPoint;
+
+		if (NumElements <= 0)
+			return PointValueIndexesGPUBuffer;
+
+		TArray<int32> PointValueIndexes;
+		PointValueIndexes.Init(-1, NumElements);
+		if ( HoudiniCSVAsset )
+		{
+			// We need to flatten the nested array for HLSL conversion
+			for ( int32 PointID = 0; PointID < HoudiniCSVAsset->PointValueIndexes.Num(); PointID++ )
+			{
+				TArray<int32> RowIndexes = HoudiniCSVAsset->PointValueIndexes[PointID].RowIndexes;
+				for( int32 Idx = 0; Idx < RowIndexes.Num(); Idx++ )
+				{
+					PointValueIndexes[ PointID * MaxNumIndexesPerPoint + Idx ] = RowIndexes[ Idx ];
+				}
+			}
+		}
 
 		PointValueIndexesGPUBuffer.Release();
 		PointValueIndexesGPUBuffer.Initialize(sizeof(int32), NumElements, EPixelFormat::PF_R32_SINT, BUF_Static);
 
 		uint32 BufferSize = NumElements * sizeof(int32);
-		int32* BufferData = static_cast<int32*>(RHILockVertexBuffer(PointValueIndexesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly));
-		FPlatformMemory::Memcpy(BufferData, Update.PointValueIndexes->GetData(), BufferSize);
-		RHIUnlockVertexBuffer(PointValueIndexesGPUBuffer.Buffer);
+		int32* BufferData = static_cast<int32*>( RHILockVertexBuffer( PointValueIndexesGPUBuffer.Buffer, 0, BufferSize, EResourceLockMode::RLM_WriteOnly ) );
+		FPlatformMemory::Memcpy( BufferData, PointValueIndexes.GetData(), BufferSize );
+		RHIUnlockVertexBuffer( PointValueIndexesGPUBuffer.Buffer );
 
-		delete Update.PointValueIndexes;
+		PointValueIndexesGPUBufferDirty = false;
 	}
 
-	NumRows = Update.NumRows;
-	NumColumns = Update.NumColumns;
-	NumPoints = Update.NumPoints;
-	MaxNumberOfIndexesPerPoint = Update.MaxNumIndexesPerPoint;
+	return PointValueIndexesGPUBuffer;
 }
 
 // Parameters used for GPU sim compatibility
@@ -2254,37 +2065,35 @@ struct FNiagaraDataInterfaceParametersCS_HoudiniCSV : public FNiagaraDataInterfa
 		Ar << LastSpawnTime;
 	}
 
-	virtual void Set(FRHICommandList& RHICmdList, const FNiagaraDataInterfaceSetArgs& Context) const override
+	virtual void Set( FRHICommandList& RHICmdList, FNiagaraShader* Shader, class UNiagaraDataInterface* DataInterface, void* PerInstanceData) const override
 	{
 		check( IsInRenderingThread() );
 
-		FRHIComputeShader* ComputeShaderRHI = Context.Shader->GetComputeShader();
-		FNiagaraDataInterfaceProxyHoudiniCSV* HoudiniDI = static_cast<FNiagaraDataInterfaceProxyHoudiniCSV*>(Context.DataInterface);
+		const FComputeShaderRHIParamRef ComputeShaderRHI = Shader->GetComputeShader();
+		UNiagaraDataInterfaceHoudiniCSV* HoudiniDI = CastChecked<UNiagaraDataInterfaceHoudiniCSV>( DataInterface );
 		if ( !HoudiniDI )
-		{
 			return;
-		}
 
-		SetShaderValue(RHICmdList, ComputeShaderRHI, NumberOfRows, HoudiniDI->NumRows);
-		SetShaderValue(RHICmdList, ComputeShaderRHI, NumberOfColumns, HoudiniDI->NumColumns);
-		SetShaderValue(RHICmdList, ComputeShaderRHI, NumberOfPoints, HoudiniDI->NumColumns);
+		SetShaderValue(RHICmdList, ComputeShaderRHI, NumberOfRows, HoudiniDI->GetNumberOfRows());
+		SetShaderValue(RHICmdList, ComputeShaderRHI, NumberOfColumns, HoudiniDI->GetNumberOfColumns());
+		SetShaderValue(RHICmdList, ComputeShaderRHI, NumberOfPoints, HoudiniDI->GetNumberOfPoints());
 
-		FRWBuffer& FloatRWBuffer = HoudiniDI->FloatValuesGPUBuffer;
+		FRWBuffer& FloatRWBuffer = HoudiniDI->GetFloatValuesGPUBuffer();
  		RHICmdList.SetShaderResourceViewParameter( ComputeShaderRHI, FloatValuesBuffer.GetBaseIndex(), FloatRWBuffer.SRV );
 
-		FRWBuffer& AttributeColumnRWBuffer = HoudiniDI->SpecialAttributesColumnIndexesGPUBuffer;
+		FRWBuffer& AttributeColumnRWBuffer = HoudiniDI->GetSpecialAttributesColumnIndexesGPUBuffer();
 		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, SpecialAttributesColumnIndexesBuffer.GetBaseIndex(), AttributeColumnRWBuffer.SRV);
 
-		FRWBuffer& SpawnRWBuffer = HoudiniDI->SpawnTimesGPUBuffer;
+		FRWBuffer& SpawnRWBuffer = HoudiniDI->GetSpawnTimesGPUBuffer();
 		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, SpawnTimesBuffer.GetBaseIndex(), SpawnRWBuffer.SRV);
-		FRWBuffer& LifeRWBuffer = HoudiniDI->LifeValuesGPUBuffer;
+		FRWBuffer& LifeRWBuffer = HoudiniDI->GetLifeValuesGPUBuffer();
 		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, LifeValuesBuffer.GetBaseIndex(), LifeRWBuffer.SRV);
-		FRWBuffer& TypesRWBuffer = HoudiniDI->PointTypesGPUBuffer;
+		FRWBuffer& TypesRWBuffer = HoudiniDI->GetPointTypesGPUBuffer();
 		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, PointTypesBuffer.GetBaseIndex(), TypesRWBuffer.SRV);
 
-		SetShaderValue(RHICmdList, ComputeShaderRHI, MaxNumberOfIndexesPerPoint, HoudiniDI->MaxNumberOfIndexesPerPoint);
+		SetShaderValue(RHICmdList, ComputeShaderRHI, MaxNumberOfIndexesPerPoint, HoudiniDI->GetMaxNumberOfIndexesPerPoints());
 
-		FRWBuffer& PointValuesIndexesRWBuffer = HoudiniDI->PointValueIndexesGPUBuffer;
+		FRWBuffer& PointValuesIndexesRWBuffer = HoudiniDI->GetPointValueIndexesGPUBuffer();
 		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, PointValueIndexesBuffer.GetBaseIndex(), PointValuesIndexesRWBuffer.SRV);
 
 		SetShaderValue(RHICmdList, ComputeShaderRHI, LastSpawnedPointId, -1);

@@ -23,6 +23,7 @@ UFieldSystemFactory::UFieldSystemFactory(const FObjectInitializer& ObjectInitial
 UFieldSystem* UFieldSystemFactory::StaticFactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	UFieldSystem* System = static_cast<UFieldSystem*>(NewObject<UFieldSystem>(InParent, Class, Name, Flags | RF_Transactional | RF_Public | RF_Standalone));
+	FieldSystemAlgo::InitDefaultFieldData(System->GetFieldData());
 	System->MarkPackageDirty();
 	return System;
 }
@@ -31,6 +32,7 @@ UObject* UFieldSystemFactory::FactoryCreateNew(UClass* Class, UObject* InParent,
 {
 
 	UFieldSystem* NewFieldSystem = StaticFactoryCreateNew(Class, InParent, Name, Flags, Context, Warn);
+	FieldSystemAlgo::InitDefaultFieldData(NewFieldSystem->GetFieldData());
 	NewFieldSystem->MarkPackageDirty();
 	return NewFieldSystem;
 }

@@ -39,20 +39,11 @@
 #define STRINGIFY(x) #x
 #define GETSTRING(x) STRINGIFY(x)
 
-// @MIXEDREALITY_CHANGE : BEGIN TODO: x64 ARM
-// @MIXEDREALITY_CHANGE : BEGIN
-#if PX_X86 || PX_HOLOLENS
-// @MIXEDREALITY_CHANGE : END
+#if PX_X86
 #define PLATFORM_SUB_STR "x86"
 #elif PX_X64
 #define PLATFORM_SUB_STR "x64"
-#elif PX_ARM
-#define PLATFORM_SUB_STR "arm"
-#elif PX_A64
-#define PLATFORM_SUB_STR "arm64"
 #endif
-// @MIXEDREALITY_CHANGE : END
-
 
 #if defined(PX_PHYSX_DLL_NAME_POSTFIX)
 #define CONFIG_SUB_STR GETSTRING(PX_PHYSX_DLL_NAME_POSTFIX)
@@ -60,9 +51,7 @@
 #define CONFIG_SUB_STR
 #endif
 
-// @MIXEDREALITY_CHANGE : BEGIN
-#if PX_WINDOWS_FAMILY || PX_HOLOLENS
-// @MIXEDREALITY_CHANGE : END
+#if PX_WINDOWS
 
 #include "windows/PsWindowsInclude.h"
 #include "windows/CmWindowsModuleUpdateLoader.h"
@@ -118,20 +107,16 @@ namespace physx
 	PxCreateCudaContextManager_FUNC* g_PxCreateCudaContextManager_Func = NULL;
 	PxGetSuggestedCudaDeviceOrdinal_FUNC* g_PxGetSuggestedCudaDeviceOrdinal_Func = NULL;
 
-#if PX_WINDOWS_FAMILY || PX_HOLOLENS
+#if PX_WINDOWS
 
 #define DEFAULT_PHYSX_GPU_GUID    "D79FA4BF-177C-4841-8091-4375D311D6A3"
 
 	void PxLoadPhysxGPUModule(const char* appGUID)
 	{
-// @ATG_CHANGE : BEGIN HoloLens support
-// API not available in HoloLens, so use static init value as the determining indicator
-		static HMODULE s_library = NULL;
+		static HMODULE s_library;
 
-#if !PX_HOLOLENS
 		if (s_library == NULL)
 			s_library = GetModuleHandle(gPhysXGpuLibraryName);
-#endif
 
 		if (s_library == NULL)
 		{

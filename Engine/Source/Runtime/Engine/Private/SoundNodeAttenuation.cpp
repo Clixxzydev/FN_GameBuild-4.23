@@ -51,22 +51,22 @@ const FSoundAttenuationSettings* USoundNodeAttenuation::GetAttenuationSettingsTo
 	return Settings;
 }
 
-void USoundNodeAttenuation::ParseNodes(FAudioDevice* AudioDevice, const UPTRINT NodeWaveInstanceHash, FActiveSound& ActiveSound, const FSoundParseParameters& ParseParams, TArray<FWaveInstance*>& WaveInstances)
+void USoundNodeAttenuation::ParseNodes( FAudioDevice* AudioDevice, const UPTRINT NodeWaveInstanceHash, FActiveSound& ActiveSound, const FSoundParseParameters& ParseParams, TArray<FWaveInstance*>& WaveInstances )
 {
-	FSoundParseParameters UpdatedParseParams = ParseParams;
+	const FSoundAttenuationSettings* Settings = (ActiveSound.bAllowSpatialization ? GetAttenuationSettingsToApply() : NULL);
 
-	const FSoundAttenuationSettings* Settings = (ActiveSound.bAllowSpatialization ? GetAttenuationSettingsToApply() : nullptr);
+	FSoundParseParameters UpdatedParseParams = ParseParams;
 	if (Settings)
 	{
 		const FListener& Listener = AudioDevice->GetListeners()[0];
 
 		// Update this node's attenuation settings overrides
-		ActiveSound.ParseAttenuation(UpdatedParseParams, Listener, *Settings);
+		ActiveSound.ApplyAttenuation(UpdatedParseParams, Listener, Settings);
 	}
 	else
 	{
 		UpdatedParseParams.bUseSpatialization = false;
 	}
 
-	Super::ParseNodes(AudioDevice, NodeWaveInstanceHash, ActiveSound, UpdatedParseParams, WaveInstances);
+	Super::ParseNodes( AudioDevice, NodeWaveInstanceHash, ActiveSound, UpdatedParseParams, WaveInstances );
 }

@@ -606,11 +606,11 @@ UStaticMesh* CreateStaticMesh(FMeshDescription& RawMesh,TArray<FStaticMaterial>&
 	// Set up the SectionInfoMap to enable collision
 	for (int32 SectionIdx = 0; SectionIdx < NumSections; ++SectionIdx)
 	{
-		FMeshSectionInfo Info = StaticMesh->GetSectionInfoMap().Get(0, SectionIdx);
+		FMeshSectionInfo Info = StaticMesh->SectionInfoMap.Get(0, SectionIdx);
 		Info.MaterialIndex = SectionIdx;
 		Info.bEnableCollision = true;
-		StaticMesh->GetSectionInfoMap().Set(0, SectionIdx, Info);
-		StaticMesh->GetOriginalSectionInfoMap().Set(0, SectionIdx, Info);
+		StaticMesh->SectionInfoMap.Set(0, SectionIdx, Info);
+		StaticMesh->OriginalSectionInfoMap.Set(0, SectionIdx, Info);
 	}
 
 	//Set the Imported version before calling the build
@@ -813,7 +813,7 @@ UStaticMesh* CreateStaticMeshFromBrush(UObject* Outer, FName Name, ABrush* Brush
 
 	// Add one LOD for the base mesh
 	FStaticMeshSourceModel& SrcModel = StaticMesh->AddSourceModel();
-	const int32 LodIndex = StaticMesh->GetNumSourceModels() - 1;
+	const int32 LodIndex = StaticMesh->SourceModels.Num() - 1;
 	FMeshDescription* MeshDescription = StaticMesh->CreateMeshDescription(LodIndex);
 	UStaticMesh::RegisterMeshAttributes(*MeshDescription);
 
@@ -829,11 +829,11 @@ UStaticMesh* CreateStaticMeshFromBrush(UObject* Outer, FName Name, ABrush* Brush
 	const int32 NumSections = StaticMesh->StaticMaterials.Num();
 	for (int32 SectionIdx = 0; SectionIdx < NumSections; ++SectionIdx)
 	{
-		FMeshSectionInfo Info = StaticMesh->GetSectionInfoMap().Get(0, SectionIdx);
+		FMeshSectionInfo Info = StaticMesh->SectionInfoMap.Get(0, SectionIdx);
 		Info.MaterialIndex = SectionIdx;
 		Info.bEnableCollision = true;
-		StaticMesh->GetSectionInfoMap().Set(0, SectionIdx, Info);
-		StaticMesh->GetOriginalSectionInfoMap().Set(0, SectionIdx, Info);
+		StaticMesh->SectionInfoMap.Set(0, SectionIdx, Info);
+		StaticMesh->OriginalSectionInfoMap.Set(0, SectionIdx, Info);
 	}
 
 	//Set the Imported version before calling the build
@@ -1051,10 +1051,10 @@ ExistingStaticMeshData* SaveExistingStaticMeshData(UStaticMesh* ExistingMesh, Un
 		ExistingMeshDataPtr->ImportVersion = ExistingMesh->ImportVersion;
 		ExistingMeshDataPtr->UseMaterialNameSlotWorkflow = IsUsingMaterialSlotNameWorkflow(ExistingMesh->AssetImportData);
 
-		FMeshSectionInfoMap OldSectionInfoMap = ExistingMesh->GetSectionInfoMap();
+		FMeshSectionInfoMap OldSectionInfoMap = ExistingMesh->SectionInfoMap;
 
-		bool bIsReimportCustomLODOverGeneratedLOD = ExistingMesh->IsSourceModelValid(LodIndex) &&
-			(ExistingMesh->GetSourceModel(LodIndex).IsRawMeshEmpty() || !(ExistingMesh->IsReductionActive(LodIndex) && ExistingMesh->GetSourceModel(LodIndex).ReductionSettings.BaseLODModel != LodIndex));
+		bool bIsReimportCustomLODOverGeneratedLOD = ExistingMesh->SourceModels.IsValidIndex(LodIndex) &&
+			(ExistingMesh->SourceModels[LodIndex].IsRawMeshEmpty() || !(ExistingMesh->IsReductionActive(LodIndex) && ExistingMesh->SourceModels[LodIndex].ReductionSettings.BaseLODModel != LodIndex));
 
 		//We need to reset some data in case we import a custom LOD over a generated LOD
 		if (bIsReimportCustomLODOverGeneratedLOD)
@@ -1075,26 +1075,26 @@ ExistingStaticMeshData* SaveExistingStaticMeshData(UStaticMesh* ExistingMesh, Un
 			}
 		}
 
-		ExistingMeshDataPtr->ExistingLODData.AddZeroed(ExistingMesh->GetNumSourceModels());
+		ExistingMeshDataPtr->ExistingLODData.AddZeroed(ExistingMesh->SourceModels.Num());
 
 		// refresh material and section info map here
 		// we have to make sure it only contains valid item
 		// we go through section info and only add it back if used, otherwise we don't want to use
 		if (LodIndex == INDEX_NONE)
 		{
-			ExistingMesh->GetSectionInfoMap().Clear();
+			ExistingMesh->SectionInfoMap.Clear();
 		}
 		else
 		{
 			//Remove only the target section InfoMap, if we destroy more we will not restore the correct material assignment for other Lods contain in the same file.
-			int32 ReimportSectionNumber = ExistingMesh->GetSectionInfoMap().GetSectionNumber(LodIndex);
+			int32 ReimportSectionNumber = ExistingMesh->SectionInfoMap.GetSectionNumber(LodIndex);
 			for (int32 SectionIndex = 0; SectionIndex < ReimportSectionNumber; ++SectionIndex)
 			{
-				ExistingMesh->GetSectionInfoMap().Remove(LodIndex, SectionIndex);
+				ExistingMesh->SectionInfoMap.Remove(LodIndex, SectionIndex);
 			}
 		}
 		int32 TotalMaterialIndex = ExistingMeshDataPtr->ExistingMaterials.Num();
-		for(int32 i=0; i<ExistingMesh->GetNumSourceModels(); i++)
+		for(int32 i=0; i<ExistingMesh->SourceModels.Num(); i++)
 		{
 			//If the last import was exceeding the maximum number of LOD the source model will contain more LOD so just break the loop
 			if (i >= ExistingMesh->RenderData->LODResources.Num())
@@ -1134,9 +1134,8 @@ ExistingStaticMeshData* SaveExistingStaticMeshData(UStaticMesh* ExistingMesh, Un
 				}
 			}
 
-			const FStaticMeshSourceModel& SourceModel = ExistingMesh->GetSourceModel(i);
-			ExistingMeshDataPtr->ExistingLODData[i].ExistingBuildSettings = SourceModel.BuildSettings;
-			ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings = SourceModel.ReductionSettings;
+			ExistingMeshDataPtr->ExistingLODData[i].ExistingBuildSettings = ExistingMesh->SourceModels[i].BuildSettings;
+			ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings = ExistingMesh->SourceModels[i].ReductionSettings;
 			if (bIsReimportCustomLODOverGeneratedLOD && (i == LodIndex))
 			{
 				//Reset the reduction
@@ -1144,8 +1143,8 @@ ExistingStaticMeshData* SaveExistingStaticMeshData(UStaticMesh* ExistingMesh, Un
 				ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings.PercentVertices = 1.0f;
 				ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings.MaxDeviation = 0.0f;
 			}
-			ExistingMeshDataPtr->ExistingLODData[i].ExistingScreenSize = SourceModel.ScreenSize.Default;
-			ExistingMeshDataPtr->ExistingLODData[i].ExistingSourceImportFilename = SourceModel.SourceImportFilename;
+			ExistingMeshDataPtr->ExistingLODData[i].ExistingScreenSize = ExistingMesh->SourceModels[i].ScreenSize.Default;
+			ExistingMeshDataPtr->ExistingLODData[i].ExistingSourceImportFilename = ExistingMesh->SourceModels[i].SourceImportFilename;
 
 			const FMeshDescription* MeshDescription = ExistingMesh->GetMeshDescription(i);
 			if (MeshDescription)
@@ -1231,7 +1230,7 @@ void RestoreExistingMeshSettings(ExistingStaticMeshData* ExistingMesh, UStaticMe
 	NewMesh->LODGroup = ExistingMesh->LODGroup;
 	NewMesh->MinLOD = ExistingMesh->MinLOD;
 	int32 ExistingNumLods = ExistingMesh->ExistingLODData.Num();
-	int32 CurrentNumLods = NewMesh->GetNumSourceModels();
+	int32 CurrentNumLods = NewMesh->SourceModels.Num();
 	if (LODIndex == INDEX_NONE)
 	{
 		if (CurrentNumLods > ExistingNumLods)
@@ -1249,7 +1248,7 @@ void RestoreExistingMeshSettings(ExistingStaticMeshData* ExistingMesh, UStaticMe
 
 		for (int32 i = 0; i < ExistingNumLods; i++)
 		{
-			if (NewMesh->GetNumSourceModels() <= i)
+			if (NewMesh->SourceModels.Num() <= i)
 			{
 				NewMesh->AddSourceModel();
 			}
@@ -1257,14 +1256,13 @@ void RestoreExistingMeshSettings(ExistingStaticMeshData* ExistingMesh, UStaticMe
 			bool bSwapFromGeneratedToImported = !ExistingMesh->ExistingLODData[i].ExistingMeshDescription.IsValid() && (LODMeshDescription && LODMeshDescription->Polygons().Num() > 0);
 			bool bWasReduced = IsReductionActive(ExistingMesh->ExistingLODData[i].ExistingReductionSettings);
 
-			FStaticMeshSourceModel& SourceModel = NewMesh->GetSourceModel(i);
 			if (!bSwapFromGeneratedToImported && bWasReduced)
 			{
-				SourceModel.ReductionSettings = ExistingMesh->ExistingLODData[i].ExistingReductionSettings;
+				NewMesh->SourceModels[i].ReductionSettings = ExistingMesh->ExistingLODData[i].ExistingReductionSettings;
 			}
-			SourceModel.BuildSettings = ExistingMesh->ExistingLODData[i].ExistingBuildSettings;
-			SourceModel.ScreenSize = ExistingMesh->ExistingLODData[i].ExistingScreenSize;
-			SourceModel.SourceImportFilename = ExistingMesh->ExistingLODData[i].ExistingSourceImportFilename;
+			NewMesh->SourceModels[i].BuildSettings = ExistingMesh->ExistingLODData[i].ExistingBuildSettings;
+			NewMesh->SourceModels[i].ScreenSize = ExistingMesh->ExistingLODData[i].ExistingScreenSize;
+			NewMesh->SourceModels[i].SourceImportFilename = ExistingMesh->ExistingLODData[i].ExistingSourceImportFilename;
 		}
 	}
 	else
@@ -1275,15 +1273,13 @@ void RestoreExistingMeshSettings(ExistingStaticMeshData* ExistingMesh, UStaticMe
 			FMeshDescription* LODMeshDescription = NewMesh->GetMeshDescription(LODIndex);
 			bool bSwapFromGeneratedToImported = !ExistingMesh->ExistingLODData[LODIndex].ExistingMeshDescription.IsValid() && (LODMeshDescription && LODMeshDescription->Polygons().Num() > 0);
 			bool bWasReduced = IsReductionActive(ExistingMesh->ExistingLODData[LODIndex].ExistingReductionSettings);
-
-			FStaticMeshSourceModel& SourceModel = NewMesh->GetSourceModel(LODIndex);
 			if (!bSwapFromGeneratedToImported && bWasReduced)
 			{
-				SourceModel.ReductionSettings = ExistingMesh->ExistingLODData[LODIndex].ExistingReductionSettings;
+				NewMesh->SourceModels[LODIndex].ReductionSettings = ExistingMesh->ExistingLODData[LODIndex].ExistingReductionSettings;
 			}
-			SourceModel.BuildSettings = ExistingMesh->ExistingLODData[LODIndex].ExistingBuildSettings;
-			SourceModel.ScreenSize = ExistingMesh->ExistingLODData[LODIndex].ExistingScreenSize;
-			SourceModel.SourceImportFilename = ExistingMesh->ExistingLODData[LODIndex].ExistingSourceImportFilename;
+			NewMesh->SourceModels[LODIndex].BuildSettings = ExistingMesh->ExistingLODData[LODIndex].ExistingBuildSettings;
+			NewMesh->SourceModels[LODIndex].ScreenSize = ExistingMesh->ExistingLODData[LODIndex].ExistingScreenSize;
+			NewMesh->SourceModels[LODIndex].SourceImportFilename = ExistingMesh->ExistingLODData[LODIndex].ExistingSourceImportFilename;
 		}
 	}
 
@@ -1370,9 +1366,9 @@ void UpdateSomeLodsImportMeshData(UStaticMesh* NewMesh, TArray<int32> *ReimportL
 				for (int32 SectionIndex = 0; SectionIndex < NumSections; ++SectionIndex)
 				{
 					int32 MaterialLodSectionIndex = LOD.Sections[SectionIndex].MaterialIndex;
-					if (NewMesh->GetSectionInfoMap().IsValidSection(LodLevelImport, SectionIndex))
+					if (NewMesh->SectionInfoMap.IsValidSection(LodLevelImport, SectionIndex))
 					{
-						MaterialLodSectionIndex = NewMesh->GetSectionInfoMap().Get(LodLevelImport, SectionIndex).MaterialIndex;
+						MaterialLodSectionIndex = NewMesh->SectionInfoMap.Get(LodLevelImport, SectionIndex).MaterialIndex;
 					}
 
 					if (NewMesh->StaticMaterials.IsValidIndex(MaterialLodSectionIndex))
@@ -1470,21 +1466,20 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 		//Copy the re ordered materials (this ensure the material array do not change when we re-import)
 		NewMesh->StaticMaterials = MaterialOrdered;
 	}
-	int32 NumCommonLODs = FMath::Min<int32>(ExistingMeshDataPtr->ExistingLODData.Num(), NewMesh->GetNumSourceModels());
+	int32 NumCommonLODs = FMath::Min<int32>(ExistingMeshDataPtr->ExistingLODData.Num(), NewMesh->SourceModels.Num());
 	for(int32 i=0; i<NumCommonLODs; i++)
 	{
-		FStaticMeshSourceModel& SourceModel = NewMesh->GetSourceModel(i);
-		SourceModel.BuildSettings = ExistingMeshDataPtr->ExistingLODData[i].ExistingBuildSettings;
+		NewMesh->SourceModels[i].BuildSettings = ExistingMeshDataPtr->ExistingLODData[i].ExistingBuildSettings;
 		FMeshDescription* LODMeshDescription = NewMesh->GetMeshDescription(i);
 		//Restore the reduction settings only if the existing data was a using reduction. Because we can set some value if we reimport from existing rawmesh to auto generated.
 		bool bSwapFromGeneratedToImported = !ExistingMeshDataPtr->ExistingLODData[i].ExistingMeshDescription.IsValid() && (LODMeshDescription && LODMeshDescription->Polygons().Num() > 0);
 		bool bWasReduced = IsReductionActive(ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings);
 		if ( !bSwapFromGeneratedToImported && bWasReduced)
 		{
-			SourceModel.ReductionSettings = ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings;
+			NewMesh->SourceModels[i].ReductionSettings = ExistingMeshDataPtr->ExistingLODData[i].ExistingReductionSettings;
 		}
-		SourceModel.ScreenSize = ExistingMeshDataPtr->ExistingLODData[i].ExistingScreenSize;
-		SourceModel.SourceImportFilename = ExistingMeshDataPtr->ExistingLODData[i].ExistingSourceImportFilename;
+		NewMesh->SourceModels[i].ScreenSize = ExistingMeshDataPtr->ExistingLODData[i].ExistingScreenSize;
+		NewMesh->SourceModels[i].SourceImportFilename = ExistingMeshDataPtr->ExistingLODData[i].ExistingSourceImportFilename;
 	}
 
 	for(int32 i=NumCommonLODs; i < ExistingMeshDataPtr->ExistingLODData.Num(); ++i)
@@ -1507,7 +1502,7 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 	if (ExistingMeshDataPtr->ExistingSectionInfoMap.Map.Num() > 0)
 	{
 		//Build the mesh we need the render data and the existing section info map build before restoring the data
-		if (NewMesh->RenderData->LODResources.Num() < NewMesh->GetNumSourceModels())
+		if (NewMesh->RenderData->LODResources.Num() < NewMesh->SourceModels.Num())
 		{
 			NewMesh->Build();
 		}
@@ -1519,9 +1514,8 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 				continue;
 			}
 
-			
 			//When re-importing the asset, do not touch the LOD that was imported from file, the material array is keep intact so the section should still be valid.
-			bool NoRemapForThisLOD = LodLevel == INDEX_NONE && i != 0 && !NewMesh->GetSourceModel(i).bImportWithBaseMesh && !IsReductionActive(NewMesh->GetSourceModel(i).ReductionSettings);
+			bool NoRemapForThisLOD = LodLevel == INDEX_NONE && i != 0 && !IsReductionActive(NewMesh->SourceModels[i].ReductionSettings);
 
 			FStaticMeshLODResources& LOD = NewMesh->RenderData->LODResources[i];
 			
@@ -1531,9 +1525,9 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 			{
 				//If the SectionInfoMap is not set yet. Because we re-import LOD 0 but we have other LODs
 				//Just put back the old section Info Map
-				if (NewMesh->GetSectionInfoMap().GetSectionNumber(i) <= SectionIndex)
+				if (NewMesh->SectionInfoMap.GetSectionNumber(i) <= SectionIndex)
 				{
-					NewMesh->GetSectionInfoMap().Set(i, SectionIndex, ExistingMeshDataPtr->ExistingSectionInfoMap.Get(i, SectionIndex));
+					NewMesh->SectionInfoMap.Set(i, SectionIndex, ExistingMeshDataPtr->ExistingSectionInfoMap.Get(i, SectionIndex));
 				}
 				//We recreate the SectionInfoMap from the existing data and we do not remap it if LOD is not auto generate and was not imported
 				if (NoRemapForThisLOD)
@@ -1541,7 +1535,7 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 					continue;
 				}
 
-				FMeshSectionInfo NewSectionInfo =  NewMesh->GetSectionInfoMap().Get(i, SectionIndex);
+				FMeshSectionInfo NewSectionInfo =  NewMesh->SectionInfoMap.Get(i, SectionIndex);
 				bool bFoundOldMatch = false;
 				bool bKeepOldSectionMaterialIndex = false;
 				int32 OriginalSectionMaterialIndex = INDEX_NONE;
@@ -1574,7 +1568,7 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 						int32 OldSectionMatchIndex = OriginalSectionMaterialIndex != INDEX_NONE ? OriginalSectionMaterialIndex : OldSectionInfo.MaterialIndex;
 						if (RemapMaterial[NewSectionInfo.MaterialIndex] == OldSectionMatchIndex)
 						{
-							NewMesh->GetSectionInfoMap().Set(i, SectionIndex, OldSectionInfo);
+							NewMesh->SectionInfoMap.Set(i, SectionIndex, OldSectionInfo);
 							bFoundOldMatch = true;
 							break;
 						}
@@ -1599,13 +1593,13 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 						}
 						//If user has change the section info map, we want to keep the change
 						NewSectionInfo.MaterialIndex = RemapMaterial[NewSectionInfo.MaterialIndex];
-						NewMesh->GetSectionInfoMap().Set(i, SectionIndex, NewSectionInfo);
+						NewMesh->SectionInfoMap.Set(i, SectionIndex, NewSectionInfo);
 					}
 				}
 			}
 		}
 		//Store the just imported section info map
-		NewMesh->GetOriginalSectionInfoMap().CopyFrom(NewMesh->GetSectionInfoMap());
+		NewMesh->OriginalSectionInfoMap.CopyFrom(NewMesh->SectionInfoMap);
 	}
 
 	// Assign sockets from old version of this StaticMesh.
@@ -1615,7 +1609,7 @@ void RestoreExistingMeshData(ExistingStaticMeshData* ExistingMeshDataPtr, UStati
 		UStaticMeshSocket* Socket = NewMesh->FindSocket(ExistingSocket->SocketName);
 		if (!Socket && !ExistingSocket->bSocketCreatedAtImport)
 		{
-			NewMesh->AddSocket(ExistingSocket);
+			NewMesh->Sockets.Add(ExistingSocket);
 		}
 	}
 

@@ -1,48 +1,71 @@
 Availability: Public
 Title: HTML5 Game Development
-Description: Developing games for the HTML5 platform.
-Type: landing
-Version: 4.22
-Parent: Platforms
-Tags: HTML5
-Tags: Desktop
-topic-image: HTML5Development_topic.png
+Crumbs:%ROOT%, Platforms
+Description:Developing games for the HTML5 platform.
+Platform:HTML5
+Navigation:platform
+Version: 4.9
+type:landing
+parent:Platforms
+tags:HTML5
+tags:Desktop
+Topic-image:HTML5Development_topic.png
 
-
-HTML5 uses the [Emscripten Toolchain](https://emscripten.org/docs/introducing_emscripten/about_emscripten.html#emscripten-toolchain) from [Mozilla](https://www.mozilla.org/en-US/) to cross-compile C++ into Javascript.
+HTML5 uses the emscripten tool chain from [Mozilla](https://www.mozilla.org/en-US/) to cross-compile C++ into Javascript. 
 
 ## Starting Out
 
-*   [Developing HTML5 Projects](Platforms/HTML5/GettingStarted)
-
-*   [HTML5 Development Requirements](Platforms/HTML5/HTML5SDKRequirements)
-
-## Content Development
-
-When building content aimed at the HTML5 platform, you can use the guidelines for creating mobile-oriented content as many of the restrictions for mobile development are applicable to HTML5 development.
-
-*   [Materials for Mobile Platforms](Platforms/Mobile/Materials)
-
-*   [Textures for Mobile Platforms](Platforms/Mobile/Textures)
-
-*   [Lighting for Mobile Platforms](Platforms/Mobile/Lighting)
-
-*   [Meshes for Mobile Platforms](Platforms/Mobile/Meshes)
-
-*   [Post Process Effects on Mobile Platforms](Platforms/Mobile/PostProcessEffects)
-
-*   [Performance Guidelines for Mobile Devices](Platforms/Mobile/Performance)
-
-*   [Mobile Performance Tips and Tricks](Platforms/Mobile/Performance/TipsAndTricks)
-
-*   [Mobile Previewer](Platforms/Mobile/Previewer)
-
-*   [Mobile Packaging Wizard](Platforms/Mobile/MobilePackagingWizard)
+[DIR(output:"listbutton" type:"quick start" parent:"Platforms/HTML5")]
 
 ## Samples
 
-![ActionRPG.jpg](ActionRPG-resize514x289.jpg "ActionRPG.jpg")
+[REGION:topics third]
 
-The following link will allow you to play an HTML5 version of Action RPG right in your web browser. 
+%TopicCompact%
+[/REGION]
 
-[Action RPG in HTML5](https://epiclearningresources.000webhostapp.com/ActionRPG/ActionRPG-HTML5-Shipping.html)
+[VAR:TopicCompact]
+[OBJECT:TopicCompact]
+	[PARAM:image]
+		![](TappyChicken.png)
+	[/PARAM]
+	[PARAM:title]
+		Tappy Chicken in HTML5
+	[/PARAM]
+	[PARAMLITERAL:path]
+		https://www.unrealengine.com/html5/
+	[/PARAMLITERAL]
+[/OBJECT]
+[/VAR]
+
+
+## Content Development
+
+HTML5 uses WebGL. When building content aimed at the HTML5 platform, guidelines used for creating mobile-oriented content are also often applicable. 
+
+[DIR(end:"1" output:"listbutton" type:"overview" parent:"Platforms/Mobile")]
+
+
+
+
+
+	      
+
+	       
+
+	   
+
+	   
+
+	  
+
+		
+
+		
+
+		
+
+		
+
+		
+

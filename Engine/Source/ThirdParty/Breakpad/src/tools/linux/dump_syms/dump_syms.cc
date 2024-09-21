@@ -106,8 +106,6 @@ int usage(const char* self) {
   fprintf(stderr, "  -i:   Output module header information only.\n");
   fprintf(stderr, "  -c    Do not generate CFI section\n");
   fprintf(stderr, "  -r    Do not handle inter-compilation unit references\n");
-  fprintf(stderr, "  -m    Keep the C++ Mangled names\n");
-  fprintf(stderr, "  -o    File output path\n");
   fprintf(stderr, "  -v    Print all warnings to stderr\n");
   return 1;
 }
@@ -133,9 +131,8 @@ int main(int argc, char **argv) {
       handle_inter_cu_refs = false;
     } else if (strcmp("-v", argv[arg_index]) == 0) {
       log_to_stderr = true;
-    } else if (strcmp("-m", argv[arg_index]) == 0) {
-      extern bool g_mangle_names;
-      g_mangle_names = true;
+    } else if (strcmp("-v", argv[arg_index]) == 0) {
+      log_to_stderr = true;
     } else if (strcmp("-o", argv[arg_index]) == 0) {
       arg_index++;
       ofs.open(argv[arg_index], std::ofstream::out);

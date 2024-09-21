@@ -67,8 +67,6 @@ namespace AutomationTool
 		{
 			"PreWindowsApi.h",
 			"PostWindowsApi.h",
-			"USDIncludesStart.h",
-			"USDIncludesEnd.h",
 		};
 
 		/// <summary>

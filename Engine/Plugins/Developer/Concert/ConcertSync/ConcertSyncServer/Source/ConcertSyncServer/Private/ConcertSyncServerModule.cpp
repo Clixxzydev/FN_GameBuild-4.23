@@ -1,53 +1,126 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "IConcertSyncServerModule.h"
-#include "ConcertSyncServer.h"
-#include "ConcertSettings.h"
+#include "CoreMinimal.h"
+#include "Modules/ModuleInterface.h"
+#include "Misc/CoreDelegates.h"
+
+#include "IConcertModule.h"
+#include "IConcertServer.h"
+#include "ConcertServerWorkspace.h"
+#include "ConcertServerSequencerManager.h"
 
 /**
  * 
  */
-class FConcertSyncServerModule : public IConcertSyncServerModule
+class FConcertSyncServerModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override
 	{
+		IConcertServerPtr ConcertServer = IConcertModule::Get().GetServerInstance();
+		if (ConcertServer.IsValid())
+		{
+			OnSessionStartupHandle = ConcertServer->OnSessionStartup().AddRaw(this, &FConcertSyncServerModule::RegisterConcertSyncHandlers);
+			OnSessionShutdownHandle = ConcertServer->OnSessionShutdown().AddRaw(this, &FConcertSyncServerModule::UnregisterConcertSyncHandlers);
+		}
+
+		AppPreExitDelegateHandle = FCoreDelegates::OnPreExit.AddRaw(this, &FConcertSyncServerModule::HandleAppPreExit);
+
 	}
 
 	virtual void ShutdownModule() override
 	{
+		// Unhook AppPreExit and call it
+		if (AppPreExitDelegateHandle.IsValid())
+		{
+			FCoreDelegates::OnPreExit.Remove(AppPreExitDelegateHandle);
+			AppPreExitDelegateHandle.Reset();
+		}
+		HandleAppPreExit();
 	}
 
-	virtual UConcertServerConfig* ParseServerSettings(const TCHAR* CommandLine) override
+	// Module shutdown is dependent on the UObject system which is currently shutdown on AppExit
+	void HandleAppPreExit()
 	{
-		UConcertServerConfig* ServerConfig = NewObject<UConcertServerConfig>();
-
-		if (CommandLine)
+		// if UObject system isn't initialized, skip shutdown
+		if (!UObjectInitialized())
 		{
-			// Parse value overrides (if present)
-			FParse::Value(CommandLine, TEXT("-CONCERTSERVER="), ServerConfig->ServerName);
-			FParse::Value(CommandLine, TEXT("-CONCERTSESSION="), ServerConfig->DefaultSessionName);
-			FParse::Value(CommandLine, TEXT("-CONCERTSESSIONTORESTORE="), ServerConfig->DefaultSessionToRestore);
-			FParse::Value(CommandLine, TEXT("-CONCERTSAVESESSIONAS="), ServerConfig->DefaultSessionSettings.ArchiveNameOverride);
-			FParse::Value(CommandLine, TEXT("-CONCERTPROJECT="), ServerConfig->DefaultSessionSettings.ProjectName);
-			FParse::Value(CommandLine, TEXT("-CONCERTREVISION="), ServerConfig->DefaultSessionSettings.BaseRevision);
-			FParse::Value(CommandLine, TEXT("-CONCERTWORKINGDIR="), ServerConfig->WorkingDir);
-			FParse::Value(CommandLine, TEXT("-CONCERTSAVEDDIR="), ServerConfig->ArchiveDir);
-
-			ServerConfig->ServerSettings.bIgnoreSessionSettingsRestriction |= FParse::Param(CommandLine, TEXT("CONCERTIGNORE"));
-			FParse::Bool(CommandLine, TEXT("-CONCERTIGNORE="), ServerConfig->ServerSettings.bIgnoreSessionSettingsRestriction);
-			
-			ServerConfig->bCleanWorkingDir |= FParse::Param(CommandLine, TEXT("CONCERTCLEAN"));
-			FParse::Bool(CommandLine, TEXT("-CONCERTCLEAN="), ServerConfig->bCleanWorkingDir);
+			return;
 		}
 
-		return ServerConfig;
+		IConcertServerPtr ConcertServer = IConcertModule::Get().GetServerInstance();
+		if (ConcertServer.IsValid())
+		{
+			TArray<TSharedPtr<IConcertServerSession>> ServerSessions = ConcertServer->GetSessions();
+			for (const TSharedPtr<IConcertServerSession>& ServerSession : ServerSessions)
+			{
+				UnregisterConcertSyncHandlers(ServerSession.ToSharedRef());
+			}
+
+			if (OnSessionStartupHandle.IsValid())
+			{
+				ConcertServer->OnSessionStartup().Remove(OnSessionStartupHandle);
+				OnSessionStartupHandle.Reset();
+			}
+
+			if (OnSessionShutdownHandle.IsValid())
+			{
+				ConcertServer->OnSessionShutdown().Remove(OnSessionShutdownHandle);
+				OnSessionShutdownHandle.Reset();
+			}
+		}
 	}
 
-	virtual TSharedRef<IConcertSyncServer> CreateServer(const FString& InRole) override
+private:
+	void CreateWorkspace(const TSharedRef<IConcertServerSession>& InSession)
 	{
-		return MakeShared<FConcertSyncServer>(InRole);
+		DestroyWorkspace(InSession);
+		Workspaces.Add(*InSession->GetName(), MakeShared<FConcertServerWorkspace>(InSession/*TODO Some config maybe*/));
 	}
+
+	void DestroyWorkspace(const TSharedRef<IConcertServerSession>& InSession)
+	{
+		// TODO : some shutdown?
+		Workspaces.Remove(*InSession->GetName());
+	}
+
+	void CreateSequencerManager(const TSharedRef<IConcertServerSession>& InSession)
+	{
+		DestroySequencerManager(InSession);
+		SequencerManagers.Add(*InSession->GetName(), MakeShared<FConcertServerSequencerManager>(InSession));
+	}
+
+	void DestroySequencerManager(const TSharedRef<IConcertServerSession>& InSession)
+	{
+		SequencerManagers.Remove(*InSession->GetName());
+	}
+
+	void RegisterConcertSyncHandlers(TSharedRef<IConcertServerSession> InSession)
+	{
+		CreateWorkspace(InSession);
+		CreateSequencerManager(InSession);
+	}
+
+	void UnregisterConcertSyncHandlers(TSharedRef<IConcertServerSession> InSession)
+	{
+		DestroyWorkspace(InSession);
+		DestroySequencerManager(InSession);
+	}
+
+	/** Map of Session Name to their associated workspaces */
+	TMap<FName, TSharedPtr<FConcertServerWorkspace>> Workspaces;
+
+	/** Map of Session Name to their associated workspaces */
+	TMap<FName, TSharedPtr<FConcertServerSequencerManager>> SequencerManagers;
+
+	/** Delegate Handle for the PreExit callback, needed to execute UObject related shutdowns */
+	FDelegateHandle AppPreExitDelegateHandle;
+
+	/** Delegate handle for a the callback when a session starts up */
+	FDelegateHandle OnSessionStartupHandle;
+
+	/** Delegate handle for a the callback when a session shuts down */
+	FDelegateHandle OnSessionShutdownHandle;
 };
 
 IMPLEMENT_MODULE(FConcertSyncServerModule, ConcertSyncServer);

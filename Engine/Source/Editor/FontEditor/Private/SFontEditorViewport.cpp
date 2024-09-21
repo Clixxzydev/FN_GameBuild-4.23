@@ -70,9 +70,6 @@ private:
 	/** Returns the positions of the scrollbars relative to the font textures */
 	FVector2D GetViewportScrollBarPositions() const;
 
-	/** Get the raw (unscaled) FontEditorViewport size */
-	FIntPoint GetDPIUnscaledViewportSizeXY() const;
-
 	void HandleWindowDPIScaleChanged(TSharedRef<SWindow> Window);
 private:
 	/** Pointer back to the Font viewport control that owns us */
@@ -123,7 +120,7 @@ void FFontEditorViewportClient::Draw(FViewport* Viewport, FCanvas* Canvas)
 	if (!FontEditorViewportPtr.Pin()->IsPreviewViewport())
 	{
 		FVector2D Ratio = FVector2D(GetViewportHorizontalScrollBarRatio(), GetViewportVerticalScrollBarRatio());
-		FVector2D ViewportSize = FVector2D(GetDPIUnscaledViewportSizeXY().X, GetDPIUnscaledViewportSizeXY().Y);
+		FVector2D ViewportSize = FVector2D(FontEditorViewportPtr.Pin()->GetViewport()->GetSizeXY().X, FontEditorViewportPtr.Pin()->GetViewport()->GetSizeXY().Y);
 		FVector2D ScrollBarPos = GetViewportScrollBarPositions();
 		int32 YOffset = (Ratio.Y > 1.0f)? ((ViewportSize.Y - (ViewportSize.Y / Ratio.Y)) * 0.5f): 0;
 		int32 YPos = YOffset - ScrollBarPos.Y;
@@ -532,7 +529,7 @@ float FFontEditorViewportClient::GetViewportVerticalScrollBarRatio() const
 	{
 		UFont* Font = FontEditorViewportPtr.Pin()->GetFontEditor().Pin()->GetFont();
 		
-		WidgetHeight = GetDPIUnscaledViewportSizeXY().Y;
+		WidgetHeight = FontEditorViewportPtr.Pin()->GetViewport()->GetSizeXY().Y;
 		
 		for (int32 Idx = 0; Idx < Font->Textures.Num(); ++Idx)
 		{
@@ -560,7 +557,7 @@ float FFontEditorViewportClient::GetViewportHorizontalScrollBarRatio() const
 		UFont* Font = FontEditorViewportPtr.Pin()->GetFontEditor().Pin()->GetFont();
 		uint32 Height = 1;
 
-		WidgetWidth = GetDPIUnscaledViewportSizeXY().X;
+		WidgetWidth = FontEditorViewportPtr.Pin()->GetViewport()->GetSizeXY().X;
 
 		if(Font->Textures.Num())
 		{
@@ -574,11 +571,6 @@ float FFontEditorViewportClient::GetViewportHorizontalScrollBarRatio() const
 	}
 
 	return WidgetWidth / Width;
-}
-
-FIntPoint FFontEditorViewportClient::GetDPIUnscaledViewportSizeXY() const
-{
-	return FontEditorViewportPtr.Pin()->GetViewport()->GetSizeXY() / GetDPIScale();
 }
 
 float FFontEditorViewportClient::UpdateViewportClientWindowDPIScale() const

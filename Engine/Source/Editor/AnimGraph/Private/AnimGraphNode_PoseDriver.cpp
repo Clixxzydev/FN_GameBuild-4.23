@@ -44,7 +44,6 @@ UAnimGraphNode_PoseDriver::UAnimGraphNode_PoseDriver(const FObjectInitializer& O
 {
 	SelectedTargetIndex = INDEX_NONE;
 	AxisLength = 20.0f;
-	bDrawDebugCones = true;
 	ConeSubdivision = 32;
 }
 

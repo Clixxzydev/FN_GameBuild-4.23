@@ -32,9 +32,13 @@ public:
 	/** File path to FBX file containing Mesh with alternative set of Skin Weights */
 	UPROPERTY(VisibleAnywhere, Category = SkinWeights)
 	FString FilePath;
-	
+
+	/** Skeletal Mesh from which to copy the Skin Weights used for this Profile */
+	UPROPERTY(EditAnywhere, Category = SkinWeights)
+	USkeletalMesh* SourceMesh;
+
 	/** Target LOD index this file corresponds to */
-	UPROPERTY(EditAnywhere, Category = SkinWeights, meta=(DisplayName="LOD Index"))
+	UPROPERTY(EditAnywhere, Category = SkinWeights)
 	int32 LODIndex;
 };
 

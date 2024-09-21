@@ -23,14 +23,13 @@ class UStaticMesh;
 template <class T> class TLockFreePointerListLIFO;
 
 /** Represents a distance field volume texture for a single UStaticMesh. */
-class ENGINE_API FDistanceFieldVolumeTexture
+class FDistanceFieldVolumeTexture
 {
 public:
 	FDistanceFieldVolumeTexture(const class FDistanceFieldVolumeData& InVolumeData) :
 		VolumeData(InVolumeData),
 		AtlasAllocationMin(FIntVector(-1, -1, -1)),
 		bReferencedByAtlas(false),
-		bThrottled(false),
 		StaticMesh(NULL)
 	{}
 
@@ -56,11 +55,6 @@ public:
 
 	bool IsValidDistanceFieldVolume() const;
 
-	bool Throttled() const
-	{
-		return bThrottled;
-	}
-
 	UStaticMesh* GetStaticMesh() const
 	{
 		return StaticMesh;
@@ -69,16 +63,14 @@ public:
 private:
 	const FDistanceFieldVolumeData& VolumeData;
 	FIntVector AtlasAllocationMin;
-	bool bReferencedByAtlas : 1;
-	/** bThrottled prevents any objects using the texture from being uploaded to the scene buffer until upload of the texture to distance field atlas is complete */
-	bool bThrottled         : 1;
+	bool bReferencedByAtlas;
 	UStaticMesh* StaticMesh;
 
 	friend class FDistanceFieldVolumeTextureAtlas;
 };
 
 /** Global volume texture atlas that collects all static mesh resource distance fields. */
-class ENGINE_API FDistanceFieldVolumeTextureAtlas : public FRenderResource
+class FDistanceFieldVolumeTextureAtlas : public FRenderResource
 {
 public:
 	FDistanceFieldVolumeTextureAtlas();
@@ -94,9 +86,9 @@ public:
 	int32 GetSizeY() const { return VolumeTextureRHI->GetSizeY(); }
 	int32 GetSizeZ() const { return VolumeTextureRHI->GetSizeZ(); }
 
-	FString GetSizeString() const;
+	ENGINE_API FString GetSizeString() const;
 
-	void ListMeshDistanceFields() const;
+	ENGINE_API void ListMeshDistanceFields() const;
 
 	/** Add an allocation to the atlas. */
 	void AddAllocation(FDistanceFieldVolumeTexture* Texture);
@@ -105,7 +97,7 @@ public:
 	void RemoveAllocation(FDistanceFieldVolumeTexture* Texture);
 
 	/** Reallocates the volume texture if necessary and uploads new allocations. */
-	void UpdateAllocations();
+	ENGINE_API void UpdateAllocations();
 
 	int32 GetGeneration() const { return Generation; }
 
@@ -131,7 +123,7 @@ private:
 extern ENGINE_API TGlobalResource<FDistanceFieldVolumeTextureAtlas> GDistanceFieldVolumeTextureAtlas;
 
 /** Distance field data payload and output of the mesh build process. */
-class ENGINE_API FDistanceFieldVolumeData : public FDeferredCleanupInterface
+class FDistanceFieldVolumeData : public FDeferredCleanupInterface
 {
 public:
 
@@ -234,10 +226,7 @@ public:
 	ENGINE_API void ProcessAsyncTasks();
 
 	/** Exposes UObject references used by the async build. */
-	ENGINE_API virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-
-	/** Returns name of class for reference tracking */
-	ENGINE_API virtual FString GetReferencerName() const override;
+	ENGINE_API void AddReferencedObjects(FReferenceCollector& Collector);
 
 	/** Blocks until it is safe to shut down (worker threads are idle). */
 	ENGINE_API void Shutdown();

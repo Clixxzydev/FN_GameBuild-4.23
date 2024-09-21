@@ -41,21 +41,13 @@ class ENGINE_API ADebugCameraController
 	UPROPERTY()
 	uint32 bOrbitPivotUseCenter:1;
 
-	/** Whether set view mode to display GBuffer visualization overview */
+	/** Whether set view mode to display GBuffer visualization */
 	UPROPERTY()
 	uint32 bEnableBufferVisualization : 1;
 
-	/** Whether set view mode to display GBuffer visualization full */
+	/** Whether set view mode to display GBuffer visualization */
 	UPROPERTY()
 	uint32 bEnableBufferVisualizationFullMode : 1;
-
-	/** Whether GBuffer visualization overview inputs are set up  */
-	UPROPERTY()
-	uint32 bIsBufferVisualizationInputSetup : 1;
-
-	/** Last display enabled setting before toggling buffer visualization overview */
-	UPROPERTY()
-	uint32 bLastDisplayEnabled : 1;
 
 	/** Visualizes the frustum of the camera */
 	UPROPERTY()
@@ -86,12 +78,6 @@ class ENGINE_API ADebugCameraController
 	/** Toggles the display of debug info and input commands for the Debug Camera. */
 	UFUNCTION(BlueprintCallable, Category="Debug Camera")
 	void ToggleDisplay();
-
-	/** Sets display of debug info and input commands. */
-	void SetDisplay(bool bEnabled);
-
-	/** Returns whether debug info display is enabled */
-	bool IsDisplayEnabled();
 
 	/**
 	 * function called from key bindings command to save information about
@@ -126,14 +112,6 @@ class ENGINE_API ADebugCameraController
 	/** Toggles camera orbit hitpoint */
 	void ToggleOrbitHitPoint();
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
-	/** Whether buffer visualization option should be enabled */
-	static bool EnableDebugBuffers();
-
-	/** Whether cycle viewmode option should be enabled */
-	static bool EnableDebugViewmodes();
-
 	/** Cycle view mode */
 	void CycleViewMode();
 
@@ -152,24 +130,16 @@ class ENGINE_API ADebugCameraController
 	/** Buffer overview move left */
 	void BufferVisualizationMoveLeft();
 
-	/** Ignores axis motion */
-	void ConsumeAxisMotion(float Val);
-
 	/** Toggle buffer visualization full display */
 	void ToggleBufferVisualizationFullMode();
 
 	/** Set buffer visualization full mode */
 	void SetBufferVisualizationFullMode(bool bFullMode);
 
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+
 	/** Update visualize buffer post processing settings */
 	void UpdateVisualizeBufferPostProcessing(FFinalPostProcessSettings& InOutPostProcessingSettings);
-
-	/** Get visualization buffer's material name used by post processing settings */
-	FString GetBufferMaterialName(const FString& InBuffer);
-
-	/** Get current visualization buffer's material name */
-	FString GetSelectedBufferMaterialName();
-
 
 #endif
 
@@ -224,9 +194,6 @@ protected:
 	// Adjusts movement speed limits based on SpeedScale.
 	virtual void ApplySpeedScale();
 	virtual void SetupInputComponent() override;
-
-	/** Sets up or clears input for buffer visualization overview */
-	void SetupBufferVisualizationOverviewInput();
 
 public:
 
@@ -290,8 +257,6 @@ protected:
 
 	virtual void SetSpectatorPawn(class ASpectatorPawn* NewSpectatorPawn) override;
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
 	/** Get buffer visualization overview targets based on console var */
 	TArray<FString> GetBufferVisualizationOverviewTargets();
 
@@ -300,8 +265,6 @@ protected:
 
 	/** Get next buffer */
 	void GetNextBuffer(int32 Step = 1);
-
-#endif
 
 private:
 
@@ -317,11 +280,14 @@ private:
 	/** Current orbit radius, if orbit is enabled */
 	float OrbitRadius;
 
+	/** Last view mode index before buffer visualization overview was enabled, see enum EViewModeIndex for valid values */
+	int32 LastViewModeIndex;
+
 	/** Last index in settings array for cycle view modes */
 	int32 LastViewModeSettingsIndex;
-
-	/** Buffer selected in buffer visualization overview or full screen view */
-	FString CurrSelectedBuffer;
+	
+	/** Last buffer selected in buffer visualization overview */
+	FString LastSelectedBuffer;
 
 	void OnTouchBegin(ETouchIndex::Type FingerIndex, FVector Location);
 	void OnTouchEnd(ETouchIndex::Type FingerIndex, FVector Location);

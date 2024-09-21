@@ -122,7 +122,6 @@ public:
 	virtual void LoadModulesRequiredForCompilation() override;
 	virtual void GetTypeActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
 	virtual void GetInstanceActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;	
-	virtual void SetObjectBeingDebugged(UObject* NewObject) override;
 #endif	// #if WITH_EDITOR
 
 	/** Make a property link between the specified properties - used by the compiler */
@@ -143,7 +142,6 @@ public:
 	FName LastNameFromNotification;
 
 	void PopulateModelFromGraph(const UControlRigGraph* InGraph);
-	void RebuildGraphFromModel();
 
 	UControlRigModel::FModifiedEvent& OnModified();
 

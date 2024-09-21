@@ -312,9 +312,6 @@ bool crn_comp::pack_blocks(
 
 bool crn_comp::alias_images() {
   for (uint face_index = 0; face_index < m_pParams->m_faces; face_index++) {
-    //UE4_BEGIN
-    m_images[face_index].resize(m_pParams->m_levels);
-	//UE4_END
     for (uint level_index = 0; level_index < m_pParams->m_levels; level_index++) {
       //UE4_BEGIN
 	  const bool uniformMips = m_pParams->get_flag(cCrnCompFlagUniformMips);
@@ -359,10 +356,9 @@ bool crn_comp::alias_images() {
 void crn_comp::clear() {
   m_pParams = NULL;
 
-  //UE4_BEGIN
   for (uint f = 0; f < cCRNMaxFaces; f++)
-    m_images[f].clear();
-  //UE4_END
+    for (uint l = 0; l < cCRNMaxLevels; l++)
+      m_images[f][l].clear();
 
   utils::zero_object(m_has_comp);
   m_has_etc_color_blocks = false;
@@ -394,9 +390,8 @@ void crn_comp::clear() {
     m_selector_index_dm[i].clear();
   }
 
-  //UE4_BEGIN
-  m_packed_blocks.clear();
-  //UE4_END
+  for (uint i = 0; i < cCRNMaxLevels; i++)
+    m_packed_blocks[i].clear();
 
   m_packed_data_models.clear();
 
@@ -551,9 +546,6 @@ bool crn_comp::quantize_images() {
   params.m_pTask_pool = &m_task_pool;
 
   params.m_num_levels = m_pParams->m_levels;
-  //UE4_BEGIN
-  params.m_levels.resize(params.m_num_levels);
-  //UE4_END
   for (uint i = 0; i < m_pParams->m_levels; i++) {
     params.m_levels[i].m_first_block = m_levels[i].first_block;
     params.m_levels[i].m_num_blocks = m_levels[i].num_blocks;
@@ -1186,10 +1178,7 @@ bool crn_comp::create_comp_data() {
   m_crn_header.m_tables_size = m_packed_data_models.size();
   append_vec(m_comp_data, m_packed_data_models);
 
-  //UE4_BEGIN
-  vector<uint> level_ofs;
-  level_ofs.resize(m_levels.size());
-  //UE4_END
+  uint level_ofs[cCRNMaxLevels];
   for (uint i = 0; i < m_levels.size(); i++) {
     level_ofs[i] = m_comp_data.size();
     append_vec(m_comp_data, m_packed_blocks[i]);
@@ -1249,10 +1238,7 @@ bool crn_comp::compress_internal() {
 
   if (m_has_comp[cAlpha0])
     optimize_alpha();
-  
-  //UE4_BEGIN
-  m_packed_blocks.resize(m_levels.size());
-  //UE4_END
+
   for (uint pass = 0; pass < 2; pass++) {
     for (uint level = 0; level < m_levels.size(); level++) {
       symbol_codec codec;

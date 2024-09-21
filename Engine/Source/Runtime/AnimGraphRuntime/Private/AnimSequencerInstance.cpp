@@ -12,8 +12,6 @@
 // UAnimSequencerInstance
 /////////////////////////////////////////////////////
 
-const FName UAnimSequencerInstance::SequencerPoseName(TEXT("Sequencer_Pose_Name"));
-
 UAnimSequencerInstance::UAnimSequencerInstance(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -33,20 +31,4 @@ void UAnimSequencerInstance::UpdateAnimTrack(UAnimSequenceBase* InAnimSequence, 
 void UAnimSequencerInstance::ResetNodes()
 {
 	GetProxyOnGameThread<FAnimSequencerInstanceProxy>().ResetNodes();
-}
-
-void UAnimSequencerInstance::ResetPose()
-{
-	GetProxyOnGameThread<FAnimSequencerInstanceProxy>().ResetPose();
-}
-
-void UAnimSequencerInstance::SavePose()
-{
-	if (USkeletalMeshComponent* SkeletalMeshComponent = GetSkelMeshComponent())
-	{
-		if (SkeletalMeshComponent->SkeletalMesh && SkeletalMeshComponent->GetComponentSpaceTransforms().Num() > 0)
-		{
-			SavePoseSnapshot(UAnimSequencerInstance::SequencerPoseName);
-		}
-	}
 }

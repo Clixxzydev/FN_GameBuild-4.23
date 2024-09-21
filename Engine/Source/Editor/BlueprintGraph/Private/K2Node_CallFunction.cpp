@@ -437,35 +437,29 @@ UK2Node_CallFunction::UK2Node_CallFunction(const FObjectInitializer& ObjectIniti
 }
 
 
-bool UK2Node_CallFunction::HasDeprecatedReference() const
+bool UK2Node_CallFunction::IsDeprecated() const
 {
 	UFunction* Function = GetTargetFunction();
 	return (Function && Function->HasMetaData(FBlueprintMetadata::MD_DeprecatedFunction));
 }
 
-FEdGraphNodeDeprecationResponse UK2Node_CallFunction::GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const
+bool UK2Node_CallFunction::ShouldWarnOnDeprecation() const
 {
-	FEdGraphNodeDeprecationResponse Response = Super::GetDeprecationResponse(DeprecationType);
-	if (DeprecationType == EEdGraphNodeDeprecationType::NodeHasDeprecatedReference)
-	{
-		// TEMP: Do not warn in the case of SpawnActor, as we have a special upgrade path for those nodes
-		if (FunctionReference.GetMemberName() == FName(TEXT("BeginSpawningActorFromBlueprint")))
-		{
-			Response.MessageType = EEdGraphNodeDeprecationMessageType::None;
-		}
-		else
-		{
-			UFunction* Function = GetTargetFunction();
-			if (ensureMsgf(Function != nullptr, TEXT("This node should not be able to report having a deprecated reference if the target function cannot be resolved.")))
-			{
-				FString DetailedMessage = Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage);
-				Response.MessageText = FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(GetUserFacingFunctionName(Function), FText::FromString(DetailedMessage));
-			}
-		}
-	}
-	
-	return Response;
+	// TEMP:  Do not warn in the case of SpawnActor, as we have a special upgrade path for those nodes
+	return (FunctionReference.GetMemberName() != FName(TEXT("BeginSpawningActorFromBlueprint")));
 }
+
+FString UK2Node_CallFunction::GetDeprecationMessage() const
+{
+	UFunction* Function = GetTargetFunction();
+	if (Function && Function->HasMetaData(FBlueprintMetadata::MD_DeprecationMessage))
+	{
+		return FString::Printf(TEXT("%s %s"), *LOCTEXT("CallFunctionDeprecated_Warning", "@@ is deprecated;").ToString(), *Function->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
+	}
+
+	return Super::GetDeprecationMessage();
+}
+
 
 FText UK2Node_CallFunction::GetFunctionContextString() const
 {
@@ -1042,10 +1036,6 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 			if (!PinDisplayName.IsEmpty())
 			{
 				Pin->PinFriendlyName = FText::FromString(PinDisplayName);
-			}
-			else if (Function->GetReturnProperty() == Param && Function->HasMetaData(FBlueprintMetadata::MD_ReturnDisplayName))
-			{
-				Pin->PinFriendlyName = Function->GetMetaDataText(FBlueprintMetadata::MD_ReturnDisplayName);
 			}
 
 			//Flag pin as read only for const reference property

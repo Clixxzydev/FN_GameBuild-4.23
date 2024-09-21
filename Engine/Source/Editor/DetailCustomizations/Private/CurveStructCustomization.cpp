@@ -108,7 +108,7 @@ void FCurveStructCustomization::CustomizeHeader( TSharedRef<IPropertyHandle> InS
 		}
 		else
 		{
-			CurveWidget->SetCurveOwner(this, InStructPropertyHandle->IsEditable());
+			CurveWidget->SetCurveOwner(this);
 		}
 	}
 	else
@@ -276,7 +276,7 @@ void FCurveStructCustomization::OnExternalCurveChanged(TSharedRef<IPropertyHandl
 		}
 		else
 		{
-			CurveWidget->SetCurveOwner(this, CurvePropertyHandle->IsEditable());
+			CurveWidget->SetCurveOwner(this);
 		}
 
 		CurvePropertyHandle->NotifyPostChange();

@@ -139,15 +139,6 @@ bool FEditorBuildUtils::EditorAutomatedBuildAndSubmit( const FEditorAutomatedBui
 		{
 			LogErrorMessage( NSLOCTEXT("UnrealEd", "AutomatedBuild_Error_BuildFailed", "The map build failed or was canceled."), OutErrorMessages );
 		}
-
-		// If we are going to shutdown after this has run (ie running from the cmdline) then we should wait for the distributed lighting build to complete.
-		if (BuildSettings.bShutdownEditorOnCompletion)
-		{
-			while (GUnrealEd->IsLightingBuildCurrentlyRunning())
-			{
-				GUnrealEd->UpdateBuildLighting();
-			}
-		}	
 	}
 
 	// If any map errors resulted from the build, process them according to the behavior specified in the build settings
@@ -1089,8 +1080,6 @@ EDebugViewShaderMode ViewModeIndexToDebugViewShaderMode(EViewModeIndex SelectedV
 		return DVSM_MaterialTextureScaleAccuracy;
 	case VMI_RequiredTextureResolution:
 		return DVSM_RequiredTextureResolution;
-	case VMI_RayTracingDebug:
-		return DVSM_RayTracingDebug;
 	case VMI_Unknown:
 	default :
 		return DVSM_None;
@@ -1269,7 +1258,7 @@ bool FEditorBuildUtils::EditorBuildMaterialTextureStreamingData(UPackage* Packag
 				FMaterialResource* Resource = Material->GetMaterialResource(FeatureLevel);
 				if (Resource)
 				{
-					Resource->CacheShaders(GMaxRHIShaderPlatform);
+					Resource->CacheShaders(GMaxRHIShaderPlatform, false);
 					Materials.Add(Material);
 				}
 			}
@@ -1395,7 +1384,7 @@ bool FEditorBuildUtils::CompileShadersComplexityViewMode(EMaterialQualityLevel::
 
 		FMaterialShaderMapId ResourceId;
 		SpecialResource->GetShaderMapId(ShaderPlatform, ResourceId);
-		SpecialResource->CacheShaders(ResourceId, ShaderPlatform);
+		SpecialResource->CacheShaders(ResourceId, ShaderPlatform, false);
 
 		OfflineShaderResources.Add(SpecialResource);
 	}

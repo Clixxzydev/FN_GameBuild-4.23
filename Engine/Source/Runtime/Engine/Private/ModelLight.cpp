@@ -989,9 +989,6 @@ void UModel::GroupAllNodes(ULevel* Level, const TArray<ULightComponentBase*>& Li
 void UModel::ApplyStaticLighting(ULevel* LightingScenario)
 {
 #if WITH_EDITOR
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
-	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIFeatureLevel);
-
 	check(CachedMappings[0]->QuantizedData);
 
 	// Group surfaces based on their static lighting relevance.
@@ -1200,6 +1197,7 @@ void UModel::ApplyStaticLighting(ULevel* LightingScenario)
 		// create the grouped together lightmap, which is used by all elements.
 		ELightMapPaddingType PaddingType = GAllowLightmapPadding ? LMPT_PrePadding : LMPT_NoPadding;
 
+		FLightMap2D* LightMap = NULL;
 		const bool bHasNonZeroData = GroupQuantizedData->HasNonZeroData();
 
 		// We always create a light map if the surface either has any non-zero lighting data, or if the surface has a shadow map.  The runtime
@@ -1210,6 +1208,11 @@ void UModel::ApplyStaticLighting(ULevel* LightingScenario)
 
 		ULevel* StorageLevel = LightingScenario ? LightingScenario : LightingLevel;
 		UMapBuildDataRegistry* Registry = StorageLevel->GetOrCreateMapBuildData();
+
+		if (bNeedsLightMap)
+		{
+			LightMap = FLightMap2D::AllocateLightMap(Registry, GroupQuantizedData, GroupLightmapBounds, PaddingType, LMF_None);
+		}
 
 		// Allocate merged shadow-map data.
 		TMap<ULightComponent*,FShadowMapData2D*> GroupShadowMapData;
@@ -1259,24 +1262,9 @@ void UModel::ApplyStaticLighting(ULevel* LightingScenario)
 		}
 
 		// Create the shadow-maps, which is used by all elements.
-		FLightMap2D* LightMap = nullptr;
-		FShadowMap2D* ShadowMap = nullptr;
-
-		if (bNeedsLightMap)
-		{
-			if (bUseVirtualTextures)
-			{
-				// When using VT lightmaps, shadow data is allocated in the same UV space as lightmap data
-				LightMap = FLightMap2D::AllocateLightMap(Registry, GroupQuantizedData, GroupShadowMapData, GroupLightmapBounds, PaddingType, LMF_None);
-			}
-			else
-			{
-				TMap<ULightComponent*, FShadowMapData2D*> EmptyShadowMapData;
-				LightMap = FLightMap2D::AllocateLightMap(Registry, GroupQuantizedData, EmptyShadowMapData, GroupLightmapBounds, PaddingType, LMF_None);
-			}
-		}
+		FShadowMap2D* ShadowMap = 0;
 		
-		if(GroupShadowMapData.Num() && !bUseVirtualTextures)
+		if(GroupShadowMapData.Num())
 		{
 			ShadowMap = FShadowMap2D::AllocateShadowMap( Registry, GroupShadowMapData, GroupLightmapBounds, PaddingType, SMF_None );
 		}

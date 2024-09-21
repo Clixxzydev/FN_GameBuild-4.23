@@ -418,13 +418,6 @@ EPropertyDataValidationResult FPropertyNode::EnsureDataIsValid()
 		if (Property.IsValid())
 		{
 			UProperty* MyProperty = Property.Get();
-			UStruct* OwnerStruct = MyProperty->GetOwnerStruct();
-
-			if (!OwnerStruct || OwnerStruct->Children == nullptr)
-			{
-				//verify that the property is not part of an invalid trash class, treat it as an invalid object if it is which will cause a refresh
-				return EPropertyDataValidationResult::ObjectInvalid;
-			}
 
 			//verify that the number of container children is correct
 			UArrayProperty* ArrayProperty = Cast<UArrayProperty>(MyProperty);
@@ -732,19 +725,6 @@ TSharedPtr<FPropertyNode> FPropertyNode::FindChildPropertyNode( const FName InPr
 	return nullptr;
 }
 
-/**
- * Returns whether this window's property is read only or has the CPF_EditConst flag.
- */
-bool FPropertyNode::IsPropertyConst() const
-{
-	bool bIsPropertyConst = (HasNodeFlags(EPropertyNodeFlags::IsReadOnly) != 0);
-	if (!bIsPropertyConst && Property != nullptr)
-	{
-		bIsPropertyConst = (Property->PropertyFlags & CPF_EditConst) ? true : false;	
-	}
-
-	return bIsPropertyConst;
-}
 
 /** @return whether this window's property is constant (can't be edited by the user) */
 bool FPropertyNode::IsEditConst() const
@@ -754,19 +734,23 @@ bool FPropertyNode::IsEditConst() const
 		// Ask the objects whether this property can be changed
 		const FObjectPropertyNode* ObjectPropertyNode = FindObjectItemParent();
 
-		bIsEditConst = IsPropertyConst();
+		bIsEditConst = (HasNodeFlags(EPropertyNodeFlags::IsReadOnly) != 0);
 		if(!bIsEditConst && Property != nullptr && ObjectPropertyNode)
 		{
-			// travel up the chain to see if this property's owner struct is editconst - if it is, so is this property
-			FPropertyNode* NextParent = ParentNode;
-			while(NextParent != nullptr && Cast<UStructProperty>(NextParent->GetProperty()) != NULL)
+			bIsEditConst = (Property->PropertyFlags & CPF_EditConst) ? true : false;
+			if(!bIsEditConst)
 			{
-				if(NextParent->IsEditConst())
+				// travel up the chain to see if this property's owner struct is editconst - if it is, so is this property
+				FPropertyNode* NextParent = ParentNode;
+				while(NextParent != nullptr && Cast<UStructProperty>(NextParent->GetProperty()) != NULL)
 				{
-					bIsEditConst = true;
-					break;
+					if(NextParent->IsEditConst())
+					{
+						bIsEditConst = true;
+						break;
+					}
+					NextParent = NextParent->ParentNode;
 				}
-				NextParent = NextParent->ParentNode;
 			}
 
 			if(!bIsEditConst)
@@ -1557,40 +1541,37 @@ bool FPropertyNode::GetDiffersFromDefaultForObject( FPropertyItemValueDataTracke
 
 	if ( ValueTracker.IsValidTracker() && ValueTracker.HasDefaultValue() && GetParentNode() != NULL )
 	{
-		if (ValueTracker.GetPropertyDefaultBaseAddress() != NULL)
-		{
-			//////////////////////////
-			// Check the property against its default.
-			// If the property is an object property, we have to take special measures.
-			UArrayProperty* OuterArrayProperty = Cast<UArrayProperty>(InProperty->GetOuter());
-			USetProperty* OuterSetProperty = Cast<USetProperty>(InProperty->GetOuter());
-			UMapProperty* OuterMapProperty = Cast<UMapProperty>(InProperty->GetOuter());
+		//////////////////////////
+		// Check the property against its default.
+		// If the property is an object property, we have to take special measures.
+		UArrayProperty* OuterArrayProperty = Cast<UArrayProperty>(InProperty->GetOuter());
+		USetProperty* OuterSetProperty = Cast<USetProperty>(InProperty->GetOuter());
+		UMapProperty* OuterMapProperty = Cast<UMapProperty>(InProperty->GetOuter());
 
-			if ( OuterArrayProperty != NULL )
+		if ( OuterArrayProperty != NULL )
+		{
+			// make sure we're not trying to compare against an element that doesn't exist
+			if ( ValueTracker.GetPropertyDefaultBaseAddress() != NULL && GetArrayIndex() >= FScriptArrayHelper::Num(ValueTracker.GetPropertyDefaultBaseAddress()) )
 			{
-				// make sure we're not trying to compare against an element that doesn't exist
-				if (GetArrayIndex() >= FScriptArrayHelper::Num(ValueTracker.GetPropertyDefaultBaseAddress()) )
-				{
-					bDiffersFromDefaultForObject = true;
-				}
+				bDiffersFromDefaultForObject = true;
 			}
-			else if (OuterSetProperty != NULL)
+		}
+		else if (OuterSetProperty != NULL)
+		{
+			FScriptSetHelper SetHelper(OuterSetProperty, ValueTracker.GetPropertyDefaultBaseAddress());
+
+			if ( ValueTracker.GetPropertyDefaultBaseAddress() != NULL && !SetHelper.IsValidIndex(GetArrayIndex()) )
 			{
-				FScriptSetHelper SetHelper(OuterSetProperty, ValueTracker.GetPropertyDefaultBaseAddress());
-				bool bIsValidIndex = ArrayIndex >= 0 && ArrayIndex < SetHelper.Num();
-				if (!bIsValidIndex)
-				{
-					bDiffersFromDefaultForObject = true;
-				}
+				bDiffersFromDefaultForObject = true;
 			}
-			else if (OuterMapProperty != NULL)
+		}
+		else if (OuterMapProperty != NULL)
+		{
+			FScriptMapHelper MapHelper(OuterMapProperty, ValueTracker.GetPropertyDefaultBaseAddress());
+
+			if ( ValueTracker.GetPropertyDefaultBaseAddress() != NULL && !MapHelper.IsValidIndex(GetArrayIndex()) )
 			{
-				FScriptMapHelper MapHelper(OuterMapProperty, ValueTracker.GetPropertyDefaultBaseAddress());
-				bool bIsValidIndex = ArrayIndex >= 0 && ArrayIndex < MapHelper.Num();
-				if (!bIsValidIndex)
-				{
-					bDiffersFromDefaultForObject = true;
-				}
+				bDiffersFromDefaultForObject = true;
 			}
 		}
 
@@ -2575,7 +2556,7 @@ void FPropertyNode::PropagateContainerPropertyChange( UObject* ModifiedObject, c
 							check(false);	// Insert is not supported for sets
 							break;
 						case EPropertyArrayChangeType::Delete:
-							SetHelper.RemoveAt(SetHelper.FindInternalIndex(ArrayIndex));
+							SetHelper.RemoveAt(ArrayIndex);
 							SetHelper.Rehash();
 							break;
 						case EPropertyArrayChangeType::Duplicate:
@@ -2605,7 +2586,7 @@ void FPropertyNode::PropagateContainerPropertyChange( UObject* ModifiedObject, c
 							check(false);	// Insert is not supported for maps
 							break;
 						case EPropertyArrayChangeType::Delete:
-							MapHelper.RemoveAt(MapHelper.FindInternalIndex(ArrayIndex));
+							MapHelper.RemoveAt(ArrayIndex);
 							MapHelper.Rehash();
 							break;
 						case EPropertyArrayChangeType::Duplicate:

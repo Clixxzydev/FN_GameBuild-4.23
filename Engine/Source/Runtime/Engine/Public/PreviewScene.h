@@ -77,8 +77,7 @@ public:
 	virtual void RemoveComponent(class UActorComponent* Component);
 
 	// Serializer.
-	virtual void AddReferencedObjects( FReferenceCollector& Collector ) override;
-	virtual FString GetReferencerName() const override;
+	void AddReferencedObjects( FReferenceCollector& Collector ) override;
 
 	// Accessors.
 	UWorld* GetWorld() const { return PreviewWorld; }

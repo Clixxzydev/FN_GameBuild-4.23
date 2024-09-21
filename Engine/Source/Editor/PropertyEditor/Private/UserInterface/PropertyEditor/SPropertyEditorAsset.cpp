@@ -680,33 +680,7 @@ void SPropertyEditorAsset::OnMenuOpenChanged(bool bOpen)
 
 bool SPropertyEditorAsset::IsFilteredActor( const AActor* const Actor ) const
 {
-	bool IsAllowed = Actor->IsA(ObjectClass) && !Actor->IsChildActor();
-
-	if (IsAllowed)
-	{
-		bool ClassFilterAllowed = false;
-		for (const UClass* Class : AllowedClassFilters)
-		{
-			if (Actor->GetClass()->IsChildOf(Class))
-			{
-				ClassFilterAllowed = true;
-				break;
-			}
-		}
-
-		for (const UClass* Class : DisallowedClassFilters)
-		{
-			if (Actor->GetClass()->IsChildOf(Class))
-			{
-				ClassFilterAllowed = false;
-				break;
-			}
-		}
-
-		IsAllowed = ClassFilterAllowed;
-	}
-
-	return IsAllowed;
+	return Actor->IsA( ObjectClass ) && !Actor->IsChildActor();
 }
 
 void SPropertyEditorAsset::CloseComboButton()
@@ -1041,6 +1015,13 @@ void SPropertyEditorAsset::OnBrowse()
 {
 	FObjectOrAssetData Value;
 	GetValue( Value );
+
+	// Try loading owning object
+	if (Value.Object == nullptr && Value.ObjectPath.IsValid())
+	{
+		FSoftObjectPath MapObjectPath = FSoftObjectPath(Value.ObjectPath.GetAssetPathName(), FString());
+		MapObjectPath.TryLoad();
+	}
 
 	if(PropertyEditor.IsValid() && Value.Object)
 	{

@@ -337,7 +337,7 @@ void UAnimInstance::UpdateMontageSyncGroup()
 	}
 }
 
-bool UAnimInstance::UpdateAnimation(float DeltaSeconds, bool bNeedsValidRootMotion, EUpdateAnimationFlag UpdateFlag)
+void UAnimInstance::UpdateAnimation(float DeltaSeconds, bool bNeedsValidRootMotion)
 {
 	LLM_SCOPE(ELLMTag::Animation);
 
@@ -401,7 +401,7 @@ bool UAnimInstance::UpdateAnimation(float DeltaSeconds, bool bNeedsValidRootMoti
 				when we also update the AnimGraph as well.
 				This means that calls to 'Evaluation' without a call to 'Update' prior will render stale data, but that's to be expected.
 			*/
-			return false;
+			return;
 		}
 	}
 
@@ -427,7 +427,7 @@ bool UAnimInstance::UpdateAnimation(float DeltaSeconds, bool bNeedsValidRootMoti
 
 		if (UpdateSnapshotAndSkipRemainingUpdate())
 		{
-			return false;
+			return;
 		}
 	}
 #endif
@@ -460,34 +460,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		SCOPE_CYCLE_COUNTER(STAT_BlueprintUpdateAnimation);
 		BlueprintUpdateAnimation(DeltaSeconds);
 	}
-	
-	// Determine whether or not the animation should be immediately updated according to current state
-	const bool bWantsImmediateUpdate = bNeedsValidRootMotion || NeedsImmediateUpdate(DeltaSeconds);
 
-	// Determine whether or not we can or should actually immediately update the animation state
-	bool bShouldImmediateUpdate = bWantsImmediateUpdate;
-	switch (UpdateFlag)
-	{
-		case EUpdateAnimationFlag::ForceImmediateUpdate:
-		{
-			bShouldImmediateUpdate = true;
-			break;
-		}
-		case EUpdateAnimationFlag::ForceParallelUpdate:
-		{
-			bShouldImmediateUpdate = false;
-			break;
-		}
-	}
-
-	if(bShouldImmediateUpdate)
+	if(bNeedsValidRootMotion || NeedsImmediateUpdate(DeltaSeconds))
 	{
 		// cant use parallel update, so just do the work here (we call this function here to do the work on the game thread)
 		ParallelUpdateAnimation();
 		PostUpdateAnimation();
 	}
-
-	return bWantsImmediateUpdate;
 }
 
 void UAnimInstance::PreUpdateAnimation(float DeltaSeconds)
@@ -742,7 +721,7 @@ void OutputCurveMap(TMap<FName, float>& CurveMap, UCanvas* Canvas, FDisplayDebug
 {
 	TArray<FName> Names;
 	CurveMap.GetKeys(Names);
-	Names.Sort(FNameLexicalLess());
+	Names.Sort();
 	for (FName CurveName : Names)
 	{
 		FString CurveEntry = FString::Printf(TEXT("%s: %.3f"), *CurveName.ToString(), CurveMap[CurveName]);
@@ -1217,7 +1196,7 @@ void UAnimInstance::UpdateCurvesToComponents(USkeletalMeshComponent* Component /
 		// this is only any thread because EndOfFrameUpdate update can restart render state
 		// and this needs to restart from worker thread
 		// EndOfFrameUpdate is done after all tick is updated, so in theory you shouldn't have 
-		FAnimInstanceProxy& Proxy = GetProxyOnGameThread<FAnimInstanceProxy>();
+		FAnimInstanceProxy& Proxy = GetProxyOnAnyThread<FAnimInstanceProxy>();
 		Component->ApplyAnimationCurvesToComponent(&Proxy.GetAnimationCurves(EAnimCurveType::MaterialCurve), &Proxy.GetAnimationCurves(EAnimCurveType::MorphTargetCurve));
 	}
 }
@@ -1599,7 +1578,7 @@ void UAnimInstance::TriggerMontageEndedEvent(const FQueuedMontageEndedEvent& Mon
 
 	if (SkelMeshComp != nullptr)
 	{
-		for (int32 Index = ActiveAnimNotifyState.Num() - 1; ActiveAnimNotifyState.IsValidIndex(Index); --Index)
+		for (int32 Index = ActiveAnimNotifyState.Num() - 1; Index >= 0; --Index)
 		{
 			const FAnimNotifyEvent& AnimNotifyEvent = ActiveAnimNotifyState[Index];
 			UAnimMontage* NotifyMontage = Cast<UAnimMontage>(AnimNotifyEvent.NotifyStateClass->GetOuter());
@@ -1610,19 +1589,7 @@ void UAnimInstance::TriggerMontageEndedEvent(const FQueuedMontageEndedEvent& Mon
 				{
 					AnimNotifyEvent.NotifyStateClass->NotifyEnd(SkelMeshComp, NotifyMontage);
 				}
-
-				if (ActiveAnimNotifyState.IsValidIndex(Index))
-				{
-					ActiveAnimNotifyState.RemoveAtSwap(Index);
-				}
-				else
-				{
-					// The NotifyEnd callback above may have triggered actor destruction and the tear down
-					// of this instance via UninitializeAnimation which empties ActiveAnimNotifyState.
-					// If that happened, we should stop iterating the ActiveAnimNotifyState array and bail 
-					// without attempting to send MontageEnded events.
-					return;
-				}
+				ActiveAnimNotifyState.RemoveAtSwap(Index);
 			}
 		}
 	}
@@ -2429,6 +2396,7 @@ void UAnimInstance::ClearMontageInstanceReferences(FAnimMontageInstance& InMonta
 
 FAnimNode_SubInput* UAnimInstance::GetSubInputNode(FName InSubInputName, FName InGraph)
 {
+	static const FName NAME_AnimGraph("AnimGraph");
 	const FAnimInstanceProxy& Proxy = GetProxyOnAnyThread<FAnimInstanceProxy>();
 	if(InSubInputName == NAME_None && InGraph == NAME_None)
 	{
@@ -2571,8 +2539,15 @@ void UAnimInstance::SetLayerOverlay(TSubclassOf<UAnimInstance> InClass)
 			{
 				// If the class is null, then reset to default (which can be null)
 				UClass* ClassToSet = NewClass != nullptr ? NewClass : LayerPair.Value[0]->InstanceClass.Get();
-				if(ClassToSet != nullptr && ClassToSet != GetClass())
+				if(ClassToSet != nullptr)
 				{
+					if(ClassToSet == GetClass())
+					{
+						// Cant instance a version of this class, otherwise we will end up in an infinite recursion
+						UE_LOG(LogAnimation, Error, TEXT("Setting layer overlay: Potential infinite recursion - cant set an overlay to the same class as its layer's host (%s)"), *ClassToSet->GetName())
+						break;
+					}
+
 					// Create and add one sub-instance for this group
 					USkeletalMeshComponent* MeshComp = GetSkelMeshComponent();
 					UAnimInstance* NewSubInstance = NewObject<UAnimInstance>(MeshComp, ClassToSet);
@@ -2585,13 +2560,10 @@ void UAnimInstance::SetLayerOverlay(TSubclassOf<UAnimInstance> InClass)
 					// Init after we link in the new graph segments, so propagation happens correctly
 					NewSubInstance->InitializeAnimation();
 
-					// Initialize the correct parts of the sub instance
-					for(FAnimNode_Layer* LayerNode : LayerPair.Value)
+					// Initialize the correct part of the sub instance
+					if(LayerPair.Value[0]->LinkedRoot)
 					{
-						if(LayerNode->LinkedRoot)
-						{
-							NewSubInstance->GetProxyOnAnyThread<FAnimInstanceProxy>().InitializeRootNode_WithRoot(LayerNode->LinkedRoot);
-						}
+						NewSubInstance->GetProxyOnAnyThread<FAnimInstanceProxy>().InitializeRootNode_WithRoot(LayerPair.Value[0]->LinkedRoot);
 					}
 
 					MeshComp->SubInstances.Add(NewSubInstance);

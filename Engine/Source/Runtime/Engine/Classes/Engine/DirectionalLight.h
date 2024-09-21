@@ -8,7 +8,6 @@
 #include "DirectionalLight.generated.h"
 
 class UArrowComponent;
-class UDirectionalLightComponent;
 
 /**
  * Implements a directional light actor.
@@ -24,10 +23,6 @@ class ADirectionalLight
 private:
 	UPROPERTY()
 	UArrowComponent* ArrowComponent;
-
-	/* EditorOnly reference to the light component to allow it to be displayed in the details panel correctly */
-	UPROPERTY(VisibleAnywhere, Category="Light")
-	UDirectionalLightComponent* DirectionalLightComponent;
 #endif
 
 public:

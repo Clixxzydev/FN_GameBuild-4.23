@@ -334,8 +334,9 @@ void FNvVideoEncoder::CopyBackBuffer(const FTexture2DRHIRef& SrcBackBuffer, cons
 	}
 	else // Texture format mismatch, use a shader to do the copy.
 	{
-		FRHIRenderPassInfo RPInfo(DstFrame.ResolvedBackBuffer, ERenderTargetActions::Load_Store);
-		RHICmdList.BeginRenderPass(RPInfo, TEXT("NvVideoEncoder"));
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		SetRenderTarget(RHICmdList, DstFrame.ResolvedBackBuffer, FTextureRHIRef());
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		RHICmdList.SetViewport(0, 0, 0.0f, DstFrame.ResolvedBackBuffer->GetSizeX(), DstFrame.ResolvedBackBuffer->GetSizeY(), 1.0f);
 	
 		FGraphicsPipelineStateInitializer GraphicsPSOInit;
@@ -356,13 +357,9 @@ void FNvVideoEncoder::CopyBackBuffer(const FTexture2DRHIRef& SrcBackBuffer, cons
 		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit);
 
 		if (DstFrame.ResolvedBackBuffer->GetSizeX() != SrcBackBuffer->GetSizeX() || DstFrame.ResolvedBackBuffer->GetSizeY() != SrcBackBuffer->GetSizeY())
-		{
 			PixelShader->SetParameters(RHICmdList, TStaticSamplerState<SF_Bilinear>::GetRHI(), SrcBackBuffer);
-		}
 		else
-		{
 			PixelShader->SetParameters(RHICmdList, TStaticSamplerState<SF_Point>::GetRHI(), SrcBackBuffer);
-		}
 	
 		RendererModule->DrawRectangle(
 			RHICmdList,
@@ -375,7 +372,6 @@ void FNvVideoEncoder::CopyBackBuffer(const FTexture2DRHIRef& SrcBackBuffer, cons
 			FIntPoint(1, 1),						// Source texture size
 			*VertexShader,
 			EDRF_Default);
-		RHICmdList.EndRenderPass();
 	}
 }
 

@@ -35,16 +35,6 @@ public:
 template < class T >
 class TThreadSingleton : public FTlsAutoCleanup
 {
-#if PLATFORM_UNIX || PLATFORM_APPLE
-	/**
-	 * @return TLS slot that holds a TThreadSingleton.
-	 */
-	CORE_API static uint32& GetTlsSlot()
-	{
-		static uint32 TlsSlot = 0xFFFFFFFF;
-		return TlsSlot;
-	}
-#else
 	/**
 	 * @return TLS slot that holds a TThreadSingleton.
 	 */
@@ -53,7 +43,6 @@ class TThreadSingleton : public FTlsAutoCleanup
 		static uint32 TlsSlot = 0xFFFFFFFF;
 		return TlsSlot;
 	}
-#endif
 
 protected:
 
@@ -91,3 +80,4 @@ public:
 		return (T*)FThreadSingletonInitializer::TryGet( T::GetTlsSlot() );
 	}
 };
+

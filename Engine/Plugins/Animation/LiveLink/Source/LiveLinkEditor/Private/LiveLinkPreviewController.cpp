@@ -1,18 +1,15 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "LiveLinkPreviewController.h"
-
-#include "Animation/DebugSkelMeshComponent.h"
-#include "CameraController.h"
 #include "ILiveLinkClient.h"
-#include "IPersonaPreviewScene.h"
+#include "LiveLinkTypes.h"
 #include "LiveLinkClientReference.h"
-#include "LiveLinkCustomVersion.h"
 #include "LiveLinkInstance.h"
 #include "LiveLinkRemapAsset.h"
-#include "Roles/LiveLinkAnimationRole.h"
-#include "Roles/LiveLinkTransformRole.h"
-#include "Roles/LiveLinkTransformTypes.h"
+
+#include "CameraController.h"
+#include "IPersonaPreviewScene.h"
+#include "Animation/DebugSkelMeshComponent.h"
 
 const FName EditorCamera(TEXT("EditorActiveCamera"));
 
@@ -33,38 +30,12 @@ public:
 	{
 		if (ILiveLinkClient* Client = ClientRef.GetClient())
 		{
-			TSubclassOf<ULiveLinkRole> SubjectRole = Client->GetSubjectRole(EditorCamera);
-			if (SubjectRole)
+			if (const FLiveLinkSubjectFrame* Frame = Client->GetSubjectData(EditorCamera))
 			{
-				//Old plugin will stream EditorCamera as AnimationRole through backward compatibility path. Otherwise, it should be of the Camera Role
-				FLiveLinkSubjectFrameData CurrentFrameData;
-				if (SubjectRole->IsChildOf(ULiveLinkAnimationRole::StaticClass()))
-				{
-					if (Client->EvaluateFrame_AnyThread(EditorCamera, ULiveLinkAnimationRole::StaticClass(), CurrentFrameData))
-					{
-						FLiveLinkAnimationFrameData* FrameData = CurrentFrameData.FrameData.Cast<FLiveLinkAnimationFrameData>();
-
-						if (FrameData->Transforms.Num() > 0)
-						{
-							FTransform Camera = FrameData->Transforms[0];
-							InOutCameraPosition = Camera.GetLocation();
-							InOutCameraEuler = Camera.GetRotation().Euler();
-							return;
-						}
-					}
-				}
-				else
-				{
-					if (Client->EvaluateFrame_AnyThread(EditorCamera, ULiveLinkTransformRole::StaticClass(), CurrentFrameData))
-					{
-						FLiveLinkTransformFrameData* FrameData = CurrentFrameData.FrameData.Cast<FLiveLinkTransformFrameData>();
-
-						FTransform Camera = FrameData->Transform;
-						InOutCameraPosition = Camera.GetLocation();
-						InOutCameraEuler = Camera.GetRotation().Euler();
-						return;
-					}
-				}
+				FTransform Camera = Frame->Transforms[0];
+				InOutCameraPosition = Camera.GetLocation();
+				InOutCameraEuler = Camera.GetRotation().Euler();
+				return;
 			}
 		}
 
@@ -80,7 +51,7 @@ void ULiveLinkPreviewController::InitializeView(UPersonaPreviewSceneDescription*
 
 	if (ULiveLinkInstance* LiveLinkInstance = Cast<ULiveLinkInstance>(PreviewScene->GetPreviewMeshComponent()->GetAnimInstance()))
 	{
-		LiveLinkInstance->SetSubject(LiveLinkSubjectName);
+		LiveLinkInstance->SetSubject(SubjectName);
 		LiveLinkInstance->SetRetargetAsset(RetargetAsset);
 	}
 	if (bEnableCameraSync)
@@ -93,25 +64,4 @@ void ULiveLinkPreviewController::UninitializeView(UPersonaPreviewSceneDescriptio
 {
 	PreviewScene->GetPreviewMeshComponent()->SetAnimInstanceClass(nullptr);
 	PreviewScene->SetCameraOverride(nullptr);
-}
-
-void ULiveLinkPreviewController::Serialize(FArchive& Ar)
-{
-	Super::Serialize(Ar);
-
-#if WITH_EDITORONLY_DATA
-	Ar.UsingCustomVersion(FLiveLinkCustomVersion::GUID);
-
-	if (Ar.IsLoading())
-	{
-		const int32 LiveLinkVersion = Ar.CustomVer(FLiveLinkCustomVersion::GUID);
-
-		if (LiveLinkVersion < FLiveLinkCustomVersion::NewLiveLinkRoleSystem)
-		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			LiveLinkSubjectName.Name = SubjectName_DEPRECATED;
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		}
-	}
-#endif //WITH_EDITORONLY_DATA
 }

@@ -12,6 +12,8 @@
  * an extra element or maintain explicit empty state.
  * Capacity most be power of two and it supports growing
  */
+class FDefaultAllocator;
+
 template<typename T, typename AllocatorT = FDefaultAllocator>
 class TResizableCircularQueue
 {
@@ -127,7 +129,7 @@ template<typename T, typename AllocatorT>
 void
 TResizableCircularQueue<T, AllocatorT>::Pop(SIZE_T PopCount)
 {
-	if (ensure(Count() >= PopCount))
+	if (ensure(Count() > PopCount))
 	{
 		PopNoCheck(PopCount);
 	}

@@ -145,20 +145,7 @@ OVRP_EXPORT ovrpResult ovrp_GetEyeFovLayerId(int* layerId);
 OVRP_EXPORT ovrpResult ovrp_GetLayerTextureStageCount(int layerId, int* layerTextureStageCount);
 
 /// Gets the texture handle for a specific layer stage and eye.
-OVRP_EXPORT ovrpResult ovrp_GetLayerTexture2(
-    int layerId,
-    int stage,
-    ovrpEye eyeId,
-    ovrpTextureHandle* textureHandle,
-    ovrpTextureHandle* depthTextureHandle);
-
-/// Gets the texture handle for a specific layer stage and eye.
-OVRP_EXPORT ovrpResult ovrp_GetLayerTextureFoveation(
-    int layerId,
-    int stage,
-    ovrpEye eyeId,
-    ovrpTextureHandle* foveationTextureHandle,
-    ovrpSizei* foveationResultSize);
+OVRP_EXPORT ovrpResult ovrp_GetLayerTexture2(int layerId, int stage, ovrpEye eyeId, ovrpTextureHandle* textureHandle, ovrpTextureHandle* depthTextureHandle);
 
 /// Gets the texture handle for a specific layer stage and eye.
 OVRP_EXPORT ovrpResult ovrp_GetLayerAndroidSurfaceObject(int layerId, void** surfaceObject);
@@ -484,6 +471,13 @@ ovrp_TestBoundaryNode2(ovrpNode node, ovrpBoundaryType boundaryType, ovrpBoundar
 OVRP_EXPORT ovrpResult
 ovrp_TestBoundaryPoint2(ovrpVector3f point, ovrpBoundaryType boundaryType, ovrpBoundaryTestResult* boundaryTestResult);
 
+/// Configures the boundary system's look and feel with the provided configuration data. May be
+/// overridden by user settings.
+OVRP_EXPORT ovrpResult ovrp_SetBoundaryLookAndFeel2(ovrpBoundaryLookAndFeel lookAndFeel);
+
+/// Resets the boundary system's look and feel to the initial system settings.
+OVRP_EXPORT ovrpResult ovrp_ResetBoundaryLookAndFeel2();
+
 /// Gets the geometry data for the specified boundary type.
 OVRP_EXPORT ovrpResult ovrp_GetBoundaryGeometry3(ovrpBoundaryType boundaryType, ovrpVector3f* points, int* pointsCount);
 
@@ -584,8 +578,6 @@ OVRP_EXPORT ovrpResult ovrp_GetTimeInSeconds(double* timeInSeconds);
 /// Return a parameter for PTW to compress depth value
 /// Intuitively, it means the closest depth we can save in alpha.
 OVRP_EXPORT ovrpResult ovrp_GetPTWNear(float* ptwNear);
-
-OVRP_EXPORT ovrpResult ovrp_GetPredictedDisplayTime(int frameIndex, double *predictedDisplayTime);
 
 #ifdef __cplusplus
 }

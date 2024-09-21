@@ -597,15 +597,8 @@ void FAnimationViewportClient::ShowBoneNames( FCanvas* Canvas, FSceneView* View 
 	const int32 LODIndex = FMath::Clamp(PreviewMeshComponent->PredictedLODLevel, 0, SkelMeshRenderData->LODRenderData.Num()-1);
 	FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData->LODRenderData[ LODIndex ];
 
-	// Check if our reference skeleton is out of synch with the one on the loddata
-	const FReferenceSkeleton& ReferenceSkeleton = PreviewMeshComponent->GetReferenceSkeleton();
-	if (ReferenceSkeleton.GetNum() < LODData.RequiredBones.Num())
-	{
-		return;
-	}
-
-	const int32 HalfX = Viewport->GetSizeXY().X/2 / GetDPIScale();
-	const int32 HalfY = Viewport->GetSizeXY().Y/2 / GetDPIScale();
+	const int32 HalfX = Viewport->GetSizeXY().X/2;
+	const int32 HalfY = Viewport->GetSizeXY().Y/2;
 
 	for (int32 i=0; i< LODData.RequiredBones.Num(); i++)
 	{
@@ -656,7 +649,7 @@ void FAnimationViewportClient::ShowBoneNames( FCanvas* Canvas, FSceneView* View 
 				const int32 XPos = HalfX + ( HalfX * proj.X );
 				const int32 YPos = HalfY + ( HalfY * (proj.Y * -1) );
 
-				const FName BoneName = ReferenceSkeleton.GetBoneName(BoneIndex);
+				const FName BoneName = PreviewMeshComponent->GetReferenceSkeleton().GetBoneName(BoneIndex);
 				const FString BoneString = FString::Printf( TEXT("%d: %s"), BoneIndex, *BoneName.ToString() );
 				FCanvasTextItem TextItem( FVector2D( XPos, YPos), FText::FromString( BoneString ), GEngine->GetSmallFont(), BoneColor );
 				TextItem.EnableShadow(FLinearColor::Black);
@@ -869,12 +862,11 @@ FText FAnimationViewportClient::GetDisplayInfo(bool bDisplayAllInfo) const
 				NumSectionsInUse
 				));
 
-			TArray<FTransform> LocalBoneTransforms = PreviewMeshComponent->GetBoneSpaceTransforms();
 			if (PreviewMeshComponent->BonesOfInterest.Num() > 0)
 			{
 				int32 BoneIndex = PreviewMeshComponent->BonesOfInterest[0];
 				FTransform ReferenceTransform = PreviewMeshComponent->GetReferenceSkeleton().GetRefBonePose()[BoneIndex];
-				FTransform LocalTransform = LocalBoneTransforms[BoneIndex];
+				FTransform LocalTransform = PreviewMeshComponent->BoneSpaceTransforms[BoneIndex];
 				FTransform ComponentTransform = PreviewMeshComponent->GetDrawTransform(BoneIndex);
 
 				TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("LocalTransform", "Local: {0}"), FText::FromString(LocalTransform.ToHumanReadableString())));

@@ -33,7 +33,7 @@ public:
 	void SetFromTrack(const FRecordedTransformTrack& InTrack);
 
 	/** Sets the geometry collection that this cache supports, empties the recorded data in this cache */
-	void SetSupportedCollection(const UGeometryCollection* InCollection);
+	void SetSupportedCollection(UGeometryCollection* InCollection);
 
 	/** UObject Interface */
 	virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
@@ -43,14 +43,10 @@ public:
 	const FRecordedTransformTrack* GetData() const { return &RecordedData; }
 
 	/** Given a collection, create an empty compatible cache for it */
-	static UGeometryCollectionCache* CreateCacheForCollection(const UGeometryCollection* InCollection);
+	static UGeometryCollectionCache* CreateCacheForCollection(UGeometryCollection* InCollection);
 
 	/** Get the GUID for the state of the supported collection when this cache was last recorded to. */
 	FGuid GetCompatibleStateGuid() const { return CompatibleCollectionState; }
-
-	/** Tests whether a cache is compatible with a provided collection */
-	bool CompatibleWithForRecord(const UGeometryCollection* InCollection);
-	bool CompatibleWithForPlayback(const UGeometryCollection* InCollection);
 
 private:
 
@@ -62,7 +58,7 @@ private:
 
 	/** The collection that we recorded the data from */
 	UPROPERTY()
-	const UGeometryCollection* SupportedCollection;
+	UGeometryCollection* SupportedCollection;
 
 	/** Guid pulled from the collection when the recording was last saved */
 	UPROPERTY()
@@ -79,5 +75,5 @@ class GEOMETRYCOLLECTIONENGINE_API ITargetCacheProvider : public IModularFeature
 {
 public:
 	static FName GetFeatureName() { return "GeometryCollectionTargetCacheProvider"; }
-	virtual UGeometryCollectionCache* GetCacheForCollection(const UGeometryCollection* InCollection) = 0;
+	virtual UGeometryCollectionCache* GetCacheForCollection(UGeometryCollection* InCollection) = 0;
 };

@@ -33,9 +33,9 @@ void UNiagaraStackInputCategory::ResetInputs()
 	Inputs.Empty();
 }
 
-void UNiagaraStackInputCategory::AddInput(FName InInputParameterHandle, FNiagaraTypeDefinition InInputType, EStackParameterBehavior InParameterBehavior, bool bIsVisible)
+void UNiagaraStackInputCategory::AddInput(FName InInputParameterHandle, FNiagaraTypeDefinition InInputType)
 {
-	Inputs.Add({ InInputParameterHandle, InInputType, InParameterBehavior, bIsVisible });
+	Inputs.Add({ InInputParameterHandle, InInputType });
 }
 
 void UNiagaraStackInputCategory::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
@@ -49,9 +49,9 @@ void UNiagaraStackInputCategory::RefreshChildrenInternal(const TArray<UNiagaraSt
 		{
 			InputChild = NewObject<UNiagaraStackFunctionInput>(this);
 			InputChild->Initialize(CreateDefaultChildRequiredData(), *ModuleNode, *InputFunctionCallNode,
-				Input.ParameterHandle, Input.Type, Input.ParameterBehavior, GetOwnerStackItemEditorDataKey());
+				Input.ParameterHandle, Input.Type, GetOwnerStackItemEditorDataKey());
 		}
-		InputChild->bIsVisible = Input.bIsVisible;
+
 		NewChildren.Add(InputChild);
 	}
 }
@@ -63,16 +63,7 @@ FText UNiagaraStackInputCategory::GetDisplayName() const
 
 bool UNiagaraStackInputCategory::GetShouldShowInStack() const
 {
-	bool bIsVisible = false;
-	for (FInputParameterHandleAndType Input : Inputs)
-	{
-		if (Input.bIsVisible)
-		{
-			bIsVisible = true;
-			break;
-		}
-	}
-	return bIsVisible && bShouldShowInStack;
+	return bShouldShowInStack;
 }
 
 UNiagaraStackEntry::EStackRowStyle UNiagaraStackInputCategory::GetStackRowStyle() const

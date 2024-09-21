@@ -39,11 +39,6 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Paths to all potential module source directories (with platform extension directories added in)
-		/// </summary>
-		protected DirectoryReference[] ModuleDirectories;
-
-		/// <summary>
 		/// The name of the .Build.cs file this module was created from, if any
 		/// </summary>
 		public FileReference RulesFile
@@ -65,11 +60,6 @@ namespace UnrealBuildTool
 		/// The name of the _API define for this module
 		/// </summary>
 		protected readonly string ModuleApiDefine;
-
-		/// <summary>
-		/// The name of the _VTABLE define for this module
-		/// </summary>
-		protected readonly string ModuleVTableDefine;
 
 		/// <summary>
 		/// Set of all the public definitions
@@ -170,7 +160,6 @@ namespace UnrealBuildTool
 			this.Rules = Rules;
 
 			ModuleApiDefine = Name.ToUpperInvariant() + "_API";
-			ModuleVTableDefine = Name.ToUpperInvariant() + "_VTABLE";
 
 			PublicDefinitions = HashSetFromOptionalEnumerableStringParameter(Rules.PublicDefinitions);
 			PublicIncludePaths = CreateDirectoryHashSet(Rules.PublicIncludePaths);
@@ -192,7 +181,7 @@ namespace UnrealBuildTool
 					}
 					else
 					{
-						Framework = new UEBuildFramework(FrameworkRules.Name, FileReference.Combine(ModuleDirectory, FrameworkRules.ZipPath), DirectoryReference.Combine(UnrealBuildTool.EngineDirectory, "Intermediate", "UnzippedFrameworks", FrameworkRules.Name, Path.GetFileNameWithoutExtension(FrameworkRules.ZipPath)), FrameworkRules.CopyBundledAssets);
+						Framework = new UEBuildFramework(FrameworkRules.Name, FileReference.Combine(ModuleDirectory, FrameworkRules.ZipPath), DirectoryReference.Combine(UnrealBuildTool.EngineDirectory, "Intermediate", "UnzippedFrameworks", Name, Path.GetFileNameWithoutExtension(FrameworkRules.ZipPath)), FrameworkRules.CopyBundledAssets);
 					}
 					PublicAdditionalFrameworks.Add(Framework);
 				}
@@ -211,17 +200,6 @@ namespace UnrealBuildTool
 			IsRedistributableOverride = Rules.IsRedistributableOverride;
 
 			WhitelistRestrictedFolders = new HashSet<DirectoryReference>(Rules.WhitelistRestrictedFolders.Select(x => DirectoryReference.Combine(ModuleDirectory, x)));
-
-			// merge the main directory and any others set in the Rules
-			List<DirectoryReference> MergedDirectories = new List<DirectoryReference> { ModuleDirectory };
-			DirectoryReference[] ExtraModuleDirectories = Rules.GetModuleDirectoriesForAllSubClasses();
-			if (ExtraModuleDirectories != null)
-			{
-				MergedDirectories.AddRange(ExtraModuleDirectories);
-			}
-
-			// cache the results (it will always at least have the ModuleDirectory)
-			ModuleDirectories = MergedDirectories.ToArray();
 		}
 
 		/// <summary>
@@ -274,7 +252,7 @@ namespace UnrealBuildTool
 				foreach(string InputString in InEnumerableStrings)
 				{
 					DirectoryReference Dir = new DirectoryReference(ExpandPathVariables(InputString, null, null));
-					if(DirectoryLookupCache.DirectoryExists(Dir))
+					if(DirectoryReference.Exists(Dir))
 					{
 						Directories.Add(Dir);
 					}
@@ -339,7 +317,6 @@ namespace UnrealBuildTool
 				{
 					// Find the base directory containing this reference
 					DirectoryReference BaseDir;
-					// @todo platplug does this need to check platform extension engine directories? what are ReferencedDir's here?
 					if(ReferencedDir.IsUnderDirectory(UnrealBuildTool.EngineDirectory))
 					{
 						BaseDir = UnrealBuildTool.EngineDirectory;
@@ -499,28 +476,23 @@ namespace UnrealBuildTool
 				{
 					if (Rules.Target.bShouldCompileAsDLL && (Rules.Target.bHasExports || Rules.ModuleSymbolVisibility == ModuleRules.SymbolVisibility.VisibileForDll))
 					{
-						Definitions.Add(ModuleVTableDefine + "=DLLEXPORT_VTABLE");
 						Definitions.Add(ModuleApiDefine + "=DLLEXPORT");
 					}
 					else
 					{
-						Definitions.Add(ModuleVTableDefine + "=");
 						Definitions.Add(ModuleApiDefine + "=");
 					}
 				}
 				else if(Binary == null || SourceBinary != Binary)
 				{
-					Definitions.Add(ModuleVTableDefine + "=DLLIMPORT_VTABLE");
 					Definitions.Add(ModuleApiDefine + "=DLLIMPORT");
 				}
 				else if(!Binary.bAllowExports)
 				{
-					Definitions.Add(ModuleVTableDefine + "=");
 					Definitions.Add(ModuleApiDefine + "=");
 				}
 				else
 				{
-					Definitions.Add(ModuleVTableDefine + "=DLLEXPORT_VTABLE");
 					Definitions.Add(ModuleApiDefine + "=DLLEXPORT");
 				}
 			}
@@ -748,9 +720,6 @@ namespace UnrealBuildTool
 
 			// Add all the additional properties
 			LinkEnvironment.AdditionalProperties.AddRange(Rules.AdditionalPropertiesForReceipt.Inner);
-
-			// this is a link-time property that needs to be accumulated (if any modules contributing to this module is ignoring, all are ignoring)
-			LinkEnvironment.bIgnoreUnresolvedSymbols |= Rules.bIgnoreUnresolvedSymbols;
 		}
 
 		/// <summary>

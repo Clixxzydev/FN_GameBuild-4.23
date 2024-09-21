@@ -319,16 +319,16 @@ FBlueprintNativeCodeGenPaths FBlueprintNativeCodeGenPaths::GetDefaultCodeGenPath
 	FString DefaultPluginPath = FPaths::Combine(*FPaths::ProjectIntermediateDir(), TEXT("Plugins"), *DefaultPluginName);
 	if (!PlatformName.IsNone())
 	{
-		for (const PlatformInfo::FPlatformInfo& PlatformInfo : PlatformInfo::GetPlatformInfoArray())
+		for (PlatformInfo::FPlatformEnumerator PlatformIt = PlatformInfo::EnumeratePlatformInfoArray(); PlatformIt; ++PlatformIt)
 		{
-			if (PlatformInfo.TargetPlatformName == PlatformName)
+			if (PlatformIt->TargetPlatformName == PlatformName)
 			{
 				static const FName UBTTargetId_Win32 = FName(TEXT("Win32"));
 				static const FName UBTTargetId_Win64 = FName(TEXT("Win64"));
 				static const FName UBTTargetId_Windows = FName(TEXT("Windows"));
 
-				const FName UBTTargetId = (PlatformInfo.UBTTargetId == UBTTargetId_Win32 || PlatformInfo.UBTTargetId == UBTTargetId_Win64) ? UBTTargetId_Windows : PlatformInfo.UBTTargetId;
-				DefaultPluginPath = FPaths::Combine(*DefaultPluginPath, *LexToString(UBTTargetId), *LexToString(PlatformInfo.PlatformType));
+				const FName UBTTargetId = (PlatformIt->UBTTargetId == UBTTargetId_Win32 || PlatformIt->UBTTargetId == UBTTargetId_Win64) ? UBTTargetId_Windows : PlatformIt->UBTTargetId;
+				DefaultPluginPath = FPaths::Combine(*DefaultPluginPath, *LexToString(UBTTargetId), *LexToString(PlatformIt->PlatformType));
 				break;
 			}
 		}

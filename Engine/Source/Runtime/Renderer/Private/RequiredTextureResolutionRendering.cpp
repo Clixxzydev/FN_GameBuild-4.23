@@ -40,25 +40,17 @@ void FRequiredTextureResolutionPS::GetDebugViewModeShaderBindings(
 			if (Expression && Expression->GetTextureIndex() == ViewModeParam)
 			{
 				const UTexture* Texture = nullptr;
-				Expression->GetTextureValue(MaterialContext, Material, Texture);
+				ESamplerSourceMode SourceMode;
+				Expression->GetTextureValue(MaterialContext, Material, Texture, SourceMode);
 				const UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
 				if (Texture2D && Texture2D->Resource)
 				{
-					if (!Texture2D->IsCurrentlyVirtualTextured())
+					FTexture2DResource* Texture2DResource = (FTexture2DResource*)Texture2D->Resource;
+					if (Texture2DResource->GetTexture2DRHI().IsValid())
 					{
-						FTexture2DResource* Texture2DResource = (FTexture2DResource*)Texture2D->Resource;
-						if (Texture2DResource->GetTexture2DRHI().IsValid())
-						{
-							TextureResolution = 1 << (Texture2DResource->GetTexture2DRHI()->GetNumMips() - 1);
-						}
-						break;
+						TextureResolution = 1 << (Texture2DResource->GetTexture2DRHI()->GetNumMips() - 1);
 					}
-					else
-					{
-						//FVirtualTexture2DResource* Texture2DResource = (FVirtualTexture2DResource*)Texture2D->Resource;
-						TextureResolution = FMath::Max(Texture2D->GetSizeX(), Texture2D->GetSizeY());
-						break;
-					}
+					break;
 				}
 			}
 		}
@@ -71,28 +63,20 @@ void FRequiredTextureResolutionPS::GetDebugViewModeShaderBindings(
 			if (Expression)
 			{
 				const UTexture* Texture = nullptr;
-				Expression->GetTextureValue(MaterialContext, Material, Texture);
+				ESamplerSourceMode SourceMode;
+				Expression->GetTextureValue(MaterialContext, Material, Texture, SourceMode);
 				if (Texture && Texture->GetFName() == ViewModeParamName)
 				{
 					const UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
 					if (Texture2D && Texture2D->Resource)
 					{
-						if (!Texture2D->IsCurrentlyVirtualTextured())
+						FTexture2DResource* Texture2DResource = (FTexture2DResource*)Texture2D->Resource;
+						if (Texture2DResource->GetTexture2DRHI().IsValid())
 						{
-							FTexture2DResource* Texture2DResource =  (FTexture2DResource*)Texture2D->Resource;
-							if (Texture2DResource->GetTexture2DRHI().IsValid())
-							{
-								AnalysisIndex = Expression->GetTextureIndex();
-								TextureResolution = 1 << (Texture2DResource->GetTexture2DRHI()->GetNumMips() - 1);
-							}
-							break;
+							AnalysisIndex = Expression->GetTextureIndex();
+							TextureResolution = 1 << (Texture2DResource->GetTexture2DRHI()->GetNumMips() - 1);
 						}
-						else
-						{
-							//FVirtualTexture2DResource* Texture2DResource = (FVirtualTexture2DResource*)Texture2D->Resource;
-							TextureResolution = FMath::Max(Texture2D->GetSizeX(), Texture2D->GetSizeY());
-							break;
-						}
+						break;
 					}
 				}
 			}

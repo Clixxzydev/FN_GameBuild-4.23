@@ -54,10 +54,9 @@ void SetupShadowDepthPassUniformBuffer(
 	FSceneRenderTargets& SceneRenderTargets = FSceneRenderTargets::Get(RHICmdList);
 	SetupSceneTextureUniformParameters(SceneRenderTargets, View.FeatureLevel, ESceneTextureSetupMode::None, ShadowDepthPassParameters.SceneTextures);
 
-	ShadowDepthPassParameters.ProjectionMatrix = FTranslationMatrix(ShadowInfo->PreShadowTranslation - View.ViewMatrices.GetPreViewTranslation()) * ShadowInfo->SubjectAndReceiverMatrix;	
-	ShadowDepthPassParameters.ViewMatrix = ShadowInfo->ShadowViewMatrix;
+	ShadowDepthPassParameters.ProjectionMatrix = FTranslationMatrix(ShadowInfo->PreShadowTranslation - View.ViewMatrices.GetPreViewTranslation()) * ShadowInfo->SubjectAndReceiverMatrix;
 
-	ShadowDepthPassParameters.ShadowParams = FVector4(ShadowInfo->GetShaderDepthBias(), ShadowInfo->GetShaderSlopeDepthBias(), ShadowInfo->GetShaderMaxSlopeDepthBias(), ShadowInfo->bOnePassPointLightShadow ? 1 : ShadowInfo->InvMaxSubjectDepth);
+	ShadowDepthPassParameters.ShadowParams = FVector2D(ShadowInfo->GetShaderDepthBias(), ShadowInfo->InvMaxSubjectDepth);
 	// Only clamp vertices to the near plane when rendering whole scene directional light shadow depths or preshadows from directional lights
 	const bool bClampToNearPlaneValue = ShadowInfo->IsWholeSceneDirectionalShadow() || (ShadowInfo->bPreShadow && ShadowInfo->bDirectionalLight);
 	ShadowDepthPassParameters.bClampToNearPlane = bClampToNearPlaneValue ? 1.0f : 0.0f;
@@ -71,7 +70,6 @@ void SetupShadowDepthPassUniformBuffer(
 			// Have to apply the pre-view translation to the view - projection matrices
 			FMatrix TranslatedShadowViewProjectionMatrix = Translation * ShadowInfo->OnePassShadowViewProjectionMatrices[FaceIndex];
 			ShadowDepthPassParameters.ShadowViewProjectionMatrices[FaceIndex] = TranslatedShadowViewProjectionMatrix;
-			ShadowDepthPassParameters.ShadowViewMatrices[FaceIndex] = ShadowInfo->OnePassShadowViewMatrices[FaceIndex];
 		}
 	}
 
@@ -101,9 +99,8 @@ void SetupShadowDepthPassUniformBuffer(
 	SetupMobileSceneTextureUniformParameters(SceneRenderTargets, View.FeatureLevel, false, ShadowDepthPassParameters.SceneTextures);
 
 	ShadowDepthPassParameters.ProjectionMatrix = FTranslationMatrix(ShadowInfo->PreShadowTranslation - View.ViewMatrices.GetPreViewTranslation()) * ShadowInfo->SubjectAndReceiverMatrix;
-	ShadowDepthPassParameters.ViewMatrix = ShadowInfo->ShadowViewMatrix;
 
-	ShadowDepthPassParameters.ShadowParams = FVector4(ShadowInfo->GetShaderDepthBias(), ShadowInfo->GetShaderSlopeDepthBias(), ShadowInfo->GetShaderMaxSlopeDepthBias(), ShadowInfo->InvMaxSubjectDepth);
+	ShadowDepthPassParameters.ShadowParams = FVector2D(ShadowInfo->GetShaderDepthBias(), ShadowInfo->InvMaxSubjectDepth);
 	// Only clamp vertices to the near plane when rendering whole scene directional light shadow depths or preshadows from directional lights
 	const bool bClampToNearPlaneValue = ShadowInfo->IsWholeSceneDirectionalShadow() || (ShadowInfo->bPreShadow && ShadowInfo->bDirectionalLight);
 	ShadowDepthPassParameters.bClampToNearPlane = bClampToNearPlaneValue ? 1.0f : 0.0f;
@@ -124,7 +121,7 @@ class FShadowDepthVS : public FMeshMaterialShader
 	DECLARE_SHADER_TYPE(FShadowDepthVS, MeshMaterial);
 public:
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
 		return false;
 	}
@@ -204,11 +201,8 @@ public:
 
 	TShadowDepthVS() {}
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
-		const EShaderPlatform Platform = Parameters.Platform;
-		const FMaterial* Material = Parameters.Material;
-
 		static const auto SupportAllShaderPermutationsVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SupportAllShaderPermutations"));
 		const bool bForceAllPermutations = SupportAllShaderPermutationsVar && SupportAllShaderPermutationsVar->GetValueOnAnyThread() != 0;
 		const bool bSupportPointLightWholeSceneShadows = CVarSupportPointLightWholeSceneShadows.GetValueOnAnyThread() != 0 || bForceAllPermutations;
@@ -237,8 +231,8 @@ public:
 				|| ((!Material->WritesEveryPixel(true) || Material->MaterialMayModifyMeshPosition()) && !bUsePositionOnlyStream))
 				// Only compile one pass point light shaders for feature levels >= SM4
 				&& (ShaderMode != VertexShadowDepth_OnePassPointLight || IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM4))
-				// Only compile position-only shaders for vertex factories that support it. (Note: this assumes that a vertex factor which supports PositionOnly, supports also PositionAndNormalOnly)
-				&& (!bUsePositionOnlyStream || Parameters.VertexFactoryType->SupportsPositionOnly())
+				// Only compile position-only shaders for vertex factories that support it.
+				&& (!bUsePositionOnlyStream || VertexFactoryType->SupportsPositionOnly())
 				// Don't render ShadowDepth for translucent unlit materials
 				&& Material->ShouldCastDynamicShadows()
 				// Only compile perspective correct light shaders for feature levels >= SM4
@@ -246,9 +240,9 @@ public:
 		}
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		FShadowDepthVS::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FShadowDepthVS::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("PERSPECTIVE_CORRECT_DEPTH"), (uint32)(ShaderMode == VertexShadowDepth_PerspectiveCorrect));
 		OutEnvironment.SetDefine(TEXT("ONEPASS_POINTLIGHT_SHADOW"), (uint32)(ShaderMode == VertexShadowDepth_OnePassPointLight));
 		OutEnvironment.SetDefine(TEXT("REFLECTIVE_SHADOW_MAP"), (uint32)bRenderReflectiveShadowMap);
@@ -278,18 +272,18 @@ public:
 
 	TShadowDepthHS() {}
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
 		// Re-use ShouldCache from vertex shader
-		return FBaseHS::ShouldCompilePermutation(Parameters)
-			&& TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ShouldCompilePermutation(Parameters);
+		return FBaseHS::ShouldCompilePermutation(Platform, Material, VertexFactoryType)
+			&& TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ShouldCompilePermutation(Platform, Material, VertexFactoryType);
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		// Re-use compilation env from vertex shader
 
-		TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 	}
 };
 
@@ -320,17 +314,17 @@ public:
 
 	TShadowDepthDS() {}
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
 		// Re-use ShouldCache from vertex shader
-		return FBaseDS::ShouldCompilePermutation(Parameters)
-			&& TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ShouldCompilePermutation(Parameters);
+		return FBaseDS::ShouldCompilePermutation(Platform, Material, VertexFactoryType)
+			&& TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ShouldCompilePermutation(Platform, Material, VertexFactoryType);
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		// Re-use compilation env from vertex shader
-		TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		TShadowDepthVS<ShaderMode, bRenderReflectiveShadowMap, false>::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 	}
 };
 
@@ -340,16 +334,15 @@ class FOnePassPointShadowDepthGS : public FMeshMaterialShader
 	DECLARE_SHADER_TYPE(FOnePassPointShadowDepthGS, MeshMaterial);
 public:
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
-		return RHISupportsGeometryShaders(Parameters.Platform) && TShadowDepthVS<VertexShadowDepth_OnePassPointLight, false, false, true>::ShouldCompilePermutation(Parameters);
+		return RHISupportsGeometryShaders(Platform) && TShadowDepthVS<VertexShadowDepth_OnePassPointLight, false, false, true>::ShouldCompilePermutation(Platform, Material, VertexFactoryType);
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		OutEnvironment.SetDefine(TEXT("ONEPASS_POINTLIGHT_SHADOW"), 1);
-		TShadowDepthVS<VertexShadowDepth_OnePassPointLight, false, false, true>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FMeshMaterialShader::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
+		TShadowDepthVS<VertexShadowDepth_OnePassPointLight, false, false, true>::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 	}
 
 	FOnePassPointShadowDepthGS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
@@ -464,11 +457,8 @@ class TShadowDepthPS : public TShadowDepthBasePS<bRenderReflectiveShadowMap>
 	DECLARE_SHADER_TYPE(TShadowDepthPS, MeshMaterial);
 public:
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
-		const EShaderPlatform Platform = Parameters.Platform;
-		const FMaterial* Material = Parameters.Material;
-
 		if (!IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM4))
 		{
 			return (Material->IsSpecialEngineMaterial()
@@ -509,9 +499,9 @@ public:
 		}
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	static void ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 	{
-		TShadowDepthBasePS<bRenderReflectiveShadowMap>::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		TShadowDepthBasePS<bRenderReflectiveShadowMap>::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("PERSPECTIVE_CORRECT_DEPTH"), (uint32)(ShaderMode == PixelShadowDepth_PerspectiveCorrect));
 		OutEnvironment.SetDefine(TEXT("ONEPASS_POINTLIGHT_SHADOW"), (uint32)(ShaderMode == PixelShadowDepth_OnePassPointLight));
 		OutEnvironment.SetDefine(TEXT("REFLECTIVE_SHADOW_MAP"), (uint32)bRenderReflectiveShadowMap);
@@ -712,7 +702,7 @@ static void CheckShadowDepthMaterials(const FMaterialRenderProxy* InRenderProxy,
 	check(Material == InMaterial);
 }
 
-void FProjectedShadowInfo::ClearDepth(FRHICommandList& RHICmdList, class FSceneRenderer* SceneRenderer, int32 NumColorTextures, FRHITexture** ColorTextures, FRHITexture* DepthTexture, bool bPerformClear)
+void FProjectedShadowInfo::ClearDepth(FRHICommandList& RHICmdList, class FSceneRenderer* SceneRenderer, int32 NumColorTextures, FTextureRHIParamRef* ColorTextures, FTextureRHIParamRef DepthTexture, bool bPerformClear)
 {
 	check(RHICmdList.IsInsideRenderPass());
 
@@ -1071,10 +1061,11 @@ void FProjectedShadowInfo::CopyCachedShadowMap(FRHICommandList& RHICmdList, cons
 	}
 }
 
-
-void FProjectedShadowInfo::SetupShadowUniformBuffers(FRHICommandListImmediate& RHICmdList, FScene* Scene)
+void FProjectedShadowInfo::RenderDepthInner(FRHICommandListImmediate& RHICmdList, FSceneRenderer* SceneRenderer, FBeginShadowRenderPassFunction BeginShadowRenderPass, bool bDoParallelDispatch)
 {
 	const ERHIFeatureLevel::Type FeatureLevel = ShadowDepthView->FeatureLevel;
+	FUniformBufferRHIParamRef PassUniformBuffer = nullptr;
+
 	if (FSceneInterface::GetShadingPath(FeatureLevel) == EShadingPath::Deferred)
 	{
 		FShadowDepthPassUniformParameters ShadowDepthPassParameters;
@@ -1083,32 +1074,14 @@ void FProjectedShadowInfo::SetupShadowUniformBuffers(FRHICommandListImmediate& R
 		if (IsWholeSceneDirectionalShadow() && !bReflectiveShadowmap)
 		{
 			check(GetShadowDepthType() == CSMShadowDepthType);
-			Scene->UniformBuffers.CSMShadowDepthPassUniformBuffer.UpdateUniformBufferImmediate(ShadowDepthPassParameters);
+			SceneRenderer->Scene->UniformBuffers.CSMShadowDepthPassUniformBuffer.UpdateUniformBufferImmediate(ShadowDepthPassParameters);
 		}
 
 		ShadowDepthPassUniformBuffer.UpdateUniformBufferImmediate(ShadowDepthPassParameters);
+		PassUniformBuffer = ShadowDepthPassUniformBuffer;
 
-		UploadDynamicPrimitiveShaderDataForView(RHICmdList, *Scene, *ShadowDepthView);
+		UploadDynamicPrimitiveShaderDataForView(RHICmdList, *SceneRenderer->Scene, *ShadowDepthView);
 	}
-}
-
-void FProjectedShadowInfo::TransitionCachedShadowmap(FRHICommandListImmediate& RHICmdList, FScene* Scene)
-{
-	if (CacheMode == SDCM_MovablePrimitivesOnly)
-	{
-		const FCachedShadowMapData& CachedShadowMapData = Scene->CachedShadowMaps.FindChecked(GetLightSceneInfo().Id);
-		if (CachedShadowMapData.bCachedShadowMapHasPrimitives && CachedShadowMapData.ShadowMap.IsValid())
-		{
-			RHICmdList.TransitionResource(EResourceTransitionAccess::EReadable, CachedShadowMapData.ShadowMap.DepthTarget->GetRenderTargetItem().ShaderResourceTexture);
-		}
-	}
-}
-
-
-void FProjectedShadowInfo::RenderDepthInner(FRHICommandListImmediate& RHICmdList, FSceneRenderer* SceneRenderer, FBeginShadowRenderPassFunction BeginShadowRenderPass, bool bDoParallelDispatch)
-{
-	const ERHIFeatureLevel::Type FeatureLevel = ShadowDepthView->FeatureLevel;
-	FRHIUniformBuffer* PassUniformBuffer = ShadowDepthPassUniformBuffer;
 
 	const bool bIsWholeSceneDirectionalShadow = IsWholeSceneDirectionalShadow();
 
@@ -1411,8 +1384,7 @@ void FSceneRenderer::RenderShadowDepthMapAtlases(FRHICommandListImmediate& RHICm
 						LightEvent,
 						*LightNameWithLevel);
 				}
-				ProjectedShadowInfo->SetupShadowUniformBuffers(RHICmdList, Scene);
-				ProjectedShadowInfo->TransitionCachedShadowmap(RHICmdList, Scene);
+
 				ProjectedShadowInfo->RenderDepth(RHICmdList, this, BeginShadowRenderPass, true);
 			}
 		}
@@ -1426,6 +1398,11 @@ void FSceneRenderer::RenderShadowDepthMapAtlases(FRHICommandListImmediate& RHICm
 
 		if (SerialShadowPasses.Num() > 0)
 		{
+			{
+				SCOPED_DRAW_EVENT(RHICmdList, SetShadowRTsAndClear);
+				BeginShadowRenderPass(RHICmdList, true);
+			}
+
 			for (int32 ShadowIndex = 0; ShadowIndex < SerialShadowPasses.Num(); ShadowIndex++)
 			{
 				FProjectedShadowInfo* ProjectedShadowInfo = SerialShadowPasses[ShadowIndex];
@@ -1448,12 +1425,9 @@ void FSceneRenderer::RenderShadowDepthMapAtlases(FRHICommandListImmediate& RHICm
 						*LightNameWithLevel);
 				}
 
-				ProjectedShadowInfo->SetupShadowUniformBuffers(RHICmdList, Scene);
-				ProjectedShadowInfo->TransitionCachedShadowmap(RHICmdList, Scene);
-				BeginShadowRenderPass(RHICmdList, ShadowIndex == 0);
 				ProjectedShadowInfo->RenderDepth(RHICmdList, this, BeginShadowRenderPass, false);
-				RHICmdList.EndRenderPass();
 			}
+			RHICmdList.EndRenderPass();
 		}
 
 		if (CurrentLightForDrawEvent)
@@ -1500,11 +1474,9 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 		GetLightNameForDrawEvent(ProjectedShadowInfo->GetLightSceneInfo().Proxy, LightNameWithLevel);
 		SCOPED_DRAW_EVENTF(RHICmdList, EventShadowDepths, TEXT("Cubemap %s %u^2"), *LightNameWithLevel, TargetSize.X, TargetSize.Y);
 
-		ProjectedShadowInfo->SetupShadowUniformBuffers(RHICmdList, Scene);
-
 		auto BeginShadowRenderPass = [this, &RenderTarget, &SceneContext](FRHICommandList& InRHICmdList, bool bPerformClear)
 		{
-			FRHITexture* DepthTarget = RenderTarget.TargetableTexture;
+			FTextureRHIParamRef DepthTarget = RenderTarget.TargetableTexture;
 			ERenderTargetLoadAction DepthLoadAction = bPerformClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad;
 
 			check(DepthTarget->GetDepthClearValue() == 1.0f);
@@ -1531,7 +1503,6 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 			{
 				// Skip the clear when we'll copy from a cached shadowmap
 				bDoClear = false;
-				ProjectedShadowInfo->TransitionCachedShadowmap(RHICmdList, Scene);
 			}
 
 			SCOPED_CONDITIONAL_DRAW_EVENT(RHICmdList, Clear, bDoClear);
@@ -1574,11 +1545,9 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 					GRHICommandList.UseParallelAlgorithms() && CVarParallelShadows.GetValueOnRenderThread() &&
 					(ProjectedShadowInfo->IsWholeSceneDirectionalShadow() || CVarParallelShadowsNonWholeScene.GetValueOnRenderThread());
 
-				ProjectedShadowInfo->SetupShadowUniformBuffers(RHICmdList, Scene);
-
 				auto BeginShadowRenderPass = [this, ProjectedShadowInfo](FRHICommandList& InRHICmdList, bool bPerformClear)
 				{
-					FRHITexture* PreShadowCacheDepthZ = Scene->PreShadowCacheDepthZ->GetRenderTargetItem().TargetableTexture.GetReference();
+					FTextureRHIParamRef PreShadowCacheDepthZ = Scene->PreShadowCacheDepthZ->GetRenderTargetItem().TargetableTexture.GetReference();
 					InRHICmdList.TransitionResources(EResourceTransitionAccess::EWritable, &PreShadowCacheDepthZ, 1);
 
 					FRHIRenderPassInfo RPInfo(PreShadowCacheDepthZ, EDepthStencilTargetActions::LoadDepthStencil_StoreDepthStencil, nullptr, FExclusiveDepthStencil::DepthWrite_StencilWrite);
@@ -1620,7 +1589,7 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 		FSceneRenderTargetItem ColorTarget0 = ShadowMapAtlas.RenderTargets.ColorTargets[0]->GetRenderTargetItem();
 		FSceneRenderTargetItem ColorTarget1 = ShadowMapAtlas.RenderTargets.ColorTargets[1]->GetRenderTargetItem();
 
-		FRHITexture* RenderTargetArray[2] =
+		FTextureRHIParamRef RenderTargetArray[2] =
 		{
 			ColorTarget0.TargetableTexture,
 			ColorTarget1.TargetableTexture
@@ -1684,16 +1653,14 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 			FSceneViewState* ViewState = (FSceneViewState*)ProjectedShadowInfo->DependentView->State;
 			FLightPropagationVolume* LightPropagationVolume = ViewState->GetLightPropagationVolume(FeatureLevel);
 
-			ProjectedShadowInfo->SetupShadowUniformBuffers(RHICmdList, Scene);
-
 			auto BeginShadowRenderPass = [this, LightPropagationVolume, ProjectedShadowInfo, &ColorTarget0, &ColorTarget1, &DepthTarget](FRHICommandList& InRHICmdList, bool bPerformClear)
 			{
-				FRHITexture* RenderTargets[2];
+				FTextureRHIParamRef RenderTargets[2];
 				RenderTargets[0] = ColorTarget0.TargetableTexture;
 				RenderTargets[1] = ColorTarget1.TargetableTexture;
 
 				// Hook up the geometry volume UAVs
-				FRHIUnorderedAccessView* Uavs[4];
+				FUnorderedAccessViewRHIParamRef Uavs[4];
 				Uavs[0] = LightPropagationVolume->GetGvListBufferUav();
 				Uavs[1] = LightPropagationVolume->GetGvListHeadBufferUav();
 				Uavs[2] = LightPropagationVolume->GetVplListBufferUav();
@@ -1741,7 +1708,7 @@ void FSceneRenderer::RenderShadowDepthMaps(FRHICommandListImmediate& RHICmdList)
 				RHICmdList.CopyToResolveTarget(ColorTarget0.TargetableTexture, ColorTarget0.ShaderResourceTexture, FResolveParams());
 				RHICmdList.CopyToResolveTarget(ColorTarget1.TargetableTexture, ColorTarget1.ShaderResourceTexture, FResolveParams());
 
-				FRHIUnorderedAccessView* UavsToReadable[2];
+				FUnorderedAccessViewRHIParamRef UavsToReadable[2];
 				UavsToReadable[0] = LightPropagationVolume->GetGvListBufferUav();
 				UavsToReadable[1] = LightPropagationVolume->GetGvListHeadBufferUav();
 				RHICmdList.TransitionResources(EResourceTransitionAccess::EReadable, EResourceTransitionPipeline::EGfxToGfx, UavsToReadable, ARRAY_COUNT(UavsToReadable));
@@ -1773,9 +1740,8 @@ void FShadowDepthPassMeshProcessor::Process(
 		TShadowDepthBasePS<bRenderReflectiveShadowMap>,
 		FOnePassPointShadowDepthGS> ShadowDepthPassShaders;
 
-	const bool bUsePositionOnlyVS = 
-		!bRenderReflectiveShadowMap
-		&& VertexFactory->SupportsPositionAndNormalOnlyStream()
+	const bool bUsePositionOnlyVS = !bRenderReflectiveShadowMap
+		&& VertexFactory->SupportsPositionOnlyStream()
 		&& MaterialResource.WritesEveryPixel(true)
 		&& !MaterialResource.MaterialModifiesMeshPosition_RenderThread();
 
@@ -1813,7 +1779,7 @@ void FShadowDepthPassMeshProcessor::Process(
 			MeshFillMode,
 			MeshCullMode,
 			SortKey,
-			bUsePositionOnlyVS ? EMeshPassFeatures::PositionAndNormalOnly : EMeshPassFeatures::Default,
+			bUsePositionOnlyVS ? EMeshPassFeatures::PositionOnly : EMeshPassFeatures::Default,
 			ShaderElementData);
 	}
 }
@@ -1877,7 +1843,7 @@ FShadowDepthPassMeshProcessor::FShadowDepthPassMeshProcessor(
 	const FScene* Scene,
 	const FSceneView* InViewIfDynamicMeshCommand,
 	const TUniformBufferRef<FViewUniformShaderParameters>& InViewUniformBuffer,
-	FRHIUniformBuffer* InPassUniformBuffer,
+	FUniformBufferRHIParamRef InPassUniformBuffer,
 	FShadowDepthType InShadowDepthType,
 	FMeshPassDrawListContext* InDrawListContext)
 	: FMeshPassProcessor(Scene, Scene->GetFeatureLevel(), InViewIfDynamicMeshCommand, InDrawListContext)
@@ -1891,7 +1857,7 @@ FShadowDepthType CSMShadowDepthType(true, false, false);
 
 FMeshPassProcessor* CreateCSMShadowDepthPassProcessor(const FScene* Scene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassDrawListContext* InDrawListContext)
 {
-	FRHIUniformBuffer* PassUniformBuffer = nullptr;
+	FUniformBufferRHIParamRef PassUniformBuffer = nullptr;
 
 	EShadingPath ShadingPath = Scene->GetShadingPath();
 	if (ShadingPath == EShadingPath::Mobile)

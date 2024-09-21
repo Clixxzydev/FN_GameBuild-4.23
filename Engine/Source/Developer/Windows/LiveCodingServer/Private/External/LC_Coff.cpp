@@ -7,7 +7,7 @@
 #include "LC_FileUtil.h"
 #include "LC_SymbolPatterns.h"
 #include "LC_Symbols.h"
-#include "LC_MemoryStream.h"
+#include "LC_MemoryBlock.h"
 #include "LC_UniqueId.h"
 #include "LC_Allocators.h"
 #include <algorithm>
@@ -631,7 +631,7 @@ namespace coff
 
 		// keeping the section data, relocations, and line numbers at the end of the file makes it easier to keep track
 		// of file offsets that are stored in the section headers.
-		memoryStream::Writer outputData(static_cast<size_t>(rawCoff->size));
+		MemoryBlock outputData(static_cast<size_t>(rawCoff->size));
 		CoffHeader coffHeader(rawCoff->header);
 
 		// careful: the number of sections is of type WORD, but DWORD in files compiled with /bigobj!
@@ -641,7 +641,7 @@ namespace coff
 		coffHeader.NumberOfSymbols = static_cast<DWORD>(rawCoff->symbols.size());
 		coffHeader.PointerToSymbolTable = static_cast<DWORD>(sizeof(CoffHeader) + rawCoff->sections.size() * sizeof(IMAGE_SECTION_HEADER));
 
-		outputData.Write(coffHeader);
+		outputData.Insert(coffHeader);
 		const size_t baseOffset =
 			sizeof(CoffHeader) +
 			rawCoff->sections.size() * sizeof(IMAGE_SECTION_HEADER) +
@@ -697,22 +697,22 @@ namespace coff
 			}
 			sectionHeader.NumberOfLinenumbers = static_cast<WORD>(section.lineNumbers.size());
 
-			outputData.Write(sectionHeader);
+			outputData.Insert(sectionHeader);
 		}
 
 		for (size_t i = 0u; i < rawCoff->symbols.size(); ++i)
 		{
-			outputData.Write(rawCoff->symbols[i]);
+			outputData.Insert(rawCoff->symbols[i]);
 		}
 
-		outputData.Write(rawCoff->rawStringTable.data, rawCoff->rawStringTable.size);
+		outputData.Insert(rawCoff->rawStringTable.data, rawCoff->rawStringTable.size);
 
 		for (size_t i = 0u; i < rawCoff->sections.size(); ++i)
 		{
 			const RawSection& section = rawCoff->sections[i];
 			if (section.header.PointerToRawData != 0u)
 			{
-				outputData.Write(section.data, section.header.SizeOfRawData);
+				outputData.Insert(section.data, section.header.SizeOfRawData);
 			}
 
 			const size_t relocationCount = section.relocations.size();
@@ -722,7 +722,7 @@ namespace coff
 				// the actual number of relocations.
 				IMAGE_RELOCATION dummyRelocation = {};
 				dummyRelocation.RelocCount = static_cast<DWORD>(relocationCount);
-				outputData.Write(dummyRelocation);
+				outputData.Insert(dummyRelocation);
 			}
 
 			if (removalStrategy == SymbolRemovalStrategy::Enum::MSVC_COMPATIBLE)
@@ -730,7 +730,7 @@ namespace coff
 				for (size_t j = 0u; j < relocationCount; ++j)
 				{
 					const IMAGE_RELOCATION& relocation = section.relocations[j];
-					outputData.Write(relocation);
+					outputData.Insert(relocation);
 				}
 			}
 			else if (removalStrategy == SymbolRemovalStrategy::Enum::LLD_COMPATIBLE)
@@ -756,13 +756,13 @@ namespace coff
 						}
 					}
 
-					outputData.Write(relocation);
+					outputData.Insert(relocation);
 				}
 			}
 
 			for (size_t j = 0u; j < section.lineNumbers.size(); ++j)
 			{
-				outputData.Write(section.lineNumbers[j]);
+				outputData.Insert(section.lineNumbers[j]);
 			}
 		}
 
@@ -1721,10 +1721,7 @@ namespace coff
 				};
 
 				ObjFile objFile = { objPath, &memoryFile };
-				// BEGIN EPIC MOD - 
-				uint32_t uniqueId = symbols::GetCompilandIdFromPath(string::ToWideString(objPath));
-				return GatherDatabase(&objFile, uniqueId, ReadFlags::NONE);
-				// END EPIC MOD
+				return GatherDatabase(&objFile, uniqueId::Generate(string::ToWideString(objPath)), ReadFlags::NONE);
 			}
 		}
 

@@ -17,7 +17,6 @@ public:
 	virtual bool IsEmpty() const override;
 	virtual void RemoveAllAnimationData() override;
 	virtual void RemoveSection(UMovieSceneSection& Section) override;
-	virtual void RemoveSectionAt(int32 SectionIndex) override;
 
 protected:
 	UPROPERTY()

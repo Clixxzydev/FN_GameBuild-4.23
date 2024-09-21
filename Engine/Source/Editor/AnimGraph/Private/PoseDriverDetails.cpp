@@ -360,7 +360,6 @@ TSharedRef< SWidget > SPDD_TargetRow::GenerateWidgetForColumn(const FName& Colum
 					+SWidgetSwitcher::Slot()
 					[
 						SNew(SVectorInputBox)
-						.AllowSpin(true)
 						.X(this, &SPDD_TargetRow::GetTranslation, BoneIndex, EAxis::X)
 						.OnXChanged(this, &SPDD_TargetRow::SetTranslation, BoneIndex, EAxis::X)
 						.Y(this, &SPDD_TargetRow::GetTranslation, BoneIndex, EAxis::Y)
@@ -1065,7 +1064,7 @@ void FPoseDriverDetails::UpdateDrivenNameOptions()
 				{
 					TArray<FName> NameArray;
 					Mapping->FillNameArray(NameArray);
-					NameArray.Sort(FNameLexicalLess());
+					NameArray.Sort();
 
 					for (FName CurveName : NameArray)
 					{

@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -112,11 +112,11 @@ namespace UnrealBuildTool
 			}
 			if(WhitelistPlatforms != null && WhitelistPlatforms.Length > 0)
 			{
-				Writer.WriteStringArrayField("WhitelistPlatforms", WhitelistPlatforms.Select(x => x.ToString()).ToArray());
+				Writer.WriteEnumArrayField("WhitelistPlatforms", WhitelistPlatforms);
 			}
 			if(BlacklistPlatforms != null && BlacklistPlatforms.Length > 0)
 			{
-				Writer.WriteStringArrayField("BlacklistPlatforms", BlacklistPlatforms.Select(x => x.ToString()).ToArray());
+				Writer.WriteEnumArrayField("BlacklistPlatforms", BlacklistPlatforms);
 			}
 			if (WhitelistTargetConfigurations != null && WhitelistTargetConfigurations.Length > 0)
 			{
@@ -136,7 +136,7 @@ namespace UnrealBuildTool
 			}
 			if(SupportedTargetPlatforms != null && SupportedTargetPlatforms.Length > 0)
 			{
-				Writer.WriteStringArrayField("SupportedTargetPlatforms", SupportedTargetPlatforms.Select(x => x.ToString()).ToArray());
+				Writer.WriteEnumArrayField("SupportedTargetPlatforms", SupportedTargetPlatforms);
 			}
 			Writer.WriteObjectEnd();
 		}
@@ -167,45 +167,17 @@ namespace UnrealBuildTool
 		/// <returns>New PluginReferenceDescriptor object</returns>
 		public static PluginReferenceDescriptor FromJsonObject(JsonObject RawObject)
 		{
-			string[] WhitelistPlatformNames;
-			string[] BlacklistPlatformNames;
-			string[] SupportedTargetPlatformNames;
-
 			PluginReferenceDescriptor Descriptor = new PluginReferenceDescriptor(RawObject.GetStringField("Name"), null, RawObject.GetBoolField("Enabled"));
 			RawObject.TryGetBoolField("Optional", out Descriptor.bOptional);
 			RawObject.TryGetStringField("Description", out Descriptor.Description);
 			RawObject.TryGetStringField("MarketplaceURL", out Descriptor.MarketplaceURL);
-			RawObject.TryGetStringArrayField("WhitelistPlatforms", out WhitelistPlatformNames);
-			RawObject.TryGetStringArrayField("BlacklistPlatforms", out BlacklistPlatformNames);
+			RawObject.TryGetEnumArrayField<UnrealTargetPlatform>("WhitelistPlatforms", out Descriptor.WhitelistPlatforms);
+			RawObject.TryGetEnumArrayField<UnrealTargetPlatform>("BlacklistPlatforms", out Descriptor.BlacklistPlatforms);
 			RawObject.TryGetEnumArrayField<UnrealTargetConfiguration>("WhitelistTargetConfigurations", out Descriptor.WhitelistTargetConfigurations);
 			RawObject.TryGetEnumArrayField<UnrealTargetConfiguration>("BlacklistTargetConfigurations", out Descriptor.BlacklistTargetConfigurations);
 			RawObject.TryGetEnumArrayField<TargetType>("WhitelistTargets", out Descriptor.WhitelistTargets);
 			RawObject.TryGetEnumArrayField<TargetType>("BlacklistTargets", out Descriptor.BlacklistTargets);
-			RawObject.TryGetStringArrayField("SupportedTargetPlatforms", out SupportedTargetPlatformNames);
-
-			try
-			{
-				// convert string array to UnrealTargetPlatform arrays
-				if (WhitelistPlatformNames != null)
-				{
-					Descriptor.WhitelistPlatforms = WhitelistPlatformNames.Select(x => UnrealTargetPlatform.Parse(x)).ToArray();
-				}
-				if (BlacklistPlatformNames != null)
-				{
-					Descriptor.BlacklistPlatforms = BlacklistPlatformNames.Select(x => UnrealTargetPlatform.Parse(x)).ToArray();
-				}
-				if (SupportedTargetPlatformNames != null)
-				{
-					Descriptor.SupportedTargetPlatforms = SupportedTargetPlatformNames.Select(x => UnrealTargetPlatform.Parse(x)).ToArray();
-				}
-			}
-			catch (BuildException Ex)
-			{
-				ExceptionUtils.AddContext(Ex, "while parsing PluginReferenceDescriptor {0}", Descriptor.Name);
-				throw;
-			}
-
-
+			RawObject.TryGetEnumArrayField<UnrealTargetPlatform>("SupportedTargetPlatforms", out Descriptor.SupportedTargetPlatforms);
 			return Descriptor;
 		}
 

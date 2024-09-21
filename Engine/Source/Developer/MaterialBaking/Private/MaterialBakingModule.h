@@ -53,10 +53,7 @@ private:
 	TArray<UTextureRenderTarget2D*> RenderTargetPool;
 
 	/** Pool of cached material proxies to optimize material baking workflow, stays resident when MaterialBaking.UseMaterialProxyCaching is set to 1 */
-	typedef TWeakObjectPtr<UMaterialInterface>				FMaterialPoolKey;
-	typedef TPair<EMaterialProperty, FExportMaterialProxy*> FMaterialPoolValue;
-	typedef TMultiMap<FMaterialPoolKey, FMaterialPoolValue, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<FMaterialPoolKey, FMaterialPoolValue, true /*bInAllowDuplicateKeys*/>> FMaterialPoolMap;
-	FMaterialPoolMap MaterialProxyPool;
+	TMap<TPair<UMaterialInterface*, EMaterialProperty>, FExportMaterialProxy*> MaterialProxyPool;
 
 	/** Pixel formats to use for baking out specific material properties */
 	EPixelFormat PerPropertyFormat[MP_MAX];

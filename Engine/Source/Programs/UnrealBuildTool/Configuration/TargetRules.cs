@@ -1,9 +1,13 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Reflection;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Tools.DotNETCommon;
 
 namespace UnrealBuildTool
@@ -72,6 +76,11 @@ namespace UnrealBuildTool
 	public enum TargetBuildEnvironment
 	{
 		/// <summary>
+		/// Use the default build environment for this target type (and whether the engine is installed)
+		/// </summary>
+		Default,
+
+		/// <summary>
 		/// Engine binaries and intermediates are output to the engine folder. Target-specific modifications to the engine build environment will be ignored.
 		/// </summary>
 		Shared,
@@ -91,17 +100,9 @@ namespace UnrealBuildTool
 	}
 
 	/// <summary>
-	/// Attribute used to mark configurable sub-objects
-	/// </summary>
-	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false)]
-	class ConfigSubObjectAttribute : Attribute
-	{
-	}
-
-	/// <summary>
 	/// TargetRules is a data structure that contains the rules for defining a target (application/executable)
 	/// </summary>
-	public abstract partial class TargetRules
+	public abstract class TargetRules
 	{
 		/// <summary>
 		/// Static class wrapping constants aliasing the global TargetType enum.
@@ -173,11 +174,6 @@ namespace UnrealBuildTool
 		/// The type of target.
 		/// </summary>
 		public global::UnrealBuildTool.TargetType Type = global::UnrealBuildTool.TargetType.Game;
-
-		/// <summary>
-		/// Tracks a list of config values read while constructing this target
-		/// </summary>
-		internal ConfigValueTracker ConfigValueTracker = new ConfigValueTracker();
 
 		/// <summary>
 		/// Whether the target uses Steam.
@@ -303,13 +299,13 @@ namespace UnrealBuildTool
 		/// Whether to enable the mesh editor.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		public bool bEnableMeshEditor = false;
+		public bool bEnableMeshEditor = false; // {Dev-Physics:false, Dev-Destruction:true}
 
 		/// <summary>
 		/// Whether to compile the Chaos physics plugin.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		public bool bCompileChaos = false;
+		public bool bCompileChaos = false; // {Dev-Physics:false, Dev-Destruction:true}
 
 		/// <summary>
 		/// Whether to use the Chaos physics interface. This overrides the physx flags to disable APEX and NvCloth
@@ -327,7 +323,7 @@ namespace UnrealBuildTool
 		/// Whether scene query acceleration is done by UE4. The physx scene query structure is still created, but we do not use it.
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		public bool bCustomSceneQueryStructure = false;
+		public bool bCustomSceneQueryStructure = false; // {Dev-Physics:false, Dev-Destruction:true}
 
 		/// <summary>
 		/// Whether to include PhysX support.
@@ -524,15 +520,9 @@ namespace UnrealBuildTool
 		[RequiresUniqueBuildEnvironment]
 		public bool bIncludePluginsForTargetPlatforms = false;
 
-		/// <summary>
-		/// Whether to allow accessibility code in both Slate and the OS layer.
-		/// </summary>
-		[RequiresUniqueBuildEnvironment]
-		public bool bCompileWithAccessibilitySupport = true;
-
-		/// <summary>
-		/// Whether to include PerfCounters support.
-		/// </summary>
+        /// <summary>
+        /// Whether to include PerfCounters support.
+        /// </summary>
 		[RequiresUniqueBuildEnvironment]
 		[ConfigFile(ConfigHierarchyType.Engine, "/Script/BuildSettings.BuildSettings", "bWithPerfCounters")]
         public bool bWithPerfCounters = false;
@@ -541,23 +531,11 @@ namespace UnrealBuildTool
 		/// Whether to enable support for live coding
 		/// </summary>
 		[RequiresUniqueBuildEnvironment]
-		public bool bWithLiveCoding
-		{
-			get { return bWithLiveCodingPrivate ?? (Platform == UnrealTargetPlatform.Win64 && Configuration != UnrealTargetConfiguration.Shipping && Type != TargetType.Program); }
-			set { bWithLiveCodingPrivate = value; }
-		}
-		bool? bWithLiveCodingPrivate;
+		public bool bWithLiveCoding = false;
 
-		/// <summary>
-		/// Whether to enable support for live coding
-		/// </summary>
-		[RequiresUniqueBuildEnvironment]
-		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bUseDebugLiveCodingConsole = false;
-
-		/// <summary>
-		/// Whether to turn on logging for test/shipping builds.
-		/// </summary>
+        /// <summary>
+        /// Whether to turn on logging for test/shipping builds.
+        /// </summary>
 		[RequiresUniqueBuildEnvironment]
         public bool bUseLoggingInShipping = false;
 
@@ -652,12 +630,6 @@ namespace UnrealBuildTool
 		/// True if this is a console application that's being built.
 		/// </summary>
 		public bool bIsBuildingConsoleApplication = false;
-
-		/// <summary>
-		/// If true, creates an additional console application. Hack for Windows, where it's not possible to conditionally inherit a parent's console Window depending on how
-		/// the application is invoked; you have to link the same executable with a different subsystem setting.
-		/// </summary>
-		public bool bBuildAdditionalConsoleApp = false;
 
 		/// <summary>
 		/// True if debug symbols that are cached for some platforms should not be created.
@@ -833,7 +805,6 @@ namespace UnrealBuildTool
 		/// Currently disabled by default because it tends to behave a bit buggy on some computers (PDB-related compile errors).
 		/// </summary>
 		[CommandLine("-IncrementalLinking")]
-		[CommandLine("-NoIncrementalLinking", Value = "false")]
 		[XmlConfigFile(Category = "BuildConfiguration")]
 		public bool bUseIncrementalLinking = false;
 
@@ -1002,18 +973,10 @@ namespace UnrealBuildTool
 		public bool bPrintToolChainTimingInfo = false;
 
 		/// <summary>
-		/// Whether to parse timing data into a tracing file compatible with chrome://tracing.
+		/// Whether to hide symbols by default on POSIX platforms
 		/// </summary>
-		[CommandLine("-Tracing")]
-		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bParseTimingInfoForTracing = false;
-
-		/// <summary>
-		/// Whether to expose all symbols as public by default on POSIX platforms
-		/// </summary>
-		[CommandLine("-PublicSymbolsByDefault")]
-		[XmlConfigFile(Category = "BuildConfiguration")]
-		public bool bPublicSymbolsByDefault = false;
+		[CommandLine("-HideSymbolsByDefault")]
+		public bool bHideSymbolsByDefault;
 
 		/// <summary>
 		/// Allows overriding the toolchain to be created for this target. This must match the name of a class declared in the UnrealBuildTool assembly.
@@ -1139,41 +1102,11 @@ namespace UnrealBuildTool
 		public List<FileReference> DependencyListFileNames = new List<FileReference>();
 
 		/// <summary>
-		/// Backing storage for the BuildEnvironment property
+		/// Specifies the build environment for this target. See TargetBuildEnvironment for more information on the available options.
 		/// </summary>
 		[CommandLine("-SharedBuildEnvironment", Value = "Shared")]
 		[CommandLine("-UniqueBuildEnvironment", Value = "Unique")]
-		private TargetBuildEnvironment? BuildEnvironmentOverride;
-
-		/// <summary>
-		/// Specifies the build environment for this target. See TargetBuildEnvironment for more information on the available options.
-		/// </summary>
-		public TargetBuildEnvironment BuildEnvironment
-		{
-			get
-			{
-				if(BuildEnvironmentOverride.HasValue)
-				{
-					return BuildEnvironmentOverride.Value;
-				}
-				if (Type == TargetType.Program && ProjectFile != null && File.IsUnderDirectory(ProjectFile.Directory))
-				{
-					return TargetBuildEnvironment.Unique;
-				}
-				else if (UnrealBuildTool.IsEngineInstalled() || LinkType != TargetLinkType.Monolithic)
-				{
-					return TargetBuildEnvironment.Shared;
-				}
-				else
-				{
-					return TargetBuildEnvironment.Unique;
-				}
-			}
-			set 
-			{ 
-				BuildEnvironmentOverride = value; 
-			}
-		}
+		public TargetBuildEnvironment BuildEnvironment = TargetBuildEnvironment.Default;
 
 		/// <summary>
 		/// Whether to ignore violations to the shared build environment (eg. editor targets modifying definitions)
@@ -1222,67 +1155,52 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Android-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public AndroidTargetRules AndroidPlatform = new AndroidTargetRules();
 
 		/// <summary>
 		/// HTML5-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public HTML5TargetRules HTML5Platform = new HTML5TargetRules();
 
 		/// <summary>
 		/// IOS-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public IOSTargetRules IOSPlatform = new IOSTargetRules();
 
 		/// <summary>
 		/// Lumin-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public LuminTargetRules LuminPlatform = new LuminTargetRules();
 
 		/// <summary>
 		/// Linux-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public LinuxTargetRules LinuxPlatform = new LinuxTargetRules();
 
 		/// <summary>
 		/// Mac-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public MacTargetRules MacPlatform = new MacTargetRules();
 
 		/// <summary>
 		/// PS4-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public PS4TargetRules PS4Platform = new PS4TargetRules();
 
 		/// <summary>
 		/// Switch-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public SwitchTargetRules SwitchPlatform = new SwitchTargetRules();
 
 		/// <summary>
 		/// Windows-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
-		public WindowsTargetRules WindowsPlatform; // Requires 'this' parameter; initialized in constructor
+		public WindowsTargetRules WindowsPlatform = new WindowsTargetRules();
 
 		/// <summary>
 		/// Xbox One-specific target settings.
 		/// </summary>
-		[ConfigSubObject]
 		public XboxOneTargetRules XboxOnePlatform = new XboxOneTargetRules();
-
-		/// <summary>
-		/// HoloLens-specific target settings.
-		/// </summary>
-		public HoloLensTargetRules HoloLensPlatform = new HoloLensTargetRules();
 
 		/// <summary>
 		/// Constructor.
@@ -1296,20 +1214,22 @@ namespace UnrealBuildTool
 			this.Architecture = Target.Architecture;
 			this.ProjectFile = Target.ProjectFile;
 			this.Version = Target.Version;
-			this.WindowsPlatform = new WindowsTargetRules(this);
 
 			// Read settings from config files
 			foreach(object ConfigurableObject in GetConfigurableObjects())
 			{
-				ConfigCache.ReadSettings(DirectoryReference.FromFile(ProjectFile), Platform, ConfigurableObject, ConfigValueTracker);
+				ConfigCache.ReadSettings(DirectoryReference.FromFile(ProjectFile), Platform, ConfigurableObject);
 				XmlConfig.ApplyTo(ConfigurableObject);
+			}
+
+			// Allow the build platform to set defaults for this target
+			if(Platform != UnrealTargetPlatform.Unknown)
+			{
+				UEBuildPlatform.GetBuildPlatform(Platform).ResetTarget(this);
 			}
 
 			// If we've got a changelist set, set that we're making a formal build
 			bFormalBuild = (Version.Changelist != 0 && Version.IsPromotedBuild);
-
-			// Allow the build platform to set defaults for this target
-			UEBuildPlatform.GetBuildPlatform(Platform).ResetTarget(this);
 
 			// Set the default build version
 			if(String.IsNullOrEmpty(BuildVersion))
@@ -1413,9 +1333,6 @@ namespace UnrealBuildTool
 
 				// Include all plugins
 				bIncludePluginsForTargetPlatforms = true;
-
-				// Create an additional console app for the editor
-				bBuildAdditionalConsoleApp = true;
 
 				// only have exports in modular builds
 				bHasExports = (LinkType == TargetLinkType.Modular);
@@ -1536,14 +1453,16 @@ namespace UnrealBuildTool
 		internal IEnumerable<object> GetConfigurableObjects()
 		{
 			yield return this;
-
-			foreach(FieldInfo Field in GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
-			{
-				if(Field.GetCustomAttribute<ConfigSubObjectAttribute>() != null)
-				{
-					yield return Field.GetValue(this);
-				}
-			}
+			yield return AndroidPlatform;
+			yield return HTML5Platform;
+			yield return IOSPlatform;
+			yield return LuminPlatform;
+			yield return LinuxPlatform;
+			yield return MacPlatform;
+			yield return PS4Platform;
+			yield return SwitchPlatform;
+			yield return WindowsPlatform;
+			yield return XboxOnePlatform;
 		}
 
 		/// <summary>
@@ -1599,7 +1518,6 @@ namespace UnrealBuildTool
 			SwitchPlatform = new ReadOnlySwitchTargetRules(Inner.SwitchPlatform);
 			WindowsPlatform = new ReadOnlyWindowsTargetRules(Inner.WindowsPlatform);
 			XboxOnePlatform = new ReadOnlyXboxOneTargetRules(Inner.XboxOnePlatform);
-			HoloLensPlatform = new ReadOnlyHoloLensTargetRules(Inner.HoloLensPlatform);
 		}
 
 		/// <summary>
@@ -1648,11 +1566,6 @@ namespace UnrealBuildTool
 		public TargetType Type
 		{
 			get { return Inner.Type; }
-		}
-
-		internal ConfigValueTracker ConfigValueTracker
-		{
-			get { return Inner.ConfigValueTracker; }
 		}
 
 		public bool bUsesSteam
@@ -1901,12 +1814,7 @@ namespace UnrealBuildTool
 			get { return Inner.bIncludePluginsForTargetPlatforms; }
 		}
 
-		public bool bCompileWithAccessibilitySupport
-		{
-			get { return Inner.bCompileWithAccessibilitySupport; }
-		}
-
-		public bool bWithPerfCounters
+        public bool bWithPerfCounters
 		{
 			get { return Inner.bWithPerfCounters; }
 		}
@@ -1916,12 +1824,7 @@ namespace UnrealBuildTool
 			get { return Inner.bWithLiveCoding; }
 		}
 
-		public bool bUseDebugLiveCodingConsole
-		{
-			get { return Inner.bUseDebugLiveCodingConsole; }
-		}
-
-		public bool bUseLoggingInShipping
+        public bool bUseLoggingInShipping
 		{
 			get { return Inner.bUseLoggingInShipping; }
 		}
@@ -2006,11 +1909,6 @@ namespace UnrealBuildTool
 			get { return Inner.bIsBuildingConsoleApplication; }
 		}
 
-		public bool bBuildAdditionalConsoleApp
-		{
-			get { return Inner.bBuildAdditionalConsoleApp; }
-		}
-		
 		public bool bDisableSymbolCache
 		{
 			get { return Inner.bDisableSymbolCache; }
@@ -2252,14 +2150,9 @@ namespace UnrealBuildTool
 			get { return Inner.bPrintToolChainTimingInfo; }
 		}
 
-		public bool bParseTimingInfoForTracing
+		public bool bHideSymbolsByDefault
 		{
-			get { return Inner.bParseTimingInfoForTracing; }
-		}
-
-		public bool bPublicSymbolsByDefault
-		{
-			get { return Inner.bPublicSymbolsByDefault; }
+			get { return Inner.bHideSymbolsByDefault; }
 		}
 
 		public string ToolChainName
@@ -2416,12 +2309,6 @@ namespace UnrealBuildTool
 		}
 
 		public ReadOnlyWindowsTargetRules WindowsPlatform
-		{
-			get;
-			private set;
-		}
-
-		public ReadOnlyHoloLensTargetRules HoloLensPlatform
 		{
 			get;
 			private set;

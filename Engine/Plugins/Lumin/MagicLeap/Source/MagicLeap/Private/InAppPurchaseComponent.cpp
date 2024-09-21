@@ -6,7 +6,7 @@
 #include "Modules/ModuleManager.h"
 #include "AppEventHandler.h"
 #if PLATFORM_LUMIN
-#include "Lumin/LuminPlatformAffinity.h"
+#include "Lumin/LuminAffinity.h"
 #endif // PLATFORM_LUMIN
 
 #if WITH_MLSDK

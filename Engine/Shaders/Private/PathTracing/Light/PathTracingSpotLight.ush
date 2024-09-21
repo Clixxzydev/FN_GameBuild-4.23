@@ -143,13 +143,10 @@ void SpotLight_EstimateLight(
 	{
 		float Falloff = NoL - CosConeAngle;
 		Falloff *= Falloff;
+		// #dxr_todo: change falloff to take distance^2
 		Falloff *= ComputeAttenuationFalloff(sqrt(LightDistanceSquared), GetAttenuation(LightId));
 		OutIrradiance = LightPower * Falloff / LightDistanceSquared;
-		// #dxr_todo: UE-72534 apply inner core
-	}
-	else
-	{
-		OutIrradiance = 0.0f;
+		// #dxr_todo: apply inner core
 	}
 }
 
@@ -174,7 +171,7 @@ void SpotLight_SampleLight(
 		float SinConeAngle = sqrtFast(1 - CosConeAngle * CosConeAngle);
 		OutLightUV = normalize(float3(SinConeAngle * DiskPosition, CosConeAngle));
 		float SphericalCapArea = 2.0 * PI * Radius * Radius * (1.0 - CosConeAngle);
-		// #dxr_todo: UE-72535 apply the correct Jacobian
+		// #dxr_todo: apply the correct Jacobian
 		OutPdf = 1.0 / SphericalCapArea;
 	}
 	else

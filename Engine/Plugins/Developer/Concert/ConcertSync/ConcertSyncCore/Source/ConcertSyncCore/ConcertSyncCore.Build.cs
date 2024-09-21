@@ -11,7 +11,7 @@ namespace UnrealBuildTool.Rules
 				{
 					"Core",
 					"CoreUObject",
-				}
+                }
 			);
 
 			PrivateDependencyModuleNames.AddRange(
@@ -19,7 +19,6 @@ namespace UnrealBuildTool.Rules
 				{
 					"Concert",
 					"ConcertTransport",
-					"SQLiteCore",
 				}
 			);
 
@@ -33,5 +32,5 @@ namespace UnrealBuildTool.Rules
 				);
 			}
 		}
-	}
+    }
 }

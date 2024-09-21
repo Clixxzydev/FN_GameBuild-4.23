@@ -69,7 +69,7 @@ void SetupFogUniformParameters(const FViewInfo& View, FFogUniformParameters& Out
 
 	// Volumetric Fog
 	{
-		FRHITexture* IntegratedLightScatteringTexture = nullptr;
+		FTextureRHIParamRef IntegratedLightScatteringTexture = nullptr;
 
 		if (View.VolumetricFogResources.IntegratedLightScattering)
 		{
@@ -335,13 +335,26 @@ void FSceneRenderer::InitFogConstants()
 
 				View.DirectionalInscatteringExponent = FogInfo.DirectionalInscatteringExponent;
 				View.DirectionalInscatteringStartDistance = FogInfo.DirectionalInscatteringStartDistance;
+				View.bUseDirectionalInscattering = false;
 				View.InscatteringLightDirection = FVector(0);
-				if (Scene->SunLight)
+
+				for (TSparseArray<FLightSceneInfoCompact>::TConstIterator It(Scene->Lights); It; ++It)
 				{
-					View.InscatteringLightDirection = -Scene->SunLight->Proxy->GetDirection();
-					View.DirectionalInscatteringColor = FogInfo.DirectionalInscatteringColor * Scene->SunLight->Proxy->GetColor().ComputeLuminance();
+					const FLightSceneInfoCompact& LightInfo = *It;
+
+					// This will find the first directional light that is set to be used as an atmospheric sun light of sufficient brightness.
+					// If you have more than one directional light with these properties then all subsequent lights will be ignored.
+					if (LightInfo.LightSceneInfo->Proxy->GetLightType() == LightType_Directional
+						&& LightInfo.LightSceneInfo->Proxy->IsUsedAsAtmosphereSunLight()
+						&& LightInfo.LightSceneInfo->Proxy->GetColor().ComputeLuminance() > KINDA_SMALL_NUMBER
+						&& FogInfo.DirectionalInscatteringColor.ComputeLuminance() > KINDA_SMALL_NUMBER)
+					{
+						View.InscatteringLightDirection = -LightInfo.LightSceneInfo->Proxy->GetDirection();
+						View.bUseDirectionalInscattering = true;
+						View.DirectionalInscatteringColor = FogInfo.DirectionalInscatteringColor * LightInfo.LightSceneInfo->Proxy->GetColor().ComputeLuminance();
+						break;
+					}
 				}
-				View.bUseDirectionalInscattering = Scene->SunLight!=nullptr;
 			}
 		}
 	}

@@ -127,7 +127,6 @@ void ASceneCaptureCube::OnInterpToggle(bool bEnable)
 USceneCaptureComponent::USceneCaptureComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer), ShowFlags(FEngineShowFlags(ESFIM_Game))
 {
-	CaptureSource = SCS_SceneColorHDR;
 	bCaptureEveryFrame = true;
 	bCaptureOnMovement = true;
 	bAlwaysPersistRenderingState = false;
@@ -438,10 +437,10 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.TickGroup = TG_DuringPhysics;
 	PrimaryComponentTick.bAllowTickOnDedicatedServer = false;
-
 	// Tick in the editor so that bCaptureEveryFrame preview works
 	bTickInEditor = true;
-
+	// previous behavior was to capture from raw scene color 
+	CaptureSource = SCS_SceneColorHDR;
 	// default to full blend weight..
 	PostProcessBlendWeight = 1.0f;
 	CaptureStereoPass = EStereoscopicPass::eSSP_FULL;
@@ -513,16 +512,6 @@ void USceneCaptureComponent2D::TickComponent(float DeltaTime, enum ELevelTick Ti
 	{
 		CaptureSceneDeferred();
 	}
-}
-
-void USceneCaptureComponent2D::SetCameraView(const FMinimalViewInfo& DesiredView)
-{
-	SetWorldLocation(DesiredView.Location);
-	SetWorldRotation(DesiredView.Rotation);
-
-	FOVAngle = DesiredView.FOV;
-	ProjectionType = DesiredView.ProjectionMode;
-	OrthoWidth = DesiredView.OrthoWidth;
 }
 
 void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& OutMinimalViewInfo)
@@ -965,7 +954,6 @@ USceneCaptureComponentCube::USceneCaptureComponentCube(const FObjectInitializer&
 	PrimaryComponentTick.bAllowTickOnDedicatedServer = false;
 	bTickInEditor = true;
 	IPD = 6.2f;
-	bCaptureRotation = false;
 
 #if WITH_EDITORONLY_DATA
 	if (!IsRunningCommandlet())
@@ -973,8 +961,6 @@ USceneCaptureComponentCube::USceneCaptureComponentCube(const FObjectInitializer&
 		static ConstructorHelpers::FObjectFinder<UStaticMesh> EditorMesh(TEXT("/Engine/EditorMeshes/MatineeCam_SM"));
 		CaptureMesh = EditorMesh.Object;
 	}
-
-	DrawFrustum = nullptr;
 #endif
 }
 

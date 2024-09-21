@@ -589,17 +589,6 @@ void USkeletalMeshComponent::OnUnregister()
 		ClothingSimulationContext = nullptr;
 	}
 
-	if (bDeferredKinematicUpdate != 0)
-	{
-		UWorld* World = GetWorld();
-		FPhysScene* PhysScene = World ? World->GetPhysicsScene() : nullptr;
-
-		if (PhysScene != nullptr)
-		{
-			PhysScene->ClearPreSimKinematicUpdate(this);
-		}
-	}
-
 	Super::OnUnregister();
 }
 
@@ -1011,31 +1000,15 @@ void USkeletalMeshComponent::TickAnimation(float DeltaTime, bool bNeedsValidRoot
 
 		// We update sub instances first incase we're using either root motion or non-threaded update.
 		// This ensures that we go through the pre update process and initialize the proxies correctly.
-
-		// Accumulate whether or not any of the sub-instances wanted to do an immediate Animation Update
-		bool bWantsImmediateUpdate = false;
 		for(UAnimInstance* SubInstance : SubInstances)
 		{
-			// Sub anim instances are always forced to do a parallel update 
-			bWantsImmediateUpdate |= SubInstance->UpdateAnimation(DeltaTime * GlobalAnimRateScale, false, UAnimInstance::EUpdateAnimationFlag::ForceParallelUpdate);
+			SubInstance->UpdateAnimation(DeltaTime * GlobalAnimRateScale, false);
 		}
 
 		if (AnimScriptInstance != nullptr)
 		{
-			// In case any of the sub-instances required an immediate animation update, make sure we immediately do so for the main anim instance
-			const UAnimInstance::EUpdateAnimationFlag UpdateFlag = bWantsImmediateUpdate ? UAnimInstance::EUpdateAnimationFlag::ForceImmediateUpdate : UAnimInstance::EUpdateAnimationFlag::Default;
-
 			// Tick the animation
-			bWantsImmediateUpdate |= AnimScriptInstance->UpdateAnimation(DeltaTime * GlobalAnimRateScale, bNeedsValidRootMotion, UpdateFlag);
-		}
-
-		// Make sure PostUpdateAnimation is called on the subinstances if they, or the main instance did an immediate Animation Update
-		if (bWantsImmediateUpdate)
-		{
-			for (UAnimInstance* SubInstance : SubInstances)
-			{
-				SubInstance->PostUpdateAnimation();
-			}
+			AnimScriptInstance->UpdateAnimation(DeltaTime * GlobalAnimRateScale, bNeedsValidRootMotion);
 		}
 
 		if(ShouldUpdatePostProcessInstance())
@@ -1497,11 +1470,6 @@ void USkeletalMeshComponent::RecalcRequiredCurves()
 		return;
 	}
 
-	if (SkeletalMesh->Skeleton)
-	{
-		CachedCurveUIDList = SkeletalMesh->Skeleton->GetDefaultCurveUIDList();
-	}
-
 	const FCurveEvaluationOption CurveEvalOption(bAllowAnimCurveEvaluation, &DisallowedAnimCurves, PredictedLODLevel);
 
 	// make sure animation requiredcurve to mark as dirty
@@ -1627,7 +1595,7 @@ void USkeletalMeshComponent::ComputeRequiredBones(TArray<FBoneIndexType>& OutReq
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (SkeletalMesh->SkelMirrorTable.Num() > 0 &&
 		SkeletalMesh->SkelMirrorTable.Num() == BoneSpaceTransforms.Num())
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	{
 		TArray<FBoneIndexType> MirroredDesiredBones;
 		MirroredDesiredBones.AddUninitialized(RequiredBones.Num());
@@ -1703,9 +1671,11 @@ void USkeletalMeshComponent::RecalcRequiredBones(int32 LODIndex)
 	}
 
 	ComputeRequiredBones(RequiredBones, FillComponentSpaceTransformsRequiredBones, LODIndex, /*bIgnorePhysicsAsset=*/ false);
+
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	BoneSpaceTransforms = SkeletalMesh->RefSkeleton.GetRefBonePose();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// make sure animation requiredBone to mark as dirty
 	if (AnimScriptInstance)
 	{
@@ -1764,7 +1734,11 @@ void USkeletalMeshComponent::EvaluateAnimation(const USkeletalMesh* InSkeletalMe
 	}
 	else
 	{
-		OutCurve.InitFrom(&CachedCurveUIDList);
+		// unfortunately it's possible they might not have skeleton, in that case, we don't have any place to copy the curve from
+		if (InSkeletalMesh->Skeleton)
+		{
+			OutCurve.InitFrom(&InSkeletalMesh->Skeleton->GetDefaultCurveUIDList());
+		}
 	}
 }
 
@@ -2016,7 +1990,7 @@ void USkeletalMeshComponent::RefreshBoneTransforms(FActorComponentTickFunction* 
 									 || (BoneSpaceTransforms.Num() != CachedBoneSpaceTransforms.Num())
 									 || (GetNumComponentSpaceTransforms() != CachedComponentSpaceTransforms.Num()));
 
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	TArray<uint16> const* CurrentAnimCurveUIDFinder = (AnimScriptInstance) ? &AnimScriptInstance->GetRequiredBones().GetUIDToArrayLookupTable() : nullptr;
 	const bool bAnimInstanceHasCurveUIDList = CurrentAnimCurveUIDFinder != nullptr;
@@ -2146,7 +2120,7 @@ void USkeletalMeshComponent::RefreshBoneTransforms(FActorComponentTickFunction* 
 					PRAGMA_DISABLE_DEPRECATION_WARNINGS
 					BoneSpaceTransforms.Reset();
 					BoneSpaceTransforms.Append(CachedBoneSpaceTransforms);
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
 				}
 				if(CachedComponentSpaceTransforms.Num())
 				{
@@ -2187,7 +2161,7 @@ void USkeletalMeshComponent::SwapEvaluationContextBuffers()
 	Exchange(AnimEvaluationContext.CachedComponentSpaceTransforms, CachedComponentSpaceTransforms);
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Exchange(AnimEvaluationContext.BoneSpaceTransforms, BoneSpaceTransforms);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Exchange(AnimEvaluationContext.CachedBoneSpaceTransforms, CachedBoneSpaceTransforms);
 	Exchange(AnimEvaluationContext.Curve, AnimCurves);
 	Exchange(AnimEvaluationContext.CachedCurve, CachedCurve);
@@ -2325,7 +2299,7 @@ void USkeletalMeshComponent::PostAnimEvaluation(FAnimationEvaluationContext& Eva
 			CachedBoneSpaceTransforms.Reset();
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			CachedBoneSpaceTransforms.Append(BoneSpaceTransforms);
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		}
 
 		if (EvaluationContext.bDoInterpolation)
@@ -2362,7 +2336,8 @@ void USkeletalMeshComponent::PostAnimEvaluation(FAnimationEvaluationContext& Eva
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FAnimationRuntime::LerpBoneTransforms(BoneSpaceTransforms, CachedBoneSpaceTransforms, Alpha, RequiredBones);
 			FillComponentSpaceTransforms(SkeletalMesh, BoneSpaceTransforms, GetEditableComponentSpaceTransforms());
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 			// interpolate curve
 			AnimCurves.LerpTo(CachedCurve, Alpha);
 		}
@@ -2640,23 +2615,24 @@ bool USkeletalMeshComponent::AllocateTransformData()
 		{
 			BoneSpaceTransforms = SkeletalMesh->RefSkeleton.GetRefBonePose();
 		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		
 		return true;
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	BoneSpaceTransforms.Empty();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return false;
 }
 
 void USkeletalMeshComponent::DeallocateTransformData()
 {
-	Super::DeallocateTransformData();
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	Super::DeallocateTransformData();
 	BoneSpaceTransforms.Empty();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 }
 
 void USkeletalMeshComponent::SetForceRefPose(bool bNewForceRefPose)
@@ -4010,4 +3986,5 @@ TArray<FTransform> USkeletalMeshComponent::GetBoneSpaceTransforms()
 	return BoneSpaceTransforms;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
+
 #undef LOCTEXT_NAMESPACE

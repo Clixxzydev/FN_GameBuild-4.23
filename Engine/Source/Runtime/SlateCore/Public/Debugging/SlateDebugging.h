@@ -56,17 +56,6 @@ enum class ESlateDebuggingStateChangeEvent : uint8
 	MouseCaptureLost,
 };
 
-UENUM()
-enum class ESlateDebuggingNavigationMethod : uint8
-{
-	Unknown,
-	Explicit,
-	CustomDelegateBound,
-	CustomDelegateUnbound,
-	NextOrPrevious,
-	HitTestGrid
-};
-
 struct SLATECORE_API FSlateDebuggingInputEventArgs
 {
 public:
@@ -113,20 +102,13 @@ public:
 		const FNavigationEvent& InNavigationEvent,
 		const FNavigationReply& InNavigationReply,
 		const FWidgetPath& InNavigationSource,
-		const TSharedPtr<SWidget>& InDestinationWidget,
-		const ESlateDebuggingNavigationMethod InNavigationMethod
+		const TSharedPtr<SWidget>& InDestinationWidget
 	);
 
 	const FNavigationEvent& NavigationEvent;
 	const FNavigationReply& NavigationReply;
 	const FWidgetPath& NavigationSource;
 	const TSharedPtr<SWidget>& DestinationWidget;
-	const ESlateDebuggingNavigationMethod NavigationMethod;
-};
-
-struct SLATECORE_API FSlateDebuggingExecuteNavigationEventArgs
-{
-public:
 };
 
 struct SLATECORE_API FSlateDebuggingWarningEventArgs
@@ -216,16 +198,10 @@ public:
 
 public:
 	/**  */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FWidgetAttemptNavigationEvent, const FSlateDebuggingNavigationEventArgs& /*EventArgs*/);
-	static FWidgetAttemptNavigationEvent AttemptNavigationEvent;
+	DECLARE_MULTICAST_DELEGATE_OneParam(FWidgetNavigationEvent, const FSlateDebuggingNavigationEventArgs& /*EventArgs*/);
+	static FWidgetNavigationEvent NavigationEvent;
 
-	static void BroadcastAttemptNavigation(const FNavigationEvent& InNavigationEvent, const FNavigationReply& InNavigationReply, const FWidgetPath& InNavigationSource, const TSharedPtr<SWidget>& InDestinationWidget, ESlateDebuggingNavigationMethod InNavigationMethod);
-
-	/**  */
-	DECLARE_MULTICAST_DELEGATE_OneParam(FWidgetExecuteNavigationEvent, const FSlateDebuggingExecuteNavigationEventArgs& /*EventArgs*/);
-	static FWidgetExecuteNavigationEvent ExecuteNavigationEvent;
-
-	static void BroadcastExecuteNavigation();
+	static void BroadcastAttemptNavigation(const FNavigationEvent& InNavigationEvent, const FNavigationReply& InNavigationReply, const FWidgetPath& InNavigationSource, const TSharedPtr<SWidget>& InDestinationWidget);
 
 public:
 	/**  */

@@ -3,7 +3,7 @@
 #include "Config/Parser/DisplayClusterConfigParserText.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
-#include "DisplayClusterLog.h"
+#include "Misc/DisplayClusterLog.h"
 #include "DisplayClusterStrings.h"
 
 
@@ -67,10 +67,6 @@ void FDisplayClusterConfigParserText::ParseLine(const FString& line)
 	{
 		AddViewport(impl_parse<FDisplayClusterConfigViewport>(line));
 	}
-	else if (line.StartsWith(FString(DisplayClusterStrings::cfg::data::postprocess::Header)))
-	{
-		AddPostprocess(impl_parse<FDisplayClusterConfigPostprocess>(line));
-	}
 	else if (line.StartsWith(FString(DisplayClusterStrings::cfg::data::camera::Header)))
 	{
 		AddCamera(impl_parse<FDisplayClusterConfigCamera>(line));
@@ -110,10 +106,6 @@ void FDisplayClusterConfigParserText::ParseLine(const FString& line)
 	else if (line.StartsWith(FString(DisplayClusterStrings::cfg::data::custom::Header)))
 	{
 		AddCustom(impl_parse<FDisplayClusterConfigCustom>(line));
-	}
-	else if (line.StartsWith(FString(DisplayClusterStrings::cfg::data::projection::Header)))
-	{
-		AddProjection(impl_parse<FDisplayClusterConfigProjection>(line));
 	}
 	else
 	{

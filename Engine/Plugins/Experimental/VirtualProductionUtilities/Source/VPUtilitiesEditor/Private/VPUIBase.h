@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "EditorUtilityWidget.h"
+#include "Blueprint/UserWidget.h"
 #include "Delegates/IDelegateInstance.h"
 
 #include "VPUIBase.generated.h"
@@ -11,11 +11,10 @@
 
 class AActor;
 class UVPBookmark;
-class UWorld;
 
 
 UCLASS()
-class UVPUIBase : public UEditorUtilityWidget
+class UVPUIBase : public UUserWidget
 {
 	GENERATED_BODY()
 
@@ -52,9 +51,6 @@ protected:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Virtual Production")
 	void OnBookmarkCleared(UVPBookmark* Cleared);
 
-	UFUNCTION(BlueprintImplementableEvent, Category = "Virtual Production")
-	void OnMapChanged();
-
 	/* State changes */
 
 	/** UI subscribes to this to know when the property window for SelectedActor should be refreshed */
@@ -74,8 +70,6 @@ private:
 
 	void CVarSinkHandler();
 	
-	void OnEditorMapChanged(uint32);
-	void OnWorldCleanupEvent(UWorld*, bool, bool);
 	void OnEditorSelectionChanged(UObject* NewSelection);
 	void OnEditorSelectNone();
 	void GetSelectedActor();

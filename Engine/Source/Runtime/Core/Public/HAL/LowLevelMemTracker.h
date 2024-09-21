@@ -13,13 +13,15 @@
 	#define DECLARE_LLM_MEMORY_STAT_EXTERN(CounterName,StatId,GroupId, API)
 #else
 
+	#define LLM_SUPPORTED_PLATFORM (PLATFORM_XBOXONE || PLATFORM_PS4 || PLATFORM_WINDOWS || PLATFORM_IOS || PLATFORM_MAC || PLATFORM_ANDROID || PLATFORM_SWITCH || PLATFORM_UNIX)
+
 #ifndef ALLOW_LOW_LEVEL_MEM_TRACKER_IN_TEST
-	#define ALLOW_LOW_LEVEL_MEM_TRACKER_IN_TEST 0
+#define ALLOW_LOW_LEVEL_MEM_TRACKER_IN_TEST 0
 #endif
 
 	// *** enable/disable LLM here ***
 #ifndef ENABLE_LOW_LEVEL_MEM_TRACKER
-	#define ENABLE_LOW_LEVEL_MEM_TRACKER (!UE_BUILD_SHIPPING && (!UE_BUILD_TEST || ALLOW_LOW_LEVEL_MEM_TRACKER_IN_TEST) && PLATFORM_SUPPORTS_LLM && WITH_ENGINE && 1)
+	#define ENABLE_LOW_LEVEL_MEM_TRACKER (!UE_BUILD_SHIPPING && (!UE_BUILD_TEST || ALLOW_LOW_LEVEL_MEM_TRACKER_IN_TEST) && LLM_SUPPORTED_PLATFORM && WITH_ENGINE && 1)
 #endif
 
 	// using asset tagging requires a significantly higher number of per-thread tags, so make it optional
@@ -287,8 +289,8 @@ extern FName LLMGetTagStat(ELLMTag Tag);
  /**
  * LLM Pause scope macros
  */
-#define LLM_SCOPED_PAUSE_TRACKING(AllocType) FLLMPauseScope SCOPE_NAME(ELLMTag::Untagged, 0, ELLMTracker::Max, AllocType);
-#define LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(Tracker, AllocType) FLLMPauseScope SCOPE_NAME(ELLMTag::Untagged, 0, Tracker, AllocType);
+#define LLM_SCOPED_PAUSE_TRACKING(AllocType) FLLMPauseScope SCOPE_NAME(NAME_None, 0, ELLMTracker::Max, AllocType);
+#define LLM_SCOPED_PAUSE_TRACKING_FOR_TRACKER(Tracker, AllocType) FLLMPauseScope SCOPE_NAME(NAME_None, 0, Tracker, AllocType);
 #define LLM_SCOPED_PAUSE_TRACKING_WITH_ENUM_AND_AMOUNT(Tag, Amount, Tracker, AllocType) FLLMPauseScope SCOPE_NAME(Tag, Amount, Tracker, AllocType);
 
 /**

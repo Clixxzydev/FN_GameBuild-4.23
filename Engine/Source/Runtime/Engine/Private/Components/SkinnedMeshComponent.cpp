@@ -586,9 +586,9 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent()
 				const bool bMorphTargetsAllowed = CVarEnableMorphTargets.GetValueOnAnyThread(true) != 0;
 
 				// Are morph targets disabled for this LOD?
-				if (bDisableMorphTarget || !bMorphTargetsAllowed)
+				if (!bDisableMorphTarget && bMorphTargetsAllowed)
 				{
-					ActiveMorphTargets.Empty();
+					RefreshMorphTargets();
 				}
 
 				MeshObject->Update(PredictedLODLevel, this, ActiveMorphTargets, MorphTargetWeights, EPreviousBoneTransformUpdateMode::UpdatePrevious);  // send to rendering thread
@@ -603,6 +603,10 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent()
 void USkinnedMeshComponent::DestroyRenderState_Concurrent()
 {
 	Super::DestroyRenderState_Concurrent();
+
+	// clear morphtarget array info while rendering state is destroyed
+	ActiveMorphTargets.Empty();
+	MorphTargetWeights.Empty();
 
 	if(MeshObject)
 	{
@@ -681,15 +685,6 @@ void USkinnedMeshComponent::ClearMotionVector()
 
 		++CurrentBoneTransformRevisionNumber;
 		MeshObject->Update(UseLOD, this, ActiveMorphTargets, MorphTargetWeights, EPreviousBoneTransformUpdateMode::None);  // send to rendering thread
-	}
-}
-
-void USkinnedMeshComponent::ForceMotionVector()
-{
-	if (MeshObject)
-	{
-		++CurrentBoneTransformRevisionNumber;
-		MeshObject->Update(PredictedLODLevel, this, ActiveMorphTargets, MorphTargetWeights, EPreviousBoneTransformUpdateMode::None);
 	}
 }
 
@@ -939,12 +934,7 @@ void USkinnedMeshComponent::RebuildVisibilityArray()
 
 		// The following code relies on a complete hierarchy sorted from parent to children
 		TArray<uint8>& EditableBoneVisibilityStates = GetEditableBoneVisibilityStates();
-		if (EditableBoneVisibilityStates.Num() != SkeletalMesh->RefSkeleton.GetNum())
-		{
-			UE_LOG(LogSkinnedMeshComp, Warning, TEXT("RebuildVisibilityArray() failed because EditableBoneVisibilityStates size: %d not equal to RefSkeleton bone count: %d."), EditableBoneVisibilityStates.Num(), SkeletalMesh->RefSkeleton.GetNum());
-			return;
-		}
-
+		check(EditableBoneVisibilityStates.Num() == SkeletalMesh->RefSkeleton.GetNum());
 		for (int32 BoneId=0; BoneId < EditableBoneVisibilityStates.Num(); ++BoneId)
 		{
 			uint8 VisState = EditableBoneVisibilityStates[BoneId];
@@ -1943,15 +1933,12 @@ void USkinnedMeshComponent::AddSocketOverride(FName SourceSocketName, FName Over
 {
 	if (FName* FoundName = SocketOverrideLookup.Find(SourceSocketName))
 	{
-		if (*FoundName != OverrideSocketName)
+		if (bWarnHasOverrided)
 		{
-			if (bWarnHasOverrided)
-			{
-				UE_LOG(LogSkinnedMeshComp, Warning, TEXT("AddSocketOverride(%s, %s): Component(%s) Actor(%s) has already defined an override for socket(%s), replacing %s as override"),
-					*SourceSocketName.ToString(), *OverrideSocketName.ToString(), *GetName(), *GetNameSafe(GetOuter()), *SourceSocketName.ToString(), *(FoundName->ToString()));
-			}
-			*FoundName = OverrideSocketName;
+			UE_LOG(LogSkinnedMeshComp, Warning, TEXT("AddSocketOverride(%s, %s): Component(%s) Actor(%s) has already defined an override for socket(%s), replacing %s as override"),
+				*SourceSocketName.ToString(), *OverrideSocketName.ToString(), *GetName(), *GetNameSafe(GetOuter()), *SourceSocketName.ToString(), *(FoundName->ToString()));
 		}
+		*FoundName = OverrideSocketName;
 	}
 	else
 	{
@@ -2150,7 +2137,7 @@ void USkinnedMeshComponent::QuerySupportedSockets(TArray<FComponentSocketDescrip
 	}
 }
 
-bool USkinnedMeshComponent::UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps, bool bDoNotifies, const TOverlapArrayView* OverlapsAtEndLocation)
+bool USkinnedMeshComponent::UpdateOverlapsImpl(TArray<FOverlapInfo> const* PendingOverlaps, bool bDoNotifies, const TArray<FOverlapInfo>* OverlapsAtEndLocation)
 {
 	// we don't support overlap test on destructible or physics asset
 	// so use SceneComponent::UpdateOverlaps to handle children

@@ -184,7 +184,7 @@ void FShaderParametersMetadata::InitializeLayout()
 				}
 			}
 
-			const bool bTypeCanBeArray = (bAllowResourceArrays && (bIsRHIResource || bIsRDGResource)) || bIsVariableNativeType || BaseType == UBMT_NESTED_STRUCT;
+			const bool bTypeCanBeArray = (bAllowResourceArrays && (bIsRHIResource || bIsRDGResource)) || bIsVariableNativeType;
 			if (bIsArray && !bTypeCanBeArray)
 			{
 				UE_LOG(LogRendererCore, Fatal, TEXT("Shader parameter %s error: Not allowed to be an array."), *CppName);
@@ -203,37 +203,31 @@ void FShaderParametersMetadata::InitializeLayout()
 
 		if (ChildStruct && BaseType != UBMT_REFERENCED_STRUCT)
 		{
-			for (uint32 ArrayElementId = 0; ArrayElementId < (bIsArray ? ArraySize : 1u); ArrayElementId++)
-			{
-				int32 AbsoluteStructOffset = CurrentMember.GetOffset() + MemberStack[i].StructOffset + ArrayElementId * ChildStruct->GetSize();
+			int32 AbsoluteStructOffset = CurrentMember.GetOffset() + MemberStack[i].StructOffset;
 
-				for (int32 StructMemberIndex = 0; StructMemberIndex < ChildStruct->Members.Num(); StructMemberIndex++)
-				{
-					const FMember& StructMember = ChildStruct->Members[StructMemberIndex];
-					MemberStack.Insert(FUniformBufferMemberAndOffset(*ChildStruct, StructMember, AbsoluteStructOffset), i + 1 + StructMemberIndex);
-				}
+			for (int32 StructMemberIndex = 0; StructMemberIndex < ChildStruct->Members.Num(); StructMemberIndex++)
+			{
+				const FMember& StructMember = ChildStruct->Members[StructMemberIndex];
+				MemberStack.Insert(FUniformBufferMemberAndOffset(*ChildStruct, StructMember, AbsoluteStructOffset), i + 1 + StructMemberIndex);
 			}
 		}
 	} // for (int32 i = 0; i < MemberStack.Num(); ++i)
 
+#if 0
+	/** Sort the resource on MemberType first to avoid CPU miss predictions when iterating over the resources. Then based on ascending offset
+	 * to still allow O(N) complexity on offset cross referencing such as done in ClearUnusedGraphResourcesImpl().
+	 */
 	Layout.Resources.Sort([](
 		const FRHIUniformBufferLayout::FResourceParameter& A,
 		const FRHIUniformBufferLayout::FResourceParameter& B)
 	{
-#if 0 // TODO(RDG)
-		/** Sort the resource on MemberType first to avoid CPU miss predictions when iterating over the resources. Then based on ascending offset
-		 * to still allow O(N) complexity on offset cross referencing such as done in ClearUnusedGraphResourcesImpl().
-		 */
 		if (A.MemberType == B.MemberType)
 		{
 			return A.MemberOffset < B.MemberOffset;
 		}
 		return A.MemberType < B.MemberType;
-#else
-		// Sorts the resource based on MemberOffset to allow O(N) complexity on offset cross referencing such as done in ClearUnusedGraphResourcesImpl().
-		return A.MemberOffset < B.MemberOffset;
-#endif
 	});
+#endif
 
 	Layout.ComputeHash();
 
@@ -269,8 +263,6 @@ void FShaderParametersMetadata::AddResourceTableEntriesRecursive(const TCHAR* Un
 	for (int32 MemberIndex = 0; MemberIndex < Members.Num(); ++MemberIndex)
 	{
 		const FMember& Member = Members[MemberIndex];
-		uint32 NumElements = Member.GetNumElements();
-
 		if (IsShaderParameterTypeForUniformBufferLayout(Member.GetBaseType()))
 		{
 			FResourceTableEntry& Entry = ResourceTableMap.FindOrAdd(FString::Printf(TEXT("%s%s"), Prefix, Member.GetName()));
@@ -281,25 +273,15 @@ void FShaderParametersMetadata::AddResourceTableEntriesRecursive(const TCHAR* Un
 				Entry.ResourceIndex = ResourceIndex++;
 			}
 		}
-		else if (Member.GetBaseType() == UBMT_NESTED_STRUCT && NumElements == 0)
+		else if (Member.GetBaseType() == UBMT_NESTED_STRUCT)
 		{
 			check(Member.GetStructMetadata());
 			FString MemberPrefix = FString::Printf(TEXT("%s%s_"), Prefix, Member.GetName());
 			Member.GetStructMetadata()->AddResourceTableEntriesRecursive(UniformBufferName, *MemberPrefix, ResourceIndex, ResourceTableMap);
 		}
-		else if (Member.GetBaseType() == UBMT_NESTED_STRUCT && NumElements > 0)
-		{
-			for (uint32 ArrayElementId = 0; ArrayElementId < NumElements; ArrayElementId++)
-			{
-				check(Member.GetStructMetadata());
-				FString MemberPrefix = FString::Printf(TEXT("%s%s_%u_"), Prefix, Member.GetName(), ArrayElementId);
-				Member.GetStructMetadata()->AddResourceTableEntriesRecursive(UniformBufferName, *MemberPrefix, ResourceIndex, ResourceTableMap);
-			}
-		}
 		else if (Member.GetBaseType() == UBMT_INCLUDED_STRUCT)
 		{
 			check(Member.GetStructMetadata());
-			check(NumElements == 0);
 			Member.GetStructMetadata()->AddResourceTableEntriesRecursive(UniformBufferName, Prefix, ResourceIndex, ResourceTableMap);
 		}
 	}
@@ -312,12 +294,10 @@ void FShaderParametersMetadata::FindMemberFromOffset(uint16 MemberOffset, const 
 	for (const FMember& Member : Members)
 	{
 		EUniformBufferBaseType BaseType = Member.GetBaseType();
-		uint32 NumElements = Member.GetNumElements();
-
-		if ((BaseType == UBMT_NESTED_STRUCT && NumElements == 0) || BaseType == UBMT_INCLUDED_STRUCT)
+		if (BaseType == UBMT_NESTED_STRUCT || BaseType == UBMT_INCLUDED_STRUCT)
 		{
 			const FShaderParametersMetadata* SubStruct = Member.GetStructMetadata();
-			if (MemberOffset < (Member.GetOffset() + SubStruct->GetSize()))
+			if (MemberOffset < Member.GetOffset() + SubStruct->GetSize())
 			{
 				if (NamePrefix)
 				{
@@ -327,38 +307,14 @@ void FShaderParametersMetadata::FindMemberFromOffset(uint16 MemberOffset, const 
 				return SubStruct->FindMemberFromOffset(MemberOffset - Member.GetOffset(), OutContainingStruct, OutMember, ArrayElementId, NamePrefix);
 			}
 		}
-		else if (BaseType == UBMT_NESTED_STRUCT && NumElements > 0)
-		{
-			const FShaderParametersMetadata* SubStruct = Member.GetStructMetadata();
-			uint32 StructSize = SubStruct->GetSize();
-			
-			uint16 ArrayStartOffset = Member.GetOffset();
-			uint16 ArrayEndOffset = ArrayStartOffset + SubStruct->GetSize() * NumElements;
-			
-			if (MemberOffset >= ArrayStartOffset && MemberOffset < ArrayEndOffset)
-			{
-				uint32 MemberOffsetInArray = MemberOffset - ArrayStartOffset;
-				check((MemberOffsetInArray % StructSize) == 0);
-
-				uint32 MemberPosInStructArray = MemberOffsetInArray / StructSize;
-				uint32 MemberOffsetInStructElement = MemberOffsetInArray - MemberPosInStructArray * StructSize;
-
-				if (NamePrefix)
-				{
-					*NamePrefix = FString::Printf(TEXT("%s%s[%u]::"), **NamePrefix, Member.GetName(), MemberPosInStructArray);
-				}
-
-				return SubStruct->FindMemberFromOffset(MemberOffsetInStructElement, OutContainingStruct, OutMember, ArrayElementId, NamePrefix);
-			}
-		}
-		else if (NumElements > 0 && (
+		else if (Member.GetNumElements() > 0 && (
 			BaseType == UBMT_TEXTURE ||
 			BaseType == UBMT_SRV ||
 			BaseType == UBMT_SAMPLER ||
 			IsRDGResourceReferenceShaderParameterType(BaseType)))
 		{
 			uint16 ArrayStartOffset = Member.GetOffset();
-			uint16 ArrayEndOffset = ArrayStartOffset + SHADER_PARAMETER_POINTER_ALIGNMENT * NumElements;
+			uint16 ArrayEndOffset = ArrayStartOffset + SHADER_PARAMETER_POINTER_ALIGNMENT * Member.GetNumElements();
 
 			if (MemberOffset >= ArrayStartOffset && MemberOffset < ArrayEndOffset)
 			{

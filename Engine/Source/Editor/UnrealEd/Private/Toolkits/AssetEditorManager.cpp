@@ -137,10 +137,6 @@ void FAssetEditorManager::AddReferencedObjects( FReferenceCollector& Collector )
 	}
 }
 
-FString FAssetEditorManager::GetReferencerName() const
-{
-	return TEXT("FAssetEditorManager");
-}
 
 IAssetEditorInstance* FAssetEditorManager::FindEditorForAsset(UObject* Asset, bool bFocusIfOpen)
 {
@@ -327,7 +323,7 @@ bool FAssetEditorManager::OpenEditorForAsset(UObject* Asset, const EToolkitMode:
 	{
 		if (Package->bIsCookedForEditor)
 		{
-			return false;
+			//return false;
 		}
 	}
 	
@@ -776,14 +772,14 @@ void FAssetEditorManager::HandlePackageReloaded(const EPackageReloadPhase InPack
 	if (InPackageReloadPhase == EPackageReloadPhase::PrePackageFixup)
 	{
 		/** Call close for all old assets even if not open, so global callback will go off */
-		TArray<UObject*> ObjectsToClose;
+		TArray<UObject*> OldAssets;
 		const TMap<UObject*, UObject*>& RepointedMap = InPackageReloadedEvent->GetRepointedObjects();
 
 		for (const TPair<UObject*, UObject*> RepointPair : RepointedMap)
 		{
 			if (RepointPair.Key->IsAsset())
 			{
-				ObjectsToClose.Add(RepointPair.Key);
+				OldAssets.Add(RepointPair.Key);
 			}
 		}
 
@@ -797,13 +793,11 @@ void FAssetEditorManager::HandlePackageReloaded(const EPackageReloadPhase InPack
 				{
 					PendingAssetsToOpen.AddUnique(NewAsset);
 				}
-
-				ObjectsToClose.AddUnique(AssetEditorPair.Key);
 			}
 		}
 
 		int32 NumAssetEditorsClosed = 0;
-		for (UObject* OldAsset : ObjectsToClose)
+		for (UObject* OldAsset : OldAssets)
 		{
 			NumAssetEditorsClosed += CloseAllEditorsForAsset(OldAsset);
 		}

@@ -6,6 +6,26 @@
 #include "CoreGlobals.h"
 
 
+/** Get the target setting name for each platform type. */
+FORCEINLINE const TCHAR* GetPluginConfigName(EAudioPlugin PluginType)
+{
+	switch (PluginType)
+	{
+		case EAudioPlugin::SPATIALIZATION:
+			return TEXT("SpatializationPlugin");
+
+		case EAudioPlugin::REVERB:
+			return TEXT("ReverbPlugin");
+
+		case EAudioPlugin::OCCLUSION:
+			return TEXT("OcclusionPlugin");
+
+		default:
+			checkf(false, TEXT("Undefined audio plugin type."));
+			return TEXT("");
+	}
+}
+
 /************************************************************************/
 /* Plugin Utilities                                                     */
 /************************************************************************/
@@ -76,9 +96,6 @@ const TCHAR* AudioPluginUtilities::GetPlatformConfigSection(EAudioPlatform Audio
 			return *LuminConfig;
 		}
 
-		case EAudioPlatform::HoloLens:
-			return TEXT("/Script/HoloLensRuntimeSettings.HoloLensRuntimeSettings");
-
 		case EAudioPlatform::Unknown:
 		{
 			return *UnknownConfig;
@@ -92,29 +109,6 @@ const TCHAR* AudioPluginUtilities::GetPlatformConfigSection(EAudioPlatform Audio
 	}
 
 	return *UnknownConfig;
-}
-
-/** Get the target setting name for each platform type. */
-FORCEINLINE const TCHAR* GetPluginConfigName(EAudioPlugin PluginType)
-{
-	switch (PluginType)
-	{
-		case EAudioPlugin::SPATIALIZATION:
-			return TEXT("SpatializationPlugin");
-
-		case EAudioPlugin::REVERB:
-			return TEXT("ReverbPlugin");
-
-		case EAudioPlugin::OCCLUSION:
-			return TEXT("OcclusionPlugin");
-
-		case EAudioPlugin::MODULATION:
-			return TEXT("ModulationPlugin");
-
-		default:
-			checkf(false, TEXT("Undefined audio plugin type."));
-			return TEXT("");
-	}
 }
 
 IAudioSpatializationFactory* AudioPluginUtilities::GetDesiredSpatializationPlugin(EAudioPlatform AudioPlatform)
@@ -169,26 +163,6 @@ IAudioOcclusionFactory* AudioPluginUtilities::GetDesiredOcclusionPlugin(EAudioPl
 	{
 		//if this plugin's name matches the name found in the platform settings, use it:
 		if (PluginFactory->GetDisplayName().Equals(DesiredOcclusionPlugin))
-		{
-			return PluginFactory;
-		}
-	}
-
-	return nullptr;
-}
-
-IAudioModulationFactory* AudioPluginUtilities::GetDesiredModulationPlugin(EAudioPlatform AudioPlatform)
-{
-	//Get the name of the desired spatialization plugin:
-	FString DesiredModulationPlugin = GetDesiredPluginName(EAudioPlugin::MODULATION, AudioPlatform);
-
-	TArray<IAudioModulationFactory *> ModulationPluginFactories = IModularFeatures::Get().GetModularFeatureImplementations<IAudioModulationFactory>(IAudioModulationFactory::GetModularFeatureName());
-
-	//Iterate through all of the plugins we've discovered:
-	for (IAudioModulationFactory* PluginFactory : ModulationPluginFactories)
-	{
-		//if this plugin's name matches the name found in the platform settings, use it:
-		if (PluginFactory->GetDisplayName().Equals(DesiredModulationPlugin))
 		{
 			return PluginFactory;
 		}

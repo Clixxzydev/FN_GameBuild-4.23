@@ -75,14 +75,14 @@ struct FPostProcessPassParameters
 
 	/** Set the pixel shader parameter values. */
 	template <typename TRHICmdList>
-	void SetPS(TRHICmdList& RHICmdList, FRHIPixelShader* ShaderRHI, const FRenderingCompositePassContext& Context, FRHISamplerState* Filter = TStaticSamplerState<>::GetRHI(), EFallbackColor FallbackColor = eFC_0000, FRHISamplerState** FilterOverrideArray = 0);
+	void SetPS(TRHICmdList& RHICmdList, const FPixelShaderRHIParamRef& ShaderRHI, const FRenderingCompositePassContext& Context, FSamplerStateRHIParamRef Filter = TStaticSamplerState<>::GetRHI(), EFallbackColor FallbackColor = eFC_0000, FSamplerStateRHIParamRef* FilterOverrideArray = 0);
 
 	/** Set the compute shader parameter values. */
 	template< typename TRHICmdList >
-	void SetCS(FRHIComputeShader* ShaderRHI, const FRenderingCompositePassContext& Context, TRHICmdList& RHICmdList, FRHISamplerState* Filter = TStaticSamplerState<>::GetRHI(), EFallbackColor FallbackColor = eFC_0000, FRHISamplerState** FilterOverrideArray = 0);
+	void SetCS(const FComputeShaderRHIParamRef& ShaderRHI, const FRenderingCompositePassContext& Context, TRHICmdList& RHICmdList, FSamplerStateRHIParamRef Filter = TStaticSamplerState<>::GetRHI(), EFallbackColor FallbackColor = eFC_0000, FSamplerStateRHIParamRef* FilterOverrideArray = 0);
 
 	/** Set the vertex shader parameter values. */
-	void SetVS(FRHIVertexShader* ShaderRHI, const FRenderingCompositePassContext& Context, FRHISamplerState* Filter = TStaticSamplerState<>::GetRHI(), EFallbackColor FallbackColor = eFC_0000, FRHISamplerState** FilterOverrideArray = 0);
+	void SetVS(const FVertexShaderRHIParamRef& ShaderRHI, const FRenderingCompositePassContext& Context, FSamplerStateRHIParamRef Filter = TStaticSamplerState<>::GetRHI(), EFallbackColor FallbackColor = eFC_0000, FSamplerStateRHIParamRef* FilterOverrideArray = 0);
 
 	/** Serializer. */
 	friend FArchive& operator<<(FArchive& Ar,FPostProcessPassParameters& P);
@@ -97,18 +97,19 @@ private:
 	FShaderParameter PostProcessInputMinMaxParameter[ePId_Input_MAX];
 	FShaderParameter ScreenPosToPixel;
 	FShaderParameter SceneColorBufferUVViewport;
-	FShaderResourceParameter BilinearTextureSampler;
+	FShaderResourceParameter BilinearTextureSampler0;
+	FShaderResourceParameter BilinearTextureSampler1;
 
 public:
 	// @param Filter can be 0 if FilterOverrideArray is used
 	// @param FilterOverrideArray can be 0 if Filter is used
-	template< typename TRHIShader, typename TRHICmdList >
+	template< typename TShaderRHIParamRef, typename TRHICmdList >
 	void Set(
 		TRHICmdList& RHICmdList,
-		TRHIShader* ShaderRHI,
+		const TShaderRHIParamRef& ShaderRHI,
 		const FRenderingCompositePassContext& Context,
-		FRHISamplerState* Filter,
+		FSamplerStateRHIParamRef Filter,
 		EFallbackColor FallbackColor,
-		FRHISamplerState** FilterOverrideArray = 0
+		FSamplerStateRHIParamRef* FilterOverrideArray = 0
 	);
 };

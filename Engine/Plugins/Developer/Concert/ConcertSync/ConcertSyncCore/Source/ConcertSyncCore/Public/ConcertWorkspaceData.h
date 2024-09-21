@@ -25,6 +25,12 @@ struct FConcertPackageInfo
 {
 	GENERATED_BODY()
 
+	FConcertPackageInfo()
+		: PackageUpdateType(EConcertPackageUpdateType::Dummy)
+		, NextTransactionIndexWhenSaved(0)
+	{
+	}
+
 	/** The name of the package */
 	UPROPERTY()
 	FName PackageName;
@@ -39,19 +45,11 @@ struct FConcertPackageInfo
 
 	/** What kind of package update is this? */
 	UPROPERTY()
-	EConcertPackageUpdateType PackageUpdateType = EConcertPackageUpdateType::Dummy;
+	EConcertPackageUpdateType PackageUpdateType;
 
-	/** What was the max transaction event ID when this update was made? (to discard older transactions that applied to this package) */
+	/** What was the next transaction index when this update was made (to discard older transactions that applied to this package) */
 	UPROPERTY()
-	int64 TransactionEventIdAtSave = 0;
-
-	/** Was this update caused by a pre-save? */
-	UPROPERTY()
-	bool bPreSave = false;
-
-	/** Was this update caused by an auto-save? */
-	UPROPERTY()
-	bool bAutoSave = false;
+	uint64 NextTransactionIndexWhenSaved;
 };
 
 USTRUCT()

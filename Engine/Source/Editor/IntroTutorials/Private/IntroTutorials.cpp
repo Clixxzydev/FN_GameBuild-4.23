@@ -78,7 +78,7 @@ TSharedRef<FExtender> FIntroTutorials::AddSummonBlueprintTutorialsMenuExtender(c
 		"HelpBrowse",
 		EExtensionHook::After,
 		CommandList,
-		FMenuExtensionDelegate::CreateRaw(const_cast<FIntroTutorials*>(this), &FIntroTutorials::AddSummonBlueprintTutorialsMenuExtension, PrimaryObject));
+		FMenuExtensionDelegate::CreateRaw(this, &FIntroTutorials::AddSummonBlueprintTutorialsMenuExtension, PrimaryObject));
 
 	return Extender;
 }
@@ -86,11 +86,7 @@ TSharedRef<FExtender> FIntroTutorials::AddSummonBlueprintTutorialsMenuExtender(c
 void FIntroTutorials::StartupModule()
 {
 	// This code can run with content commandlets. Slate is not initialized with commandlets and the below code will fail.
-	const bool bCommandlet = IsRunningCommandlet();
-	const bool bUnattended = FApp::IsUnattended();
-	const bool bCanEverRender = FApp::CanEverRender();
-
-	if (!bDisableTutorials && !bCommandlet && !bUnattended && bCanEverRender)
+	if (!bDisableTutorials && !IsRunningCommandlet())
 	{
 		// Add tutorial for main frame opening
 		IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
@@ -375,13 +371,10 @@ void FIntroTutorials::HandleCompilerNotFound()
 
 void FIntroTutorials::HandleSDKNotInstalled(const FString& PlatformName, const FString& InTutorialAsset)
 {
-	if (FPackageName::IsValidLongPackageName(InTutorialAsset, true))
+	UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *InTutorialAsset);
+	if(Blueprint)
 	{
-		UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *InTutorialAsset);
-		if (Blueprint)
-		{
-			LaunchTutorialByName(InTutorialAsset);
-		}
+		LaunchTutorialByName( InTutorialAsset );
 	}
 	else
 	{

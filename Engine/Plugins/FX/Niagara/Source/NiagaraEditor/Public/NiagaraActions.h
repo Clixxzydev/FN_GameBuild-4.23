@@ -43,8 +43,11 @@ private:
 	FCanExecuteStackAction CanPerformAction;
 };
 
+USTRUCT()
 struct NIAGARAEDITOR_API FNiagaraParameterAction : public FEdGraphSchemaAction
 {
+	GENERATED_USTRUCT_BODY()
+
 	FNiagaraParameterAction() {}
 	FNiagaraParameterAction(const FNiagaraVariable& InParameter,
 		const TArray<FNiagaraGraphParameterReferenceCollection>& InReferenceCollection,
@@ -52,8 +55,10 @@ struct NIAGARAEDITOR_API FNiagaraParameterAction : public FEdGraphSchemaAction
 
 	FNiagaraVariable& GetParameter() { return Parameter; }
 
+	UPROPERTY()
 	FNiagaraVariable Parameter;
 
+	UPROPERTY()
 	TArray<FNiagaraGraphParameterReferenceCollection> ReferenceCollection;
 };
 

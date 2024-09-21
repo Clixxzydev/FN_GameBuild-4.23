@@ -418,7 +418,7 @@ FReply FFindInBlueprintsProperty::OnClick()
 		UBlueprint* Blueprint = GetParentBlueprint();
 		if (Blueprint)
 		{
-			TSharedPtr<IBlueprintEditor> BlueprintEditor = FKismetEditorUtilities::GetIBlueprintEditorForObject(Blueprint, true);
+			TSharedPtr<IBlueprintEditor> BlueprintEditor = FKismetEditorUtilities::GetIBlueprintEditorForObject(Blueprint, false);
 
 			if (BlueprintEditor.IsValid())
 			{
@@ -956,7 +956,7 @@ EActiveTimerReturnType SFindInBlueprints::UpdateSearchResults( double InCurrentT
 			if ( ItemsFound.Num() == 0 )
 			{
 				// Insert a fake result to inform user if none found
-				ItemsFound.Add( FSearchResult( new FFindInBlueprintsNoResult( LOCTEXT( "BlueprintSearchNoResults", "No Results found" ) ) ) );
+				ItemsFound.Add( FSearchResult( new FFindInBlueprintsResult( LOCTEXT( "BlueprintSearchNoResults", "No Results found" ) ) ) );
 				TreeView->RequestTreeRefresh();
 			}
 
@@ -1075,13 +1075,12 @@ void SFindInBlueprints::MakeSearchQuery(FString InSearchString, bool bInIsFindWi
 				Interfaces.Add(InterfaceDesc.Interface->GetPathName());
 			}
 
-			const bool bRebuildSearchData = true;
-			const FSearchData* SearchData = FFindInBlueprintSearchManager::Get().QuerySingleBlueprint(Blueprint, bRebuildSearchData);
-			const bool bIsBlueprintIndexed = SearchData && !SearchData->Value.IsEmpty();
+			const FString UnparsedStringData = FFindInBlueprintSearchManager::Get().QuerySingleBlueprint(Blueprint);
+			const bool bIsBlueprintIndexed = !UnparsedStringData.IsEmpty();
 
 			if (bIsBlueprintIndexed)
 			{
-				FImaginaryFiBDataSharedPtr ImaginaryBlueprint(new FImaginaryBlueprint(Blueprint->GetName(), Blueprint->GetPathName(), ParentClass, Interfaces, SearchData->Value, SearchData->VersionInfo));
+				FImaginaryFiBDataSharedPtr ImaginaryBlueprint(new FImaginaryBlueprint(Blueprint->GetName(), Blueprint->GetPathName(), ParentClass, Interfaces, UnparsedStringData));
 				TSharedPtr< FFiBSearchInstance > SearchInstance(new FFiBSearchInstance);
 				FSearchResult SearchResult = RootSearchResult = SearchInstance->StartSearchQuery(SearchValue, ImaginaryBlueprint);
 
@@ -1104,7 +1103,7 @@ void SFindInBlueprints::MakeSearchQuery(FString InSearchString, bool bInIsFindWi
 				}
 
 				// Insert a fake result to inform user if none found
-				ItemsFound.Add(FSearchResult(new FFindInBlueprintsNoResult(NoResultsText)));
+				ItemsFound.Add(FSearchResult(new FFindInBlueprintsResult(NoResultsText)));
 				HighlightText = FText::GetEmpty();
 			}
 			else

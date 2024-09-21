@@ -1358,7 +1358,7 @@ void SGameplayTagWidget::OpenRenameGameplayTagDialog(TSharedPtr<FGameplayTagNode
 	TSharedRef<SRenameGameplayTagDialog> RenameTagDialog =
 		SNew(SRenameGameplayTagDialog)
 		.GameplayTagNode(GameplayTagNode)
-		.OnGameplayTagRenamed(const_cast<SGameplayTagWidget*>(this), &SGameplayTagWidget::OnGameplayTagRenamed);
+		.OnGameplayTagRenamed(this, &SGameplayTagWidget::OnGameplayTagRenamed);
 
 	RenameTagWindow->SetContent(RenameTagDialog);
 

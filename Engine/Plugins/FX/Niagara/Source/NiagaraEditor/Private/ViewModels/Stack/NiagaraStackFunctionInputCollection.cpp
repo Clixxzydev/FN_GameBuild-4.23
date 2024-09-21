@@ -6,7 +6,6 @@
 #include "NiagaraNodeFunctionCall.h"
 #include "NiagaraEmitterEditorData.h"
 #include "EdGraphSchema_Niagara.h"
-#include "ViewModels/NiagaraEmitterViewModel.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "NiagaraNodeParameterMapSet.h"
 #include "NiagaraDataInterface.h"
@@ -16,7 +15,6 @@
 
 #include "EdGraph/EdGraphPin.h"
 #include "ScopedTransaction.h"
-#include "NiagaraEditorUtilities.h"
 
 #define LOCTEXT_NAMESPACE "UNiagaraStackFunctionInputCollection"
 
@@ -79,17 +77,14 @@ void UNiagaraStackFunctionInputCollection::SetShouldShowInStack(bool bInShouldSh
 
 void UNiagaraStackFunctionInputCollection::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
 {
-	TSet<const UEdGraphPin*> HiddenPins;
 	TArray<const UEdGraphPin*> InputPins;
-	FCompileConstantResolver ConstantResolver(GetEmitterViewModel()->GetEmitter());
-	FNiagaraStackGraphUtilities::GetStackFunctionInputPins(*InputFunctionCallNode, InputPins, HiddenPins, ConstantResolver, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
+	FNiagaraStackGraphUtilities::GetStackFunctionInputPins(*InputFunctionCallNode, InputPins, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
 
 	const UEdGraphSchema_Niagara* NiagaraSchema = GetDefault<UEdGraphSchema_Niagara>();
 
 	TArray<FName> ProcessedInputNames;
 	TArray<FName> DuplicateInputNames;
 	TArray<FName> ValidAliasedInputNames;
-	TMap<FName, UEdGraphPin*> StaticSwitchInputs;
 	TArray<const UEdGraphPin*> PinsWithInvalidTypes;
 
 	FText UncategorizedName = LOCTEXT("Uncategorized", "Uncategorized");
@@ -103,79 +98,39 @@ void UNiagaraStackFunctionInputCollection::RefreshChildrenInternal(const TArray<
 	// Gather input data
 	for (const UEdGraphPin* InputPin : InputPins)
 	{
-		if (ProcessedInputNames.Contains(InputPin->PinName))
+		if (ProcessedInputNames.Contains(InputPin->PinName) == false)
+		{
+			ProcessedInputNames.Add(InputPin->PinName);
+
+			FNiagaraVariable InputVariable = NiagaraSchema->PinToNiagaraVariable(InputPin);
+			if (InputVariable.GetType().IsValid() == false)
+			{
+				PinsWithInvalidTypes.Add(InputPin);
+				continue;
+			}
+			else
+			{
+				ValidAliasedInputNames.Add(FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(
+					FNiagaraParameterHandle(InputPin->PinName), InputFunctionCallNode).GetParameterHandleString());
+			}
+
+			FNiagaraVariableMetaData* InputMetaData = nullptr;
+			if (InputFunctionGraph != nullptr)
+			{
+				InputMetaData = InputFunctionGraph->GetMetaData(InputVariable);
+			}
+
+			FText InputCategory = InputMetaData != nullptr && InputMetaData->CategoryName.IsEmptyOrWhitespace() == false
+				? InputMetaData->CategoryName
+				: UncategorizedName;
+
+			FInputData InputData = { InputPin, InputVariable.GetType(), InputMetaData ? InputMetaData->EditorSortPriority : 0, InputCategory };
+			InputDataCollection.Add(InputData);
+		}
+		else
 		{
 			DuplicateInputNames.AddUnique(InputPin->PinName);
-			continue;
 		}
-		ProcessedInputNames.Add(InputPin->PinName);
-
-		FNiagaraVariable InputVariable = NiagaraSchema->PinToNiagaraVariable(InputPin);
-		if (InputVariable.GetType().IsValid() == false)
-		{
-			PinsWithInvalidTypes.Add(InputPin);
-			continue;
-		}
-		ValidAliasedInputNames.Add(
-			FNiagaraParameterHandle::CreateAliasedModuleParameterHandle(FNiagaraParameterHandle(InputPin->PinName), InputFunctionCallNode).GetParameterHandleString());
-
-		TOptional<FNiagaraVariableMetaData> InputMetaData;
-		if (InputFunctionGraph != nullptr)
-		{
-			InputMetaData = InputFunctionGraph->GetMetaData(InputVariable);
-		}
-
-		FText InputCategory = InputMetaData.IsSet() && InputMetaData->CategoryName.IsEmptyOrWhitespace() == false
-			? InputMetaData->CategoryName
-			: UncategorizedName;
-
-		bool IsVisible = !HiddenPins.Contains(InputPin);
-		FInputData InputData = { InputPin, InputVariable.GetType(), InputMetaData ? InputMetaData->EditorSortPriority : 0, InputCategory, false, IsVisible };
-		InputDataCollection.Add(InputData);
-	}
-
-	// Gather static switch parameters
-	TSet<UEdGraphPin*> HiddenSwitchPins;
-	TArray<UEdGraphPin*> SwitchPins;
-	FNiagaraStackGraphUtilities::GetStackFunctionStaticSwitchPins(*InputFunctionCallNode, SwitchPins, HiddenSwitchPins);
-	for (UEdGraphPin* InputPin : SwitchPins)
-	{
-		// The static switch pin names to not contain the module namespace, as they are not part of the parameter maps.
-		// We add it here only to check for name clashes with actual module parameters.
-		FString ModuleName = TEXT("Module.");
-		InputPin->PinName.AppendString(ModuleName);
-		FName SwitchPinName(*ModuleName); 
-
-		if (ProcessedInputNames.Contains(SwitchPinName))
-		{
-			DuplicateInputNames.AddUnique(SwitchPinName);
-			continue;
-		}
-		ProcessedInputNames.Add(SwitchPinName);
-
-		FNiagaraVariable InputVariable = NiagaraSchema->PinToNiagaraVariable(InputPin);
-		if (InputVariable.GetType().IsValid() == false)
-		{
-			PinsWithInvalidTypes.Add(InputPin);
-			continue;
-		}
-
-		FName AliasedName = FNiagaraParameterHandle(*InputFunctionCallNode->GetFunctionName(), InputPin->PinName).GetParameterHandleString();
-		StaticSwitchInputs.Add(AliasedName, InputPin);
-
-		TOptional<FNiagaraVariableMetaData> InputMetaData;
-		if (InputFunctionGraph != nullptr)
-		{
-			InputMetaData = InputFunctionGraph->GetMetaData(InputVariable);
-		}
-
-		FText InputCategory = InputMetaData.IsSet() && InputMetaData->CategoryName.IsEmptyOrWhitespace() == false
-			? InputMetaData->CategoryName
-			: UncategorizedName;
-
-		bool IsVisible = !HiddenSwitchPins.Contains(InputPin);
-		FInputData InputData = { InputPin, InputVariable.GetType(), InputMetaData ? InputMetaData->EditorSortPriority : 0, InputCategory, true, IsVisible };
-		InputDataCollection.Add(InputData);
 	}
 
 	// Sort data and keep the uncategorized first
@@ -195,7 +150,7 @@ void UNiagaraStackFunctionInputCollection::RefreshChildrenInternal(const TArray<
 		}
 		else
 		{
-			return A.Pin->PinName.LexicalLess(B.Pin->PinName);
+			return A.Pin->PinName < B.Pin->PinName;
 		}
 	});
 
@@ -229,51 +184,25 @@ void UNiagaraStackFunctionInputCollection::RefreshChildrenInternal(const TArray<
 			}
 			NewChildren.Add(InputCategory);
 		}
-		InputCategory->AddInput(InputData.Pin->PinName, InputData.Type, InputData.bIsStatic ? EStackParameterBehavior::Static : EStackParameterBehavior::Dynamic, InputData.bIsVisible);
+		InputCategory->AddInput(InputData.Pin->PinName, InputData.Type);
 	}
-	RefreshIssues(DuplicateInputNames, ValidAliasedInputNames, PinsWithInvalidTypes, StaticSwitchInputs, NewIssues);
+	RefreshIssues(DuplicateInputNames, ValidAliasedInputNames, PinsWithInvalidTypes, NewIssues);
 }
 
-UNiagaraStackEntry::FStackIssueFix UNiagaraStackFunctionInputCollection::GetNodeRemovalFix(UEdGraphPin* PinToRemove, FText FixDescription)
-{
-	return FStackIssueFix(
-		FixDescription,
-		UNiagaraStackEntry::FStackIssueFixDelegate::CreateLambda([=]()
-	{
-		FScopedTransaction ScopedTransaction(FixDescription);
-		TArray<TWeakObjectPtr<UNiagaraDataInterface>> RemovedDataObjects;
-		FNiagaraStackGraphUtilities::RemoveNodesForStackFunctionInputOverridePin(*PinToRemove, RemovedDataObjects);
-		for (TWeakObjectPtr<UNiagaraDataInterface> RemovedDataObject : RemovedDataObjects)
-		{
-			if (RemovedDataObject.IsValid())
-			{
-				OnDataObjectModified().Broadcast(RemovedDataObject.Get());
-			}
-		}
-		PinToRemove->GetOwningNode()->RemovePin(PinToRemove);
-	}));
-}
-
-void UNiagaraStackFunctionInputCollection::RefreshIssues(TArray<FName> DuplicateInputNames, TArray<FName> ValidAliasedInputNames, TArray<const UEdGraphPin*> PinsWithInvalidTypes, TMap<FName, UEdGraphPin*> StaticSwitchInputs, TArray<FStackIssue>& NewIssues)
+void UNiagaraStackFunctionInputCollection::RefreshIssues(TArray<FName> DuplicateInputNames, TArray<FName> ValidAliasedInputNames, TArray<const UEdGraphPin*> PinsWithInvalidTypes, TArray<FStackIssue>& NewIssues)
 {
 	if (!GetIsEnabled())
 	{
 		NewIssues.Empty();
 		return;
 	}
-
-	// Gather override nodes to find candidates that were replaced by static switches and are no longer valid
-	TArray<UEdGraphPin*> OverridePins;
+	// Try to find function input overrides which are no longer valid so we can generate errors for them.
 	UNiagaraNodeParameterMapSet* OverrideNode = FNiagaraStackGraphUtilities::GetStackFunctionOverrideNode(*InputFunctionCallNode);
 	if (OverrideNode != nullptr)
 	{
+		TArray<UEdGraphPin*> OverridePins;
 		OverrideNode->GetInputPins(OverridePins);
-	}
-	for (UEdGraphPin* OverridePin : OverridePins)
-	{
-		// Try to find function input overrides which are no longer valid so we can generate errors for them.
-		UEdGraphPin** PinReference = StaticSwitchInputs.Find(OverridePin->PinName);
-		if (PinReference == nullptr)
+		for (UEdGraphPin* OverridePin : OverridePins)
 		{
 			// If the pin isn't in the misc category for the add pin, and not the parameter map pin, and it's for this function call,
 			// check to see if it's in the list of valid input names, and if not generate an error.
@@ -282,39 +211,12 @@ void UNiagaraStackFunctionInputCollection::RefreshIssues(TArray<FName> Duplicate
 				FNiagaraParameterHandle(OverridePin->PinName).GetNamespace().ToString() == InputFunctionCallNode->GetFunctionName() &&
 				ValidAliasedInputNames.Contains(OverridePin->PinName) == false)
 			{
-				FStackIssue InvalidInputOverrideError(
-					EStackIssueSeverity::Error,
-					FText::Format(LOCTEXT("InvalidInputSummaryFormat", "Invalid Input Override: {0}"), FText::FromString(OverridePin->PinName.ToString())),
-					FText::Format(LOCTEXT("InvalidInputFormat", "The input {0} was previously overriden but is no longer exposed by the function {1}.\nPress the fix button to remove this unused override data,\nor check the function definition to see why this input is no longer exposed."),
-						FText::FromString(OverridePin->PinName.ToString()), FText::FromString(InputFunctionCallNode->GetFunctionName())),
-					GetStackEditorDataKey(),
-					false,
-					GetNodeRemovalFix(OverridePin, LOCTEXT("RemoveInvalidInputTransaction", "Remove input override")));
-
-				NewIssues.Add(InvalidInputOverrideError);
-			}
-		}
-		else
-		{
-			// If we have an override pin that is no longer valid, but has the same name and type as a static switch parameter, then it is safe to assume
-			// that the parameter was replaced by the static switch. So we ask the user to copy over its value or remove the override.
-			UEdGraphPin* SwitchPin = *PinReference;
-			bool bIsSameType = OverridePin->PinType.PinCategory == SwitchPin->PinType.PinCategory &&
-				OverridePin->PinType.PinSubCategoryObject == SwitchPin->PinType.PinSubCategoryObject;
-			if (bIsSameType && !ValidAliasedInputNames.Contains(OverridePin->PinName))
-			{
-				TArray<FStackIssueFix> Fixes;
-
-				// first possible fix: convert the value over to the static switch
-				FText ConversionFixDescription = LOCTEXT("ConvertInputToStaticSwitchTransaction", "Copy value to static switch parameter");
-				FStackIssueFix ConvertInputOverrideFix(
-					ConversionFixDescription,
+				FText FixDescription = LOCTEXT("RemoveInvalidInputTransaction", "Remove invalid input override.");
+				FStackIssueFix RemoveInputOverrideFix(
+					FixDescription,
 					UNiagaraStackEntry::FStackIssueFixDelegate::CreateLambda([=]()
 				{
-					FScopedTransaction ScopedTransaction(ConversionFixDescription);
-					SwitchPin->Modify();
-					SwitchPin->DefaultValue = OverridePin->DefaultValue;
-
+					FScopedTransaction ScopedTransaction(FixDescription);
 					TArray<TWeakObjectPtr<UNiagaraDataInterface>> RemovedDataObjects;
 					FNiagaraStackGraphUtilities::RemoveNodesForStackFunctionInputOverridePin(*OverridePin, RemovedDataObjects);
 					for (TWeakObjectPtr<UNiagaraDataInterface> RemovedDataObject : RemovedDataObjects)
@@ -326,25 +228,19 @@ void UNiagaraStackFunctionInputCollection::RefreshIssues(TArray<FName> Duplicate
 					}
 					OverridePin->GetOwningNode()->RemovePin(OverridePin);
 				}));
-				Fixes.Add(ConvertInputOverrideFix);
 
-				// second possible fix: remove the override completely
-				Fixes.Add(GetNodeRemovalFix(OverridePin, LOCTEXT("RemoveInvalidInputTransactionExt", "Remove input override (WARNING: this could result in different behavior!)")));
-
-				FStackIssue DeprecatedInputOverrideError(
+				FStackIssue InvalidInputOverrideError(
 					EStackIssueSeverity::Error,
-					FText::Format(LOCTEXT("DeprecatedInputSummaryFormat", "Deprecated Input Override: {0}"), FText::FromString(OverridePin->PinName.ToString())),
-					FText::Format(LOCTEXT("DeprecatedInputFormat", "The input {0} is no longer exposed by the function {1}, but there exists a static switch parameter with the same name instead.\nYou can choose to copy the previously entered data over to the new parameter or remove the override to discard it."),
+					FText::Format(LOCTEXT("InvalidInputSummaryFormat", "Invalid Input Override: {0}"), FText::FromString(OverridePin->PinName.ToString())),
+					FText::Format(LOCTEXT("InvalidInputFormat", "The input {0} was previously overriden but is no longer exposed by the function {1}.\nPress the fix button to remove this unused override data,\nor check the function definition to see why this input is no longer exposed."),
 						FText::FromString(OverridePin->PinName.ToString()), FText::FromString(InputFunctionCallNode->GetFunctionName())),
 					GetStackEditorDataKey(),
 					false,
-					Fixes);
+					RemoveInputOverrideFix);
 
-				NewIssues.Add(DeprecatedInputOverrideError);
-				break;
+				NewIssues.Add(InvalidInputOverrideError);
 			}
 		}
-		
 	}
 
 	// Generate issues for duplicate input names.
@@ -353,7 +249,7 @@ void UNiagaraStackFunctionInputCollection::RefreshIssues(TArray<FName> Duplicate
 		FStackIssue DuplicateInputError(
 			EStackIssueSeverity::Error,
 			FText::Format(LOCTEXT("DuplicateInputSummaryFormat", "Duplicate Input: {0}"), FText::FromName(DuplicateInputName)),
-			FText::Format(LOCTEXT("DuplicateInputFormat", "There are multiple inputs with the same name {0} exposed by the function {1}.\nThis is not supported and must be fixed in the script that defines this function.\nCheck for inputs with the same name and different types or static switches."),
+			FText::Format(LOCTEXT("DuplicateInputFormat", "There are multiple inputs with the same name {0}, but different types exposed by the function {1}.\nThis is not suppored and must be fixed in the script that defines this function."),
 				FText::FromName(DuplicateInputName), FText::FromString(InputFunctionCallNode->GetFunctionName())),
 			GetStackEditorDataKey(),
 			false);

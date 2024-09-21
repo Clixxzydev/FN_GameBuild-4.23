@@ -37,7 +37,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Platform this role uses
 		/// </summary>
-		public UnrealTargetPlatform? Platform;
+		public UnrealTargetPlatform Platform;
 
 		/// <summary>
 		/// Configuration this role runs in
@@ -69,10 +69,6 @@ namespace Gauntlet
 		/// </summary>
 		public List<UnrealFileToCopy> FilesToCopy;
 
-		/// <summary>
-		/// 
-		/// </summary>
-		public List<EIntendedBaseCopyDirectory> AdditionalArtifactDirectories;
 		/// <summary>
 		/// Role device configuration 
 		/// </summary>
@@ -106,7 +102,7 @@ namespace Gauntlet
 		/// <param name="InPlatform"></param>
 		/// <param name="InConfiguration"></param>
 		/// <param name="InOptions"></param>
-		public UnrealSessionRole(UnrealTargetRole InType, UnrealTargetPlatform? InPlatform, UnrealTargetConfiguration InConfiguration, IConfigOption<UnrealAppConfig> InOptions)
+		public UnrealSessionRole(UnrealTargetRole InType, UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, IConfigOption<UnrealAppConfig> InOptions)
 			: this(InType, InPlatform, InConfiguration, null, InOptions)
 		{
 		}
@@ -119,7 +115,7 @@ namespace Gauntlet
 		/// <param name="InConfiguration"></param>
 		/// <param name="InCommandLine"></param>
 		/// <param name="InOptions"></param>
-		public UnrealSessionRole(UnrealTargetRole InType, UnrealTargetPlatform? InPlatform, UnrealTargetConfiguration InConfiguration, string InCommandLine = null, IConfigOption<UnrealAppConfig> InOptions = null)
+		public UnrealSessionRole(UnrealTargetRole InType, UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, string InCommandLine = null, IConfigOption<UnrealAppConfig> InOptions = null)
 		{
 			RoleType = InType;
 
@@ -523,10 +519,7 @@ namespace Gauntlet
 			// report device has a problem to the pool
 			DevicePool.Instance.ReportDeviceError(Device, "MarkProblemDevice");
 
-			if (Device.Platform != null)
-			{
-				ProblemDevices.Add(new ProblemDevice(Device.Name, Device.Platform.Value));
-			}
+			ProblemDevices.Add(new ProblemDevice(Device.Name, Device.Platform));
 		}
 
 		/// <summary>
@@ -607,7 +600,7 @@ namespace Gauntlet
 			foreach (var PlatformReqKP in RequiredDeviceTypes)
 			{
 				UnrealTargetConstraint Constraint = PlatformReqKP.Key;
-				UnrealTargetPlatform? Platform = Constraint.Platform;
+				UnrealTargetPlatform Platform = Constraint.Platform;
 
 				int NeedOfThisType = RequiredDeviceTypes[Constraint];
 
@@ -989,7 +982,7 @@ namespace Gauntlet
 
 			bool IsServer = InRunningRole.Role.RoleType.IsServer();
 			string RoleName = (InRunningRole.Role.IsDummy() ? "Dummy" : "") + InRunningRole.Role.RoleType.ToString();
-			UnrealTargetPlatform? Platform = InRunningRole.Role.Platform;
+			UnrealTargetPlatform Platform = InRunningRole.Role.Platform;
 			string RoleConfig = InRunningRole.Role.Configuration.ToString();
 
 			Directory.CreateDirectory(InDestArtifactPath);
@@ -1077,22 +1070,9 @@ namespace Gauntlet
 				{
 					Log.Info("Skipping archival of assets for dev build");
 				}
-			}
+			}			
 
-			foreach (EIntendedBaseCopyDirectory ArtifactDir in InRunningRole.Role.AdditionalArtifactDirectories)
-			{
-				if (InRunningRole.AppInstance.Device.GetPlatformDirectoryMappings().ContainsKey(ArtifactDir))
-				{
-					string SourcePath = InRunningRole.AppInstance.Device.GetPlatformDirectoryMappings()[ArtifactDir];
-					var DirToCopy = new DirectoryInfo(SourcePath);
-					if (DirToCopy.Exists)
-					{
-						// Grab the final dir name to copy everything into so everything's not just going into root artifact dir.
-						string IntendedCopyLocation = Path.Combine(InDestArtifactPath, DirToCopy.Name);
-						Utils.SystemHelpers.CopyDirectory(SourcePath, IntendedCopyLocation);
-					}
-				}
-			}
+
 			// TODO REMOVEME- this should go elsewhere, likely a util that can be called or inserted by relevant test nodes.
 			if (IsServer == false)
 			{

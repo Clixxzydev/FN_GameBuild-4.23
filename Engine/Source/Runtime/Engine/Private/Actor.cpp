@@ -373,8 +373,7 @@ UWorld* AActor::GetWorld() const
 {
 	// CDO objects do not belong to a world
 	// If the actors outer is destroyed or unreachable we are shutting down and the world should be nullptr
-	if (!HasAnyFlags(RF_ClassDefaultObject) && ensureMsgf(GetOuter(), TEXT("Actor: %s has a null OuterPrivate in AActor::GetWorld()"), *GetFullName())
-		&& !GetOuter()->HasAnyFlags(RF_BeginDestroyed) && !GetOuter()->IsUnreachable())
+	if (!HasAnyFlags(RF_ClassDefaultObject) && !GetOuter()->HasAnyFlags(RF_BeginDestroyed) && !GetOuter()->IsUnreachable())
 	{
 		if (ULevel* Level = GetLevel())
 		{
@@ -1794,8 +1793,9 @@ FName AActor::GetAttachParentSocketName() const
 	return NAME_None;
 }
 
-void AActor::ForEachAttachedActors(TFunctionRef<bool(class AActor*)> Functor) const
+void AActor::GetAttachedActors(TArray<class AActor*>& OutActors) const
 {
+	OutActors.Reset();
 	if (RootComponent != nullptr)
 	{
 		// Current set of components to check
@@ -1807,48 +1807,41 @@ void AActor::ForEachAttachedActors(TFunctionRef<bool(class AActor*)> Functor) co
 		CompsToCheck.Push(RootComponent);
 
 		// While still work left to do
-		while (CompsToCheck.Num() > 0)
+		while(CompsToCheck.Num() > 0)
 		{
 			// Get the next off the queue
 			const bool bAllowShrinking = false;
 			USceneComponent* SceneComp = CompsToCheck.Pop(bAllowShrinking);
 
 			// Add it to the 'checked' set, should not already be there!
-			CheckedComps.Add(SceneComp);
-
-			AActor* CompOwner = SceneComp->GetOwner();
-			if (CompOwner != nullptr)
+			if (!CheckedComps.Contains(SceneComp))
 			{
-				if (CompOwner != this)
+				CheckedComps.Add(SceneComp);
+
+				AActor* CompOwner = SceneComp->GetOwner();
+				if (CompOwner != nullptr)
 				{
-					// If this component has a different owner, call the callback and stop if told.
-					if (!Functor(CompOwner))
+					if (CompOwner != this)
 					{
-						// The functor wants us to abort
-						return;
+						// If this component has a different owner, add that owner to our output set and do nothing more
+						OutActors.AddUnique(CompOwner);
 					}
-				}
-				else
-				{
-					// This component is owned by us, we need to add its children
-					for (USceneComponent* ChildComp : SceneComp->GetAttachChildren())
+					else
 					{
-						// Add any we have not explored yet to the set to check
-						if (ChildComp != nullptr && !CheckedComps.Contains(ChildComp))
+						// This component is owned by us, we need to add its children
+						for (USceneComponent* ChildComp : SceneComp->GetAttachChildren())
 						{
-							CompsToCheck.Push(ChildComp);
+							// Add any we have not explored yet to the set to check
+							if ((ChildComp != nullptr) && !CheckedComps.Contains(ChildComp))
+							{
+								CompsToCheck.Push(ChildComp);
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-}
-
-void AActor::GetAttachedActors(TArray<class AActor*>& OutActors) const
-{
-	OutActors.Reset();
-	ForEachAttachedActors([&OutActors](AActor * Actor) { OutActors.AddUnique(Actor); return true; });
 }
 
 bool AActor::ActorHasTag(FName Tag) const
@@ -3389,7 +3382,10 @@ void AActor::EnableInput(APlayerController* PlayerController)
 			InputComponent->bBlockInput = bBlockInput;
 			InputComponent->Priority = InputPriority;
 
-			UInputDelegateBinding::BindInputDelegates(GetClass(), InputComponent);
+			if (UInputDelegateBinding::SupportsInputDelegate(GetClass()))
+			{
+				UInputDelegateBinding::BindInputDelegates(GetClass(), InputComponent);
+			}
 		}
 		else
 		{
@@ -3906,7 +3902,7 @@ void AActor::SetNetDriverName(FName NewNetDriverName)
 //
 // Return whether a function should be executed remotely.
 //
-int32 AActor::GetFunctionCallspace( UFunction* Function, FFrame* Stack )
+int32 AActor::GetFunctionCallspace( UFunction* Function, void* Parameters, FFrame* Stack )
 {
 	// Quick reject 1.
 	if ((Function->FunctionFlags & FUNC_Static))
@@ -4505,7 +4501,7 @@ void AActor::InvalidateLightingCacheDetailed(bool bTranslationOnly)
 
  // COLLISION
 
-bool AActor::ActorLineTraceSingle(struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params) const
+bool AActor::ActorLineTraceSingle(struct FHitResult& OutHit, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, const struct FCollisionQueryParams& Params)
 {
 	OutHit = FHitResult(1.f);
 	OutHit.TraceStart = Start;
@@ -4794,7 +4790,7 @@ void AActor::K2_SetActorRelativeTransform(const FTransform& NewRelativeTransform
 	SetActorRelativeTransform(NewRelativeTransform, bSweep, (bSweep ? &SweepHitResult : nullptr), TeleportFlagToEnum(bTeleport));
 }
 
-float AActor::GetGameTimeSinceCreation() const
+float AActor::GetGameTimeSinceCreation()
 {
 	if (UWorld* MyWorld = GetWorld())
 	{

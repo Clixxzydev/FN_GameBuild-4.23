@@ -24,15 +24,9 @@ namespace PropertyPathHelpersInternal
 		// Obtain the property info from the given structure definition
 		if ( UField* Field = Segment.Resolve(InStruct) )
 		{
-			const bool bFinalSegment = SegmentIndex == (InPropertyPath.GetNumSegments() - 1);
-
 			if ( UProperty* Property = Cast<UProperty>(Field) )
 			{
-				if (bFinalSegment)
-				{
-					return InResolver.Resolve(static_cast<ContainerType*>(InContainer), InPropertyPath);
-				}
-				else
+				if ( SegmentIndex < ( InPropertyPath.GetNumSegments() - 1 ) )
 				{
 					// Check first to see if this is a simple object (eg. not an array of objects)
 					if ( UObjectProperty* ObjectProperty = Cast<UObjectProperty>(Property) )
@@ -113,34 +107,17 @@ namespace PropertyPathHelpersInternal
 						// TODO: we dont support map properties yet
 					}
 				}
-			}
-			else
-			{
-				// If it's the final segment, use the resolver to get the value.
-				if (bFinalSegment)
+				else
 				{
 					return InResolver.Resolve(static_cast<ContainerType*>(InContainer), InPropertyPath);
 				}
-				else
+			}
+			else
+			{
+				// Only allow functions as the final link in the chain.
+				if ( SegmentIndex == ( InPropertyPath.GetNumSegments() - 1 ) )
 				{
-					// If it's not the final segment, but still a function, we're going to treat it as an Object* getter.
-					// in the hopes that it leads to another object that we can resolve the next segment on.  These
-					// getter functions must be very simple.
-
-					UObject* CurrentObject = nullptr;
-					UProperty* GetterProperty = nullptr;
-					FInternalGetterResolver<UObject*> GetterResolver(CurrentObject, GetterProperty);
-
-					FCachedPropertyPath TempPath(Segment);
-					if (GetterResolver.Resolve(InContainer, TempPath))
-					{
-						if (CurrentObject)
-						{
-							InPropertyPath.SetCanSafelyUsedCachedAddress(false);
-
-							return IteratePropertyPathRecursive(CurrentObject->GetClass(), CurrentObject, SegmentIndex + 1, InPropertyPath, InResolver);
-						}
-					}
+					return InResolver.Resolve(static_cast<ContainerType*>(InContainer), InPropertyPath);
 				}
 			}
 		}
@@ -474,23 +451,13 @@ namespace PropertyPathHelpersInternal
 
 	bool ResolvePropertyPath(UObject* InContainer, const FString& InPropertyPath, FPropertyPathResolver& InResolver)
 	{
-		if (InContainer)
-		{
-			FCachedPropertyPath InternalPropertyPath(InPropertyPath);
-			return IteratePropertyPathRecursive<UObject>(InContainer->GetClass(), InContainer, 0, InternalPropertyPath, InResolver);
-		}
-
-		return false;
+		FCachedPropertyPath InternalPropertyPath(InPropertyPath);
+		return IteratePropertyPathRecursive<UObject>(InContainer->GetClass(), InContainer, 0, InternalPropertyPath, InResolver);
 	}
 
 	bool ResolvePropertyPath(UObject* InContainer, const FCachedPropertyPath& InPropertyPath, FPropertyPathResolver& InResolver)
 	{
-		if (InContainer)
-		{
-			return IteratePropertyPathRecursive<UObject>(InContainer->GetClass(), InContainer, 0, InPropertyPath, InResolver);
-		}
-
-		return false;
+		return IteratePropertyPathRecursive<UObject>(InContainer->GetClass(), InContainer, 0, InPropertyPath, InResolver);
 	}
 
 	bool ResolvePropertyPath(void* InContainer, UStruct* InStruct, const FString& InPropertyPath, FPropertyPathResolver& InResolver)
@@ -606,7 +573,7 @@ FCachedPropertyPath::FCachedPropertyPath(const FString& Path)
 	MakeFromString(Path);
 }
 
-FCachedPropertyPath::FCachedPropertyPath(const TArray<FString>& PathSegments)
+FCachedPropertyPath::FCachedPropertyPath(const TArray<FString>& PropertyChain)
 	: CachedAddress(nullptr)
 	, CachedFunction(nullptr)
 #if DO_CHECK
@@ -614,21 +581,10 @@ FCachedPropertyPath::FCachedPropertyPath(const TArray<FString>& PathSegments)
 #endif
 	, bCanSafelyUsedCachedAddress(false)
 {
-	for (const FString& Segment : PathSegments)
+	for(const FString& Segment : PropertyChain)
 	{
 		Segments.Add(FPropertyPathSegment(Segment.Len(), *Segment));
 	}
-}
-
-FCachedPropertyPath::FCachedPropertyPath(const FPropertyPathSegment& Segment)
-	: CachedAddress(nullptr)
-	, CachedFunction(nullptr)
-#if DO_CHECK
-	, CachedContainer(nullptr)
-#endif
-	, bCanSafelyUsedCachedAddress(false)
-{
-	Segments.Add(Segment);
 }
 
 void FCachedPropertyPath::MakeFromString(const FString& InPropertyPath)

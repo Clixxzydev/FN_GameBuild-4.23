@@ -16,7 +16,6 @@
 #include "UObject/UObjectHash.h"
 #include "ProfilingDebugging/ProfilingHelpers.h"
 #include "GameFramework/WorldSettings.h"
-#include "RendererInterface.h"
 
 class FCanvas;
 class FViewport;
@@ -312,7 +311,7 @@ public:
 				&& ActorLevel->GetWorld() == LocalCurrentWorld)
 			{
 				// ignore non-persistent world settings
-				if (ActorLevel == LocalCurrentWorld->PersistentLevel || !LocalCurrentActor->IsA(AWorldSettings::StaticClass()))
+				if (LocalCurrentActor->GetLevel() == LocalCurrentWorld->PersistentLevel || !LocalCurrentActor->IsA(AWorldSettings::StaticClass()))
 				{
 					State->CurrentActor = LocalCurrentActor;
 					State->Index = LocalIndex;
@@ -907,9 +906,3 @@ public:
 	}
 };
 
-class UTexture;
-namespace VirtualTextureUtils
-{
-	/** Function that will test if the passed in texture is VT. If so, print to messaglog that the property does not support VT textures */
-	ENGINE_API void CheckAndReportInvalidUsage(const UObject* Owner, const FName& PropertyName, const UTexture* Texture);
-}

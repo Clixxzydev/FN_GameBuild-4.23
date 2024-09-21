@@ -32,9 +32,6 @@
 #ifdef _M_ARM
 #include <arm_neon.h>
 #endif
-#ifdef _M_ARM64
-#include <arm64_neon.h>
-#endif
 
 namespace nv
 {

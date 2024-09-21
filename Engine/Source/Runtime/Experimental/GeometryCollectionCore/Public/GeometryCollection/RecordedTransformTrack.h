@@ -15,121 +15,13 @@ struct FSolverCollisionData
 {
 	GENERATED_BODY()
 
-	FSolverCollisionData()
-		: Location(FVector(0.f))
-		, AccumulatedImpulse(FVector(0.f))
-		, Normal(FVector(0.f))
-		, Velocity1(FVector(0.f))
-		, Velocity2(FVector(0.f))
-		, AngularVelocity1(FVector(0.f))
-		, AngularVelocity2(FVector(0.f))
-		, Mass1(0.f)
-		, Mass2(0.f)
-		, ParticleIndex(INDEX_NONE)
-		, LevelsetIndex(INDEX_NONE)
-		, ParticleIndexMesh(INDEX_NONE)
-		, LevelsetIndexMesh(INDEX_NONE)
-	{}
-
-	FSolverCollisionData(FVector InLocation
-		, FVector InAccumulatedImpulse
-		, FVector InNormal
-		, FVector InVelocity1
-		, FVector InVelocity2
-		, FVector InAngularVelocity1
-		, FVector InAngularVelocity2
-		, float InMass1
-		, float InMass2
-		, int32 InParticleIndex
-		, int32 InLevelsetIndex
-		, int32 InParticleIndexMesh
-		, int32 InLevelsetIndexMesh)
-		: Location(InLocation)
-		, AccumulatedImpulse(InAccumulatedImpulse)
-		, Normal(InNormal)
-		, Velocity1(InVelocity1)
-		, Velocity2(InVelocity2)
-		, AngularVelocity1(InAngularVelocity1)
-		, AngularVelocity2(InAngularVelocity2)
-		, Mass1(InMass1)
-		, Mass2(InMass2)
-		, ParticleIndex(InParticleIndex)
-		, LevelsetIndex(InLevelsetIndex)
-		, ParticleIndexMesh(InParticleIndexMesh)
-		, LevelsetIndexMesh(InLevelsetIndexMesh)
-	{}
-
-	UPROPERTY()
+	float Time;
 	FVector Location;
-
-	UPROPERTY()
 	FVector AccumulatedImpulse;
-
-	UPROPERTY()
 	FVector Normal;
-
-	UPROPERTY()
-	FVector Velocity1;
-
-	UPROPERTY()
-	FVector Velocity2;
-
-	UPROPERTY()
-	FVector AngularVelocity1;
-	
-	UPROPERTY()
-	FVector AngularVelocity2;
-
-	UPROPERTY()
-	float Mass1;
-	
-	UPROPERTY()
-	float Mass2;
-
-	UPROPERTY()
-	int32 ParticleIndex;
-	
-	UPROPERTY()
-	int32 LevelsetIndex;
-
-	UPROPERTY()
-	int32 ParticleIndexMesh;
-	
-	UPROPERTY()
-	int32 LevelsetIndexMesh;
-};
-
-USTRUCT()
-struct FSolverBreakingData
-{
-	GENERATED_BODY()
-
-	FSolverBreakingData()
-		: Location(FVector(0.f))
-		, Velocity(FVector(0.f))
-		, AngularVelocity(FVector(0.f))
-		, Mass(0.f)
-		, ParticleIndex(INDEX_NONE)
-		, ParticleIndexMesh(INDEX_NONE)
-	{}
-
-	UPROPERTY()
-	FVector Location;
-
-	UPROPERTY()
-	FVector Velocity;
-	
-	UPROPERTY()
-	FVector AngularVelocity;
-	
-	UPROPERTY()
-	float Mass;
-	
-	UPROPERTY()
-	int32 ParticleIndex;
-	
-	UPROPERTY()
-	int32 ParticleIndexMesh;
+	FVector Velocity1, Velocity2;
+	float Mass1, Mass2;
+	int32 ParticleIndex, LevelsetIndex;
 };
 
 USTRUCT()
@@ -137,46 +29,14 @@ struct FSolverTrailingData
 {
 	GENERATED_BODY()
 
-	FSolverTrailingData()
-		: Location(FVector(0.f))
-		, Velocity(FVector(0.f))
-		, AngularVelocity(FVector(0.f))
-		, Mass(0.f)
-		, ParticleIndex(INDEX_NONE)
-		, ParticleIndexMesh(INDEX_NONE)
-	{}
-
-	FSolverTrailingData(FVector InLocation
-		, FVector InVelocity
-		, FVector InAngularVelocity
-		, float InMass
-		, int32 InParticleIndex
-		, int32 InParticleIndexMesh)
-		: Location(InLocation)
-		, Velocity(InVelocity)
-		, AngularVelocity(InAngularVelocity)
-		, Mass(InMass)
-		, ParticleIndex(InParticleIndex)
-		, ParticleIndexMesh(InParticleIndexMesh)
-	{}
-
-	UPROPERTY()
+	float TimeTrailingStarted;
 	FVector Location;
-
-	UPROPERTY()
+	float ExtentMin;
+	float ExtentMax;
 	FVector Velocity;
-
-	UPROPERTY()
 	FVector AngularVelocity;
-
-	UPROPERTY()
 	float Mass;
-
-	UPROPERTY()
 	int32 ParticleIndex;
-
-	UPROPERTY()
-	int32 ParticleIndexMesh;
 
 	friend inline uint32 GetTypeHash(const FSolverTrailingData& Other)
 	{
@@ -241,10 +101,7 @@ struct FRecordedFrame
 	TArray<FSolverCollisionData> Collisions;
 
 	UPROPERTY()
-	TArray<FSolverBreakingData> Breakings;
-
-	UPROPERTY()
-	TSet<FSolverTrailingData> Trailings;
+	TArray<FSolverTrailingData> Trailings;
 
 	UPROPERTY()
 	float Timestamp;
@@ -261,10 +118,6 @@ struct FRecordedFrame
 		}
 
 		Timestamp = -MAX_flt;
-
-		Collisions.Reset();
-		Breakings.Reset();
-		Trailings.Reset();
 	}
 };
 
@@ -275,11 +128,6 @@ struct GEOMETRYCOLLECTIONCORE_API FRecordedTransformTrack
 
 	UPROPERTY()
 	TArray<FRecordedFrame> Records;
-
-	float GetDt() const
-	{
-		return Records.Num() > 1 ? Records[1].Timestamp - Records[0].Timestamp : 0;
-	}
 
 	int32 GetLastTime() const
 	{

@@ -236,12 +236,6 @@ struct FCachedActorLabels
 		ActorLabels.Add(InLabel);
 	}
 
-	/** Remove a label from this set */
-	FORCEINLINE void Remove(const FString& InLabel)
-	{
-		ActorLabels.Remove(InLabel);
-	}
-
 	/** Check if the specified label exists */
 	FORCEINLINE bool Contains(const FString& InLabel) const
 	{
@@ -1117,13 +1111,6 @@ public:
 	* @param	bActiveViewportOnly		If true, move/reorient only the active viewport.
 	*/
 	void MoveViewportCamerasToComponent(USceneComponent* Component, bool bActiveViewportOnly);
-
-	/**
-	 * Moves all viewport cameras to focus on the provided bounding box.
-	 * @param	BoundingBox				Target box
-	 * @param	bActiveViewportOnly		If true, move/reorient only the active viewport.
-	 */
-	void MoveViewportCamerasToBox(const FBox& BoundingBox, bool bActiveViewportOnly) const;
 
 	/** 
 	 * Snaps an actor in a direction.  Optionally will align with the trace normal.
@@ -3042,6 +3029,13 @@ private:
 
 	/** Gets the init values for worlds opened via Map_Load in the editor */
 	UWorld::InitializationValues GetEditorWorldInitializationValues() const;
+
+	/**
+	* Moves all viewport cameras to focus on the provided bounding box.
+	* @param	BoundingBox				Target box
+	* @param	bActiveViewportOnly		If true, move/reorient only the active viewport.
+	*/
+	void MoveViewportCamerasToBox(const FBox& BoundingBox, bool bActiveViewportOnly) const;
 
 public:
 	// Launcher Worker

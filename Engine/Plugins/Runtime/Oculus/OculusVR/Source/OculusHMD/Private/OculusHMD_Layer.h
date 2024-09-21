@@ -6,7 +6,7 @@
 
 #if OCULUS_HMD_SUPPORTED_PLATFORMS
 #include "OculusHMD_CustomPresent.h"
-#include "XRSwapChain.h"
+#include "OculusHMD_TextureSetProxy.h"
 
 namespace OculusHMD
 {
@@ -43,9 +43,9 @@ public:
 	void SetDesc(const IStereoLayers::FLayerDesc& InDesc);
 	const IStereoLayers::FLayerDesc& GetDesc() const { return Desc; }
 	void SetEyeLayerDesc(const ovrpLayerDesc_EyeFov& InEyeLayerDesc, const ovrpRecti InViewportRect[ovrpEye_Count]);
-	const FXRSwapChainPtr& GetSwapChain() const { return SwapChain; }
-	const FXRSwapChainPtr& GetRightSwapChain() const { return RightSwapChain; }
-	const FXRSwapChainPtr& GetDepthSwapChain() const { return DepthSwapChain; }
+	const FTextureSetProxyPtr& GetTextureSetProxy() const { return TextureSetProxy; }
+	const FTextureSetProxyPtr& GetRightTextureSetProxy() const { return RightTextureSetProxy; }
+	const FTextureSetProxyPtr& GetDepthTextureSetProxy() const { return DepthTextureSetProxy; }
 	void MarkTextureForUpdate() { bUpdateTexture = true; }
 #if PLATFORM_ANDROID
 	bool NeedsPokeAHole() { return (Desc.Flags & IStereoLayers::LAYER_FLAG_SUPPORT_DEPTH) != 0; }
@@ -76,10 +76,10 @@ protected:
 	ovrpLayerDescUnion OvrpLayerDesc;
 	ovrpLayerSubmitUnion OvrpLayerSubmit;
 	FOvrpLayerPtr OvrpLayer;
-	FXRSwapChainPtr SwapChain;
-	FXRSwapChainPtr DepthSwapChain;
-	FXRSwapChainPtr RightSwapChain;
-	FXRSwapChainPtr RightDepthSwapChain;
+	FTextureSetProxyPtr TextureSetProxy;
+	FTextureSetProxyPtr DepthTextureSetProxy;
+	FTextureSetProxyPtr RightTextureSetProxy;
+	FTextureSetProxyPtr RightDepthTextureSetProxy;
 	bool bUpdateTexture;
 	bool bInvertY;
 	bool bHasDepth;

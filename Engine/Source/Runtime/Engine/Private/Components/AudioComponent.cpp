@@ -10,7 +10,6 @@
 #include "Sound/SoundCue.h"
 #include "Components/BillboardComponent.h"
 #include "UObject/FrameworkObjectVersion.h"
-#include "Misc/App.h"
 
 DECLARE_CYCLE_STAT(TEXT("AudioComponent Play"), STAT_AudioComp_Play, STATGROUP_Audio);
 
@@ -68,8 +67,6 @@ UAudioComponent::UAudioComponent(const FObjectInitializer& ObjectInitializer)
 
 	AudioDeviceHandle = INDEX_NONE;
 	AudioComponentID = FPlatformAtomics::InterlockedIncrement(reinterpret_cast<volatile int64*>(&AudioComponentIDCounter));
-
-	RandomStream.Initialize(FApp::bUseFixedSeed ? GetFName() : NAME_None);
 
 	{
 		// TODO: Consider only putting played/active components in to the map
@@ -323,7 +320,7 @@ bool UAudioComponent::IsInAudibleRange(float* OutMaxDistance) const
 	const FVector Location = GetComponentTransform().GetLocation();
 	const FSoundAttenuationSettings* AttenuationSettingsToApply = bAllowSpatialization ? GetAttenuationSettingsToApply() : nullptr;
 	AudioDevice->GetMaxDistanceAndFocusFactor(Sound, GetWorld(), Location, AttenuationSettingsToApply, MaxDistance, FocusFactor);
-
+	
 	if (OutMaxDistance)
 	{
 		*OutMaxDistance = MaxDistance;
@@ -390,21 +387,19 @@ void UAudioComponent::PlayInternal(const float StartTime, const float FadeInDura
 			const FSoundAttenuationSettings* AttenuationSettingsToApply = bAllowSpatialization ? GetAttenuationSettingsToApply() : nullptr;
 
 			float MaxDistance = 0.0f;
-			float FocusFactor = 1.0f;
+			float FocusFactor = 0.0f;
 			FVector Location = GetComponentTransform().GetLocation();
 
 			AudioDevice->GetMaxDistanceAndFocusFactor(Sound, World, Location, AttenuationSettingsToApply, MaxDistance, FocusFactor);
 
 			FActiveSound NewActiveSound;
-			NewActiveSound.SetAudioComponent(*this);
+			NewActiveSound.SetAudioComponent(this);
 			NewActiveSound.SetWorld(GetWorld());
 			NewActiveSound.SetSound(Sound);
 			NewActiveSound.SetSoundClass(SoundClassOverride);
 			NewActiveSound.ConcurrencySet = ConcurrencySet;
 
-			const float Volume = (VolumeModulationMax + ((VolumeModulationMin - VolumeModulationMax) * RandomStream.FRand())) * VolumeMultiplier;
-			NewActiveSound.SetVolume(Volume);
-
+			NewActiveSound.VolumeMultiplier = (VolumeModulationMax + ((VolumeModulationMin - VolumeModulationMax) * FMath::SRand())) * VolumeMultiplier;
 			// The priority used for the active sound is the audio component's priority scaled with the sound's priority
 			if (bOverridePriority)
 			{
@@ -415,9 +410,7 @@ void UAudioComponent::PlayInternal(const float StartTime, const float FadeInDura
 				NewActiveSound.Priority = Sound->Priority;
 			}
 
-			const float Pitch = (PitchModulationMax + ((PitchModulationMin - PitchModulationMax) * RandomStream.FRand())) * PitchMultiplier;
-			NewActiveSound.SetPitch(Pitch);
-
+			NewActiveSound.PitchMultiplier = (PitchModulationMax + ((PitchModulationMin - PitchModulationMax) * FMath::SRand())) * PitchMultiplier;
 			NewActiveSound.bEnableLowPassFilter = bEnableLowPassFilter;
 			NewActiveSound.LowPassFilterFrequency = LowPassFilterFrequency;
 			NewActiveSound.RequestedStartTime = FMath::Max(0.f, StartTime);
@@ -454,7 +447,7 @@ void UAudioComponent::PlayInternal(const float StartTime, const float FadeInDura
 			if (NewActiveSound.bHasAttenuationSettings)
 			{
 				NewActiveSound.AttenuationSettings = *AttenuationSettingsToApply;
-				NewActiveSound.FocusData.PriorityScale = AttenuationSettingsToApply->GetFocusPriorityScale(AudioDevice->GetGlobalFocusSettings(), FocusFactor);
+				NewActiveSound.FocusPriorityScale = AttenuationSettingsToApply->GetFocusPriorityScale(AudioDevice->GetGlobalFocusSettings(), FocusFactor);
 			}
 
 			NewActiveSound.EnvelopeFollowerAttackTime = FMath::Max(EnvelopeFollowerAttackTime, 0);
@@ -493,13 +486,10 @@ void UAudioComponent::PlayInternal(const float StartTime, const float FadeInDura
 				NewActiveSound.CurrentAdjustVolumeMultiplier = FadeVolumeLevel;
 			}
 
-			// Bump ActiveCount... this is used to determine if an audio component is still active after a sound reports back as completed
+			// Bump ActiveCount... this is used to determine if an audio component is still active after "finishing"
 			++ActiveCount;
 			AudioDevice->AddNewActiveSound(NewActiveSound);
-
-			// In editor, the audio thread is not run separate from the game thread, and can result in calling PlaybackComplete prior
-			// to bIsActive being set. Therefore, we assign to the current state of ActiveCount as opposed to just setting to true.
-			bIsActive = ActiveCount > 0;
+			bIsActive = true;
 		}
 	}
 }
@@ -532,167 +522,87 @@ void UAudioComponent::FadeIn( float FadeInDuration, float FadeVolumeLevel, float
 	PlayInternal(StartTime, FadeInDuration, FadeVolumeLevel);
 }
 
-void UAudioComponent::FadeOut(float FadeOutDuration, float FadeVolumeLevel)
+void UAudioComponent::FadeOut( float FadeOutDuration, float FadeVolumeLevel )
 {
-	const bool bIsFadeOut = true;
-	AdjustVolumeInternal(FadeOutDuration, FadeVolumeLevel, bIsFadeOut);
-}
-
-void UAudioComponent::AdjustVolume(float AdjustVolumeDuration, float AdjustVolumeLevel)
-{
-	const bool bIsFadeOut = false;
-	AdjustVolumeInternal(AdjustVolumeDuration, AdjustVolumeLevel, bIsFadeOut);
-}
-
-void UAudioComponent::AdjustVolumeInternal(float AdjustVolumeDuration, float AdjustVolumeLevel, bool bIsFadeOut)
-{
-	if (!bIsActive)
+	if (bIsActive)
 	{
-		return;
-	}
-
-	FAudioDevice* AudioDevice = GetAudioDevice();
-	if (!AudioDevice)
-	{
-		return;
-	}
-
-	AdjustVolumeDuration = FMath::Max(0.0f, AdjustVolumeDuration);
-	AdjustVolumeLevel = FMath::Max(0.0f, AdjustVolumeLevel);
-	if (FMath::IsNearlyZero(AdjustVolumeDuration) && FMath::IsNearlyZero(AdjustVolumeLevel))
-	{
-		Stop();
-		return;
-	}
-
-	const uint64 InAudioComponentID = AudioComponentID;
-	DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.AdjustVolume"), STAT_AudioAdjustVolume, STATGROUP_AudioThreadCommands);
-	FAudioThread::RunCommandOnAudioThread([AudioDevice, InAudioComponentID, AdjustVolumeDuration, AdjustVolumeLevel, bIsFadeOut]()
-	{
-		FActiveSound* ActiveSound = AudioDevice->FindActiveSound(InAudioComponentID);
-		if (!ActiveSound)
+		if (FadeOutDuration > 0.0f)
 		{
-			return;
-		}
-
-		// Ignore fade out request if requested volume is higher than current target.
-		if (bIsFadeOut && AdjustVolumeLevel >= ActiveSound->TargetAdjustVolumeMultiplier)
-		{
-			return;
-		}
-
-		const float NewTargetStopTime = ActiveSound->PlaybackTime + AdjustVolumeDuration;
-		if (ActiveSound->FadeOut == FActiveSound::EFadeOut::Concurrency)
-		{
-			// Ignore adjust volume request if non-zero and currently voice stealing.
-			if (!FMath::IsNearlyZero(AdjustVolumeLevel))
+			if (FAudioDevice* AudioDevice = GetAudioDevice())
 			{
-				return;
-			}
+				DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.FadeOut"), STAT_AudioFadeOut, STATGROUP_AudioThreadCommands);
 
-			// Ignore request of longer fade out than active target if active is concurrency (voice stealing) fade.
-			if (NewTargetStopTime > ActiveSound->TargetAdjustVolumeStopTime)
-			{
-				return;
+				const uint64 MyAudioComponentID = AudioComponentID;
+				FAudioThread::RunCommandOnAudioThread([AudioDevice, MyAudioComponentID, FadeOutDuration, FadeVolumeLevel]()
+				{
+					FActiveSound* ActiveSound = AudioDevice->FindActiveSound(MyAudioComponentID);
+					if (ActiveSound)
+					{
+						ActiveSound->TargetAdjustVolumeMultiplier = FadeVolumeLevel;
+						ActiveSound->TargetAdjustVolumeStopTime = ActiveSound->PlaybackTime + FadeOutDuration;
+						ActiveSound->bFadingOut = true;
+					}
+				}, GET_STATID(STAT_AudioFadeOut));
 			}
 		}
 		else
 		{
-			ActiveSound->FadeOut = FMath::IsNearlyZero(AdjustVolumeLevel) ? FActiveSound::EFadeOut::User : FActiveSound::EFadeOut::None;
+			Stop();
 		}
+	}
+}
 
-		ActiveSound->TargetAdjustVolumeMultiplier = AdjustVolumeLevel;
+void UAudioComponent::AdjustVolume( float AdjustVolumeDuration, float AdjustVolumeLevel )
+{
+	if (bIsActive)
+	{
+		if (FAudioDevice* AudioDevice = GetAudioDevice())
+		{
+			DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.AdjustVolume"), STAT_AudioAdjustVolume, STATGROUP_AudioThreadCommands);
 
-		if (AdjustVolumeDuration > 0.0f)
-		{
-			ActiveSound->TargetAdjustVolumeStopTime = NewTargetStopTime;
+			const uint64 MyAudioComponentID = AudioComponentID;
+			FAudioThread::RunCommandOnAudioThread([AudioDevice, MyAudioComponentID, AdjustVolumeDuration, AdjustVolumeLevel]()
+			{
+				FActiveSound* ActiveSound = AudioDevice->FindActiveSound(MyAudioComponentID);
+				if (ActiveSound)
+				{
+					ActiveSound->bFadingOut = false;
+					ActiveSound->TargetAdjustVolumeMultiplier = AdjustVolumeLevel;
+
+					if (AdjustVolumeDuration > 0.0f)
+					{
+						ActiveSound->TargetAdjustVolumeStopTime = ActiveSound->PlaybackTime + AdjustVolumeDuration;
+					}
+					else
+					{
+						ActiveSound->CurrentAdjustVolumeMultiplier = AdjustVolumeLevel;
+						ActiveSound->TargetAdjustVolumeStopTime = -1.0f;
+					}
+				}
+			}, GET_STATID(STAT_AudioAdjustVolume));
 		}
-		else
-		{
-			ActiveSound->CurrentAdjustVolumeMultiplier = AdjustVolumeLevel;
-			ActiveSound->TargetAdjustVolumeStopTime = -1.0f;
-		}
-	}, GET_STATID(STAT_AudioAdjustVolume));
+	}
 }
 
 void UAudioComponent::Stop()
 {
-	if (!bIsActive)
-	{
-		return;
-	}
-
-	FAudioDevice* AudioDevice = GetAudioDevice();
-	if (!AudioDevice)
-	{
-		return;
-	}
-
-	// Set this to immediately be inactive
-	bIsActive = false;
-
-	UE_LOG(LogAudio, Verbose, TEXT("%g: Stopping AudioComponent : '%s' with Sound: '%s'"),
-		GetWorld() ? GetWorld()->GetAudioTimeSeconds() : 0.0f, *GetFullName(),
-		Sound ? *Sound->GetName() : TEXT("nullptr"));
-
-	AudioDevice->StopActiveSound(AudioComponentID);
+	StopInternal();
 }
 
-void UAudioComponent::StopDelayed(float DelayTime)
+void UAudioComponent::StopInternal()
 {
-	// 1. Stop immediately if no delay time
-	if (DelayTime < 0.0f || FMath::IsNearlyZero(DelayTime))
+	if (bIsActive)
 	{
-		Stop();
-		return;
+		// Set this to immediately be inactive
+		bIsActive = false;
+
+		UE_LOG(LogAudio, Verbose, TEXT( "%g: Stopping AudioComponent : '%s' with Sound: '%s'" ), GetWorld() ? GetWorld()->GetAudioTimeSeconds() : 0.0f, *GetFullName(), Sound ? *Sound->GetName() : TEXT( "nullptr" ) );
+
+		if (FAudioDevice* AudioDevice = GetAudioDevice())
+		{
+			AudioDevice->StopActiveSound(AudioComponentID);
+		}
 	}
-
-	if (!bIsActive)
-	{
-		return;
-	}
-
-	FAudioDevice* AudioDevice = GetAudioDevice();
-	if (!AudioDevice)
-	{
-		return;
-	}
-
-	// 2. Performs delayed stop with no fade
-	const uint64 InAudioComponentID = AudioComponentID;
-	DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.StopDelayed"), STAT_AudioStopDelayed, STATGROUP_AudioThreadCommands);
-	FAudioThread::RunCommandOnAudioThread([AudioDevice, InAudioComponentID, DelayTime]()
-	{
-		FActiveSound* ActiveSound = AudioDevice->FindActiveSound(InAudioComponentID);
-		if (!ActiveSound)
-		{
-			return;
-		}
-
-		const float NewTargetStopTime = ActiveSound->PlaybackTime + DelayTime;
-		if (ActiveSound->FadeOut == FActiveSound::EFadeOut::Concurrency)
-		{
-			// Ignore request of longer fade out than active target if active is concurrency (voice stealing) fade.
-			if (NewTargetStopTime > ActiveSound->TargetAdjustVolumeStopTime)
-			{
-				return;
-			}
-		}
-		else
-		{
-			// Set fade to user, but don't adjust target volume, which will cause sound to stop abruptly as intended.
-			ActiveSound->FadeOut = FActiveSound::EFadeOut::User;
-		}
-
-		if (const USoundBase* StoppingSound = ActiveSound->GetSound())
-		{
-			UE_LOG(LogAudio, Verbose, TEXT("%g: Delayed Stop requested for sound '%s'"),
-				ActiveSound->GetWorld() ? ActiveSound->GetWorld()->GetAudioTimeSeconds() : 0.0f,
-				*StoppingSound->GetName());
-		}
-
-		ActiveSound->TargetAdjustVolumeStopTime = NewTargetStopTime;
-	}, GET_STATID(STAT_AudioStopDelayed));
 }
 
 void UAudioComponent::SetPaused(bool bPause)
@@ -745,7 +655,10 @@ void UAudioComponent::PlaybackCompleted(bool bFailedToStart)
 	}
 
 	// Mark inactive before calling destroy to avoid recursion
-	bIsActive = false;
+	if (bIsActive)
+	{
+		bIsActive = false;
+	}
 
 	if (!bFailedToStart && GetWorld() != nullptr && (OnAudioFinished.IsBound() || OnAudioFinishedNative.IsBound()))
 	{
@@ -1133,7 +1046,7 @@ void UAudioComponent::SetVolumeMultiplier(const float NewVolumeMultiplier)
 				FActiveSound* ActiveSound = AudioDevice->FindActiveSound(MyAudioComponentID);
 				if (ActiveSound)
 				{
-					ActiveSound->SetVolume(NewVolumeMultiplier);
+					ActiveSound->VolumeMultiplier = NewVolumeMultiplier;
 				}
 			}, GET_STATID(STAT_AudioSetVolumeMultiplier));
 		}
@@ -1157,7 +1070,7 @@ void UAudioComponent::SetPitchMultiplier(const float NewPitchMultiplier)
 				FActiveSound* ActiveSound = AudioDevice->FindActiveSound(MyAudioComponentID);
 				if (ActiveSound)
 				{
-					ActiveSound->SetPitch(NewPitchMultiplier);
+					ActiveSound->PitchMultiplier = NewPitchMultiplier;
 				}
 			}, GET_STATID(STAT_AudioSetPitchMultiplier));
 		}
@@ -1411,7 +1324,7 @@ bool UAudioComponent::GetCookedFFTData(const TArray<float>& FrequenciesToGet, TA
 							}
 						}
 					}
-
+					
 					++NumEntriesAdded;
 					bHadData = true;
 				}

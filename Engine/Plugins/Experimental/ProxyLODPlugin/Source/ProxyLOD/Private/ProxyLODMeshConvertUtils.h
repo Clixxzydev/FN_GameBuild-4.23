@@ -39,10 +39,9 @@ namespace ProxyLOD
 	*
 	* @param InMesh   Mesh with a mixture of quads and triangles.
 	* @param OutMesh  Triangle Mesh.
-	* @param bClockWise how to order the verts in a triangle
 	*/
 	template <typename T>
-	void MixedPolyMeshToAOSMesh(const FMixedPolyMesh& InMesh, TAOSMesh<T>& OutMesh, const bool bClockWise = true);
+	void MixedPolyMeshToAOSMesh(const FMixedPolyMesh& InMesh, TAOSMesh<T>& OutMesh);
 
 
 	/**
@@ -104,6 +103,8 @@ namespace ProxyLOD
 #define PROXYLOD_CLOCKWISE_TRIANGLES  1
 #endif
 
+
+
 static FVector ComputeNormal(const FVector(&Tri)[3])
 {
 
@@ -118,7 +119,7 @@ static FVector ComputeNormal(const FVector(&Tri)[3])
 
 // Convert MixedPolyMesh to AOS Mesh.  This requires splitting quads to produce triangles.
 template <typename T>
-void ProxyLOD::MixedPolyMeshToAOSMesh(const FMixedPolyMesh& MixedPolyMesh, TAOSMesh<T>& DstAOSMesh, bool bClockWise)
+void ProxyLOD::MixedPolyMeshToAOSMesh(const FMixedPolyMesh& MixedPolyMesh, TAOSMesh<T>& DstAOSMesh)
 {
 
 	// Splitting a quad doesn't introduce any new verts.
@@ -159,7 +160,7 @@ void ProxyLOD::MixedPolyMeshToAOSMesh(const FMixedPolyMesh& MixedPolyMesh, TAOSM
 		// NB: The Quads are ordered in clockwise fashion.
 
 		ProxyLOD::Parallel_For(ProxyLOD::FUIntRange(0, NumQuads),
-			[&MixedPolyMesh, &DstAOSMesh, bClockWise](const ProxyLOD::FUIntRange& Range)
+			[&MixedPolyMesh, &DstAOSMesh](const ProxyLOD::FUIntRange& Range)
 		{
 			uint32* Indices = DstAOSMesh.Indexes;
 			for (uint32 q = Range.begin(), Q = Range.end(); q < Q; ++q)
@@ -167,36 +168,33 @@ void ProxyLOD::MixedPolyMeshToAOSMesh(const FMixedPolyMesh& MixedPolyMesh, TAOSM
 				const uint32 Offset = q * 6;
 				const openvdb::Vec4I& Quad = MixedPolyMesh.Quads[q];
 				// add as two triangles
-				if (bClockWise)
-				{
-					// first triangle
-					Indices[Offset] = Quad[0];
-					Indices[Offset + 1] = Quad[1];
-					Indices[Offset + 2] = Quad[2];
-					// second triangle
-					Indices[Offset + 3] = Quad[2];
-					Indices[Offset + 4] = Quad[3];
-					Indices[Offset + 5] = Quad[0];
-				}
-				else
-				{
-					// first triangle
-					Indices[Offset] = Quad[0];
-					Indices[Offset + 1] = Quad[3];
-					Indices[Offset + 2] = Quad[2];
+#if   (PROXYLOD_CLOCKWISE_TRIANGLES  == 1)
+				// first triangle
+				Indices[Offset] = Quad[0];
+				Indices[Offset + 1] = Quad[1];
+				Indices[Offset + 2] = Quad[2];
+				// second triangle
+				Indices[Offset + 3] = Quad[2];
+				Indices[Offset + 4] = Quad[3];
+				Indices[Offset + 5] = Quad[0];
+#else
+				// first triangle
+				Indices[Offset] = Quad[0];
+				Indices[Offset + 1] = Quad[3];
+				Indices[Offset + 2] = Quad[2];
 
-					// second triangle
-					Indices[Offset + 3] = Quad[2];
-					Indices[Offset + 4] = Quad[1];
-					Indices[Offset + 5] = Quad[0];
-				}
+				// second triangle
+				Indices[Offset + 3] = Quad[2];
+				Indices[Offset + 4] = Quad[1];
+				Indices[Offset + 5] = Quad[0];
+#endif
 			}
 
 		});
 
 		// add the MixedPolyMesh triangles.
 		ProxyLOD::Parallel_For(ProxyLOD::FUIntRange(0, MixedPolyMesh.Triangles.size()),
-			[&MixedPolyMesh, &DstAOSMesh, NumQuads, bClockWise](const ProxyLOD::FUIntRange& Range)
+			[&MixedPolyMesh, &DstAOSMesh, NumQuads](const ProxyLOD::FUIntRange& Range)
 		{
 			uint32* Indices = DstAOSMesh.Indexes;
 			for (uint32 t = Range.begin(), EndT = Range.end(); t < EndT; ++t)
@@ -204,18 +202,15 @@ void ProxyLOD::MixedPolyMeshToAOSMesh(const FMixedPolyMesh& MixedPolyMesh, TAOSM
 				const uint32 Offset = NumQuads * 6 + t * 3;
 				const openvdb::Vec3I& Tri = MixedPolyMesh.Triangles[t];
 				// add the triangle
-				if (bClockWise)
-				{
-					Indices[Offset] = Tri[0];
-					Indices[Offset + 1] = Tri[1];
-					Indices[Offset + 2] = Tri[2];
-				}
-				else
-				{
-					Indices[Offset] = Tri[2];
-					Indices[Offset + 1] = Tri[1];
-					Indices[Offset + 2] = Tri[0];
-				}
+#if (PROXYLOD_CLOCKWISE_TRIANGLES == 1)
+				Indices[Offset] = Tri[0];
+				Indices[Offset + 1] = Tri[1];
+				Indices[Offset + 2] = Tri[2];
+#else
+				Indices[Offset] = Tri[2];
+				Indices[Offset + 1] = Tri[1];
+				Indices[Offset + 2] = Tri[0];
+#endif 
 			}
 		});
 	}

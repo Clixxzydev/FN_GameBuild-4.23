@@ -8,7 +8,6 @@
 #include "Misc/FrameRate.h"
 #include "Templates/SharedPointer.h"
 
-class FImgMediaGlobalCache;
 class FImgMediaLoaderWork;
 class FImgMediaScheduler;
 class FImgMediaTextureSample;
@@ -32,8 +31,7 @@ public:
 	 *
 	 * @param InScheduler The scheduler for image loading.
 	 */
-	FImgMediaLoader(const TSharedRef<FImgMediaScheduler, ESPMode::ThreadSafe>& InScheduler,
-		const TSharedRef<FImgMediaGlobalCache, ESPMode::ThreadSafe>& InGlobalCache);
+	FImgMediaLoader(const TSharedRef<FImgMediaScheduler, ESPMode::ThreadSafe>& InScheduler);
 
 	/** Virtual destructor. */
 	virtual ~FImgMediaLoader();
@@ -272,9 +270,6 @@ private:
 	/** The scheduler for image loading. */
 	TSharedPtr<FImgMediaScheduler, ESPMode::ThreadSafe> Scheduler;
 
-	/** The scheduler for image loading. */
-	TSharedPtr<FImgMediaGlobalCache, ESPMode::ThreadSafe> GlobalCache;
-
 	/** Width and height of the image sequence (in pixels) .*/
 	FIntPoint SequenceDim;
 
@@ -283,9 +278,6 @@ private:
 
 	/** Frame rate of the currently loaded sequence. */
 	FFrameRate SequenceFrameRate;
-
-	/** Identifying name of sequence files. */
-	FName SequenceName;
 
 private:
 
@@ -300,7 +292,4 @@ private:
 
 	/** Object pool for reusable work items. */
 	TArray<FImgMediaLoaderWork*> WorkPool;
-
-	/** True if we are using the global cache, false to use the local cache. */
-	bool UseGlobalCache;
 };

@@ -14,7 +14,6 @@
 #include "PropertyHandle.h"
 #include "DetailLayoutBuilder.h"
 #include "SPerPlatformPropertiesWidget.h"
-#include "PlatformInfo.h"
 #include "ScopedTransaction.h"
 #include "IPropertyUtilities.h"
 #include "UObject/MetaData.h"

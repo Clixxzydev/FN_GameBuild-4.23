@@ -381,7 +381,7 @@ void FVisualizeTexturePresent::PresentContent(FRHICommandListImmediate& RHICmdLi
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
-			TRefCountPtr<IPooledRenderTarget> ElementRefCount = Element;
+			TRefCountPtr<IPooledRenderTarget> ElementRefCount;
 
 			GVisualizeTexture.CreateContentCapturePass(GraphBuilder, GraphBuilder.RegisterExternalTexture(ElementRefCount));
 			GraphBuilder.Execute();
@@ -410,7 +410,7 @@ void FVisualizeTexturePresent::PresentContent(FRHICommandListImmediate& RHICmdLi
 		{
 		case 0:
 		{
-			DestRect = View.UnconstrainedViewRect;
+			DestRect = SrcRect;
 		}
 		break;
 
@@ -453,8 +453,9 @@ void FVisualizeTexturePresent::PresentContent(FRHICommandListImmediate& RHICmdLi
 	}
 
 	auto& RenderTarget = View.Family->RenderTarget->GetRenderTargetTexture();
-	FRHIRenderPassInfo RPInfo(RenderTarget, ERenderTargetActions::Load_Store);
-	RHICmdList.BeginRenderPass(RPInfo, TEXT("VisualizeTexture"));
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SetRenderTarget(RHICmdList, RenderTarget, FTextureRHIRef(), true);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	RHICmdList.SetViewport(DestRect.Min.X, DestRect.Min.Y, 0.0f, DestRect.Max.X, DestRect.Max.Y, 1.0f);
 
 	FGraphicsPipelineStateInitializer GraphicsPSOInit;
@@ -494,7 +495,6 @@ void FVisualizeTexturePresent::PresentContent(FRHICommandListImmediate& RHICmdLi
 			*VertexShader,
 			EDRF_Default);
 	}
-	RHICmdList.EndRenderPass();
 
 	FRenderTargetTemp TempRenderTarget(View, View.UnconstrainedViewRect.Size());
 	FCanvas Canvas(&TempRenderTarget, NULL, View.Family->CurrentRealTime, View.Family->CurrentWorldTime, View.Family->DeltaWorldTime, View.GetFeatureLevel());

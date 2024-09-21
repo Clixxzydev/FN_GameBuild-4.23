@@ -32,7 +32,6 @@
 #include "Widgets/SWidget.h"
 
 #include "ScopedTransaction.h"
-#include "NiagaraScriptVariable.h"
 
 // TODO: Remove these
 #include "Widgets/Notifications/SNotificationList.h"
@@ -181,11 +180,11 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 		{
 			UNiagaraScriptSource* Source = CastChecked<UNiagaraScriptSource>(FunctionCallNode->FunctionScript->GetSource());
 			UNiagaraGraph* Graph = CastChecked<UNiagaraGraph>(Source->NodeGraph);
-			const TMap<FNiagaraVariable, UNiagaraScriptVariable*>& MetaDataMap = Graph->GetAllMetaData();
+			const TMap<FNiagaraVariable, FNiagaraVariableMetaData>& MetaDataMap = Graph->GetAllMetaData();
 			auto Iter = MetaDataMap.CreateConstIterator();
 			while (Iter)
 			{
-				auto PropertyIter = Iter.Value()->Metadata.PropertyMetaData.CreateConstIterator();
+				auto PropertyIter = Iter.Value().PropertyMetaData.CreateConstIterator();
 				while (PropertyIter)
 				{
 					if (PropertyIter.Key() == (TEXT("DisplayNameArg0")))
@@ -255,78 +254,49 @@ void UNiagaraStackModuleItem::RefreshIssues(TArray<FStackIssue>& NewIssues)
 	{
 		if (FunctionCallNode->FunctionScript != nullptr && FunctionCallNode->FunctionScript->bDeprecated)
 		{
-			FText ModuleScriptDeprecationShort = LOCTEXT("ModuleScriptDeprecationShort", "Deprecated module");
-			if (CanMoveAndDelete())
-			{
-				FText LongMessage = FunctionCallNode->FunctionScript->DeprecationRecommendation != nullptr ?
-					FText::Format(LOCTEXT("ModuleScriptDeprecationLong", "The script asset for the assigned module {0} has been deprecated. Suggested replacement: {1}"), FText::FromString(FunctionCallNode->GetFunctionName()), FText::FromString(FunctionCallNode->FunctionScript->DeprecationRecommendation->GetPathName())) :
-					FText::Format(LOCTEXT("ModuleScriptDeprecationUnknownLong", "The script asset for the assigned module {0} has been deprecated."), FText::FromString(FunctionCallNode->GetFunctionName()));
+			FText LongMessage = FunctionCallNode->FunctionScript->DeprecationRecommendation != nullptr ? 
+				FText::Format(LOCTEXT("ModuleScriptDeprecationLong", "The script asset for the assigned module {0} has been deprecated. Suggested replacement: {1}"), FText::FromString(FunctionCallNode->GetFunctionName()),FText::FromString(FunctionCallNode->FunctionScript->DeprecationRecommendation->GetPathName())) :
+				FText::Format(LOCTEXT("ModuleScriptDeprecationUnknownLong", "The script asset for the assigned module {0} has been deprecated."), FText::FromString(FunctionCallNode->GetFunctionName()));
 
-				int32 AddIdx = NewIssues.Add(FStackIssue(
-					EStackIssueSeverity::Warning,
-					ModuleScriptDeprecationShort,
-					LongMessage,
-					GetStackEditorDataKey(),
-					false,
-					{
-						FStackIssueFix(
-							LOCTEXT("SelectNewModuleScriptFix", "Select a new module script"),
-							FStackIssueFixDelegate::CreateLambda([this]() { this->bIsModuleScriptReassignmentPending = true; })),
-						FStackIssueFix(
-							LOCTEXT("DeleteFix", "Delete this module"),
-							FStackIssueFixDelegate::CreateLambda([this]() { this->Delete(); }))
-					}));
-
-				if (FunctionCallNode->FunctionScript->DeprecationRecommendation != nullptr)
+			int32 AddIdx = NewIssues.Add(FStackIssue(
+				EStackIssueSeverity::Warning,
+				LOCTEXT("ModuleScriptDeprecationShort", "Deprecated module"),
+				LongMessage,
+				GetStackEditorDataKey(),
+				false,
 				{
-					NewIssues[AddIdx].InsertFix(0,
-						FStackIssueFix(
-							LOCTEXT("SelectNewModuleScriptFixUseRecommended", "Use recommended replacement"),
-							FStackIssueFixDelegate::CreateLambda([this]() { ReassignModuleScript(FunctionCallNode->FunctionScript->DeprecationRecommendation); })));
-				}
-			}
-			else
+					FStackIssueFix(
+						LOCTEXT("SelectNewModuleScriptFix", "Select a new module script"),
+						FStackIssueFixDelegate::CreateLambda([this]() { this->bIsModuleScriptReassignmentPending = true; })),
+					FStackIssueFix(
+						LOCTEXT("DeleteFix", "Delete this module"),
+						FStackIssueFixDelegate::CreateLambda([this]() { this->Delete(); }))
+				}));
+			
+			if (FunctionCallNode->FunctionScript->DeprecationRecommendation != nullptr)
 			{
-				NewIssues.Add(FStackIssue(
-					EStackIssueSeverity::Warning,
-					ModuleScriptDeprecationShort,
-					FText::Format(LOCTEXT("ModuleScriptDeprecationFixParentLong", "The script asset for the assigned module {0} has been deprecated.  This module is inherited and this issue must be fixed in the parent emitter."),
-						FText::FromString(FunctionCallNode->GetFunctionName())),
-					GetStackEditorDataKey(),
-					false));
+				NewIssues[AddIdx].InsertFix(0,
+					FStackIssueFix(
+						LOCTEXT("SelectNewModuleScriptFixUseRecommended", "Use recommended replacement"),
+						FStackIssueFixDelegate::CreateLambda([this]() { ReassignModuleScript(FunctionCallNode->FunctionScript->DeprecationRecommendation); })));
 			}
 		}
 		if(FunctionCallNode->FunctionScript == nullptr && FunctionCallNode->GetClass() == UNiagaraNodeFunctionCall::StaticClass())
 		{
-			FText ModuleScriptMissingShort = LOCTEXT("ModuleScriptMissingShort", "Missing module script");
-			if (CanMoveAndDelete())
-			{
-				NewIssues.Add(FStackIssue(
-					EStackIssueSeverity::Error,
-					ModuleScriptMissingShort,
-					FText::Format(LOCTEXT("ModuleScriptMissingLong", "The script asset for the assigned module {0} is missing."), FText::FromString(FunctionCallNode->GetFunctionName())),
-					GetStackEditorDataKey(),
-					false,
-					{
-						FStackIssueFix(
-							LOCTEXT("SelectNewModuleScriptFix", "Select a new module script"),
-							FStackIssueFixDelegate::CreateLambda([this]() { this->bIsModuleScriptReassignmentPending = true; })),
-						FStackIssueFix(
-							LOCTEXT("DeleteFix", "Delete this module"),
-							FStackIssueFixDelegate::CreateLambda([this]() { this->Delete(); }))
-					}));
-			}
-			else
-			{
-				// If the module can't be moved or deleted it's inherited and it's not valid to reassign scripts in child emitters because it breaks merging.
-				NewIssues.Add(FStackIssue(
-					EStackIssueSeverity::Error,
-					ModuleScriptMissingShort,
-					FText::Format(LOCTEXT("ModuleScriptMissingFixParentLong", "The script asset for the assigned module {0} is missing.  This module is inherited and this issue must be fixed in the parent emitter."), 
-						FText::FromString(FunctionCallNode->GetFunctionName())),
-					GetStackEditorDataKey(),
-					false));
-			}
+			NewIssues.Add(FStackIssue(
+				EStackIssueSeverity::Error,
+				LOCTEXT("ModuleScriptMissingShort", "Missing module script"),
+				FText::Format(LOCTEXT("ModuleScriptMissingLong", "The script asset for the assigned module {0} is missing."), FText::FromString(FunctionCallNode->GetFunctionName())),
+				GetStackEditorDataKey(),
+				false,
+				{
+					FStackIssueFix(
+						LOCTEXT("SelectNewModuleScriptFix", "Select a new module script"),
+						FStackIssueFixDelegate::CreateLambda([this]() { this->bIsModuleScriptReassignmentPending = true; })),
+				FStackIssueFix(
+					LOCTEXT("DeleteFix", "Delete this module"),
+					FStackIssueFixDelegate::CreateLambda([this]() { this->Delete(); }))
+				}));
 		}
 		else if (!FunctionCallNode->ScriptIsValid())
 		{
@@ -728,7 +698,7 @@ bool UNiagaraStackModuleItem::CanMoveAndDelete() const
 			// When editing systems only non-base modules can be moved and deleted.
 			TSharedRef<FNiagaraScriptMergeManager> MergeManager = FNiagaraScriptMergeManager::Get();
 
-			const UNiagaraEmitter* BaseEmitter = GetEmitterViewModel()->GetEmitter()->GetParent();
+			const UNiagaraEmitter* BaseEmitter = FNiagaraStackGraphUtilities::GetBaseEmitter(*GetEmitterViewModel()->GetEmitter(), GetSystemViewModel()->GetSystem());
 
 			bool bIsMergeable = MergeManager->IsMergeableScriptUsage(OutputNode->GetUsage());
 			bool bHasBaseModule = bIsMergeable && BaseEmitter != nullptr && MergeManager->HasBaseModule(*BaseEmitter, OutputNode->GetUsage(), OutputNode->GetUsageId(), FunctionCallNode->NodeGuid);
@@ -861,7 +831,6 @@ void UNiagaraStackModuleItem::ReassignModuleScript(UNiagaraScript* ModuleScript)
 		FScopedTransaction ScopedTransaction(LOCTEXT("ReassignModuleTransaction", "Reassign module script"));
 		FunctionCallNode->Modify();
 		FunctionCallNode->FunctionScript = ModuleScript;
-		FunctionCallNode->RefreshFromExternalChanges();
 		FunctionCallNode->MarkNodeRequiresSynchronization(TEXT("Module script reassigned."), true);
 		RefreshChildren();
 	}

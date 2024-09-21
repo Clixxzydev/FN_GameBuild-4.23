@@ -13,7 +13,6 @@
 #include "Logging/TokenizedMessage.h"
 #include "Logging/MessageLog.h"
 #include "Misc/UObjectToken.h"
-#include "Rendering/MotionVectorSimulation.h"
 #include "Misc/MapErrors.h"
 #include "Components/DrawFrustumComponent.h"
 #include "IHeadMountedDisplay.h"
@@ -322,9 +321,6 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	{
 		DesiredView.PostProcessSettings = PostProcessSettings;
 	}
-
-	// If this camera component has a motion vector simumlation transform, use that for the current view's previous transform
-	DesiredView.PreviousViewTransform = FMotionVectorSimulation::Get().GetPreviousTransform(this);
 }
 
 #if WITH_EDITOR

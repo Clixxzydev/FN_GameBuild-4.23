@@ -34,7 +34,6 @@ class NAVIGATIONSYSTEM_API UNavLinkCustomComponent : public UNavRelevantComponen
 
 	// BEGIN INavLinkCustomInterface
 	virtual void GetLinkData(FVector& LeftPt, FVector& RightPt, ENavLinkDirection::Type& Direction) const override;
-	virtual void GetSupportedAgents(FNavAgentSelector& OutSupportedAgents) const override;
 	virtual TSubclassOf<UNavArea> GetLinkAreaClass() const override;
 	virtual uint32 GetLinkId() const override;
 	virtual void UpdateLinkId(uint32 NewUniqueId) override;
@@ -71,9 +70,6 @@ class NAVIGATIONSYSTEM_API UNavLinkCustomComponent : public UNavRelevantComponen
 	/** set area class to use when link is disabled */
 	void SetDisabledArea(TSubclassOf<UNavArea> AreaClass);
 	TSubclassOf<UNavArea> GetDisabledArea() const { return DisabledAreaClass; }
-
-	void SetSupportedAgents(const FNavAgentSelector& InSupportedAgents) { SupportedAgents = InSupportedAgents; }
-	FNavAgentSelector GetSupportedAgents() const { return SupportedAgents; }
 
 	/** add box obstacle during generation of navigation data
 	  * this can be used to create empty area under doors */
@@ -145,10 +141,6 @@ protected:
 	/** area class to use when link is disabled */
 	UPROPERTY(EditAnywhere, Category=SmartLink)
 	TSubclassOf<UNavArea> DisabledAreaClass;
-
-	/** restrict area only to specified agents */
-	UPROPERTY(EditAnywhere, Category=SmartLink)
-	FNavAgentSelector SupportedAgents;
 
 	/** start point, relative to owner */
 	UPROPERTY(EditAnywhere, Category=SmartLink)

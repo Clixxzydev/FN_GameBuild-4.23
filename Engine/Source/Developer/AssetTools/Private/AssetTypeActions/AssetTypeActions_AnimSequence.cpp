@@ -12,7 +12,6 @@
 #include "Factories/PoseAssetFactory.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Animation/AnimComposite.h"
-#include "Animation/AnimStreamable.h"
 #include "Animation/PoseAsset.h"
 #include "AssetTools.h"
 #include "IContentBrowserSingleton.h"
@@ -79,7 +78,6 @@ void FAssetTypeActions_AnimSequence::FillCreateMenu(FMenuBuilder& MenuBuilder, c
 			)
 		);
 
-	/* Not supported, streamable animation logic will be ported to UAnimSequence
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AnimSequence_NewAnimStreamable", "Create AnimStreamable"),
 		LOCTEXT("AnimSequence_NewAnimStreamableTooltip", "Creates an AnimStreamable using the selected anim sequence."),
@@ -88,8 +86,8 @@ void FAssetTypeActions_AnimSequence::FillCreateMenu(FMenuBuilder& MenuBuilder, c
 			FExecuteAction::CreateSP(this, &FAssetTypeActions_AnimSequence::ExecuteNewAnimStreamable, Sequences),
 			FCanExecuteAction()
 		)
-	);*/
-
+	);
+	
 	MenuBuilder.AddMenuEntry(
 		LOCTEXT("AnimSequence_NewPoseAsset", "Create PoseAsset"),
 		LOCTEXT("AnimSequence_NewPoseAssetTooltip", "Creates an PoseAsset using the selected anim sequence."),
@@ -143,14 +141,6 @@ void FAssetTypeActions_AnimSequence::ExecuteNewAnimComposite(TArray<TWeakObjectP
 	CreateAnimationAssets(Objects, UAnimComposite::StaticClass(), Factory, DefaultSuffix, FOnConfigureFactory::CreateSP(this, &FAssetTypeActions_AnimSequence::ConfigureFactoryForAnimComposite));
 }
 
-void FAssetTypeActions_AnimSequence::ExecuteNewAnimMontage(TArray<TWeakObjectPtr<UAnimSequence>> Objects) const
-{
-	const FString DefaultSuffix = TEXT("_Montage");
-	UAnimMontageFactory* Factory = NewObject<UAnimMontageFactory>();
-
-	CreateAnimationAssets(Objects, UAnimMontage::StaticClass(), Factory, DefaultSuffix, FOnConfigureFactory::CreateSP(this, &FAssetTypeActions_AnimSequence::ConfigureFactoryForAnimMontage));
-}
-
 void FAssetTypeActions_AnimSequence::ExecuteNewAnimStreamable(TArray<TWeakObjectPtr<UAnimSequence>> Objects) const
 {
 	const FString DefaultSuffix = TEXT("_Streamable");
@@ -164,6 +154,14 @@ void FAssetTypeActions_AnimSequence::ExecuteNewAnimStreamable(TArray<TWeakObject
 	};
 
 	CreateAnimationAssets(Objects, UAnimStreamable::StaticClass(), Factory, DefaultSuffix, FOnConfigureFactory::CreateLambda(StreamableConfigure));
+}
+
+void FAssetTypeActions_AnimSequence::ExecuteNewAnimMontage(TArray<TWeakObjectPtr<UAnimSequence>> Objects) const
+{
+	const FString DefaultSuffix = TEXT("_Montage");
+	UAnimMontageFactory* Factory = NewObject<UAnimMontageFactory>();
+
+	CreateAnimationAssets(Objects, UAnimMontage::StaticClass(), Factory, DefaultSuffix, FOnConfigureFactory::CreateSP(this, &FAssetTypeActions_AnimSequence::ConfigureFactoryForAnimMontage));
 }
 
 void FAssetTypeActions_AnimSequence::ExecuteNewPoseAsset(TArray<TWeakObjectPtr<UAnimSequence>> Objects) const

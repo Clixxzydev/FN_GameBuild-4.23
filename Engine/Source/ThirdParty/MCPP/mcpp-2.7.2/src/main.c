@@ -458,8 +458,7 @@ fatal_error_exit:
 
 #define MAX_OPTIONS 128
 int mcpp_run(
-	const char** in_options,
-	int num_options,
+	const char* in_options,
 	const char* filename,
 	char** outfile,
 	char** outerrors,
@@ -469,19 +468,42 @@ int mcpp_run(
 	int ret = 0;
 	int argc = 0;
 	char* argv[MAX_OPTIONS];
+	char* options = 0;
+	char* p = 0;
 
-	if (num_options + 2 > MAX_OPTIONS)
+	argv[argc++] = "mcpp";
+	argv[argc++] = filename;
+
+	p = options = xstrdup(in_options);
+	if (p)
 	{
-		mcpp_fprintf(ERR, "Exceeded limit of MCPP options: limit is %d, but got %d.\n", (MAX_OPTIONS - 2), num_options);
-		return (IO_ERROR);
-	}
+		while (*p && argc < MAX_OPTIONS)
+		{
+			// Skip whitespace.
+			while (*p && (*p == ' ' || *p == '\t')) { p++; }
 
-	argv[argc++] = xstrdup("mcpp");
-	argv[argc++] = xstrdup(filename);
+			int bFoundQuote = 0;
+			if (*p == '\"')
+			{
+				bFoundQuote = 1;
+				++p;
+			}
 
-	for (int i = 0; i < num_options; ++i)
-	{
-		argv[argc++] = xstrdup(in_options[i]);
+			// Store pointer to argument.
+			argv[argc++] = p;
+
+			// Skip argument.
+			if (bFoundQuote)
+			{
+				while (*p && *p != '\"') { ++p; }
+			}
+			else
+			{
+				while (*p && *p != ' ' && *p != '\t') { p++; }
+			}
+			// Add null terminator for argument if needed.
+			if (*p) { *p++ = 0; }
+		}
 	}
 
 	mcpp_use_mem_buffers(1);
@@ -495,10 +517,7 @@ int mcpp_run(
 	{
 		*outerrors = mcpp_get_mem_buffer(ERR);
 	}
-	for (int i = 0; i < argc; ++i)
-	{
-		xfree(argv[i]);
-	}
+	xfree(options);
 
 	return ret;
 }
@@ -506,7 +525,7 @@ int mcpp_run(
 /*
  * This is the table used to predefine target machine, operating system and
  * compiler designators.  It may need hacking for specific circumstances.
- * The -N option suppresses these definitions.
+ * The -N option supresses these definitions.
  */
 typedef struct pre_set {
     const char *    name;

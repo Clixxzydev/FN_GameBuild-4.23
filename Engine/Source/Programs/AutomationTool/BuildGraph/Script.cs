@@ -595,7 +595,7 @@ namespace AutomationTool
 		{
 			if (EvaluateCondition(Element))
 			{
-				FileReference Script = FileReference.Combine(BaseDir, ReadAttribute(Element, "Script"));
+				FileReference Script = FileReference.Combine(BaseDir, Element.GetAttribute("Script"));
 				if (!FileReference.Exists(Script))
 				{
 					LogError(Element, "Cannot find included script '{0}'", Script.FullName);
@@ -1423,10 +1423,6 @@ namespace AutomationTool
 			else if (ValueType == typeof(DirectoryReference))
 			{
 				return CustomTask.ResolveDirectory(ValueText);
-			}
-			else if (ValueType == typeof(UnrealTargetPlatform))
-			{
-				return UnrealTargetPlatform.Parse(ValueText);
 			}
 			else
 			{

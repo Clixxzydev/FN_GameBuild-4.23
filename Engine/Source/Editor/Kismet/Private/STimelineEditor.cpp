@@ -1657,7 +1657,7 @@ TSharedPtr< SWidget > STimelineEditor::MakeContextMenu() const
 	{
 		TSharedRef<SWidget> SizeSlider = SNew(SSlider)
 			.Value(this, &STimelineEditor::GetSizeScaleValue)
-			.OnValueChanged(const_cast<STimelineEditor*>(this), &STimelineEditor::SetSizeScaleValue);
+			.OnValueChanged(this, &STimelineEditor::SetSizeScaleValue);
 
 		MenuBuilder.AddWidget(SizeSlider, LOCTEXT("TimelineEditorVerticalSize", "Height"));
 	}

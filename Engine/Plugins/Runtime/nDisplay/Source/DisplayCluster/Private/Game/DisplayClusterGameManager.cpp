@@ -7,10 +7,10 @@
 #include "DisplayClusterGameMode.h"
 #include "DisplayClusterSettings.h"
 
-#include "Misc/DisplayClusterHelpers.h"
-
 #include "Kismet/GameplayStatics.h"
 #include "Misc/CommandLine.h"
+#include "Misc/DisplayClusterHelpers.h"
+#include "Misc/DisplayClusterLog.h"
 #include "Config/DisplayClusterConfigTypes.h"
 #include "Config/IPDisplayClusterConfigManager.h"
 
@@ -21,7 +21,6 @@
 #include "DisplayClusterScreenComponent.h"
 
 #include "DisplayClusterGlobals.h"
-#include "DisplayClusterLog.h"
 #include "DisplayClusterStrings.h"
 
 
@@ -76,10 +75,11 @@ bool FDisplayClusterGameManager::StartScene(UWorld* pWorld)
 	CurrentWorld = pWorld;
 
 	VRRootActor = nullptr;
-	DefaultCameraComponent = nullptr;
+	ActiveCameraComponent = nullptr;
 
 	// Clean containers. We store only pointers so there is no need to do any additional
 	// operations. All components will be destroyed by the engine.
+	ActiveScreenComponents.Reset();
 	ScreenComponents.Reset();
 	CameraComponents.Reset();
 	SceneNodeComponents.Reset();
@@ -103,10 +103,11 @@ void FDisplayClusterGameManager::EndScene()
 	FScopeLock lock(&InternalsSyncScope);
 
 	VRRootActor = nullptr;
-	DefaultCameraComponent = nullptr;
+	ActiveCameraComponent = nullptr;
 
 	// Clean containers. We store only pointers so there is no need to do any additional
 	// operations. All components will be destroyed by the engine.
+	ActiveScreenComponents.Reset();
 	ScreenComponents.Reset();
 	CameraComponents.Reset();
 	SceneNodeComponents.Reset();
@@ -128,6 +129,18 @@ TArray<UDisplayClusterScreenComponent*> FDisplayClusterGameManager::GetAllScreen
 	return GetMapValues<UDisplayClusterScreenComponent>(ScreenComponents);
 }
 
+TArray<UDisplayClusterScreenComponent*> FDisplayClusterGameManager::GetActiveScreens() const
+{
+	TArray<UDisplayClusterScreenComponent*> ActiveScreens;
+
+	{
+		FScopeLock lock(&InternalsSyncScope);
+		ActiveScreenComponents.GenerateValueArray(ActiveScreens);
+	}
+
+	return ActiveScreens;
+}
+
 UDisplayClusterScreenComponent* FDisplayClusterGameManager::GetScreenById(const FString& id) const
 {
 	FScopeLock lock(&InternalsSyncScope);
@@ -138,6 +151,12 @@ int32 FDisplayClusterGameManager::GetScreensAmount() const
 {
 	FScopeLock lock(&InternalsSyncScope);
 	return ScreenComponents.Num();
+}
+
+UDisplayClusterCameraComponent* FDisplayClusterGameManager::GetActiveCamera() const
+{
+	FScopeLock lock(&InternalsSyncScope);
+	return ActiveCameraComponent;
 }
 
 UDisplayClusterCameraComponent* FDisplayClusterGameManager::GetCameraById(const FString& id) const
@@ -158,13 +177,7 @@ int32 FDisplayClusterGameManager::GetCamerasAmount() const
 	return CameraComponents.Num();
 }
 
-UDisplayClusterCameraComponent* FDisplayClusterGameManager::GetDefaultCamera() const
-{
-	FScopeLock lock(&InternalsSyncScope);
-	return DefaultCameraComponent;
-}
-
-void FDisplayClusterGameManager::SetDefaultCamera(int32 idx)
+void FDisplayClusterGameManager::SetActiveCamera(int32 idx)
 {
 	DISPLAY_CLUSTER_FUNC_TRACE(LogDisplayClusterGame);
 
@@ -180,10 +193,10 @@ void FDisplayClusterGameManager::SetDefaultCamera(int32 idx)
 		return;
 	}
 
-	return SetDefaultCamera(cam.Id);
+	return SetActiveCamera(cam.Id);
 }
 
-void FDisplayClusterGameManager::SetDefaultCamera(const FString& id)
+void FDisplayClusterGameManager::SetActiveCamera(const FString& id)
 {
 	DISPLAY_CLUSTER_FUNC_TRACE(LogDisplayClusterGame);
 
@@ -200,15 +213,15 @@ void FDisplayClusterGameManager::SetDefaultCamera(const FString& id)
 		return;
 	}
 
-	DefaultCameraComponent = CameraComponents[id];
-	VRRootActor->GetCameraComponent()->AttachToComponent(DefaultCameraComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
+	ActiveCameraComponent = CameraComponents[id];
+	VRRootActor->GetCameraComponent()->AttachToComponent(ActiveCameraComponent, FAttachmentTransformRules(EAttachmentRule::KeepRelative, false));
 	VRRootActor->GetCameraComponent()->SetRelativeLocation(FVector::ZeroVector);
 	VRRootActor->GetCameraComponent()->SetRelativeRotation(FRotator::ZeroRotator);
 
 	// Update 'rotate around' component
-	SetRotateAroundComponent(DefaultCameraComponent);
+	SetRotateAroundComponent(ActiveCameraComponent);
 
-	UE_LOG(LogDisplayClusterGame, Log, TEXT("Default camera: %s"), *DefaultCameraComponent->GetId());
+	UE_LOG(LogDisplayClusterGame, Log, TEXT("Camera %s activated"), *ActiveCameraComponent->GetId());
 }
 
 UDisplayClusterSceneComponent* FDisplayClusterGameManager::GetNodeById(const FString& id) const
@@ -329,6 +342,34 @@ void FDisplayClusterGameManager::SetRotateAroundComponent(const FString& id)
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////
+// IPDisplayClusterProjectionScreenDataProvider
+//////////////////////////////////////////////////////////////////////////////////////////////
+bool FDisplayClusterGameManager::GetProjectionScreenData(const FString& ScreenId, FDisplayClusterProjectionScreenData& OutProjectionScreenData) const
+{
+	DISPLAY_CLUSTER_FUNC_TRACE(LogDisplayClusterGame);
+
+	if (!ActiveScreenComponents.Contains(ScreenId))
+	{
+		UE_LOG(LogDisplayClusterGame, Error, TEXT("Screen '%s' wasn't found"), *ScreenId);
+		return false;
+	}
+
+	const UDisplayClusterScreenComponent* const ProjScreen = ActiveScreenComponents[ScreenId];
+	if (!ProjScreen)
+	{
+		UE_LOG(LogDisplayClusterGame, Error, TEXT("Screen '%s' was found but it's nullptr"), *ScreenId);
+		return false;
+	}
+
+	OutProjectionScreenData.Loc  = ProjScreen->GetComponentLocation();
+	OutProjectionScreenData.Rot  = ProjScreen->GetComponentRotation();
+	OutProjectionScreenData.Size = ProjScreen->GetScreenSize();
+
+	return true;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterGameManager
 //////////////////////////////////////////////////////////////////////////////////////////////
 bool FDisplayClusterGameManager::InitializeDisplayClusterActor()
@@ -338,7 +379,7 @@ bool FDisplayClusterGameManager::InitializeDisplayClusterActor()
 	APlayerController* pController = UGameplayStatics::GetPlayerController(CurrentWorld, 0);
 	check(pController);
 	
-	VRRootActor = Cast<ADisplayClusterPawn>(pController->GetPawn());
+	VRRootActor = StaticCast<ADisplayClusterPawn*>(pController->GetPawn());
 	if (!VRRootActor)
 	{
 		// Seems the DisplayCluster features has been disabled
@@ -362,17 +403,17 @@ bool FDisplayClusterGameManager::InitializeDisplayClusterActor()
 	}
 
 	// Set the first camera active by default
-	SetDefaultCamera(DefaultCameraComponent->GetId());
+	SetActiveCamera(ActiveCameraComponent->GetId());
 
 	// Check if default camera was specified in command line arguments
 	FString camId;
 	if (FParse::Value(FCommandLine::Get(), DisplayClusterStrings::args::Camera, camId))
 	{
-		DisplayClusterHelpers::str::TrimStringValue(camId);
+		DisplayClusterHelpers::str::DustCommandLineValue(camId);
 		UE_LOG(LogDisplayClusterGame, Log, TEXT("Default camera from command line arguments: %s"), *camId);
 		if (CameraComponents.Contains(camId))
 		{
-			SetDefaultCamera(camId);
+			SetActiveCamera(camId);
 		}
 	}
 
@@ -381,6 +422,14 @@ bool FDisplayClusterGameManager::InitializeDisplayClusterActor()
 
 bool FDisplayClusterGameManager::CreateScreens()
 {
+	// Get local screen settings
+	const TArray<FDisplayClusterConfigScreen> LocalScreens = DisplayClusterHelpers::config::GetLocalScreens();
+	if (LocalScreens.Num() == 0)
+	{
+		UE_LOG(LogDisplayClusterGame, Error, TEXT("Couldn't get projection screen settings"));
+		return false;
+	}
+
 	// Create screens
 	const IPDisplayClusterConfigManager* const ConfigMgr = GDisplayCluster->GetPrivateConfigMgr();
 	if (!ConfigMgr)
@@ -402,9 +451,21 @@ bool FDisplayClusterGameManager::CreateScreens()
 		// Pass settings
 		ScreenComp->SetSettings(&Screen);
 
+		// Is this active screen (for this node)?
+		if (DisplayClusterHelpers::config::IsLocalScreen(Screen.Id))
+			ActiveScreenComponents.Add(Screen.Id, ScreenComp);
+
 		// Store the screen
 		ScreenComponents.Add(Screen.Id, ScreenComp);
 		SceneNodeComponents.Add(Screen.Id, ScreenComp);
+	}
+
+	// Check if local screen was found
+	check(ActiveScreenComponents.Num());
+	if (!ActiveScreenComponents.Num())
+	{
+		UE_LOG(LogDisplayClusterGame, Error, TEXT("Local screen not found"));
+		return false;
 	}
 
 	return true;
@@ -445,14 +506,14 @@ bool FDisplayClusterGameManager::CreateCameras()
 		CameraComponents.Add(cam.Id, pCam);
 		SceneNodeComponents.Add(cam.Id, pCam);
 
-		if (DefaultCameraComponent == nullptr)
+		if (ActiveCameraComponent == nullptr)
 		{
-			DefaultCameraComponent = pCam;
+			ActiveCameraComponent = pCam;
 		}
 	}
 
 	// At least one camera must be set up
-	if (!DefaultCameraComponent)
+	if (!ActiveCameraComponent)
 	{
 		UE_LOG(LogDisplayClusterGame, Warning, TEXT("No camera found"));
 		return false;

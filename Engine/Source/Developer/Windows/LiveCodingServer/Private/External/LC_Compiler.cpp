@@ -7,7 +7,6 @@
 #include "LC_Environment.h"
 #include "LC_CriticalSection.h"
 #include "LC_Logging.h"
-#include "LC_TimeStamp.h"
 
 
 namespace
@@ -25,18 +24,18 @@ namespace
 		{
 			for (auto it = m_cache.begin(); it != m_cache.end(); ++it)
 			{
-				process::Environment* env = it->second;
-				process::DestroyEnvironment(env);
+				environment::Block* block = it->second;
+				environment::DestroyBlock(block);
 			}
 		}
 
-		void Insert(const wchar_t* key, process::Environment* value)
+		void Insert(const wchar_t* key, environment::Block* value)
 		{
 	        // BEGIN EPIC MOD - Allow passing environment block for linker
 			auto it = m_cache.find(key);
 			if (it != m_cache.end())
 			{
-				process::DestroyEnvironment(it->second);
+				environment::DestroyBlock(it->second);
 				it->second = value;
 				return;
 			}
@@ -45,7 +44,7 @@ namespace
 			m_cache[key] = value;
 		}
 
-		const process::Environment* Fetch(const wchar_t* key)
+		const environment::Block* Fetch(const wchar_t* key)
 		{
 			const auto it = m_cache.find(key);
 			if (it != m_cache.end())
@@ -57,7 +56,7 @@ namespace
 		}
 
 	private:
-		types::unordered_map<std::wstring, process::Environment*> m_cache;
+		types::unordered_map<std::wstring, environment::Block*> m_cache;
 	};
 
 	static CompilerEnvironmentCache g_compilerEnvironmentCache;
@@ -128,7 +127,7 @@ namespace
 }
 
 
-const process::Environment* compiler::CreateEnvironmentCacheEntry(const wchar_t* absolutePathToCompilerExe)
+const environment::Block* compiler::CreateEnvironmentCacheEntry(const wchar_t* absolutePathToCompilerExe)
 {
 	LC_LOG_DEV("Creating environment cache entry for %S", absolutePathToCompilerExe);
 
@@ -168,73 +167,50 @@ const process::Environment* compiler::CreateEnvironmentCacheEntry(const wchar_t*
 		const file::Attributes& attributes = file::GetAttributes(pathToVcvars.c_str());
 		if (file::DoesExist(attributes))
 		{
-			// this is the correct vcvars*.bat.
-			// we need to invoke the command shell, run the .bat file, and extract the process' environment to cache it for later use.
-			// this is slightly more complicated than it needs to be, because we cannot simply run a command in the shell and grab
-			// the environment without knowing if the .bat has finished running. similarly, we cannot grab the environment once
-			// the shell process has terminated already.
-			// here's what we do:
-			// - create a unique, temporary file. this is used for letting the shell signal that it has finished executing
-			// - run the .bat file in the shell
-			// - tell the shell to delete the temporary file and pause
-			// - wait until the temporary file is deleted. it is now save to grab the environment
-			// - grab the environment and store it in our cache
-			// - terminate the shell process
+			// this is the correct vcvars*.bat
 
-			// create an empty temporary file
-			const std::wstring& tempFileDeletedByCmd = file::GenerateTempFilename();
-			char emptyData = 0u;
-			file::CreateFileWithData(tempFileDeletedByCmd.c_str(), &emptyData, 0u);
+			// quote path to batch file
+			std::wstring vcvarsBat(L"\"");
+			vcvarsBat += path;
+			vcvarsBat += relativePathsToVcvarsFile[i];
+			vcvarsBat += L"\"";
 
-			// tell cmd.exe to execute commands, and quote all filenames involved.
-			// the whole command needs to be quoted as well.
-			const std::wstring& cmdPath = environment::GetVariable(L"COMSPEC", L"cmd");
-			std::wstring commandLine(L"/c \"\"");
-			commandLine += pathToVcvars;
-			commandLine += L"\" && del /q \"";
-			commandLine += tempFileDeletedByCmd;
-			commandLine += L"\" && pause \"";
+			// now that we have the path to the vcvars*.bat to call, construct a command that first invokes
+			// the batch file and then outputs the environment variables to a file.
+			const std::wstring& tempFile = file::CreateTempFile();
+			const std::wstring& cmdPath = environment::GetVariable(L"COMSPEC");
 
-			process::Context* vcvarsProcess = process::Spawn(cmdPath.c_str(), nullptr, commandLine.c_str(), nullptr, process::SpawnFlags::NO_WINDOW);
+			// tell cmd.exe to execute commands, and quote all filenames involved
+			std::wstring commandLine(L"/c \"");
+			commandLine += vcvarsBat;
+			commandLine += L" && set > \"";
+			commandLine += tempFile;
+			commandLine += L"\"\"";
 
-			// wait until the temporary file is deleted.
-			// busy waiting like this is not very nice, but happens only once or twice during startup, and is called from a separate thread anyway.
-			const uint64_t startTimestamp = timeStamp::Get();
-			bool shownWarning = false;
-			for (;;)
-			{
-				const file::Attributes& tempAttributes = file::GetAttributes(tempFileDeletedByCmd.c_str());
-				if (file::DoesExist(tempAttributes))
-				{
-					thread::Sleep(10u);
-				}
-				else
-				{
-					break;
-				}
-
-				// show a warning in case this takes longer than 5 seconds.
-				// this can happen for some users:
-				// https://developercommunity.visualstudio.com/content/problem/51179/vsdevcmdbat-or-vcvarsallbat-excecution-takes-a-ver.html
-				const uint64_t delta = timeStamp::Get() - startTimestamp;
-				if ((timeStamp::ToSeconds(delta) >= 5.0) && (!shownWarning))
-				{
-					LC_WARNING_USER("Prewarming compiler/linker environment for %S is taking suspiciously long.", pathToVcvars.c_str());
-					shownWarning = true;
-				}
-			}
-
-			// grab the environment from the process and insert it into the cache
-			process::Environment* environment = process::CreateEnvironment(vcvarsProcess->pi.hProcess);
-			{
-				CriticalSection::ScopedLock lock(&g_compilerCacheCS);
-				g_compilerEnvironmentCache.Insert(absolutePathToCompilerExe, environment);
-			}
-
-			process::Terminate(vcvarsProcess->pi.hProcess);
+			process::Context* vcvarsProcess = process::Spawn(cmdPath.c_str(), nullptr, commandLine.c_str(), nullptr, process::SpawnFlags::NONE);
+			const unsigned int exitCode = process::Wait(vcvarsProcess);
 			process::Destroy(vcvarsProcess);
 
-			return environment;
+			if (exitCode == 0u)
+			{
+				// the temporary file now holds the full environment block after vcvars*.bat has executed.
+				// load it and insert it into the cache.
+				environment::Block* block = environment::CreateBlockFromFile(tempFile.c_str());
+				{
+					CriticalSection::ScopedLock lock(&g_compilerCacheCS);
+					g_compilerEnvironmentCache.Insert(absolutePathToCompilerExe, block);
+
+					if (block)
+					{
+						environment::DumpBlockData(vcvarsBat.c_str(), block);
+					}
+				}
+
+				return block;
+			}
+
+			LC_WARNING_USER("vcvars*.bat could not be invoked at %S", vcvarsBat.c_str());
+			return nullptr;
 		}
 		else
 		{
@@ -247,28 +223,28 @@ const process::Environment* compiler::CreateEnvironmentCacheEntry(const wchar_t*
 }
 
 
-const process::Environment* compiler::GetEnvironmentFromCache(const wchar_t* absolutePathToCompilerExe)
+const environment::Block* compiler::GetEnvironmentFromCache(const wchar_t* absolutePathToCompilerExe)
 {
 	CriticalSection::ScopedLock lock(&g_compilerCacheCS);
 	return g_compilerEnvironmentCache.Fetch(absolutePathToCompilerExe);
 }
 
 
-const process::Environment* compiler::UpdateEnvironmentCache(const wchar_t* absolutePathToCompilerExe)
+const environment::Block* compiler::UpdateEnvironmentCache(const wchar_t* absolutePathToCompilerExe)
 {
-	const process::Environment* environment = GetEnvironmentFromCache(absolutePathToCompilerExe);
-	if (environment)
+	const environment::Block* block = GetEnvironmentFromCache(absolutePathToCompilerExe);
+	if (block)
 	{
-		return environment;
+		return block;
 	}
 
 	return CreateEnvironmentCacheEntry(absolutePathToCompilerExe);
 }
 
 // BEGIN EPIC MOD - Allow passing environment block for linker
-void compiler::AddEnvironmentToCache(const wchar_t* absolutePathToCompilerExe, process::Environment* environment)
+void compiler::AddEnvironmentToCache(const wchar_t* absolutePathToCompilerExe, environment::Block* block)
 {
 	CriticalSection::ScopedLock lock(&g_compilerCacheCS);
-	g_compilerEnvironmentCache.Insert(absolutePathToCompilerExe, environment);
+	g_compilerEnvironmentCache.Insert(absolutePathToCompilerExe, block);
 }
 // END EPIC MOD

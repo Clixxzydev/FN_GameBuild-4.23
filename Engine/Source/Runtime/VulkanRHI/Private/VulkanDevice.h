@@ -18,14 +18,6 @@ class FVulkanOcclusionQueryPool;
 class FOLDVulkanQueryPool;
 #endif
 
-#define VULKAN_USE_DEBUG_NAMES 0
-
-#ifdef VULKAN_USE_DEBUG_NAMES
-#define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) Device.VulkanSetObjectName(Type, (uint64)Handle, *FString::Printf(Format, __VA_ARGS__))
-#else
-#define VULKAN_SET_DEBUG_NAME(Device, Type, Handle, Format, ...) do{}while(0)
-#endif
-
 struct FOptionalVulkanDeviceExtensions
 {
 	uint32 HasKHRMaintenance1 : 1;
@@ -39,7 +31,6 @@ struct FOptionalVulkanDeviceExtensions
 	uint32 HasNVDiagnosticCheckpoints : 1;
 	uint32 HasGoogleDisplayTiming : 1;
 	uint32 HasYcbcrSampler : 1;
-	uint32 HasMemoryPriority : 1;
 
 	inline bool HasGPUCrashDumpExtensions() const
 	{
@@ -289,7 +280,7 @@ public:
 
 	FVulkanCommandListContext* AcquireDeferredContext();
 	void ReleaseDeferredContext(FVulkanCommandListContext* InContext);
-	void VulkanSetObjectName(VkObjectType Type, uint64_t Handle, const TCHAR* Name);
+
 	inline const FOptionalVulkanDeviceExtensions& GetOptionalExtensions() const
 	{
 		return OptionalDeviceExtensions;
@@ -313,18 +304,13 @@ public:
 	VkSamplerYcbcrConversion CreateSamplerColorConversion(const VkSamplerYcbcrConversionCreateInfo& CreateInfo);
 #endif
 
-	void*	Hotfix = nullptr;
+	void*	Hotfix;
 
 private:
 	void MapFormatSupport(EPixelFormat UEFormat, VkFormat VulkanFormat);
 	void MapFormatSupportWithFallback(EPixelFormat UEFormat, VkFormat VulkanFormat, TArrayView<const VkFormat> FallbackTextureFormats);
 	void MapFormatSupport(EPixelFormat UEFormat, VkFormat VulkanFormat, int32 BlockBytes);
 	void SetComponentMapping(EPixelFormat UEFormat, VkComponentSwizzle r, VkComponentSwizzle g, VkComponentSwizzle b, VkComponentSwizzle a);
-
-	FORCEINLINE void MapFormatSupportWithFallback(EPixelFormat UEFormat, VkFormat VulkanFormat, std::initializer_list<VkFormat> FallbackTextureFormats)
-	{
-		MapFormatSupportWithFallback(UEFormat, VulkanFormat, MakeArrayView(FallbackTextureFormats));
-	}
 
 	void SubmitCommands(FVulkanCommandListContext* Context);
 
@@ -412,11 +398,11 @@ private:
 		PFN_vkCmdDebugMarkerBeginEXT		CmdBegin = nullptr;
 		PFN_vkCmdDebugMarkerEndEXT			CmdEnd = nullptr;
 		PFN_vkDebugMarkerSetObjectNameEXT	CmdSetObjectName = nullptr;
-		PFN_vkSetDebugUtilsObjectNameEXT	SetDebugName = nullptr;
 
 #if 0//VULKAN_SUPPORTS_DEBUG_UTILS
 		PFN_vkCmdBeginDebugUtilsLabelEXT	CmdBeginDebugLabel = nullptr;
 		PFN_vkCmdEndDebugUtilsLabelEXT		CmdEndDebugLabel = nullptr;
+		PFN_vkSetDebugUtilsObjectNameEXT	SetDebugName = nullptr;
 #endif
 	} DebugMarkers;
 	friend class FVulkanCommandListContext;

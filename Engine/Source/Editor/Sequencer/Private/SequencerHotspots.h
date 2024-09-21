@@ -36,12 +36,33 @@ struct FKeyHotspot
 };
 
 
+/** Structure used to encapsulate a section and its track node */
+struct FSectionHandle
+{
+	FSectionHandle(TSharedPtr<FSequencerTrackNode> InTrackNode, int32 InSectionIndex)
+		: SectionIndex(InSectionIndex), TrackNode(MoveTemp(InTrackNode))
+	{ }
+
+	friend bool operator==(const FSectionHandle& A, const FSectionHandle& B)
+	{
+		return A.SectionIndex == B.SectionIndex && A.TrackNode == B.TrackNode;
+	}
+	
+	SEQUENCER_API TSharedRef<ISequencerSection> GetSectionInterface() const;
+
+	SEQUENCER_API UMovieSceneSection* GetSectionObject() const;
+
+	int32 SectionIndex;
+	TSharedPtr<FSequencerTrackNode> TrackNode;
+};
+
+
 /** A hotspot representing a section */
 struct FSectionHotspot
 	: ISequencerHotspot
 {
-	FSectionHotspot(UMovieSceneSection* InSection)
-		: WeakSection(InSection)
+	FSectionHotspot(FSectionHandle InSection)
+		: Section(InSection)
 	{ }
 
 	virtual ESequencerHotspot GetType() const override { return ESequencerHotspot::Section; }
@@ -51,8 +72,8 @@ struct FSectionHotspot
 	virtual TSharedPtr<ISequencerEditToolDragOperation> InitiateDrag(ISequencer&) override { return nullptr; }
 	virtual bool PopulateContextMenu(FMenuBuilder& MenuBuilder, ISequencer& Sequencer, FFrameTime MouseDownTime) override;
 
-	/** The section */
-	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	/** Handle to the section */
+	FSectionHandle Section;
 };
 
 
@@ -66,7 +87,7 @@ struct FSectionResizeHotspot
 		Right
 	};
 
-	FSectionResizeHotspot(EHandle InHandleType, UMovieSceneSection* InSection) : WeakSection(InSection), HandleType(InHandleType) {}
+	FSectionResizeHotspot(EHandle InHandleType, FSectionHandle InSection) : Section(InSection), HandleType(InHandleType) {}
 
 	virtual ESequencerHotspot GetType() const override { return HandleType == Left ? ESequencerHotspot::SectionResize_L : ESequencerHotspot::SectionResize_R; }
 	virtual void UpdateOnHover(SSequencerTrackArea& InTrackArea, ISequencer& InSequencer) const override;
@@ -74,8 +95,8 @@ struct FSectionResizeHotspot
 	virtual TSharedPtr<ISequencerEditToolDragOperation> InitiateDrag(ISequencer& Sequencer) override;
 	virtual FCursorReply GetCursor() const { return FCursorReply::Cursor( EMouseCursor::ResizeLeftRight ); }
 
-	/** The section */
-	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	/** Handle to the section */
+	FSectionHandle Section;
 
 private:
 
@@ -87,7 +108,7 @@ private:
 struct FSectionEasingHandleHotspot
 	: ISequencerHotspot
 {
-	FSectionEasingHandleHotspot(ESequencerEasingType InHandleType, UMovieSceneSection* InSection) : WeakSection(InSection), HandleType(InHandleType) {}
+	FSectionEasingHandleHotspot(ESequencerEasingType InHandleType, FSectionHandle InSection) : Section(InSection), HandleType(InHandleType) {}
 
 	virtual ESequencerHotspot GetType() const override { return HandleType == ESequencerEasingType::In ? ESequencerHotspot::EaseInHandle : ESequencerHotspot::EaseOutHandle; }
 	virtual void UpdateOnHover(SSequencerTrackArea& InTrackArea, ISequencer& InSequencer) const override;
@@ -97,7 +118,7 @@ struct FSectionEasingHandleHotspot
 	virtual FCursorReply GetCursor() const { return FCursorReply::Cursor( EMouseCursor::ResizeLeftRight ); }
 
 	/** Handle to the section */
-	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	FSectionHandle Section;
 
 private:
 
@@ -107,7 +128,7 @@ private:
 
 struct FEasingAreaHandle
 {
-	TWeakObjectPtr<UMovieSceneSection> WeakSection;
+	FSectionHandle Section;
 	ESequencerEasingType EasingType;
 };
 
@@ -115,12 +136,12 @@ struct FEasingAreaHandle
 struct FSectionEasingAreaHotspot
 	: FSectionHotspot
 {
-	FSectionEasingAreaHotspot(const TArray<FEasingAreaHandle>& InEasings, UMovieSceneSection* InVisibleSection) : FSectionHotspot(InVisibleSection), Easings(InEasings) {}
+	FSectionEasingAreaHotspot(const TArray<FEasingAreaHandle>& InEasings, FSectionHandle InVisibleSection) : FSectionHotspot(InVisibleSection), Easings(InEasings) {}
 
 	virtual ESequencerHotspot GetType() const override { return ESequencerHotspot::EasingArea; }
 	virtual bool PopulateContextMenu(FMenuBuilder& MenuBuilder, ISequencer& Sequencer, FFrameTime MouseDownTime) override;
 
-	bool Contains(UMovieSceneSection* InSection) const { return Easings.ContainsByPredicate([=](const FEasingAreaHandle& InHandle){ return InHandle.WeakSection == InSection; }); }
+	bool Contains(FSectionHandle InSection) const { return Easings.ContainsByPredicate([=](const FEasingAreaHandle& InHandle){ return InHandle.Section == InSection; }); }
 
 	/** Handles to the easings that exist on this hotspot */
 	TArray<FEasingAreaHandle> Easings;

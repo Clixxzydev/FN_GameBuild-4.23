@@ -232,11 +232,6 @@ FString FPaths::EnterpriseFeaturePackDir()
 	return FPaths::EnterpriseDir() + TEXT("FeaturePacks/");
 }
 
-FString FPaths::PlatformExtensionsDir()
-{
-	return FPaths::RootDir() + TEXT("Platforms/");
-}
-
 FString FPaths::RootDir()
 {
 	return FString(FPlatformMisc::RootDir());
@@ -407,18 +402,18 @@ FString FPaths::GameDevelopersDir()
 	return FPaths::ProjectContentDir() + TEXT("Developers/");
 }
 
-FString FPaths::GameUserDeveloperFolderName()
+FString FPaths::GameUserDeveloperDir()
 {
 	static FString UserFolder;
 
-	if (UserFolder.Len() == 0)
+	if ( UserFolder.Len() == 0 )
 	{
 		// The user folder is the user name without any invalid characters
 		const FString InvalidChars = INVALID_LONGPACKAGE_CHARACTERS;
 		const FString& UserName = FPlatformProcess::UserName();
-
+		
 		UserFolder = UserName;
-
+		
 		for (int32 CharIdx = 0; CharIdx < InvalidChars.Len(); ++CharIdx)
 		{
 			const FString Char = InvalidChars.Mid(CharIdx, 1);
@@ -426,12 +421,7 @@ FString FPaths::GameUserDeveloperFolderName()
 		}
 	}
 
-	return UserFolder;
-}
-
-FString FPaths::GameUserDeveloperDir()
-{
-	return FPaths::GameDevelopersDir() + GameUserDeveloperFolderName() + TEXT("/");
+	return FPaths::GameDevelopersDir() + UserFolder + TEXT("/");
 }
 
 FString FPaths::DiffDir()
@@ -756,30 +746,6 @@ FString FPaths::GetPath(FString&& InPath)
 	}
 
 	return Result;
-}
-
-FString FPaths::GetPathLeaf(const FString& InPath)
-{
-	static_assert(INDEX_NONE == -1, "INDEX_NONE assumed to be -1");
-
-	int32 EndPos   = InPath.FindLastCharByPredicate(UE4Paths_Private::IsNotSlashOrBackslash) + 1;
-	int32 StartPos = InPath.FindLastCharByPredicate(UE4Paths_Private::IsSlashOrBackslash, EndPos) + 1;
-
-	FString Result = InPath.Mid(StartPos, EndPos - StartPos);
-	return Result;
-}
-
-FString FPaths::GetPathLeaf(FString&& InPath)
-{
-	static_assert(INDEX_NONE == -1, "INDEX_NONE assumed to be -1");
-
-	int32 EndPos   = InPath.FindLastCharByPredicate(UE4Paths_Private::IsNotSlashOrBackslash) + 1;
-	int32 StartPos = InPath.FindLastCharByPredicate(UE4Paths_Private::IsSlashOrBackslash, EndPos) + 1;
-
-	InPath.RemoveAt(EndPos, InPath.Len() - EndPos, false);
-	InPath.RemoveAt(0, StartPos, false);
-
-	return MoveTemp(InPath);
 }
 
 FString FPaths::ChangeExtension(const FString& InPath, const FString& InNewExtension)
@@ -1437,7 +1403,7 @@ bool FPaths::IsSamePath(const FString& PathA, const FString& PathB)
 	MakeStandardFilename(TmpA);
 	MakeStandardFilename(TmpB);
 
-#if PLATFORM_WINDOWS || PLATFORM_XBOXONE || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS || PLATFORM_XBOXONE
 	return FCString::Stricmp(*TmpA, *TmpB) == 0;
 #else
 	return FCString::Strcmp(*TmpA, *TmpB) == 0;

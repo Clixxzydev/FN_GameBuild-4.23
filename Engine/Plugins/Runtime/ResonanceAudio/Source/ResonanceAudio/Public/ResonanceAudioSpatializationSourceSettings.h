@@ -5,7 +5,7 @@
 #pragma once
 
 #include "IAudioExtensionPlugin.h"
-#include "ResonanceAudioEnums.h"
+#include "ResonanceAudioCommon.h"
 #include "ResonanceAudioSpatializationSourceSettings.generated.h"
 
 UCLASS()

@@ -9,8 +9,6 @@
 
 FAnimNode_ControlRigBase::FAnimNode_ControlRigBase()
 {
-	bUpdateInput = true;
-	bExecute = true;
 }
 
 void FAnimNode_ControlRigBase::OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance)
@@ -52,16 +50,13 @@ void FAnimNode_ControlRigBase::Update_AnyThread(const FAnimationUpdateContext& C
 {
 	FAnimNode_Base::Update_AnyThread(Context);
 
-	if (bExecute)
+	if (UControlRig* ControlRig = GetControlRig())
 	{
-		if (UControlRig* ControlRig = GetControlRig())
-		{
-			// @TODO: fix this to be thread-safe
-			// Pre-update doesn't work for custom anim instances
-			// FAnimNode_ControlRigExternalSource needs this to be called to reset to ref pose
-			ControlRig->SetDeltaTime(Context.GetDeltaTime());
-			ControlRig->PreEvaluate_GameThread();
-		}
+		// @TODO: fix this to be thread-safe
+		// Pre-update doesn't work for custom anim instances
+		// FAnimNode_ControlRigExternalSource needs this to be called to reset to ref pose
+		ControlRig->SetDeltaTime(Context.GetDeltaTime());
+		ControlRig->PreEvaluate_GameThread();
 	}
 }
 
@@ -76,19 +71,19 @@ void FAnimNode_ControlRigBase::UpdateInput(UControlRig* ControlRig, const FPoseC
 
 	// @re-think - now control rig contains init pose from their default hierarchy and current pose from this instance.
 	// we may need this init pose somewhere (instance refpose)
-	const int32 NumNodes = ControlRigNodeMapping.Num();
+	const int32 NumNodes = ContolRigNodeMapping.Num();
 	for (int32 Index = 0; Index < NumNodes; ++Index)
 	{
-		if (ControlRigNodeMapping[Index] != NAME_None)
+		if (ContolRigNodeMapping[Index] != NAME_None)
 		{
 			FCompactPoseBoneIndex CompactPoseIndex(Index);
 			FTransform ComponentTransform = MeshPoses.GetComponentSpaceTransform(CompactPoseIndex);
 			if (NodeMappingContainer.IsValid())
 			{
-				ComponentTransform = NodeMappingContainer->GetSourceToTargetTransform(ControlRigNodeMapping[Index]).GetRelativeTransformReverse(ComponentTransform);
+				ComponentTransform = NodeMappingContainer->GetSourceToTargetTransform(ContolRigNodeMapping[Index]).GetRelativeTransformReverse(ComponentTransform);
 			}
 
-			ControlRig->SetGlobalTransform(ControlRigNodeMapping[Index], ComponentTransform);
+			ControlRig->SetGlobalTransform(ContolRigNodeMapping[Index], ComponentTransform);
 		}
 	}
 }
@@ -102,16 +97,16 @@ void FAnimNode_ControlRigBase::UpdateOutput(UControlRig* ControlRig, FPoseContex
 	FCSPose<FCompactPose> MeshPoses;
 	MeshPoses.InitPose(InOutput.Pose);
 
-	const int32 NumNodes = ControlRigNodeMapping.Num();
+	const int32 NumNodes = ContolRigNodeMapping.Num();
 	for (int32 Index = 0; Index < NumNodes; ++Index)
 	{
-		if (ControlRigNodeMapping[Index] != NAME_None)
+		if (ContolRigNodeMapping[Index] != NAME_None)
 		{
 			FCompactPoseBoneIndex CompactPoseIndex(Index);
-			FTransform ComponentTransform = ControlRig->GetGlobalTransform(ControlRigNodeMapping[Index]);
+			FTransform ComponentTransform = ControlRig->GetGlobalTransform(ContolRigNodeMapping[Index]);
 			if (NodeMappingContainer.IsValid())
 			{
-				ComponentTransform = NodeMappingContainer->GetSourceToTargetTransform(ControlRigNodeMapping[Index]) * ComponentTransform;
+				ComponentTransform = NodeMappingContainer->GetSourceToTargetTransform(ContolRigNodeMapping[Index]) * ComponentTransform;
 			}
 
 			MeshPoses.SetComponentSpaceTransform(CompactPoseIndex, ComponentTransform);
@@ -125,18 +120,10 @@ void FAnimNode_ControlRigBase::Evaluate_AnyThread(FPoseContext& Output)
 {
 	if (UControlRig* ControlRig = GetControlRig())
 	{
-		if (bUpdateInput)
-		{
-			// first update input to the system
-			UpdateInput(ControlRig, Output);
-		}
-
-		if (bExecute)
-		{
-			// first evaluate control rig
-			ControlRig->Evaluate_AnyThread();
-		}
-
+		// first update input to the system
+		UpdateInput(ControlRig, Output);
+		// first evaluate control rig
+		ControlRig->Evaluate_AnyThread();
 		// now update output
 		UpdateOutput(ControlRig, Output);
 	}
@@ -155,8 +142,8 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 		FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
 		const TArray<FBoneIndexType>& RequiredBonesArray = RequiredBones.GetBoneIndicesArray();
 		const int32 NumBones = RequiredBonesArray.Num();
-		ControlRigNodeMapping.Reset(NumBones);
-		ControlRigNodeMapping.AddDefaulted(NumBones);
+		ContolRigNodeMapping.Reset(NumBones);
+		ContolRigNodeMapping.AddDefaulted(NumBones);
 
 		const FReferenceSkeleton& RefSkeleton = RequiredBones.GetReferenceSkeleton();
 
@@ -173,28 +160,15 @@ void FAnimNode_ControlRigBase::CacheBones_AnyThread(const FAnimationCacheBonesCo
 				// get bone name, and find reverse mapping
 				FName TargetNodeName = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
 				FName* SourceName = TargetToSourceMappingTable.Find(TargetNodeName);
-				ControlRigNodeMapping[Index] = (SourceName)? *SourceName : NAME_None;
+				ContolRigNodeMapping[Index] = (SourceName)? *SourceName : NAME_None;
 			}
-			UE_LOG(LogAnimation, Log, TEXT("%s : %d"), *GetNameSafe(ControlRig), ControlRigNodeMapping.Num());
+			UE_LOG(LogAnimation, Log, TEXT("%s : %d"), *GetNameSafe(ControlRig), ContolRigNodeMapping.Num());
 		}
 		else
 		{
-			TArray<FName> NodeNames;
-			TArray<FNodeItem> NodeItems;
-			ControlRig->GetMappableNodeData(NodeNames, NodeItems);
-
-			// even if not mapped, we map only node that exists in the controlrig
 			for (int32 Index = 0; Index < NumBones; ++Index)
 			{
-				const FName& BoneName = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
-				if (NodeNames.Contains(BoneName))
-				{
-					ControlRigNodeMapping[Index] = BoneName;
-				}
-				else
-				{
-					ControlRigNodeMapping[Index] = NAME_None;
-				}
+				ContolRigNodeMapping[Index] = RefSkeleton.GetBoneName(RequiredBonesArray[Index]);
 			}
 		}
 	}

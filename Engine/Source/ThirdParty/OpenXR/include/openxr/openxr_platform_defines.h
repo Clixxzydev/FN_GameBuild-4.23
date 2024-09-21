@@ -36,12 +36,8 @@ extern "C" {
  * Function pointer type: typedef void (XRAPI_PTR *PFN_xrFunction)(void);
  */
 #if defined(_WIN32)
-#ifdef XRAPI_DLL_EXPORT
-#define XRAPI_ATTR __declspec(dllexport)
-#else
-#define XRAPI_ATTR
-#endif
 // On Windows, functions use the stdcall convention
+#define XRAPI_ATTR __declspec(dllexport)
 #define XRAPI_CALL __stdcall
 #define XRAPI_PTR XRAPI_CALL
 #elif defined(__ANDROID__) && defined(__ARM_ARCH) && __ARM_ARCH < 7

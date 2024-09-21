@@ -9,6 +9,7 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "PhysicsEngine/PxQueryFilterCallback.h"
 #include "Physics/PhysicsInterfaceUtils.h"
 
 #include "PhysXPublic.h"

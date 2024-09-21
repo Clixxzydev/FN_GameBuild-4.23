@@ -27,10 +27,10 @@
 
 #define LOCTEXT_NAMESPACE "AnimInstance"
 
-const FName NAME_AnimBlueprintLog(TEXT("AnimBlueprintLog"));
-const FName NAME_Evaluate(TEXT("Evaluate"));
-const FName NAME_Update(TEXT("Update"));
-const FName NAME_AnimGraph(TEXT("AnimGraph"));
+static const FName NAME_AnimBlueprintLog(TEXT("AnimBlueprintLog"));
+static const FName NAME_Evaluate(TEXT("Evaluate"));
+static const FName NAME_Update(TEXT("Update"));
+static const FName NAME_AnimGraph(TEXT("AnimGraph"));
 
 void FAnimInstanceProxy::UpdateAnimationNode(float DeltaSeconds)
 {
@@ -1134,15 +1134,7 @@ void FAnimInstanceProxy::UpdateAnimation_WithRoot(FAnimNode_Base* InRootNode, FN
 	ANIM_MT_SCOPE_CYCLE_COUNTER(ProxyUpdateAnimation, !IsInGameThread());
 	FScopeCycleCounterUObject AnimScope(GetAnimInstanceObject());
 
-	if(InRootNode == RootNode)
-	{
-		// Call the correct override point if this is the root node
-		CacheBones();
-	}
-	else
-	{
-		CacheBones_WithRoot(InRootNode);
-	}
+	CacheBones_WithRoot(InRootNode);
 
 	// update native update
 	if(!bUpdatingRoot)
@@ -1194,15 +1186,7 @@ void FAnimInstanceProxy::EvaluateAnimation_WithRoot(FPoseContext& Output, FAnimN
 {
 	ANIM_MT_SCOPE_CYCLE_COUNTER(EvaluateAnimInstance, !IsInGameThread());
 
-	if(InRootNode == RootNode)
-	{
-		// Call the correct override point if this is the root node
-		CacheBones();
-	}
-	else
-	{
-		CacheBones_WithRoot(InRootNode);
-	}
+	CacheBones_WithRoot(InRootNode);
 
 	// Evaluate native code if implemented, otherwise evaluate the node graph
 	if (!Evaluate_WithRoot(Output, InRootNode))
@@ -1216,20 +1200,11 @@ void FAnimInstanceProxy::CacheBones()
 	// If bone caches have been invalidated, have AnimNodes refresh those.
 	if (bBoneCachesInvalidated && RootNode)
 	{
-		CacheBonesRecursionCounter++;
+		bBoneCachesInvalidated = false;
 
 		CachedBonesCounter.Increment();
 		FAnimationCacheBonesContext Context(this);
 		RootNode->CacheBones_AnyThread(Context);
-
-		CacheBonesRecursionCounter--;
-
-		check(CacheBonesRecursionCounter >= 0);
-
-		if(CacheBonesRecursionCounter == 0)
-		{
-			bBoneCachesInvalidated = false;
-		}
 	}
 }
 
@@ -1238,20 +1213,11 @@ void FAnimInstanceProxy::CacheBones_WithRoot(FAnimNode_Base* InRootNode)
 	// If bone caches have been invalidated, have AnimNodes refresh those.
 	if (bBoneCachesInvalidated && InRootNode)
 	{
-		CacheBonesRecursionCounter++;
+		bBoneCachesInvalidated = false;
 
 		CachedBonesCounter.Increment();
 		FAnimationCacheBonesContext Context(this);
 		InRootNode->CacheBones_AnyThread(Context);
-
-		CacheBonesRecursionCounter--;
-
-		check(CacheBonesRecursionCounter >= 0);
-
-		if(CacheBonesRecursionCounter == 0)
-		{
-			bBoneCachesInvalidated = false;
-		}
 	}
 }
 

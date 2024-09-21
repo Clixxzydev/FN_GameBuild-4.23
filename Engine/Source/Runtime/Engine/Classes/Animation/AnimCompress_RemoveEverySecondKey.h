@@ -31,12 +31,11 @@ class UAnimCompress_RemoveEverySecondKey : public UAnimCompress
 
 protected:
 	//~ Begin UAnimCompress Interface
-#if WITH_EDITOR
+	#if WITH_EDITOR
 	virtual void DoReduction(const FCompressibleAnimData& CompressibleAnimData, FCompressibleAnimDataResult& OutResult) override;
 	virtual void PopulateDDCKey(FArchive& Ar) override;
 #endif // WITH_EDITOR
 	//~ Begin UAnimCompress Interface
 };
-
 
 

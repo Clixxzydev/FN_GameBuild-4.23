@@ -1,7 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "Cluster/Controller/DisplayClusterNodeCtrlBase.h"
-#include "DisplayClusterLog.h"
+#include "Misc/DisplayClusterLog.h"
 
 
 FDisplayClusterNodeCtrlBase::FDisplayClusterNodeCtrlBase(const FString& ctrlName, const FString& nodeName) :
@@ -16,6 +16,12 @@ FDisplayClusterNodeCtrlBase::FDisplayClusterNodeCtrlBase(const FString& ctrlName
 //////////////////////////////////////////////////////////////////////////////////////////////
 bool FDisplayClusterNodeCtrlBase::Initialize()
 {
+	if (!InitializeStereo())
+	{
+		UE_LOG(LogDisplayClusterCluster, Error, TEXT("Stereo initialization failed"));
+		return false;
+	}
+
 	if (!InitializeServers())
 	{
 		UE_LOG(LogDisplayClusterCluster, Error, TEXT("Servers initialization failed"));

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Fonts/ShapedTextFwd.h"
 #include "Fonts/SlateFontInfo.h"
+#include "Framework/Text/TextRange.h"
 #include "Framework/Text/IRun.h"
 
 class FSlateFontCache;
@@ -26,7 +27,7 @@ public:
 		return TextRange == Other.TextRange
 			&& Scale == Other.Scale
 			&& TextContext == Other.TextContext
-			&& FontInfo.IsIdenticalTo(Other.FontInfo);
+			&& FontInfo.IsIdentialToForCaching(Other.FontInfo);
 	}
 
 	FORCEINLINE bool operator!=(const FCachedShapedTextKey& Other) const

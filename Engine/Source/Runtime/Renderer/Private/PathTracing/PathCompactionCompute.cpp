@@ -55,16 +55,16 @@ public:
 	void SetParameters(
 		FRHICommandListImmediate& RHICmdList,
 		const FViewInfo& View,
-		FRHITexture* RadianceTexture,
-		FRHITexture* SampleCountTexture,
-		FRHITexture* PixelPositionTexture,
-		FRHIUnorderedAccessView* RadianceSortedRedUAV,
-		FRHIUnorderedAccessView* RadianceSortedGreenUAV,
-		FRHIUnorderedAccessView* RadianceSortedBlueUAV,
-		FRHIUnorderedAccessView* RadianceSortedAlphaUAV,
-		FRHIUnorderedAccessView* SampleCountSortedUAV)
+		FTextureRHIParamRef RadianceTexture,
+		FTextureRHIParamRef SampleCountTexture,
+		FTextureRHIParamRef PixelPositionTexture,
+		FUnorderedAccessViewRHIParamRef RadianceSortedRedUAV,
+		FUnorderedAccessViewRHIParamRef RadianceSortedGreenUAV,
+		FUnorderedAccessViewRHIParamRef RadianceSortedBlueUAV,
+		FUnorderedAccessViewRHIParamRef RadianceSortedAlphaUAV,
+		FUnorderedAccessViewRHIParamRef SampleCountSortedUAV)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(RHICmdList, ShaderRHI, View.ViewUniformBuffer);
 
 		// Input textures
@@ -84,21 +84,21 @@ public:
 		FRHICommandList& RHICmdList,
 		EResourceTransitionAccess TransitionAccess,
 		EResourceTransitionPipeline TransitionPipeline,
-		FRHIUnorderedAccessView* RadianceSortedRedUAV,
-		FRHIUnorderedAccessView* RadianceSortedGreenUAV,
-		FRHIUnorderedAccessView* RadianceSortedBlueUAV,
-		FRHIUnorderedAccessView* RadianceSortedAlphaUAV,
-		FRHIUnorderedAccessView* SampleCountSortedUAV,
-		FRHIComputeFence* Fence)
+		FUnorderedAccessViewRHIParamRef RadianceSortedRedUAV,
+		FUnorderedAccessViewRHIParamRef RadianceSortedGreenUAV,
+		FUnorderedAccessViewRHIParamRef RadianceSortedBlueUAV,
+		FUnorderedAccessViewRHIParamRef RadianceSortedAlphaUAV,
+		FUnorderedAccessViewRHIParamRef SampleCountSortedUAV,
+		FComputeFenceRHIParamRef Fence)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		SetUAVParameter(RHICmdList, ShaderRHI, RadianceSortedRedUAVParameter, FUnorderedAccessViewRHIRef());
 		SetUAVParameter(RHICmdList, ShaderRHI, RadianceSortedGreenUAVParameter, FUnorderedAccessViewRHIRef());
 		SetUAVParameter(RHICmdList, ShaderRHI, RadianceSortedBlueUAVParameter, FUnorderedAccessViewRHIRef());
 		SetUAVParameter(RHICmdList, ShaderRHI, RadianceSortedAlphaUAVParameter, FUnorderedAccessViewRHIRef());
 		SetUAVParameter(RHICmdList, ShaderRHI, SampleCountSortedUAVParameter, FUnorderedAccessViewRHIRef());
-		FRHIUnorderedAccessView* UAVs[] = {
+		FUnorderedAccessViewRHIParamRef UAVs[] = {
 			RadianceSortedRedUAV,
 			RadianceSortedGreenUAV,
 			RadianceSortedBlueUAV,
@@ -143,14 +143,14 @@ IMPLEMENT_SHADER_TYPE(, FPathCompactionCS, TEXT("/Engine/Private/PathTracing/Pat
 void FDeferredShadingSceneRenderer::ComputePathCompaction(
 	FRHICommandListImmediate& RHICmdList,
 	const FViewInfo& View,
-	FRHITexture* RadianceTexture,
-	FRHITexture* SampleCountTexture,
-	FRHITexture* PixelPositionTexture,
-	FRHIUnorderedAccessView* RadianceSortedRedUAV,
-	FRHIUnorderedAccessView* RadianceSortedGreenUAV,
-	FRHIUnorderedAccessView* RadianceSortedBlueUAV,
-	FRHIUnorderedAccessView* RadianceSortedAlphaUAV,
-	FRHIUnorderedAccessView* SampleCountSortedUAV)
+	FTextureRHIParamRef RadianceTexture,
+	FTextureRHIParamRef SampleCountTexture,
+	FTextureRHIParamRef PixelPositionTexture,
+	FUnorderedAccessViewRHIParamRef RadianceSortedRedUAV,
+	FUnorderedAccessViewRHIParamRef RadianceSortedGreenUAV,
+	FUnorderedAccessViewRHIParamRef RadianceSortedBlueUAV,
+	FUnorderedAccessViewRHIParamRef RadianceSortedAlphaUAV,
+	FUnorderedAccessViewRHIParamRef SampleCountSortedUAV)
 {
 	const auto ShaderMap = GetGlobalShaderMap(FeatureLevel);
 	TShaderMapRef<FPathCompactionCS> PathCompactionComputeShader(ShaderMap);

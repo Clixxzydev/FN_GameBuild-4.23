@@ -141,7 +141,7 @@ public:
 	/**
 	 * Compute a major grid interval and number of minor divisions to display
 	 */
-	bool GetGridMetrics(const float PhysicalWidth, const double InViewStart, const double InViewEnd, double& OutMajorInterval, int32& OutMinorDivisions) const;
+	bool GetGridMetrics(float PhysicalWidth, double& OutMajorInterval, int32& OutMinorDivisions) const;
 
 public:
 
@@ -250,12 +250,6 @@ public:
 	/** Translate the selected keys and section by the time snap interval */
 	void TranslateSelectedKeysAndSections(bool bTranslateLeft);
 
-	/** Stretch time*/
-	void StretchTime(FFrameTime InDeltaTime);
-
-	/** Shrink time*/
-	void ShrinkTime(FFrameTime InDeltaTime);
-
 	/** Bake transform */
 	void BakeTransform();
 
@@ -286,16 +280,10 @@ protected:
 	void StepToPreviousMark();
 
 	/**
-	 * @param InMarkIndex The marked frame index to set
-	 * @param InFrameNumber The FrameNumber in Ticks
-	 */
-	void SetMarkedFrame(int32 InMarkIndex, FFrameNumber InFrameNumber);
-
-	/**
-	 * @param	FrameNumber The FrameNumber in Ticks
+	 * @param	FrameNumber The FrameNumber in Ticks 
 	 * @param	bSetMark  true to set the mark, false to clear the mark
 	 */
-	void OnMarkedFrameChanged(FFrameNumber FrameNumber, bool bSetMark);
+	void SetMarkedFrame(FFrameNumber FrameNumber, bool bSetMark);
 
 	void ClearAllMarkedFrames();
 
@@ -384,10 +372,6 @@ public:
 		{
 			return SequencerCommandBindings;
 		}
-		else if (Type == ESequencerCommandBindings::CurveEditor)
-		{
-			return CurveEditorSharedBindings;
-		}
 
 		return SequencerSharedBindings;
 	}
@@ -410,10 +394,10 @@ public:
 	 * Builds up the track menu for object binding nodes in the outliner
 	 * 
 	 * @param MenuBuilder	The track menu builder to add things to
-	 * @param ObjectBindings The array of object bindings to add tracks to (if there are more than 1 selected)
+	 * @param ObjectBinding	The object binding of the selected node
 	 * @param ObjectClass	The class of the selected object
 	 */
-	void BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass);
+	void BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding, const UClass* ObjectClass);
 
 	/**
 	 * Builds up the edit buttons for object binding nodes in the outliner
@@ -462,15 +446,12 @@ public:
 	/** @return The toolkit that this sequencer is hosted in (if any) */
 	TSharedPtr<IToolkitHost> GetToolkitHost() const { return ToolkitHost.Pin(); }
 
-	const FSequencerHostCapabilities& GetHostCapabilities() const { return HostCapabilities; }
-
 	/** @return Whether or not this sequencer is used in the level editor */
 	bool IsLevelEditorSequencer() const { return bIsEditingWithinLevelEditor; }
 
 	/** @return Whether to show the curve editor or not */
 	void SetShowCurveEditor(bool bInShowCurveEditor);
-	/** @return If the curve editor is currently visible. */
-	bool GetCurveEditorIsVisible() const;
+	bool GetShowCurveEditor() const { return bShowCurveEditor; }
 
 	/** Called to save the current movie scene */
 	void SaveCurrentMovieScene();
@@ -492,13 +473,6 @@ public:
 	/** Called when a user executes the delete node menu item */
 	void DeleteNode(TSharedRef<FSequencerDisplayNode> NodeToBeDeleted);
 	void DeleteSelectedNodes();
-
-	/** @return The list of nodes which must be moved to move the current selected nodes */
-	TArray<TSharedRef<FSequencerDisplayNode> > GetSelectedNodesToMove();
-
-	/** Called when a user executes the move to new folder menu item */
-	void MoveSelectedNodesToNewFolder();
-	void MoveNodeToFolder(TSharedRef<FSequencerDisplayNode> NodeToMove, UMovieSceneFolder* DestinationFolder);
 
 	/** Called when a user executes the copy track menu item */
 	void CopySelectedObjects(TArray<TSharedPtr<FSequencerObjectBindingNode>>& ObjectNodes, /*out*/ FString& ExportedText);
@@ -553,6 +527,8 @@ public:
 	bool IsTrackVisible(const UMovieSceneTrack* InTrack);
 
 	void OnSelectedNodesOnlyChanged();
+
+	void SyncCurveEditorToSelection(bool bOutlinerSelectionChanged);
 
 	TSharedPtr<FCurveEditor> GetCurveEditor() const
 	{
@@ -654,8 +630,8 @@ public:
 public:
 
 	//~ FGCObject Interface
+
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
 
 public:
 
@@ -724,7 +700,6 @@ public:
 	virtual FSequencerSelectionPreview& GetSelectionPreview() override;
 	virtual void GetSelectedTracks(TArray<UMovieSceneTrack*>& OutSelectedTracks) override;
 	virtual void GetSelectedSections(TArray<UMovieSceneSection*>& OutSelectedSections) override;
-	virtual void GetSelectedFolders(TArray<UMovieSceneFolder*>& OutSelectedFolders) override;
 	virtual void SelectObject(FGuid ObjectBinding) override;
 	virtual void SelectTrack(UMovieSceneTrack* Track) override;
 	virtual void SelectSection(UMovieSceneSection* Section) override;
@@ -846,12 +821,6 @@ protected:
 	/** Called when the user has finished dragging the selection range */
 	void OnSelectionRangeEndDrag();
 
-	/** Called when the user has begun dragging a mark */
-	void OnMarkBeginDrag();
-
-	/** Called when the user has finished dragging a mark */
-	void OnMarkEndDrag();
-
 	/** Get the unqualified local time */
 	FFrameTime GetLocalFrameTime() const { return GetLocalTime().Time; }
 
@@ -959,11 +928,8 @@ protected:
 	/** Updates a viewport client from camera cut data */
 	void UpdatePreviewLevelViewportClientFromCameraCut(FLevelEditorViewportClient& InViewportClient, UObject* InCameraObject, bool bJumpCut) const;
 
-	/** Expands Possessables with multiple bindings into indidual Possessables for each binding */
-	TArray<FGuid> ExpandMultiplePossessableBindings(FGuid PossessableGuid);
-
 	/** Internal conversion function that doesn't perform expensive reset/update tasks */
-	TArray<FMovieSceneSpawnable*> ConvertToSpawnableInternal(FGuid PossessableGuid);
+	FMovieSceneSpawnable* ConvertToSpawnableInternal(FGuid PossessableGuid);
 
 	/** Internal conversion function that doesn't perform expensive reset/update tasks */
 	FMovieScenePossessable* ConvertToPossessableInternal(FGuid SpawnableGuid);
@@ -980,8 +946,8 @@ protected:
 	/** Handles loading in previously recorded data. */
 	void OnLoadRecordedData();
 
-	/** Adds the track to the selected folder (if FGuid is invalid) and selects the track, throbs it, and notifies the sequence to rebuild any necessary data. */
-	void OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>& InTrack, const FGuid& ObjectBinding);
+	/** Handles adding a newly created track to the outliner tree by assigning it into a folder and selecting it. */
+	void OnAddTrack(const TWeakObjectPtr<UMovieSceneTrack>& InTrack);
 
 	/** Determines the selected parent folders and returns the node path to the first folder. Also expands the first folder. */
 	void CalculateSelectedFolderAndPath(TArray<UMovieSceneFolder*>& OutSelectedParentFolders, FString& OutNewNodePath);
@@ -1057,9 +1023,6 @@ private:
 	/** Command list for sequencer commands (shared by non-Sequencer). */
 	TSharedRef<FUICommandList> SequencerSharedBindings;
 
-	/** Command list privately shared with the Curve Editor to allow a subset of keybinds to have matching behavior there. */
-	TSharedRef<FUICommandList> CurveEditorSharedBindings;
-
 	/** List of tools we own */
 	TArray<TSharedPtr<ISequencerTrackEditor>> TrackEditors;
 
@@ -1077,9 +1040,6 @@ private:
 
 	/** The asset editor that created this Sequencer if any */
 	TWeakPtr<IToolkitHost> ToolkitHost;
-
-	/** A copy of the supported features/capabilities we were initialized with. */
-	FSequencerHostCapabilities HostCapabilities;
 
 	TWeakObjectPtr<UMovieSceneSequence> RootSequence;
 	FMovieSceneRootEvaluationTemplateInstance RootTemplateInstance;
@@ -1148,6 +1108,8 @@ private:
 
 	/** True if this sequencer is being edited within the level editor */
 	bool bIsEditingWithinLevelEditor;
+
+	bool bShowCurveEditor;
 
 	/** Whether the sequence should be editable or read only */
 	bool bReadOnly;

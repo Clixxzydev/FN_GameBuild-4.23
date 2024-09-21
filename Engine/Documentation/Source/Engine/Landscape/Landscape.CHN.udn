@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6426661
+﻿INTSourceChangelist:3810467
 Availability: Public
 Title:Landscape室外地形
 Crumbs:%ROOT%, Engine
@@ -7,7 +7,10 @@ version: 4.9
 parent:Engine
 order:10
 topic-image:landscape_topic.png
-hero-image:landscape_landing_banner.png
+
+[REGION:banner]
+![Landscape](landscape_landing_banner.png)
+[/REGION]
 
 [EXCERPT:landscape002]
 
@@ -23,6 +26,8 @@ hero-image:landscape_landing_banner.png
 
 有关开口和使用地形（Landscape）工具的信息，请参阅[](Engine/Landscape\Creation)。
 
+
+(#landscapetoolmodes)
 
 ## 地形工具模式
 [EXCERPT:LandscapeToolModes1] 
@@ -44,9 +49,13 @@ hero-image:landscape_landing_banner.png
 [/REGION]
 
 
+(#landscapefeatures)
+
 ## 地形功能
 
 Landscape地形系统的主要功能和采用的技术如下所述。
+
+(#largeterrainsizes)
 
 ### 大地形尺寸
 
@@ -58,6 +67,8 @@ Landscape系统为地形铺平了道路，这些地形比之前在虚幻引擎�
 ![](Landscape_Terrain_Size.png)
 [/REGION]
 
+(#landscapememoryusage)
+
 ### Landscape内存使用
 
 对于创建大型地形，Landscape通常是比静态网格体（Static Mesh）更好的选择。
@@ -67,9 +78,13 @@ Landscape系统为地形铺平了道路，这些地形比之前在虚幻引擎�
 这意味着，对于相同的顶点密度，静态网格体（Static Mesh）将使用6或7倍于Landscape的内存。Landscape还将它们的数据存储为纹理，并且可以为遥远的区域流送未使用的LOD关卡，并在您接近它们时从后台的磁盘加载它们。Landscape使用一个常规的高度场，因此其碰撞数据也能够比静态网格体（Static Mesh）的碰撞数据更高效地存储。
 
 
+(#staticrenderdatastoredastexturesingpumemory)
+
 ### 静态渲染数据作为纹理存储在GPU内存中
 
 Landscape系统在GPU内存中以纹理的形式存储地形的渲染数据，允许在顶点着色器中查找数据。数据被打包成32位纹理，高度以R和G信道的形式占据16位，X和Y偏移量以8位数值分别存储在B和A信道中。
+
+(#continuousgeo-mipmaplod)
 
 ### 连续Geo-MipMap LOD
 
@@ -82,9 +97,13 @@ Landscape地形的LOD使用标准纹理mipmap进行处理。每个mipmap都是�
 | **完全LOD 1（Fully LOD 1）** | **从LOD 1变换到LOD 2（Morphing from LOD 1 to LOD 2）** | **完全LOD 2（Fully LOD 2）** |
 [/REGION]
 
+(#heightmapandweightdatastreaming)
+
 ### 高度图和权重数据流送
 
 由于数据存储在纹理中，因此虚幻引擎4中的标准纹理流送系统可以根据需要对mipmap进行流进流出操作。这不仅适用于高度图数据，也适用于纹理层的权重。只需要每个LOD所需的mipmap，就可以在任何时候最大程度减少要使用的内存量，从而增加由于内存被释放而可以创建的地形的大小。
+
+(#highresolutionlod-independentlighting)
 
 ### 高分辨率LOD独立照明
 
@@ -117,6 +136,14 @@ Landscape地形的LOD使用标准纹理mipmap进行处理。每个mipmap都是�
 | **仅几何体法线（Geometry Normals Only）** | **带细节法线（With Detail Normals）** | 
 [/REGION]
 
+(#physxcollision)
+
 ### PhysX碰撞
 
 Landscape用一个PhysX高度场对象来进行虚幻以及刚体碰撞。您可以为每一图层指定[物理材质](https://docs.unrealengine.com/latest/INT/Engine/Physics/PhysicalMaterials/index.html)，碰撞系统将使用每一位置的主导层来确定使用哪一种物理材质。可以使用降低的分辨率碰撞高度场（例如0.5x渲染分辨率）来节省大型Landscape地形的内存需求。远距Landscape的碰撞和渲染组件也可以使用关卡流送系统实现流出。
+
+ 
+
+
+
+

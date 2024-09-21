@@ -194,7 +194,7 @@ namespace CrossCompiler
 		Float3x4,
 		Float4x4,
 
-		Texture, // texture (SM3)
+		Texture,
 		Texture1D,
 		Texture1DArray,
 		Texture2D,
@@ -205,11 +205,11 @@ namespace CrossCompiler
 		TextureCube,
 		TextureCubeArray,
 
-		Sampler, // sampler (SM3)
-		Sampler1D, // sampler1D (SM3)
-		Sampler2D, // sampler2D (SM3)
-		Sampler3D, // sampler3D (SM3)
-		SamplerCube, // samplerCUBE (SM3)
+		Sampler,
+		Sampler1D,
+		Sampler2D,
+		Sampler3D,
+		SamplerCube,
 		SamplerState,
 		SamplerComparisonState,
 
@@ -226,7 +226,6 @@ namespace CrossCompiler
 		RWTexture2DArray,
 		RWTexture3D,
 		StructuredBuffer,
-		RaytracingAccelerationStructure,
 
 		// Modifiers
 		In,
@@ -247,7 +246,6 @@ namespace CrossCompiler
 		CBuffer,
 		GroupShared,
 		RowMajor,
-		Register,
 
 		Identifier,
 		UnsignedIntegerConstant,
@@ -261,13 +259,15 @@ namespace CrossCompiler
 		EHlslToken Token;
 		FString String;
 		uint32 UnsignedInteger;
+		float Float;
 
 		FSourceInfo SourceInfo;
 
-		explicit FHlslToken(const FString& Identifier) : Token(EHlslToken::Identifier), String(Identifier), UnsignedInteger(0) { }
-		explicit FHlslToken(EHlslToken InToken, const FString& Identifier) : Token(InToken), String(Identifier), UnsignedInteger(0) { }
-		explicit FHlslToken(uint32 InUnsignedInteger) : Token(EHlslToken::UnsignedIntegerConstant), UnsignedInteger(InUnsignedInteger) { }
-		explicit FHlslToken(bool bInValue) : Token(EHlslToken::BoolConstant), UnsignedInteger(bInValue ? 1 : 0) { }
+		explicit FHlslToken(const FString& Identifier) : Token(EHlslToken::Identifier), String(Identifier), UnsignedInteger(0), Float(0) { }
+		explicit FHlslToken(EHlslToken InToken, const FString& Identifier) : Token(InToken), String(Identifier), UnsignedInteger(0), Float(0) { }
+		explicit FHlslToken(uint32 InUnsignedInteger) : Token(EHlslToken::UnsignedIntegerConstant), UnsignedInteger(InUnsignedInteger), Float(0) { }
+		explicit FHlslToken(float InFloat) : Token(EHlslToken::FloatConstant), UnsignedInteger(0), Float(InFloat) { }
+		explicit FHlslToken(bool bInValue) : Token(EHlslToken::BoolConstant), UnsignedInteger(bInValue ? 1 : 0), Float(0) { }
 	};
 
 	class FHlslScanner

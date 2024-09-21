@@ -4,7 +4,7 @@ using UnrealBuildTool;
 using System.Collections.Generic;
 
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
-[SupportedPlatforms("IOS")]
+[SupportedPlatforms(UnrealTargetPlatform.IOS)]
 public class SlateViewerTarget : TargetRules
 {
 	public SlateViewerTarget(TargetInfo Target) : base(Target)

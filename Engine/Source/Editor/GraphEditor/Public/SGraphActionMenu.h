@@ -147,7 +147,6 @@ public:
 
 	// FGCObject override
 	virtual void AddReferencedObjects( FReferenceCollector& Collector ) override;
-	virtual FString GetReferencerName() const override;
 
 	/**
 	 * Refreshes the actions that this widget should display

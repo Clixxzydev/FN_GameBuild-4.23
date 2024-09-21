@@ -772,10 +772,6 @@ static void DirectCompile(const TArray<const class IShaderFormat*>& ShaderFormat
 			{
 				Frequency = SF_RayHitGroup;
 			}
-			else if (!FCString::Strcmp(*Token, TEXT("rcs")))
-			{
-				Frequency = SF_RayCallable;
-			}
 #endif // RHI_RAYTRACING
 			else if (!FCString::Strcmp(*Token, TEXT("pipeline")))
 			{

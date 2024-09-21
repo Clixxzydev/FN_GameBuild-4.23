@@ -14,7 +14,6 @@
 #include "Framework/Application/SlateApplication.h"
 #include "MaterialBakingHelpers.h"
 #include "Async/ParallelFor.h"
-#include "Materials/MaterialInstance.h"
 
 #if WITH_EDITOR
 #include "Misc/FileHelper.h"
@@ -263,7 +262,7 @@ void FMaterialBakingModule::CleanupMaterialProxies()
 {
 	for (auto Iterator : MaterialProxyPool)
 	{
-		delete Iterator.Value.Value;
+		delete Iterator.Value;
 	}
 	MaterialProxyPool.Reset();
 }
@@ -307,25 +306,16 @@ FExportMaterialProxy* FMaterialBakingModule::CreateMaterialProxy(UMaterialInterf
 {
 	FExportMaterialProxy* Proxy = nullptr;
 
-	// Find all pooled material proxy matching this material
-	TArray<FMaterialPoolValue> Entries;
-	MaterialProxyPool.MultiFind(Material, Entries);
-
-	// Look for the matching property
-	for (FMaterialPoolValue& Entry : Entries)
+	// Find any pooled material proxy matching this material and property
+	FExportMaterialProxy** FindResult = MaterialProxyPool.Find(TPair<UMaterialInterface*, EMaterialProperty>(Material, Property));
+	if (FindResult)
 	{
-		if (Entry.Key == Property)
-		{
-			Proxy = Entry.Value;
-			break;
-		}
+		Proxy = *FindResult;
 	}
-
-	// Not found, create a new entry
-	if (Proxy == nullptr)
+	else
 	{
-		Proxy = new FExportMaterialProxy(Material, Property);
-		MaterialProxyPool.Add(Material, FMaterialPoolValue(Property, Proxy));
+		Proxy = new FExportMaterialProxy(Material, Property);		
+		MaterialProxyPool.Add(TPair<UMaterialInterface*, EMaterialProperty>(Material, Property), Proxy);
 	}
 
 	return Proxy;
@@ -447,38 +437,12 @@ void FMaterialBakingModule::OnObjectModified(UObject* Object)
 	{
 		if (Object && Object->IsA<UMaterialInterface>())
 		{
-			UMaterialInterface* MaterialToInvalidate = Cast<UMaterialInterface>(Object);
-
-			// Search our proxy pool for materials or material instances that refer to MaterialToInvalidate
-			for (auto It = MaterialProxyPool.CreateIterator(); It; ++It)
+			UMaterialInterface* Material = Cast<UMaterialInterface>(Object);
+			if (MaterialProxyPool.Contains(TPair<UMaterialInterface*, EMaterialProperty>(Material, MP_BaseColor)))
 			{
-				TWeakObjectPtr<UMaterialInterface> PoolMaterialPtr = It.Key();
-
-				// Remove stale entries from the pool
-				bool bMustDelete = PoolMaterialPtr.IsValid();
-				if (!bMustDelete)
+				for (int32 PropertyIndex = 0; PropertyIndex < MP_MAX; ++PropertyIndex)
 				{
-					bMustDelete = PoolMaterialPtr == MaterialToInvalidate;
-				}
-
-				// No match - Test the MaterialInstance hierarchy
-				if (!bMustDelete)
-				{
-					UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(PoolMaterialPtr);
-					while (!bMustDelete && MaterialInstance && MaterialInstance->Parent != nullptr)
-					{
-						bMustDelete = MaterialInstance->Parent == MaterialToInvalidate;
-						MaterialInstance = Cast<UMaterialInstance>(MaterialInstance->Parent);
-					}
-				}
-
-				// We have a match, remove the entry from our pool
-				if (bMustDelete)
-				{
-					FExportMaterialProxy* Proxy = It.Value().Value;
-					delete Proxy;
-
-					It.RemoveCurrent();
+					MaterialProxyPool.Remove(TPair<UMaterialInterface*, EMaterialProperty>(Material, (EMaterialProperty)PropertyIndex));
 				}
 			}
 		}

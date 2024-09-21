@@ -5,8 +5,7 @@ Description:Options for adjusting quality and performance.
 version: 4.9
 parent:Engine/Performance
 tags:Performance and Profiling
-tags:scalability
-topic-image:scalability_topic.png
+tags:scalabilityEngine/Performance/Scalability/scalability_topic.png
 
 [REGION:banner]
 ![](SC_Banner.png)

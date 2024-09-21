@@ -49,11 +49,11 @@ public:
 
 	void SetParameters(
 		FRHICommandList& RHICmdList,
-		FRHITexture* RayCountPerPixelBuffer,
+		FTextureRHIParamRef RayCountPerPixelBuffer,
 		const FIntPoint& ViewSize,
-		FRHIUnorderedAccessView* TotalRayCountBuffer)
+		FUnorderedAccessViewRHIParamRef TotalRayCountBuffer)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		SetTextureParameter(RHICmdList, ShaderRHI, RayCountPerPixelParameter, RayCountPerPixelBuffer);
 		SetShaderValue(RHICmdList, ShaderRHI, ViewSizeParameter, ViewSize);
@@ -65,9 +65,9 @@ public:
 		EResourceTransitionAccess TransitionAccess,
 		EResourceTransitionPipeline TransitionPipeline,
 		FRWBuffer& TotalRayCountBuffer,
-		FRHIComputeFence* Fence)
+		FComputeFenceRHIParamRef Fence)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		RHICmdList.TransitionResource(TransitionAccess, TransitionPipeline, TotalRayCountBuffer.UAV, Fence);
 	}
@@ -93,7 +93,7 @@ private:
 IMPLEMENT_SHADER_TYPE(, FRayCounterCS, TEXT("/Engine/Private/PathTracing/PathTracingRayCounterComputeShader.usf"), TEXT("RayCounterCS"), SF_Compute)
 
 
-void FDeferredShadingSceneRenderer::ComputeRayCount(FRHICommandListImmediate& RHICmdList, const FViewInfo& View, FRHITexture* RayCountPerPixelTexture)
+void FDeferredShadingSceneRenderer::ComputeRayCount(FRHICommandListImmediate& RHICmdList, const FViewInfo& View, FTextureRHIParamRef RayCountPerPixelTexture)
 {
 	FSceneViewState* ViewState = (FSceneViewState*)View.State;
 	ClearUAV(RHICmdList, *ViewState->TotalRayCountBuffer, 0);
@@ -108,7 +108,7 @@ void FDeferredShadingSceneRenderer::ComputeRayCount(FRHICommandListImmediate& RH
 	int32 NumGroups = FMath::DivideAndRoundUp<int32>(ViewSize.Y, FRayCounterCS::GetGroupSize());
 	DispatchComputeShader(RHICmdList, *RayCounterComputeShader, NumGroups, 1, 1);
 
-	FRHIGPUBufferReadback* RayCountGPUReadback = ViewState->RayCountGPUReadback;
+	FRHIGPUMemoryReadback* RayCountGPUReadback = ViewState->RayCountGPUReadback;
 
 	// Read read count data from the GPU using a stage buffer to avoid stalls
 	if (!ViewState->bReadbackInitialized)

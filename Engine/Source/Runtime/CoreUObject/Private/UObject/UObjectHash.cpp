@@ -7,7 +7,6 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
-#include "Misc/AsciiSet.h"
 #include "Misc/PackageName.h"
 #include "HAL/IConsoleManager.h"
 
@@ -410,7 +409,7 @@ public:
  */
 static FORCEINLINE int32 GetObjectHash(FName ObjName)
 {
-	return GetTypeHash(ObjName);
+	return (ObjName.GetComparisonIndex() ^ ObjName.GetNumber());
 }
 
 /**
@@ -424,7 +423,7 @@ static FORCEINLINE int32 GetObjectHash(FName ObjName)
  */
 static FORCEINLINE int32 GetObjectOuterHash(FName ObjName,PTRINT Outer)
 {
-	return GetTypeHash(ObjName) + (Outer >> 6);
+	return ((ObjName.GetComparisonIndex() ^ ObjName.GetNumber()) ^ (Outer >> 6));
 }
 
 UObject* StaticFindObjectFastExplicitThreadSafe(FUObjectHashTables& ThreadHash, UClass* ObjectClass, FName ObjectName, const FString& ObjectPathName, bool bExactClass, EObjectFlags ExcludeFlags/*=0*/)
@@ -489,42 +488,6 @@ UObject* StaticFindObjectFastExplicit( UClass* ObjectClass, FName ObjectName, co
 	return Result;
 }
 
-static FName SplitInnerAndOuter(const TCHAR* OuterAndInner, const TCHAR* Delimiter, FName& OutOuter, uint32 InnerNumber)
-{
-	check(*Delimiter == ':');
-
-	int32 OuterLen = static_cast<int32>(Delimiter - OuterAndInner);
-	OutOuter = FName(OuterLen, OuterAndInner);
-	return FName(Delimiter + 1, InnerNumber);
-}
-
-static FName ExtractInnerAndOuterFromPath(FName ObjectPath, FName& OutOuter)
-{
-	TCHAR PathBuffer[NAME_SIZE];
-	ObjectPath.GetPlainNameString(PathBuffer);
-
-	// Find package separator . or subobject separator :
-	constexpr FAsciiSet DotColon(".:");
-	const TCHAR* Path = PathBuffer;
-	while (true)
-	{
-		const TCHAR* DelimiterOrEnd = FAsciiSet::FindFirstOrEnd(Path, DotColon);
-
-		if (*DelimiterOrEnd == '\0')
-		{
-			return Path == PathBuffer ? ObjectPath : FName(Path, ObjectPath.GetNumber());
-		}
-		else if (*DelimiterOrEnd == ':')
-		{
-			return SplitInnerAndOuter(Path, DelimiterOrEnd, OutOuter, ObjectPath.GetNumber());
-		}
-
-		// We have a package prefix, drop it
-		check(*DelimiterOrEnd == '.');
-		Path = DelimiterOrEnd + 1;
-	}
-}
-
 UObject* StaticFindObjectFastInternalThreadSafe(FUObjectHashTables& ThreadHash, UClass* ObjectClass, UObject* ObjectPackage, FName ObjectName, bool bExactClass, bool bAnyPackage, EObjectFlags ExcludeFlags, EInternalObjectFlags ExclusiveInternalFlags)
 {
 	ExclusiveInternalFlags |= EInternalObjectFlags::Unreachable;
@@ -572,9 +535,14 @@ UObject* StaticFindObjectFastInternalThreadSafe(FUObjectHashTables& ThreadHash, 
 	else
 	{
 		// Find an object with the specified name and (optional) class, in any package; if bAnyPackage is false, only matches top-level packages
-		FName VerifyOuterName;
-		FName ActualObjectName = ExtractInnerAndOuterFromPath(ObjectName, /* out*/ VerifyOuterName);
-
+		FName ActualObjectName = ObjectName;
+		const FString ObjectNameString = ObjectName.ToString();
+		const int32 DotIndex = FMath::Max<int32>(ObjectNameString.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd),
+			ObjectNameString.Find(TEXT(":"), ESearchCase::CaseSensitive, ESearchDir::FromEnd));
+		if (DotIndex != INDEX_NONE)
+		{
+			ActualObjectName = FName(*ObjectNameString.Mid(DotIndex + 1));
+		}
 		const int32 Hash = GetObjectHash(ActualObjectName);
 		FHashTableLock HashLock(ThreadHash);
 
@@ -602,7 +570,7 @@ UObject* StaticFindObjectFastInternalThreadSafe(FUObjectHashTables& ThreadHash, 
 					&& !Object->HasAnyInternalFlags(ExclusiveInternalFlags)
 
 					/** Ensure that the partial path provided matches the object found */
-					&& (VerifyOuterName.IsNone() || (Object->GetOuter() && Object->GetOuter()->GetFName() == VerifyOuterName)))
+					&& (Object->GetPathName().EndsWith(ObjectNameString)))
 				{
 					checkf(!Object->IsUnreachable(), TEXT("%s"), *Object->GetFullName());
 					if (Result)
@@ -743,8 +711,6 @@ static FAutoConsoleCommand ShrinkUObjectHashTablesCmd(
 
 void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Results, bool bIncludeNestedObjects, EObjectFlags ExclusionFlags, EInternalObjectFlags ExclusionInternalFlags)
 {
-	checkf(Outer != nullptr, TEXT("Getting objects with a null outer is no longer supported. If you want to get all packages you might consider using GetObjectsOfClass instead."));
-
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
 	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable;
 	if (!IsInAsyncLoadingThread())
@@ -793,8 +759,6 @@ void GetObjectsWithOuter(const class UObjectBase* Outer, TArray<UObject *>& Resu
 
 void ForEachObjectWithOuter(const class UObjectBase* Outer, TFunctionRef<void(UObject*)> Operation, bool bIncludeNestedObjects, EObjectFlags ExclusionFlags, EInternalObjectFlags ExclusionInternalFlags)
 {
-	checkf(Outer != nullptr, TEXT("Getting objects with a null outer is no longer supported. If you want to get all packages you might consider using GetObjectsOfClass instead."));
-
 	// We don't want to return any objects that are currently being background loaded unless we're using the object iterator during async loading.
 	ExclusionInternalFlags |= EInternalObjectFlags::Unreachable;
 	if (!IsInAsyncLoadingThread())
@@ -1032,15 +996,11 @@ void HashObject(UObjectBase* Object)
 		checkSlow(!ThreadHash.PairExistsInHash(Hash, Object));  // if it already exists, something is wrong with the external code
 		ThreadHash.AddToHash(Hash, Object);
 
-		if (PTRINT Outer = (PTRINT)Object->GetOuter())
-		{
-			Hash = GetObjectOuterHash(Name, Outer);
-			checkSlow(!ThreadHash.HashOuter.FindPair(Hash, Object));  // if it already exists, something is wrong with the external code
-			ThreadHash.HashOuter.Add(Hash, Object);
+		Hash = GetObjectOuterHash( Name, (PTRINT)Object->GetOuter() );
+		checkSlow( !ThreadHash.HashOuter.FindPair( Hash, Object ) );  // if it already exists, something is wrong with the external code
+		ThreadHash.HashOuter.Add( Hash, Object );
 
-			AddToOuterMap(ThreadHash, Object);
-		}
-
+		AddToOuterMap( ThreadHash, Object );
 		AddToClassMap( ThreadHash, Object );
 	}
 }
@@ -1067,15 +1027,11 @@ void UnhashObject(UObjectBase* Object)
 		NumRemoved = ThreadHash.RemoveFromHash(Hash, Object);
 		check(NumRemoved == 1); // must have existed, else something is wrong with the external code
 
-		if (PTRINT Outer = (PTRINT)Object->GetOuter())
-		{
-			Hash = GetObjectOuterHash(Name, Outer);
-			NumRemoved = ThreadHash.HashOuter.RemoveSingle(Hash, Object);
-			check(NumRemoved == 1); // must have existed, else something is wrong with the external code
+		Hash = GetObjectOuterHash( Name, (PTRINT)Object->GetOuter() );
+		NumRemoved = ThreadHash.HashOuter.RemoveSingle( Hash, Object );
+		check( NumRemoved == 1 ); // must have existed, else something is wrong with the external code
 
-			RemoveFromOuterMap(ThreadHash, Object);
-		}
-
+		RemoveFromOuterMap( ThreadHash, Object );
 		RemoveFromClassMap( ThreadHash, Object );
 	}
 }
@@ -1257,14 +1213,6 @@ void LogHashOuterStatistics(FOutputDevice& Ar, const bool bShowHashBucketCollisi
 	Ar.Logf(TEXT(""));
 	FHashTableLock HashLock(FUObjectHashTables::Get());
 	LogHashStatisticsInternal(FUObjectHashTables::Get().HashOuter, Ar, bShowHashBucketCollisionInfo);
-	Ar.Logf(TEXT(""));
-
-	uint32 HashOuterMapSize = 0;
-	for (TPair<UObjectBase*, FHashBucket>& OuterMapEntry : FUObjectHashTables::Get().ObjectOuterMap)
-	{
-		HashOuterMapSize += OuterMapEntry.Value.GetItemsSize();
-	}
-	Ar.Logf(TEXT("Total memory allocated for Object Outer Map: %u bytes."), HashOuterMapSize);
 	Ar.Logf(TEXT(""));
 }
 

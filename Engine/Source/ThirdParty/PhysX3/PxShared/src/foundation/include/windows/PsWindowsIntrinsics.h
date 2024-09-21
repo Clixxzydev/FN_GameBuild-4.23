@@ -55,16 +55,7 @@
 #pragma warning(pop)
 
 #include <float.h>
-
-// @MIXEDREALITY_CHANGE : BEGIN ARM Support
-#if defined (_M_ARM)
-#include <armintr.h>
-#elif  defined (_M_ARM64)
-#include <arm64intr.h>
-#else
 #include <mmintrin.h>
-#endif
-// @MIXEDREALITY_CHANGE : END
 
 #pragma intrinsic(_BitScanForward)
 #pragma intrinsic(_BitScanReverse)
@@ -124,7 +115,7 @@ PX_FORCE_INLINE uint32_t countLeadingZeros(uint32_t v)
 /*!
 Prefetch aligned cache size around \c ptr+offset.
 */
-#if !PX_ARM_FAMILY
+#if !PX_ARM
 PX_FORCE_INLINE void prefetchLine(const void* ptr, uint32_t offset = 0)
 {
 	// cache line on X86/X64 is 64-bytes so a 128-byte prefetch would require 2 prefetches.

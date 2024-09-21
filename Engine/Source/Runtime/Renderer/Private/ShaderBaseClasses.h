@@ -39,20 +39,20 @@ class FBaseHS : public FMeshMaterialShader
 	DECLARE_SHADER_TYPE(FBaseHS,MeshMaterial);
 public:
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform,const FMaterial* Material,const FVertexFactoryType* VertexFactoryType)
 	{
-		if (!RHISupportsTessellation(Parameters.Platform))
+		if (!RHISupportsTessellation(Platform))
 		{
 			return false;
 		}
 
-		if (Parameters.VertexFactoryType && !Parameters.VertexFactoryType->SupportsTessellationShaders())
+		if (VertexFactoryType && !VertexFactoryType->SupportsTessellationShaders())
 		{
 			// VF can opt out of tessellation
 			return false;	
 		}
 
-		if (!Parameters.Material || Parameters.Material->GetTessellationMode() == MTM_NoTessellation)
+		if (!Material || Material->GetTessellationMode() == MTM_NoTessellation) 
 		{
 			// Material controls use of tessellation
 			return false;	
@@ -79,20 +79,20 @@ class FBaseDS : public FMeshMaterialShader
 	DECLARE_SHADER_TYPE(FBaseDS,MeshMaterial);
 public:
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform,const FMaterial* Material,const FVertexFactoryType* VertexFactoryType)
 	{
-		if (!RHISupportsTessellation(Parameters.Platform))
+		if (!RHISupportsTessellation(Platform))
 		{
 			return false;
 		}
 
-		if (Parameters.VertexFactoryType && !Parameters.VertexFactoryType->SupportsTessellationShaders())
+		if (VertexFactoryType && !VertexFactoryType->SupportsTessellationShaders())
 		{
 			// VF can opt out of tessellation
 			return false;	
 		}
 
-		if (!Parameters.Material || Parameters.Material->GetTessellationMode() == MTM_NoTessellation)
+		if (!Material || Material->GetTessellationMode() == MTM_NoTessellation) 
 		{
 			// Material controls use of tessellation
 			return false;	

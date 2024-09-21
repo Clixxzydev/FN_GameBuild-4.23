@@ -244,12 +244,12 @@ int32 UDerivedDataCacheCommandlet::Main( const FString& Params )
 			// Keep track of which packages have already been processed along with the map.
 			{
 				const double FindProcessedPackagesStartTime = FPlatformTime::Seconds();
-				TArray<UObject *> AllPackages;
-				GetObjectsOfClass(UPackage::StaticClass(), AllPackages);
-				for (int32 Index = 0; Index < AllPackages.Num(); Index++)
+				TArray<UObject *> ObjectsInOuter;
+				GetObjectsWithOuter(NULL, ObjectsInOuter, false);
+				for (int32 Index = 0; Index < ObjectsInOuter.Num(); Index++)
 				{
-					UPackage* Pkg = Cast<UPackage>(AllPackages[Index]);
-					if (!Pkg || Pkg->GetOuter())
+					UPackage* Pkg = Cast<UPackage>(ObjectsInOuter[Index]);
+					if (!Pkg)
 					{
 						continue;
 					}

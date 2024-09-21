@@ -11,10 +11,10 @@ FFXSystemInterface* FFXSystemSet::GetInterface(const FName& InName)
 	for (FFXSystemInterface* FXSystem : FXSystems)
 	{
 		check(FXSystem);
-		FXSystem = FXSystem->GetInterface(InName);
-		if (FXSystem)
+		FFXSystemInterface* Res = FXSystem->GetInterface(InName);
+		if (Res)
 		{
-			return FXSystem;
+			return Res;
 		}
 	}
 	return nullptr;
@@ -87,12 +87,12 @@ void FFXSystemSet::UpdateVectorField(UVectorFieldComponent* VectorFieldComponent
 	}
 }
 
-void FFXSystemSet::PreInitViews(FRHICommandListImmediate& RHICmdList)
+void FFXSystemSet::PreInitViews()
 {
 	for (FFXSystemInterface* FXSystem : FXSystems)
 	{
 		check(FXSystem);
-		FXSystem->PreInitViews(RHICmdList);
+		FXSystem->PreInitViews();
 	}
 }
 
@@ -109,20 +109,20 @@ bool FFXSystemSet::UsesGlobalDistanceField() const
 	return false;
 }
 
-void FFXSystemSet::PreRender(FRHICommandListImmediate& RHICmdList, const class FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData, bool bAllowGPUParticleSceneUpdate)
+void FFXSystemSet::PreRender(FRHICommandListImmediate& RHICmdList, const class FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData)
 {
 	for (FFXSystemInterface* FXSystem : FXSystems)
 	{
 		check(FXSystem);
-		FXSystem->PreRender(RHICmdList, GlobalDistanceFieldParameterData, bAllowGPUParticleSceneUpdate);
+		FXSystem->PreRender(RHICmdList, GlobalDistanceFieldParameterData);
 	}
 }
 
 void FFXSystemSet::PostRenderOpaque(
 	FRHICommandListImmediate& RHICmdList,
-	FRHIUniformBuffer* ViewUniformBuffer,
+	const FUniformBufferRHIParamRef ViewUniformBuffer,
 	const class FShaderParametersMetadata* SceneTexturesUniformBufferStruct,
-	FRHIUniformBuffer* SceneTexturesUniformBuffer)
+	FUniformBufferRHIParamRef SceneTexturesUniformBuffer)
 {
 	for (FFXSystemInterface* FXSystem : FXSystems)
 	{
@@ -136,22 +136,12 @@ void FFXSystemSet::PostRenderOpaque(
 	}
 }
 
-void FFXSystemSet::OnDestroy()
-{
-	for (FFXSystemInterface*& FXSystem : FXSystems)
-	{
-		check(FXSystem);
-		FXSystem->OnDestroy();
-	}
-
-	FFXSystemInterface::OnDestroy();
-}
-
 FFXSystemSet::~FFXSystemSet()
 {
 	for (FFXSystemInterface* FXSystem : FXSystems)
 	{
 		check(FXSystem);
-		delete FXSystem;
+		FFXSystemInterface::Destroy(FXSystem);
 	}
+	FXSystems.Empty();
 }

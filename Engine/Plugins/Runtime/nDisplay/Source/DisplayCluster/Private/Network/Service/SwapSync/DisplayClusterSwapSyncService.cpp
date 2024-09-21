@@ -6,16 +6,16 @@
 #include "Cluster/IPDisplayClusterClusterManager.h"
 #include "Config/IPDisplayClusterConfigManager.h"
 #include "Misc/DisplayClusterAppExit.h"
+#include "Misc/DisplayClusterLog.h"
 
 #include "Network/Session/DisplayClusterSessionInternal.h"
 
 #include "DisplayClusterGlobals.h"
-#include "DisplayClusterLog.h"
 
 
-FDisplayClusterSwapSyncService::FDisplayClusterSwapSyncService(const FString& InAddr, const int32 InPort)
-	: FDisplayClusterService(FString("SRV_SS"), InAddr, InPort)
-	, BarrierSwap(GDisplayCluster->GetPrivateClusterMgr()->GetNodesAmount(), FString("SwapSync_barrier"), GDisplayCluster->GetConfigMgr()->GetConfigNetwork().BarrierWaitTimeout)
+FDisplayClusterSwapSyncService::FDisplayClusterSwapSyncService(const FString& InAddr, const int32 InPort) :
+	FDisplayClusterService(FString("SRV_SS"), InAddr, InPort),
+	BarrierSwap(GDisplayCluster->GetPrivateClusterMgr()->GetNodesAmount(), FString("SwapSync_barrier"), GDisplayCluster->GetConfigMgr()->GetConfigNetwork().BarrierWaitTimeout)
 {
 }
 
@@ -39,9 +39,9 @@ void FDisplayClusterSwapSyncService::Shutdown()
 	return FDisplayClusterServer::Shutdown();
 }
 
-TSharedPtr<FDisplayClusterSessionBase> FDisplayClusterSwapSyncService::CreateSession(FSocket* InSocket, const FIPv4Endpoint& InEP)
+FDisplayClusterSessionBase* FDisplayClusterSwapSyncService::CreateSession(FSocket* InSocket, const FIPv4Endpoint& InEP)
 {
-	return TSharedPtr<FDisplayClusterSessionBase>(new FDisplayClusterSessionInternal(InSocket, this, GetName() + FString("_session_") + InEP.ToString()));
+	return new FDisplayClusterSessionInternal(InSocket, this, GetName() + FString("_session_") + InEP.ToString());
 }
 
 
@@ -58,8 +58,8 @@ void FDisplayClusterSwapSyncService::NotifySessionClose(FDisplayClusterSessionBa
 	// Unblock waiting threads to allow current Tick() finish
 	BarrierSwap.Deactivate();
 
-	FDisplayClusterService::NotifySessionClose(InSession);
 	FDisplayClusterAppExit::ExitApplication(FDisplayClusterAppExit::ExitType::NormalSoft, GetName() + FString(" - Connection interrupted. Application exit requested."));
+	FDisplayClusterService::NotifySessionClose(InSession);
 }
 
 TSharedPtr<FDisplayClusterMessage> FDisplayClusterSwapSyncService::ProcessMessage(const TSharedPtr<FDisplayClusterMessage>& Request)

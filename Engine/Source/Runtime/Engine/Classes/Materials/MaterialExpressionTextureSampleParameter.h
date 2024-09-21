@@ -62,11 +62,17 @@ class ENGINE_API UMaterialExpressionTextureSampleParameter : public UMaterialExp
 	 * Return true if the texture is a movie texture
 	 *
 	 * @param	InTexture - texture to test
-	 * @param	OutMessage - if texture isn't valid, gives a description of the problem
 	 * @return	true/false
 	 */	
-	virtual bool TextureIsValid(UTexture* InTexture, FString& OutMessage);
+	virtual bool TextureIsValid( UTexture* InTexture );
 
+	/**
+	 * Called when TextureIsValid==false
+	 *
+	 * @return	Descriptive error text
+	 */	
+	virtual const TCHAR* GetRequirements();
+	
 	/**
 	 *	Sets the default texture if none is set
 	 */

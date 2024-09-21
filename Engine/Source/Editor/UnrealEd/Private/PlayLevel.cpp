@@ -16,7 +16,7 @@
 #include "UObject/Package.h"
 #include "UObject/LazyObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
-#include "UObject/ReferenceChainSearch.h"
+#include "Serialization/ArchiveTraceRoute.h"
 #include "Misc/PackageName.h"
 #include "InputCoreTypes.h"
 #include "Layout/Margin.h"
@@ -36,7 +36,6 @@
 #include "Engine/Blueprint.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/GameInstance.h"
-#include "Engine/RendererSettings.h"
 #include "Engine/World.h"
 #include "Settings/LevelEditorPlaySettings.h"
 #include "AI/NavigationSystemBase.h"
@@ -92,8 +91,6 @@
 #include "Engine/LocalPlayer.h"
 #include "Slate/SGameLayerManager.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "Widgets/Input/SHyperlink.h"
-#include "Dialogs/CustomDialog.h"
 
 #include "IHeadMountedDisplay.h"
 #include "IXRTrackingSystem.h"
@@ -107,8 +104,6 @@
 #include "EditorModeRegistry.h"
 #include "PhysicsManipulationMode.h"
 #include "CookerSettings.h"
-#include "Widgets/Text/STextBlock.h"
-#include "Widgets/SBoxPanel.h"
 
 
 DEFINE_LOG_CATEGORY_STATIC(LogPlayLevel, Log, All);
@@ -491,10 +486,11 @@ void UEditorEngine::EndPlayMap()
 				UE_LOG(LogPlayLevel, Error, TEXT("No PIE world was found when attempting to gather references after GC."));
 			}
 
-			FReferenceChainSearch RefChainSearch(Object, EReferenceChainSearchMode::Shortest);
+			TMap<UObject*,UProperty*>	Route		= FArchiveTraceRoute::FindShortestRootPath( Object, true, GARBAGE_COLLECTION_KEEPFLAGS );
+			FString						ErrorString	= FArchiveTraceRoute::PrintRootPath( Route, Object );
 
 			FFormatNamedArguments Arguments;
-			Arguments.Add(TEXT("Path"), FText::FromString(RefChainSearch.GetRootPath()));
+			Arguments.Add(TEXT("Path"), FText::FromString(ErrorString));
 				
 			// We cannot safely recover from this.
 			FMessageLog(NAME_CategoryPIE).CriticalError()
@@ -528,14 +524,6 @@ void UEditorEngine::EndPlayMap()
 		Package->MarkPackageDirty();
 		GEngine->PendingDroppedNotes.Empty();
 	}
-
-	//ensure stereo rendering is disabled in case we need to re-enable next PIE run (except when the editor is running in VR)
-	bool bInVRMode = IVREditorModule::Get().IsVREditorModeActive();
-	if (GEngine->StereoRenderingDevice && !bInVRMode)
-	{
-		GEngine->StereoRenderingDevice->EnableStereo(false);
-	}
-
 
 	// Restores realtime viewports that have been disabled for PIE.
 	RestoreRealtimeViewports();
@@ -1756,42 +1744,11 @@ struct FInternalPlayLevelUtils
 {
 	static int32 ResolveDirtyBlueprints(const bool bPromptForCompile, TArray<UBlueprint*>& ErroredBlueprints, const bool bForceLevelScriptRecompile = true)
 	{
-		struct FLocal
-		{
-			static void OnMessageLogLinkActivated(const class TSharedRef<IMessageToken>& Token)
-			{
-				if (Token->GetType() == EMessageToken::Object)
-				{
-					const TSharedRef<FUObjectToken> UObjectToken = StaticCastSharedRef<FUObjectToken>(Token);
-					if (UObjectToken->GetObject().IsValid())
-					{
-						FKismetEditorUtilities::BringKismetToFocusAttentionOnObject(UObjectToken->GetObject().Get());
-					}
-				}
-			}
-
-			static void AddCompileErrorToLog(UBlueprint* ErroredBlueprint, FMessageLog& BlueprintLog)
-			{
-				FFormatNamedArguments Arguments;
-				Arguments.Add(TEXT("Name"), FText::FromString(ErroredBlueprint->GetName()));
-
-				TSharedRef<FTokenizedMessage> Message = FTokenizedMessage::Create(EMessageSeverity::Warning);
-				Message->AddToken(FTextToken::Create(LOCTEXT("BlueprintCompileFailed", "Blueprint failed to compile: ")));
-				Message->AddToken(FUObjectToken::Create(ErroredBlueprint, FText::FromString(ErroredBlueprint->GetName()))
-					->OnMessageTokenActivated(FOnMessageTokenActivated::CreateStatic(&FLocal::OnMessageLogLinkActivated))
-				);
-
-				BlueprintLog.AddMessage(Message);
-			}
-		};
-
 		const bool bAutoCompile = !bPromptForCompile;
 		FString PromptDirtyList;
 
 		TArray<UBlueprint*> InNeedOfRecompile;
 		ErroredBlueprints.Empty();
-
-		FMessageLog BlueprintLog("BlueprintLog");
 
 		double BPRegenStartTime = FPlatformTime::Seconds();
 		for (TObjectIterator<UBlueprint> BlueprintIt; BlueprintIt; ++BlueprintIt)
@@ -1821,7 +1778,6 @@ struct FInternalPlayLevelUtils
 			else if (BS_Error == Blueprint->Status && Blueprint->bDisplayCompilePIEWarning)
 			{
 				ErroredBlueprints.Add(Blueprint);
-				FLocal::AddCompileErrorToLog(Blueprint, BlueprintLog);
 			}
 		}
 
@@ -1837,6 +1793,7 @@ struct FInternalPlayLevelUtils
 		}
 		int32 RecompiledCount = 0;
 
+		FMessageLog BlueprintLog("BlueprintLog");
 		if (bRunCompilation && (InNeedOfRecompile.Num() > 0))
 		{
 			const FText LogPageLabel = (bAutoCompile) ? LOCTEXT("BlueprintAutoCompilationPageLabel", "Pre-Play auto-recompile") :
@@ -1893,7 +1850,11 @@ struct FInternalPlayLevelUtils
 					if (bHadError && ErroredBlueprints.Find(CompiledBlueprint) == INDEX_NONE)
 					{
 						ErroredBlueprints.Add(CompiledBlueprint);
-						FLocal::AddCompileErrorToLog(CompiledBlueprint, BlueprintLog);
+
+						FFormatNamedArguments Arguments;
+						Arguments.Add(TEXT("Name"), FText::FromString(CompiledBlueprint->GetName()));
+
+						BlueprintLog.Info(FText::Format(LOCTEXT("BlueprintCompileFailed", "Blueprint {Name} failed to compile"), Arguments));
 					}
 
 					++RecompiledCount;
@@ -2283,75 +2244,6 @@ bool UEditorEngine::SpawnPlayFromHereStart( UWorld* World, AActor*& PlayerStart,
 	return true;
 }
 
-static bool ShowBlueprintErrorDialog( TArray<UBlueprint*> ErroredBlueprints )
-{
-	struct Local
-	{
-		static void OnHyperlinkClicked( TWeakObjectPtr<UBlueprint> InBlueprint, TSharedPtr<SCustomDialog> InDialog )
-		{
-			if (UBlueprint* BlueprintToEdit = InBlueprint.Get())
-			{
-				// Open the blueprint
-				GEditor->EditObject( BlueprintToEdit );
-			}
-
-			if (InDialog.IsValid())
-			{
-				// Opening the blueprint editor above may end up creating an invisible new window on top of the dialog, 
-				// thus making it not interactable, so we have to force the dialog back to the front
-				InDialog->BringToFront(true);
-			}
-		}
-	};
-
-	TSharedRef<SVerticalBox> DialogContents = SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.Padding(0, 0, 0, 16)
-		[
-			SNew(STextBlock)
-			.Text(NSLOCTEXT("PlayInEditor", "PrePIE_BlueprintErrors", "One or more blueprints has an unresolved compiler error, are you sure you want to Play in Editor?"))
-		];
-
-	TSharedPtr<SCustomDialog> CustomDialog;
-
-	for (UBlueprint* Blueprint : ErroredBlueprints)
-	{
-		TWeakObjectPtr<UBlueprint> BlueprintPtr = Blueprint;
-
-		DialogContents->AddSlot()
-			.AutoHeight()
-			.HAlign(HAlign_Left)
-			[
-				SNew(SHyperlink)
-				.Style(FEditorStyle::Get(), "Common.GotoBlueprintHyperlink")
-				.OnNavigate(FSimpleDelegate::CreateLambda([BlueprintPtr, &CustomDialog]() { Local::OnHyperlinkClicked(BlueprintPtr, CustomDialog); }))
-				.Text(FText::FromString(Blueprint->GetName()))
-				.ToolTipText(NSLOCTEXT("SourceHyperlink", "EditBlueprint_ToolTip", "Click to edit the blueprint"))
-			];
-	}
-
-	DialogContents->AddSlot()
-		.Padding(0, 16, 0, 0)
-		[
-			SNew(STextBlock)
-			.Text(NSLOCTEXT("PlayInEditor", "PrePIE_BlueprintErrorsDelayedOpen", "Clicked blueprints will open once this dialog is closed."))
-		];
-
-	FText DialogTitle = NSLOCTEXT("PlayInEditor", "PrePIE_BlueprintErrorsTitle", "Blueprint Compilation Errors");
-
-	FText OKText = NSLOCTEXT("PlayInEditor", "PrePIE_OkText", "Play in Editor");
-	FText CancelText = NSLOCTEXT("Dialogs", "EAppReturnTypeCancel", "Cancel");
-
-	CustomDialog = SNew(SCustomDialog)
-		.Title(DialogTitle)
-		.IconBrush("NotificationList.DefaultMessage")
-		.DialogContent(DialogContents)
-		.Buttons( { SCustomDialog::FButton(OKText), SCustomDialog::FButton(CancelText) } );
-
-	int ButtonPressed = CustomDialog->ShowModal();
-	return ButtonPressed == 0;
-}
-
 void UEditorEngine::PlayInEditor( UWorld* InWorld, bool bInSimulateInEditor, FPlayInEditorOverrides Overrides )
 {
 	// Broadcast PreBeginPIE before checks that might block PIE below (BeginPIE is broadcast below after the checks)
@@ -2439,13 +2331,19 @@ void UEditorEngine::PlayInEditor( UWorld* InWorld, bool bInSimulateInEditor, FPl
 
 	if (ErroredBlueprints.Num() && !GIsDemoMode)
 	{
-		// There was at least one blueprint with an error, make sure the user is OK with that.
-		bool bContinuePIE = ShowBlueprintErrorDialog( ErroredBlueprints );
+		FString ErroredBlueprintList;
+		for (UBlueprint* Blueprint : ErroredBlueprints)
+		{
+			ErroredBlueprintList += FString::Printf(TEXT("\n   %s"), *Blueprint->GetName());
+		}
 
+		FFormatNamedArguments Args;
+		Args.Add(TEXT("ErrorBlueprints"), FText::FromString(ErroredBlueprintList));
+
+		// There was at least one blueprint with an error, make sure the user is OK with that.
+		const bool bContinuePIE = EAppReturnType::Yes == FMessageDialog::Open( EAppMsgType::YesNo, FText::Format( NSLOCTEXT("PlayInEditor", "PrePIE_BlueprintErrors", "One or more blueprints has an unresolved compiler error, are you sure you want to Play in Editor?{ErrorBlueprints}"), Args ) );
 		if ( !bContinuePIE )
 		{
-			FMessageLog("BlueprintLog").Open(EMessageSeverity::Warning);
-
 			FEditorDelegates::EndPIE.Broadcast(bInSimulateInEditor);
 			FNavigationSystem::OnPIEEnd(*InWorld);
 			return;
@@ -3187,6 +3085,11 @@ UGameInstance* UEditorEngine::CreatePIEGameInstance(int32 InPIEInstance, bool bI
 	// Initialize the viewport client.
 	UGameViewportClient* ViewportClient = NULL;
 	ULocalPlayer *NewLocalPlayer = NULL;
+	
+	if (GEngine->XRSystem.IsValid() && !bInSimulateInEditor )
+	{
+		GEngine->XRSystem->OnBeginPlay(*PieWorldContext);
+	}
 
 	if (!PieWorldContext->RunAsDedicated)
 	{
@@ -3338,17 +3241,12 @@ UGameInstance* UEditorEngine::CreatePIEGameInstance(int32 InPIEInstance, bool bI
 						ViewportOverlayWidgetRef
 					];
 
-				static const auto CVarPropagateAlpha = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-				const EAlphaChannelMode::Type PropagateAlpha = EAlphaChannelMode::FromInt(CVarPropagateAlpha->GetValueOnGameThread());
-				const bool bIgnoreTextureAlpha = (PropagateAlpha != EAlphaChannelMode::AllowThroughTonemapper);
-
 				PieViewportWidget = 
 					SNew( SViewport )
 						.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute())
 						.EnableGammaCorrection( false )// Gamma correction in the game is handled in post processing in the scene renderer
 						.RenderDirectlyToWindow( bRenderDirectlyToWindow )
 						.EnableStereoRendering( bEnableStereoRendering )
-						.IgnoreTextureAlpha(bIgnoreTextureAlpha)
 						[
 							GameLayerManagerRef
 						];
@@ -3385,12 +3283,8 @@ UGameInstance* UEditorEngine::CreatePIEGameInstance(int32 InPIEInstance, bool bI
 
 							if (index <= 0)
 							{
-								// only override the window position if the window isn't being centered
-								if (!LevelEditorPlaySettings->CenterNewWindow)
-								{
-									LevelEditorPlaySettings->NewWindowPosition.X = FPlatformMath::RoundToInt(PIEWindowPos.X);
-									LevelEditorPlaySettings->NewWindowPosition.Y = FPlatformMath::RoundToInt(PIEWindowPos.Y);
-								}
+								LevelEditorPlaySettings->NewWindowPosition.X = FPlatformMath::RoundToInt(PIEWindowPos.X);
+								LevelEditorPlaySettings->NewWindowPosition.Y = FPlatformMath::RoundToInt(PIEWindowPos.Y);
 							}
 							else
 							{
@@ -3441,6 +3335,9 @@ UGameInstance* UEditorEngine::CreatePIEGameInstance(int32 InPIEInstance, bool bI
 				ViewportClient->SetViewportFrame(SlatePlayInEditorSession.SlatePlayInEditorWindowViewport.Get());
 				// Mark the viewport as PIE viewport
 				ViewportClient->Viewport->SetPlayInEditorViewport( ViewportClient->bIsPlayInEditorViewport );
+
+				// Ensure the window has a valid size before calling BeginPlay
+				PieWindow->ReshapeWindow(PieWindow->GetPositionInScreen(), FVector2D(NewWindowWidth, NewWindowHeight));
 
 				// Change the system resolution to match our window, to make sure game and slate window are kept syncronised
 				FSystemResolution::RequestResolutionChange(NewWindowWidth, NewWindowHeight, EWindowMode::Windowed);

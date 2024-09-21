@@ -1,50 +1,55 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-using UnrealBuildTool;
-using System.IO;
-
-public class DisplayClusterInput : ModuleRules
+namespace UnrealBuildTool.Rules
 {
-	public DisplayClusterInput(ReadOnlyTargetRules Target) : base(Target)
+	public class DisplayClusterInput : ModuleRules
 	{
-		PrivateIncludePathModuleNames.AddRange(
-			new string[]
-			{
-				"InputDevice",
-				"HeadMountedDisplay",
-				"DisplayCluster"
-			}
-		);
+		public DisplayClusterInput(ReadOnlyTargetRules Target) : base(Target)
+		{
+			PrivateIncludePathModuleNames.AddRange(
+				new string[]
+				{
+					"InputDevice",          // For IInputDevice.h
+					"HeadMountedDisplay",   // For IMotionController.h
+					"DisplayCluster"        // For IDisplayCluster
+				}
+			);
 
-		PublicDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"Core",
-				"CoreUObject",
-				"Engine",
-				"InputCore",
-				"InputDevice"
-			});
+			PublicDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Core",
+					"CoreUObject",
+					"DisplayCluster",
+					"Engine",
+					"InputCore",
+					"InputDevice"
+				});
 
-		PrivateDependencyModuleNames.AddRange(
-			new string[]
-			{
-				"ApplicationCore",
-				"Core",
-				"CoreUObject",
-				"DisplayCluster",
-				"Engine",
-				"InputCore",
-				"InputDevice",
-				"HeadMountedDisplay"
-			}
-		);
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"ApplicationCore",
+					"Core",
+					"CoreUObject",
+					"DisplayCluster",
+					"Engine",
+					"InputCore",
+					"InputDevice",
+					"HeadMountedDisplay"
+				}
+			);
 
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				"DisplayClusterInput/Private",
-				"DisplayCluster/Private",
-			}
-		);
+			PrivateIncludePaths.AddRange(
+				new string[] {
+					// Relative to Engine\Plugins\Runtime\nDisplay\Source\
+					"DisplayCluster/Private",
+					"DisplayClusterInput/Private/Controller",
+					"DisplayClusterInput/Private/State",
+					"../../../../Source/Runtime/Renderer/Private",
+					"../../../../Source/Runtime/Engine/Classes/Components",
+				}
+			);
+		}
 	}
 }

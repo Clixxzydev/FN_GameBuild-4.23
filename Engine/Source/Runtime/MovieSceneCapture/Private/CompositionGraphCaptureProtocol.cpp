@@ -11,7 +11,6 @@
 #include "SceneViewExtension.h"
 #include "Materials/Material.h"
 #include "BufferVisualizationData.h"
-#include "MovieSceneCaptureModule.h"
 #include "MovieSceneCaptureSettings.h"
 
 struct FFrameCaptureViewExtension : public FSceneViewExtensionBase
@@ -213,7 +212,7 @@ void UCompositionGraphCaptureProtocol::OnLoadConfigImpl(FMovieSceneCaptureSettin
 		OutputFormat.Append(TEXT(".{frame}"));
 
 		InSettings.OutputFormat = OutputFormat;
-		UE_LOG(LogMovieSceneCapture, Display, TEXT("Automatically appended .{frame} to the format string as specified format string did not provide a way to differentiate between frames via {frame} or {shot_frame}!"));
+		UE_LOG(LogTemp, Warning, TEXT("Automatically appended .{frame} to the format string as specified format string did not provide a way to differentiate between frames via {frame} or {shot_frame}!"));
 	}
 
 	// Add {material} if it doesn't already exist

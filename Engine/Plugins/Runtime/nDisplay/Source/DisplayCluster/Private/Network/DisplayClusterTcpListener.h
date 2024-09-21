@@ -51,9 +51,9 @@ private:
 	// Listening endpoint
 	FIPv4Endpoint Endpoint;
 	// Holds the thread object
-	TUniquePtr<FRunnableThread> ThreadObj;
+	FRunnableThread* ThreadObj;
 	// Sync access
-	FCriticalSection InternalsCritSec;
+	FCriticalSection InternalsSyncScope;
 	// Listening state
 	bool bIsListening = false;
 

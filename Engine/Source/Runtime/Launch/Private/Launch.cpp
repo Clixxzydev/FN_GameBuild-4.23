@@ -175,8 +175,6 @@ int32 GuardedMain( const TCHAR* CmdLine )
 		EngineTick();
 	}
 
-	TRACE_BOOKMARK(TEXT("Tick loop end"));
-
 #if WITH_EDITOR
 	if( GIsEditor )
 	{

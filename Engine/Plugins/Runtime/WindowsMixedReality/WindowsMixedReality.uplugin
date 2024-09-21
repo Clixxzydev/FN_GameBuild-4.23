@@ -15,8 +15,8 @@
 	"IsBetaVersion" : true,
 	"Installed" : false,
 	"SupportedTargetPlatforms": [
-		"Win64",
-		"HoloLens"
+		"Win32",
+		"Win64"
 	],
 	"Modules": [
 		{
@@ -24,8 +24,8 @@
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
 			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
+				"Win32",
+				"Win64"
 			]
 		},
 		{
@@ -33,71 +33,27 @@
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
 			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
+				"Win32",
+				"Win64"
 			]
 		},
 		{
 			"Name": "WindowsMixedRealitySpatialInput",
 			"Type": "Runtime",
-			"LoadingPhase": "PreDefault",
-			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
-			]
-		},
-		{
-			"Name": "WindowsMixedRealityHandTracking",
-			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
 			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
+				"Win32",
+				"Win64"
 			]
 		},
 		{
-			"Name": "WindowsMixedRealityPlatformEditor",
-			"Type": "Editor",
-			"LoadingPhase": "PostEngineInit",
+			"Name" : "WindowsMixedRealityPlatformEditor",
+			"Type" : "Editor",
+			"LoadingPhase" : "PostEngineInit",
 			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
+				"Win32",
+				"Win64"
 			]
 		},
-		{
-			"Name": "WindowsMixedRealityEyeTracker",
-			"Type": "Runtime",
-			"LoadingPhase": "PreDefault",
-			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
-			]
-		},
-		{
-			"Name": "WindowsMixedRealityRHI",
-			"Type": "Runtime",
-			"LoadingPhase": "Default",
-			"WhitelistPlatforms": [
-				"HoloLens"
-			]
-		}
-	],
-	"Plugins": [
-		{
-			"Name": "ProceduralMeshComponent",
-			"Enabled": true
-		},
-		{
-			"Name": "LiveLink",
-			"Enabled": true
-		},
-		{
-			"Name": "HoloLensAR",
-			"Enabled": true,
-			"WhitelistPlatforms": [
-				"Win64",
-				"HoloLens"
-			]
-		}
 	]
 }

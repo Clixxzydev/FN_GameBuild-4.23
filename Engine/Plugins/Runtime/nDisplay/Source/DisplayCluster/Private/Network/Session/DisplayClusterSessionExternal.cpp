@@ -1,10 +1,9 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "Network/Session/DisplayClusterSessionExternal.h"
+#include "Misc/DisplayClusterLog.h"
 
 #include "Dom/JsonObject.h"
-
-#include "DisplayClusterLog.h"
 
 
 FDisplayClusterSessionExternal::FDisplayClusterSessionExternal(FSocket* InSocket, IDisplayClusterSessionListener* InListener, const FString& InName) :
@@ -35,10 +34,11 @@ uint32 FDisplayClusterSessionExternal::Run()
 		if (Response.IsValid())
 		{
 			UE_LOG(LogDisplayClusterNetwork, Log, TEXT("Json based message has been processed"), *GetName());
+			SendJson(Response);
 		}
 	}
 
-	GetListener()->NotifySessionClose(this);
+	Stop();
 
 	UE_LOG(LogDisplayClusterNetwork, Log, TEXT("Session thread %s finished"), *GetName());
 	return 0;

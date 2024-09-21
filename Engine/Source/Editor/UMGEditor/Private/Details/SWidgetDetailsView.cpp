@@ -549,11 +549,7 @@ void SWidgetDetailsView::NotifyPostChange(const FPropertyChangedEvent& PropertyC
 		// Any time we migrate a property value we need to mark the blueprint as structurally modified so users don't need 
 		// to recompile it manually before they see it play in game using the latest version.
 		FBlueprintEditorUtils::MarkBlueprintAsModified(BlueprintEditor.Pin()->GetBlueprintObj());
-		
-		if (PropertyChangedEvent.ChangeType != EPropertyChangeType::ValueSet)
-		{
-			ClearFocusIfOwned();
-		}
+		ClearFocusIfOwned();
 	}
 
 	// If the property that changed is marked as "DesignerRebuild" we invalidate

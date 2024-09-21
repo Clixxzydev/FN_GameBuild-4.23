@@ -2,7 +2,6 @@
 
 #include "UI/SSynthKnob.h"
 #include "Rendering/DrawElements.h"
-#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "SynthKnob"
 
@@ -63,13 +62,12 @@ int32 SSynthKnob::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 		const float MinValueAngle = Style->MinValueAngle;
 		const float MaxValueAngle = Style->MaxValueAngle;
 		const float CurrentValue = GetValue();
-		const FVector2D ImageCenter = AllottedGeometry.GetLocalSize() * 0.5f;
 
 		float NormalizedRotationAngle = CurrentValue * (MaxValueAngle - MinValueAngle) + MinValueAngle;
 		float RotationAngle = 2.0f * PI * NormalizedRotationAngle;
-		
+
 		const FLinearColor FinalColorAndOpacity(InWidgetStyle.GetColorAndOpacityTint() * OverlayImageBrush->GetTint(InWidgetStyle));
-		FSlateDrawElement::MakeRotatedBox(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(), OverlayImageBrush, DrawEffects, RotationAngle, ImageCenter, FSlateDrawElement::RelativeToElement, FinalColorAndOpacity);
+		FSlateDrawElement::MakeRotatedBox(OutDrawElements, LayerId++, AllottedGeometry.ToPaintGeometry(), OverlayImageBrush, DrawEffects, RotationAngle, MyCullingRect.GetCenter(), FSlateDrawElement::RelativeToWorld, FinalColorAndOpacity);
 	}
 
 	return LayerId;
@@ -124,7 +122,7 @@ FReply SSynthKnob::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKey
 		// The controller's bottom face button must be pressed once to begin manipulating the slider's value.
 		// Navigation away from the widget is prevented until the button has been pressed again or focus is lost.
 		// The value can be manipulated by using the game pad's directional arrows ( relative to slider orientation ).
-		if (FSlateApplication::Get().GetNavigationActionForKey(KeyPressed) == EUINavigationAction::Accept)
+		if (KeyPressed == EKeys::Enter || KeyPressed == EKeys::SpaceBar || KeyPressed == EKeys::Virtual_Accept)
 		{
 			if (bControllerInputCaptured == false)
 			{

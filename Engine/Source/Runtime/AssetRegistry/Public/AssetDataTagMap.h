@@ -11,10 +11,8 @@
 
 #if !USE_COMPACT_ASSET_REGISTRY
 
-/** Type of tag map. Using derived class to allow prototyping. */
-class FAssetDataTagMap : public TSortedMap<FName, FString, FDefaultAllocator, FNameFastLess>
-{
-};
+/** Type of tag map */
+typedef TSortedMap<FName, FString, FDefaultAllocator, FNameSortIndexes> FAssetDataTagMap;
 
 #else
 
@@ -108,25 +106,25 @@ private:
 	};
 	struct FCompactExportTextNoNumbers
 	{
-		FNameEntryId Class;
-		FNameEntryId Package;
-		FNameEntryId Object;
+		NAME_INDEX Class;
+		NAME_INDEX Package;
+		NAME_INDEX Object;
 
 		FString ToString() const
 		{
 			FString Result;
-			if (Class)
+			if (Class != 0)
 			{
 				FName(Class, Class, 0).AppendString(Result);
 				Result += TCHAR('\'');
 			}
 			FName(Package, Package, 0).AppendString(Result);
-			if (Object)
+			if (Object != 0)
 			{
 				Result += TCHAR('.');
 				FName(Object, Object, 0).AppendString(Result);
 			}
-			if (Class)
+			if (Class != 0)
 			{
 				Result += TCHAR('\'');
 			}
@@ -155,13 +153,14 @@ private:
 		FStorageID Result;
 		Result.Fields.IsFName = true;
 		FName ValueName(*Value);
-		if (ValueName.GetNumber() || ValueName.GetComparisonIndex() != ValueName.GetDisplayIndex() || ValueName.GetComparisonIndex().ToUnstableInt() > FStorageID::MaxNoNumberFNameIndex)
+		if (ValueName.GetNumber() || ValueName.GetComparisonIndex() != ValueName.GetDisplayIndex() || ValueName.GetComparisonIndex() > FStorageID::MaxNoNumberFNameIndex)
 		{
 			Result.Fields.Index = FNames.Add(ValueName);
 		}
 		else
 		{
-			Result.Fields.Index = ValueName.GetComparisonIndex().ToUnstableInt();
+			check(ValueName.GetComparisonIndex() >= 0);
+			Result.Fields.Index = ValueName.GetComparisonIndex();
 			Result.Fields.NoNumbers = true;
 		}
 		// there are cases where the results do not match on case
@@ -298,8 +297,7 @@ public:
 			{
 				return FNames.IsAllocated(Id.Fields.Index);
 			}
-			FNameEntryId EntryId = FNameEntryId::FromUnstableInt(Id.Fields.Index);
-			return FName(EntryId, EntryId, 0).IsValid();
+			return FName(Id.Fields.Index, Id.Fields.Index, 0).IsValid();
 		}
 		if (Id.Fields.IsFNameExportText)
 		{
@@ -334,9 +332,7 @@ public:
 			{
 				return TEXT("False");
 			}
-
-			FNameEntryId EntryId = FNameEntryId::FromUnstableInt(Id.Fields.Index);
-			return FName(EntryId, EntryId, 0).ToString();
+			return FName(Id.Fields.Index, Id.Fields.Index, 0).ToString();
 		}
 		if (Id.Fields.IsFNameExportText)
 		{
@@ -404,7 +400,7 @@ inline FAssetDataTagMapValueStorage::FStorageID::operator FString() const
 	return FAssetDataTagMapValueStorage::Get().IdToString(*this);
 }
 
-typedef TSortedMap<FName, FAssetDataTagMapValueStorage::FStorageID, FDefaultAllocator, FNameFastLess> FAssetDataTagMapBase;
+typedef TSortedMap<FName, FAssetDataTagMapValueStorage::FStorageID, FDefaultAllocator, FNameSortIndexes> FAssetDataTagMapBase;
 
 /** Wrapper of the underlying map that handles making sure that when the map dies, the underlying storage for the strings is freed. */
 class FAssetDataTagMap : public FAssetDataTagMapBase
@@ -478,7 +474,7 @@ public:
 	/** This is serialization compatible with the non-compact version...so we just load the non-compact version and iterate it to compress the data structure. */
 	friend FArchive& operator<<(FArchive& Ar, FAssetDataTagMap& This)
 	{
-		TSortedMap<FName, FString, FDefaultAllocator, FNameFastLess> EmulatedContainer;
+		TSortedMap<FName, FString, FDefaultAllocator, FNameSortIndexes> EmulatedContainer;
 		if (Ar.IsLoading())
 		{
 			Ar << EmulatedContainer;

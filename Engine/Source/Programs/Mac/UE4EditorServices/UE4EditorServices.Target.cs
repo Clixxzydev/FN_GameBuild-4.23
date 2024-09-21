@@ -3,7 +3,7 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-[SupportedPlatforms("Mac")]
+[SupportedPlatforms(UnrealTargetPlatform.Mac)]
 public class UE4EditorServicesTarget : TargetRules
 {
 	public UE4EditorServicesTarget(TargetInfo Target) : base(Target)

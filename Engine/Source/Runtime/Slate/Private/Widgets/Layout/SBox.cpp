@@ -22,24 +22,23 @@ void SBox::Construct( const FArguments& InArgs )
 	MaxDesiredWidth = InArgs._MaxDesiredWidth;
 	MaxDesiredHeight = InArgs._MaxDesiredHeight;
 
-	MinAspectRatio = InArgs._MinAspectRatio;
 	MaxAspectRatio = InArgs._MaxAspectRatio;
 
 	ChildSlot
 		.HAlign( InArgs._HAlign )
 		.VAlign( InArgs._VAlign )
 		.Padding( InArgs._Padding )
-		[
-			InArgs._Content.Widget
-		];
+	[
+		InArgs._Content.Widget
+	];
 }
 
 void SBox::SetContent(const TSharedRef< SWidget >& InContent)
 {
 	ChildSlot
-		[
-			InContent
-		];
+	[
+		InContent
+	];
 
 	Invalidate(EInvalidateWidget::Layout);
 }
@@ -121,15 +120,6 @@ void SBox::SetMaxDesiredHeight(TAttribute<FOptionalSize> InMaxDesiredHeight)
 	if (!MaxDesiredHeight.IdenticalTo(InMaxDesiredHeight))
 	{
 		MaxDesiredHeight = InMaxDesiredHeight;
-		Invalidate(EInvalidateWidget::LayoutAndVolatility);
-	}
-}
-
-void SBox::SetMinAspectRatio(TAttribute<FOptionalSize> InMinAspectRatio)
-{
-	if (!MinAspectRatio.IdenticalTo(InMinAspectRatio))
-	{
-		MinAspectRatio = InMinAspectRatio;
 		Invalidate(EInvalidateWidget::LayoutAndVolatility);
 	}
 }
@@ -224,7 +214,6 @@ void SBox::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildr
 	const EVisibility ChildVisibility = ChildSlot.GetWidget()->GetVisibility();
 	if ( ArrangedChildren.Accepts(ChildVisibility) )
 	{
-		const FOptionalSize CurrentMinAspectRatio = MinAspectRatio.Get();
 		const FOptionalSize CurrentMaxAspectRatio = MaxAspectRatio.Get();
 		const FMargin SlotPadding(ChildSlot.SlotPadding.Get());
 		bool bAlignChildren = true;
@@ -232,39 +221,26 @@ void SBox::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildr
 		AlignmentArrangeResult XAlignmentResult(0, 0);
 		AlignmentArrangeResult YAlignmentResult(0, 0);
 
-		if (CurrentMaxAspectRatio.IsSet() || CurrentMinAspectRatio.IsSet())
+		if ( CurrentMaxAspectRatio.IsSet() )
 		{
 			float CurrentWidth = FMath::Min(AllottedGeometry.Size.X, ChildSlot.GetWidget()->GetDesiredSize().X);
 			float CurrentHeight = FMath::Min(AllottedGeometry.Size.Y, ChildSlot.GetWidget()->GetDesiredSize().Y);
 
-			float MinAspectRatioWidth = CurrentMinAspectRatio.IsSet() ? CurrentMinAspectRatio.Get() : 0;
-			float MaxAspectRatioWidth = CurrentMaxAspectRatio.IsSet() ? CurrentMaxAspectRatio.Get() : 0;
-			if (CurrentHeight > 0 && CurrentWidth > 0)
+			float AspectRatioWidth = CurrentMaxAspectRatio.Get();
+			if ( AspectRatioWidth != 0 && CurrentHeight > 0 && CurrentWidth > 0 )
 			{
-				const float CurrentRatioWidth = (AllottedGeometry.GetLocalSize().X / AllottedGeometry.GetLocalSize().Y);
+				const float AspectRatioHeight = 1.0f / AspectRatioWidth;
 
-				bool bFitMaxRatio = (CurrentRatioWidth > MaxAspectRatioWidth && MaxAspectRatioWidth != 0);
-				bool bFitMinRatio = (CurrentRatioWidth < MinAspectRatioWidth && MinAspectRatioWidth != 0);
-				if (bFitMaxRatio || bFitMinRatio)
+				const float CurrentRatioWidth = ( AllottedGeometry.GetLocalSize().X / AllottedGeometry.GetLocalSize().Y );
+				const float CurrentRatioHeight = 1.0f / CurrentRatioWidth;
+
+				if ( CurrentRatioWidth > AspectRatioWidth /*|| CurrentRatioHeight > AspectRatioHeight*/ )
 				{
 					XAlignmentResult = AlignChild<Orient_Horizontal>(AllottedGeometry.GetLocalSize().X, ChildSlot, SlotPadding);
 					YAlignmentResult = AlignChild<Orient_Vertical>(AllottedGeometry.GetLocalSize().Y, ChildSlot, SlotPadding);
 
-					float NewWidth;
-					float NewHeight;
-
-					if (bFitMaxRatio)
-					{
-						const float MaxAspectRatioHeight = 1.0f / MaxAspectRatioWidth;
-						NewWidth = MaxAspectRatioWidth * XAlignmentResult.Size;
-						NewHeight = MaxAspectRatioHeight * NewWidth;
-					}
-					else
-					{
-						const float MinAspectRatioHeight = 1.0f / MinAspectRatioWidth;
-						NewWidth = MinAspectRatioWidth * XAlignmentResult.Size;
-						NewHeight = MinAspectRatioHeight * NewWidth;
-					}
+					float NewWidth = AspectRatioWidth * XAlignmentResult.Size;
+					float NewHeight = AspectRatioHeight * NewWidth;
 
 					const float MaxWidth = AllottedGeometry.Size.X - SlotPadding.GetTotalSpaceAlong<Orient_Horizontal>();
 					const float MaxHeight = AllottedGeometry.Size.Y - SlotPadding.GetTotalSpaceAlong<Orient_Vertical>();

@@ -125,12 +125,7 @@ namespace SkeletalSimplifier
 		// Return true if either vertex has no associated faces.
 		bool IsInvalid(const SimpEdgeType* EdgePtr) const
 		{
-			 return (EdgePtr->v0->adjTris.Num() == 0 || EdgePtr->v1->adjTris.Num() == 0);
-		}
-
-		bool IsRemoved(const SimpEdgeType* EdgePtr) const
-		{
-			return EdgePtr->TestFlags(SIMP_REMOVED);
+			return (EdgePtr->v0->adjTris.Num() == 0 || EdgePtr->v1->adjTris.Num() == 0);
 		}
 
 		SimpEdgeType* GetEdgePtr(const uint32 Idx)
@@ -181,9 +176,10 @@ namespace SkeletalSimplifier
 		// Merge two link-lits of verts into a single group.
 		// NB: this does not verify that the locations of the verts are all the same.
 
-		void MergeGroups(SimpVertType*  A, SimpVertType*  B)
+		void MergeGroups(SimpVertType& MemberOfGroupA, SimpVertType& MemberOfGroupB)
 		{
-			// This inserts the B-loop between A and A.next.
+			SimpVertType* A = &MemberOfGroupA;
+			SimpVertType* B = &MemberOfGroupB;
 
 			// combine v0 and v1 groups
 			A->next->prev = B->prev;
@@ -191,22 +187,6 @@ namespace SkeletalSimplifier
 
 			A->next = B;
 			B->prev = A;
-			
-			/**
-			// This inserts the B-loop between A.prev and A.
-			// the last B in the B-loop
-			SimpVertType* Blast = B->prev;
-			// the last A in the A-Loop
-			SimpVertType* Alast = A->prev;
-
-			// Add A-loop after the last B
-			Blast->next = A;
-			A->prev = Blast;
-
-			// make the last 
-			B->prev = Alast;
-			Alast->next = B;
-			*/
 		}
 
 		// If a member of the group has the given flag, propagate that flag
@@ -244,22 +224,21 @@ namespace SkeletalSimplifier
 		void GetVertsInGroup(const SimpVertType& seedVert, VertPtrArray& InOutVertGroup) const
 		{
 			SimpVertType* VertPtr = const_cast<SimpVertType*>(&seedVert);
-			SimpVertType* v0 = VertPtr;
 			do {
-				InOutVertGroup.Add(v0);
-				v0 = v0->next;
-			} while (v0 != VertPtr);
+				InOutVertGroup.Add(VertPtr);
+				VertPtr = VertPtr->next;
+			} while (VertPtr != &seedVert);
 		}
 
-		// Remove any verts tagged as with FlagValue (e.g. SIMP_REMOVED)  NB: this may unlink the seed vert!
+		// Remove any verts tagged as with FlagValue (e.g. SIMP_REMOVED)
 		template < ESimpElementFlags FlagValue >
-		void PruneVerts(SimpVertType& seedVert)
+		void PruneVerts(const SimpVertType& seedVert)
 		{
 			// Get all the verts that are link-listed together
 			VertPtrArray VertsInVertGroup;
 			GetVertsInGroup(seedVert, VertsInVertGroup);
 
-			// Unlink any verts that are marked as SIMP_REMOVED
+			// Un link any verts that are maked as SIMP_REMOVED
 			for (int32 i = 0, Imax = VertsInVertGroup.Num(); i < Imax; ++i)
 			{
 				SimpVertType* v = VertsInVertGroup[i];
@@ -270,9 +249,6 @@ namespace SkeletalSimplifier
 					v->next->prev = v->prev;
 					v->next = v;
 					v->prev = v;
-
-					// cleanup.  Insure that pruned verts aren't marked as locekd.
-					v->DisableFlags(SIMP_LOCKED);
 				}
 			}
 
@@ -342,8 +318,7 @@ namespace SkeletalSimplifier
 		// to a single edge
 		// e.g. collapse edge 0-1 in the triangle 0-1,  1-2, 2-0
 		//      will result in the single edge 1-2
-		// @returns true if the edge collapsed, false if the edge wasn't a true edge.
-		bool CollapseEdge(SimpEdgeType* EdgePtr, IdxArray& RemovedEdgeIdxArray);
+		void CollapseEdge(SimpEdgeType* EdgePtr, IdxArray& RemovedEdgeIdxArray);
 
 		// Mark a tri as removed, and remove it from vertex adj lists.
 		uint32 RemoveTri(SimpTriType& Tri)
@@ -382,7 +357,7 @@ namespace SkeletalSimplifier
 
 
 		// @return true if any of the edges in this edge group is locked.
-		bool IsLockedGroup(const EdgePtrArray& EdgeGroup) const
+		bool IsLocked(const EdgePtrArray& EdgeGroup) const
 		{
 			bool locked = false;
 			int32 NumEdgesInGroup = EdgeGroup.Num();
@@ -398,13 +373,6 @@ namespace SkeletalSimplifier
 			}
 			return locked;
 		}
-
-		//@return true if the either of the verts are locked
-		bool HasLockedVerts(const SimpEdgeType* Edge) const
-		{
-			return (Edge->v0->TestFlags(SIMP_LOCKED) || Edge->v1->TestFlags(SIMP_LOCKED));
-		}
-
 
 		// Find the edge associated with these verts.  Will return NULL
 		// if no such edge exists.

@@ -154,19 +154,7 @@
 #include "Widgets/Notifications/SNotificationList.h"
 #include "NativeCodeGenerationTool.h"
 
-// Focusing related nodes feature
-#include "Preferences/BlueprintEditorOptions.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Widgets/Input/SNumericEntryBox.h"
-
 #define LOCTEXT_NAMESPACE "BlueprintEditor"
-
-static int32 EnableAutomaticLibraryAssetLoading = 1;
-static FAutoConsoleVariableRef CVarEnableAutomaticLibraryAssetLoading(
-	TEXT("bp.EnableAutomaticLibraryAssetLoading"),
-	EnableAutomaticLibraryAssetLoading,
-	TEXT("Should opening the BP editor load all macro and function library assets or not?\n0: Disable, 1: Enable (defaults to enabled)\nNodes defined in unloaded libraries will not show up in the context menu!"),
-	ECVF_Default);
 
 /////////////////////////////////////////////////////
 // FSelectionDetailsSummoner
@@ -964,7 +952,7 @@ void FBlueprintEditor::OnSelectionUpdated(const TArray<FSCSEditorTreeNodePtrType
 				}
 				else
 				{
-					UActorComponent* EditableComponent = NodePtr->GetOrCreateEditableComponentTemplate(GetBlueprintObj());
+					UActorComponent* EditableComponent = NodePtr->GetEditableComponentTemplate(GetBlueprintObj());
 					if (EditableComponent)
 					{
 						InspectorTitle = FText::FromString(NodePtr->GetDisplayString());
@@ -1495,8 +1483,7 @@ void FBlueprintEditor::OnChangeBreadCrumbGraph(UEdGraph* InGraph)
 }
 
 FBlueprintEditor::FBlueprintEditor()
-	: EditorOptions(nullptr)
-	, bSaveIntermediateBuildProducts(false)
+	: bSaveIntermediateBuildProducts(false)
 	, bPendingDeferredClose(false)
 	, bRequestedSavingOpenDocumentState(false)
 	, bBlueprintModifiedOnOpen (false)
@@ -1504,9 +1491,6 @@ FBlueprintEditor::FBlueprintEditor()
 	, bIsActionMenuContextSensitive(true)
 	, CurrentUISelection(NAME_None)
 	, bEditorMarkedAsClosed(false)
-	, bHideUnrelatedNodes(false)
-	, bLockNodeFadeState(false)
-	, bSelectRegularNode(false)
 	, HasOpenActionMenu(nullptr)
 	, InstructionsFadeCountdown(0.f)
 {
@@ -1521,7 +1505,7 @@ FBlueprintEditor::FBlueprintEditor()
 	AnalyticsStats.NodePasteCreateCount = 0;
 
 	UEditorEngine* Editor = (UEditorEngine*)GEngine;
-	if (Editor != nullptr)
+	if (Editor != NULL)
 	{
 		Editor->RegisterForUndo(this);
 	}
@@ -1688,11 +1672,6 @@ void FBlueprintEditor::CommonInitialization(const TArray<UBlueprint*>& InitBluep
 
 void FBlueprintEditor::LoadLibrariesFromAssetRegistry()
 {
-	if (EnableAutomaticLibraryAssetLoading == 0)
-	{
-		return;
-	}
-
 	if( GetBlueprintObj() )
 	{
 		FString UserDeveloperPath = FPackageName::FilenameToLongPackageName( FPaths::GameUserDeveloperDir());
@@ -1779,11 +1758,6 @@ void FBlueprintEditor::InitBlueprintEditor(
 	// TRUE if a single Blueprint is being opened and is marked as newly created
 	bool bNewlyCreated = InBlueprints.Num() == 1 && InBlueprints[0]->bIsNewlyCreated;
 
-	EditorOptions = nullptr;
-
-	// Load editor settings from disk.
-	LoadEditorSettings();
-
 	TArray< UObject* > Objects;
 	for (UBlueprint* Blueprint : InBlueprints)
 	{
@@ -1810,42 +1784,6 @@ void FBlueprintEditor::InitBlueprintEditor(
 	CommonInitialization(InBlueprints);
 
 	InitalizeExtenders();
-
-	struct Local
-	{
-		static void FillToolbar(FToolBarBuilder& ToolbarBuilder, const TSharedRef< FUICommandList > ToolkitCommands, FBlueprintEditor* BlueprintEditor)
-		{
-			ToolbarBuilder.BeginSection("Graph");
-			{
-				ToolbarBuilder.AddToolBarButton(
-					FBlueprintEditorCommands::Get().ToggleHideUnrelatedNodes,
-					NAME_None,
-					TAttribute<FText>(),
-					TAttribute<FText>(),
-					FSlateIcon(FEditorStyle::GetStyleSetName(), "GraphEditor.ToggleHideUnrelatedNodes")
-				);
-				ToolbarBuilder.AddComboButton(
-					FUIAction(),
-					FOnGetContent::CreateSP(BlueprintEditor, &FBlueprintEditor::MakeHideUnrelatedNodesOptionsMenu),
-					LOCTEXT("HideUnrelatedNodesOptions", "Focus Related Nodes Options"),
-					LOCTEXT("HideUnrelatedNodesOptionsMenu", "Focus Related Nodes options menu"),
-					TAttribute<FSlateIcon>(),
-					true
-				);
-			}
-			ToolbarBuilder.EndSection();
-		}
-	};
-
-	TSharedPtr<FExtender> ToolbarExtender = MakeShareable(new FExtender);
-	ToolbarExtender->AddToolBarExtension(
-		"Asset",
-		EExtensionHook::After,
-		GetToolkitCommands(),
-		FToolBarExtensionDelegate::CreateStatic( &Local::FillToolbar, GetToolkitCommands(), this )
-	);
-
-	AddToolbarExtender(ToolbarExtender);
 
 	RegenerateMenusAndToolbars();
 
@@ -2321,8 +2259,6 @@ FBlueprintEditor::~FBlueprintEditor()
 			FEngineAnalytics::GetProvider().RecordEvent( FString( "Editor.Usage.BPDisallowedPinConnection" ), BPEditorPinConnectAttribs );
 		}
 	}
-
-	SaveEditorSettings();
 }
 
 void FBlueprintEditor::FocusInspectorOnGraphSelection(const FGraphPanelSelectionSet& NewSelection, bool bForceRefresh)
@@ -2731,13 +2667,6 @@ void FBlueprintEditor::CreateDefaultCommands()
 		FGraphEditorCommands::Get().ClearAllQuickJumps,
 		FExecuteAction::CreateSP(this, &FBlueprintEditor::ClearAllGraphEditorQuickJumps)
 	);
-
-	ToolkitCommands->MapAction(
-		FBlueprintEditorCommands::Get().ToggleHideUnrelatedNodes,
-		FExecuteAction::CreateSP(this, &FBlueprintEditor::ToggleHideUnrelatedNodes),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &FBlueprintEditor::IsToggleHideUnrelatedNodesChecked)
-	);
 }
 
 void FBlueprintEditor::OpenNativeCodeGenerationTool()
@@ -3114,11 +3043,6 @@ void FBlueprintEditor::OnGraphEditorFocused(const TSharedRef<SGraphEditor>& InGr
 		}
 	}
 
-	if (bHideUnrelatedNodes && SelectedNodes.Num() <= 0)
-	{
-		ResetAllNodesUnrelatedStates();
-	}
-
 	// If the bookmarks view is active, check whether or not we're restricting the view to the current graph. If we are, update the tree to reflect the focused graph context.
 	if (BookmarksWidget.IsValid()
 		&& GetDefault<UBlueprintEditorSettings>()->bShowBookmarksForCurrentDocumentOnlyInTab)
@@ -3245,28 +3169,6 @@ void FBlueprintEditor::OnSelectedNodesChangedImpl(const FGraphPanelSelectionSet&
 	}
 
 	Inspector->ShowDetailsForObjects(NewSelection.Array());
-
-
-	bSelectRegularNode = false;
-	for (FGraphPanelSelectionSet::TConstIterator It(NewSelection); It; ++It)
-	{
-		UEdGraphNode_Comment* SeqNode = Cast<UEdGraphNode_Comment>(*It);
-		if (!SeqNode)
-		{
-			bSelectRegularNode = true;
-			break;
-		}
-	}
-
-	if (bHideUnrelatedNodes && !bLockNodeFadeState)
-	{
-		ResetAllNodesUnrelatedStates();
-
-		if ( bSelectRegularNode )
-		{
-			HideUnrelatedNodes();
-		}
-	}
 }
 
 void FBlueprintEditor::OnBlueprintChangedImpl(UBlueprint* InBlueprint, bool bIsJustBeingCompiled )
@@ -3692,8 +3594,6 @@ void FBlueprintEditor::AddReferencedObjects( FReferenceCollector& Collector )
 		}
 	}
 
-	Collector.AddReferencedObject(EditorOptions);
-
 	UserDefinedStructures.Remove(TWeakObjectPtr<UUserDefinedStruct>()); // Remove NULLs
 	for (const TWeakObjectPtr<UUserDefinedStruct>& ObjectPtr : UserDefinedStructures)
 	{
@@ -3702,11 +3602,6 @@ void FBlueprintEditor::AddReferencedObjects( FReferenceCollector& Collector )
 			Collector.AddReferencedObject(Obj);
 		}
 	}
-}
-
-FString FBlueprintEditor::GetReferencerName() const
-{
-	return TEXT("FBlueprintEditor");
 }
 
 bool FBlueprintEditor::IsNodeTitleVisible(const UEdGraphNode* Node, bool bRequestRename)
@@ -4053,20 +3948,6 @@ void FBlueprintEditor::OnAddExecutionPin()
 
 bool FBlueprintEditor::CanAddExecutionPin() const
 {
-	const FGraphPanelSelectionSet& SelectedNodes = GetSelectedNodes();
-
-	// Iterate over all nodes, and see if all can have a pin added
-	for (FGraphPanelSelectionSet::TConstIterator It(SelectedNodes); It; ++It)
-	{
-		if (UK2Node_ExecutionSequence* AddPinNode = Cast<UK2Node_ExecutionSequence>(*It))
-		{
-			if (!AddPinNode->CanAddPin())
-			{
-				return false;
-			}
-		}
-	}
-
 	return true;
 }
 
@@ -4111,16 +3992,17 @@ void FBlueprintEditor::OnInsertExecutionPin(EPinInsertPosition Position)
 
 bool FBlueprintEditor::CanInsertExecutionPin() const
 {
+	// We likely don't need to validate here, as we validated on menu population,
+	// but better to grey out the option if it is somehow created but will
+	// not execute correctly
 	TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin();
 	if (FocusedGraphEd.IsValid())
 	{
 		UEdGraphPin* SelectedPin = FocusedGraphEd->GetGraphPinForMenu();
 		if (SelectedPin)
 		{
-			if (UK2Node_ExecutionSequence* ExecutionSequence = Cast<UK2Node_ExecutionSequence>(SelectedPin->GetOwningNode()))
-			{
-				return ExecutionSequence->CanAddPin();
-			}
+			UEdGraphNode* OwningNode = SelectedPin->GetOwningNode();
+			return Cast<UK2Node_ExecutionSequence>(OwningNode) != nullptr;
 		}
 	}
 
@@ -6381,301 +6263,6 @@ ECheckBoxState FBlueprintEditor::CheckEnabledStateForSelectedNodes(ENodeEnabledS
 	return Result;
 }
 
-void FBlueprintEditor::UpdateNodesUnrelatedStatesAfterGraphChange()
-{
-	if (bHideUnrelatedNodes && !bLockNodeFadeState && bSelectRegularNode)
-	{
-		ResetAllNodesUnrelatedStates();
-
-		HideUnrelatedNodes();
-	}
-}
-
-void FBlueprintEditor::ResetAllNodesUnrelatedStates()
-{
-	TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin();
-
-	if (FocusedGraphEd.IsValid())
-	{
-		FocusedGraphEd->ResetAllNodesUnrelatedStates();
-	}
-}
-
-void FBlueprintEditor::CollectExecDownstreamNodes(UEdGraphNode* CurrentNode, TArray<UEdGraphNode*>& CollectedNodes)
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	TArray<UEdGraphPin*> AllPins = CurrentNode->GetAllPins();
-
-	for (auto& Pin : AllPins)
-	{
-		if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory == K2Schema->PC_Exec)
-		{
-			for (auto& Link : Pin->LinkedTo)
-			{
-				UEdGraphNode* LinkedNode = Cast<UEdGraphNode>(Link->GetOwningNode());
-				if (LinkedNode && !CollectedNodes.Contains(LinkedNode))
-				{
-					CollectedNodes.Add(LinkedNode);
-					CollectExecDownstreamNodes( LinkedNode, CollectedNodes );
-				}
-			}
-		}
-	}
-}
-
-void FBlueprintEditor::CollectExecUpstreamNodes(UEdGraphNode* CurrentNode, TArray<UEdGraphNode*>& CollectedNodes)
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	TArray<UEdGraphPin*> AllPins = CurrentNode->GetAllPins();
-
-	for (auto& Pin : AllPins)
-	{
-		if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory == K2Schema->PC_Exec)
-		{
-			for (auto& Link : Pin->LinkedTo)
-			{
-				UEdGraphNode* LinkedNode = Cast<UEdGraphNode>(Link->GetOwningNode());
-				if (LinkedNode && !CollectedNodes.Contains(LinkedNode))
-				{
-					CollectedNodes.Add(LinkedNode);
-					CollectExecUpstreamNodes( LinkedNode, CollectedNodes );
-				}
-			}
-		}
-	}
-}
-
-void FBlueprintEditor::CollectPureDownstreamNodes(UEdGraphNode* CurrentNode, TArray<UEdGraphNode*>& CollectedNodes)
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	TArray<UEdGraphPin*> AllPins = CurrentNode->GetAllPins();
-
-	for (auto& Pin : AllPins)
-	{
-		if (Pin->Direction == EGPD_Output && Pin->PinType.PinCategory != K2Schema->PC_Exec)
-		{
-			for (auto& Link : Pin->LinkedTo)
-			{
-				UK2Node* LinkedNode = Cast<UK2Node>(Link->GetOwningNode());
-				if (LinkedNode && !CollectedNodes.Contains(LinkedNode))
-				{
-					CollectedNodes.Add(LinkedNode);
-					if (LinkedNode->IsNodePure())
-					{
-						CollectPureDownstreamNodes( LinkedNode, CollectedNodes );
-					}
-				}
-			}
-		}
-	}
-}
-
-void FBlueprintEditor::CollectPureUpstreamNodes(UEdGraphNode* CurrentNode, TArray<UEdGraphNode*>& CollectedNodes)
-{
-	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
-
-	TArray<UEdGraphPin*> AllPins = CurrentNode->GetAllPins();
-
-	for (auto& Pin : AllPins)
-	{
-		if (Pin->Direction == EGPD_Input && Pin->PinType.PinCategory != K2Schema->PC_Exec)
-		{
-			for (auto& Link : Pin->LinkedTo)
-			{
-				UK2Node* LinkedNode = Cast<UK2Node>(Link->GetOwningNode());
-				if (LinkedNode && !CollectedNodes.Contains(LinkedNode))
-				{
-					CollectedNodes.Add(LinkedNode);
-					if (LinkedNode->IsNodePure())
-					{
-						CollectPureUpstreamNodes( LinkedNode, CollectedNodes );
-					}
-				}
-			}
-		}
-	}
-}
-
-void FBlueprintEditor::HideUnrelatedNodes()
-{
-	TArray<UEdGraphNode*> NodesToShow;
-
-	TSharedPtr<SGraphEditor> FocusedGraphEd = FocusedGraphEdPtr.Pin();
-	if (FocusedGraphEd.IsValid())
-	{
-		FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
-
-		TArray<UObject*> ImpureNodes = SelectedNodes.Array().FilterByPredicate([](UObject* Node){
-			UK2Node* K2Node = Cast<UK2Node>(Node);
-			if (K2Node)
-			{
-				return !(K2Node->IsNodePure());
-			}
-			return false;
-		});
-
-		TArray<UObject*> PureNodes = SelectedNodes.Array().FilterByPredicate([](UObject* Node){
-			UK2Node* K2Node = Cast<UK2Node>(Node);
-			if (K2Node)
-			{
-				return K2Node->IsNodePure();
-			}
-			// Treat a node which can't cast to an UK2Node as a pure node (like a document node or a commment node)
-			// Make sure all selected nodes are handled
-			return true;
-		});
-
-		for (auto Node : ImpureNodes)
-		{
-			UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(Node);
-
-			if (SelectedNode)
-			{
-				NodesToShow.Add(SelectedNode);
-				CollectExecDownstreamNodes( SelectedNode, NodesToShow );
-				CollectExecUpstreamNodes( SelectedNode, NodesToShow );
-				CollectPureDownstreamNodes( SelectedNode, NodesToShow );
-				CollectPureUpstreamNodes( SelectedNode, NodesToShow );
-			}
-		}
-
-		for (auto Node : PureNodes)
-		{
-			UEdGraphNode* SelectedNode = Cast<UEdGraphNode>(Node);
-
-			if (SelectedNode)
-			{
-				NodesToShow.Add(SelectedNode);
-				CollectPureDownstreamNodes( SelectedNode, NodesToShow );
-				CollectPureUpstreamNodes( SelectedNode, NodesToShow );
-			}
-		}
-
-		TArray<class UEdGraphNode*> AllNodes = FocusedGraphEd->GetCurrentGraph()->Nodes;
-
-		TArray<UEdGraphNode*> CommentNodes;
-		TArray<UEdGraphNode*> RelatedNodes;
-
-		for (auto& Node : AllNodes)
-		{
-			if (NodesToShow.Contains(Cast<UEdGraphNode>(Node)))
-			{
-				Node->SetNodeUnrelated(false);
-				RelatedNodes.Add(Node);
-			}
-			else
-			{
-				if (UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(Node))
-				{
-					CommentNodes.Add(Node);
-				}
-				else
-				{
-					Node->SetNodeUnrelated(true);
-				}
-			}
-		}
-
-		if (FocusedGraphEd.IsValid())
-		{
-			FocusedGraphEd->FocusCommentNodes(CommentNodes, RelatedNodes);
-		}
-	}
-}
-
-void FBlueprintEditor::ToggleHideUnrelatedNodes()
-{
-	bHideUnrelatedNodes = !bHideUnrelatedNodes;
-
-	ResetAllNodesUnrelatedStates();
-
-	if (bHideUnrelatedNodes && bSelectRegularNode)
-	{
-		HideUnrelatedNodes();
-	}
-	else
-	{
-		bLockNodeFadeState = false;
-	}
-}
-
-bool FBlueprintEditor::IsToggleHideUnrelatedNodesChecked() const
-{
-	return bHideUnrelatedNodes == true;
-}
-
-TSharedRef<SWidget> FBlueprintEditor::MakeHideUnrelatedNodesOptionsMenu()
-{
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder MenuBuilder( bShouldCloseWindowAfterMenuSelection, GetToolkitCommands() );
-
-	TSharedRef<SWidget> OptionsHeading = SNew(SBox)
-		.Padding(2.0f)
-		[
-			SNew(SHorizontalBox)
-
-			+SHorizontalBox::Slot()
-			[
-				SNew(STextBlock)
-					.Text(LOCTEXT("FocusRelatedOptions", "Focus Related Options"))
-					.TextStyle(FEditorStyle::Get(), "Menu.Heading")
-			]
-		];
-
-	TSharedRef<SWidget> LockNodeStateCheckBox = SNew(SBox)
-		[
-			SNew(SCheckBox)
-				.IsChecked(bLockNodeFadeState ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
-				.OnCheckStateChanged(this, &FBlueprintEditor::OnLockNodeStateCheckStateChanged)
-				.Style(FEditorStyle::Get(), "Menu.CheckBox")
-				.ToolTipText(LOCTEXT("LockNodeStateCheckBoxToolTip", "Lock the current state of all nodes."))
-				.Content()
-				[
-					SNew(SHorizontalBox)
-
-					+SHorizontalBox::Slot()
-					.Padding(2.0f, 0.0f, 0.0f, 0.0f)
-					[
-						SNew(STextBlock)
-							.Text(LOCTEXT("LockNodeState", "Lock Node State"))
-					]
-				]
-		];
-
-	MenuBuilder.AddWidget(OptionsHeading, FText::GetEmpty(), true);
-
-	MenuBuilder.AddMenuEntry(FUIAction(), LockNodeStateCheckBox);
-
-	return MenuBuilder.MakeWidget();
-}
-
-void FBlueprintEditor::LoadEditorSettings()
-{
-	EditorOptions = NewObject<UBlueprintEditorOptions>();
-
-	if (EditorOptions->bHideUnrelatedNodes)
-	{
-		ToggleHideUnrelatedNodes();
-	}
-}
-
-void FBlueprintEditor::SaveEditorSettings()
-{
-	if ( EditorOptions )
-	{
-		EditorOptions->bHideUnrelatedNodes     = bHideUnrelatedNodes;
-		EditorOptions->SaveConfig();
-	}
-}
-
-void FBlueprintEditor::OnLockNodeStateCheckStateChanged(ECheckBoxState NewCheckedState)
-{
-	bLockNodeFadeState = (NewCheckedState == ECheckBoxState::Checked) ? true : false;
-}
-
 void FBlueprintEditor::ToggleSaveIntermediateBuildProducts()
 {
 	bSaveIntermediateBuildProducts = !bSaveIntermediateBuildProducts;
@@ -8571,7 +8158,7 @@ bool FBlueprintEditor::IsFocusedGraphEditable() const
 
 void FBlueprintEditor::TryInvokingDetailsTab(bool bFlash)
 {
-	if ( TabManager->HasTabSpawner(FBlueprintEditorTabs::DetailsID) )
+	if ( TabManager->CanSpawnTab(FBlueprintEditorTabs::DetailsID) )
 	{
 		TSharedPtr<SDockTab> BlueprintTab = FGlobalTabmanager::Get()->GetMajorTabForTabManager(TabManager.ToSharedRef());
 

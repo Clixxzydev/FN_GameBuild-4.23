@@ -8,16 +8,16 @@ FVulkanShaderResourceView::FVulkanShaderResourceView(FVulkanDevice* Device, FRHI
 	, BufferViewFormat(InFormat)
 	, SourceTexture(nullptr)
 	, SourceStructuredBuffer(nullptr)
+	, MipLevel(0)
+	, NumMips(-1)
 	, Size(InSize)
 	, SourceBuffer(InSourceBuffer)
 	, SourceRHIBuffer(InRHIBuffer)
+	, VolatileBufferHandle(VK_NULL_HANDLE)
+	, VolatileLockCounter(MAX_uint32)
 {
-	check(Device);
-	if(SourceBuffer)
-	{
-		int32 NumBuffers = SourceBuffer->IsVolatile() ? 1 : SourceBuffer->GetNumBuffers();
-		BufferViews.AddZeroed(NumBuffers);
-	}
+	int32 NumBuffers = SourceBuffer->IsVolatile() ? 1 : SourceBuffer->GetNumBuffers();
+	BufferViews.AddZeroed(NumBuffers);
 	check(BufferViewFormat != PF_Unknown);
 }
 
@@ -25,7 +25,6 @@ FVulkanShaderResourceView::FVulkanShaderResourceView(FVulkanDevice* Device, FRHI
 FVulkanShaderResourceView::~FVulkanShaderResourceView()
 {
 	Clear();
-	Device = nullptr;
 }
 
 void FVulkanShaderResourceView::Clear()
@@ -39,6 +38,7 @@ void FVulkanShaderResourceView::Clear()
 		TextureView.Destroy(*Device);
 	}
 	SourceTexture = nullptr;
+	Device = nullptr;
 
 	VolatileBufferHandle = VK_NULL_HANDLE;
 	VolatileLockCounter = MAX_uint32;
@@ -105,8 +105,6 @@ void FVulkanShaderResourceView::UpdateView()
 	}
 	else
 	{
-		ensure(SRGBOverride == SRGBO_Default); // TODO - handle other cases
-
 		if (TextureView.View == VK_NULL_HANDLE)
 		{
 			EPixelFormat Format = (BufferViewFormat == PF_Unknown) ? SourceTexture->GetFormat() : BufferViewFormat;
@@ -129,18 +127,7 @@ void FVulkanShaderResourceView::UpdateView()
 			else if (FRHITexture2DArray* Tex2DArray = SourceTexture->GetTexture2DArray())
 			{
 				FVulkanTexture2DArray* VTex2DArray = ResourceCast(Tex2DArray);
-				TextureView.Create(
-					*Device,
-					VTex2DArray->Surface.Image,
-					VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-					VTex2DArray->Surface.GetPartialAspectMask(),
-					Format,
-					UEToVkTextureFormat(Format, false),
-					MipLevel,
-					NumMips,
-					FirstArraySlice,
-					(NumArraySlices == 0 ? VTex2DArray->GetSizeZ() : NumArraySlices)
-				);
+				TextureView.Create(*Device, VTex2DArray->Surface.Image, VK_IMAGE_VIEW_TYPE_2D_ARRAY, VTex2DArray->Surface.GetPartialAspectMask(), Format, UEToVkTextureFormat(Format, false), MipLevel, NumMips, 0, VTex2DArray->GetSizeZ());
 			}
 			else
 			{
@@ -236,7 +223,7 @@ void FVulkanUnorderedAccessView::UpdateView()
 	}
 }
 
-FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHIStructuredBuffer* StructuredBufferRHI, bool bUseUAVCounter, bool bAppendBuffer)
+FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FStructuredBufferRHIParamRef StructuredBufferRHI, bool bUseUAVCounter, bool bAppendBuffer)
 {
 	FVulkanStructuredBuffer* StructuredBuffer = ResourceCast(StructuredBufferRHI);
 
@@ -249,7 +236,7 @@ FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHIS
 	return UAV;
 }
 
-FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHITexture* TextureRHI, uint32 MipLevel)
+FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FTextureRHIParamRef TextureRHI, uint32 MipLevel)
 {
 	FVulkanUnorderedAccessView* UAV = new FVulkanUnorderedAccessView(Device);
 	UAV->SourceTexture = TextureRHI;
@@ -257,7 +244,7 @@ FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHIT
 	return UAV;
 }
 
-FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHIVertexBuffer* VertexBufferRHI, uint8 Format)
+FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FVertexBufferRHIParamRef VertexBufferRHI, uint8 Format)
 {
 	FVulkanVertexBuffer* VertexBuffer = ResourceCast(VertexBufferRHI);
 
@@ -269,7 +256,7 @@ FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHIV
 	return UAV;
 }
 
-FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHIIndexBuffer* IndexBufferRHI, uint8 Format)
+FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FIndexBufferRHIParamRef IndexBufferRHI, uint8 Format)
 {
 	FVulkanIndexBuffer* IndexBuffer = ResourceCast(IndexBufferRHI);
 
@@ -281,14 +268,14 @@ FUnorderedAccessViewRHIRef FVulkanDynamicRHI::RHICreateUnorderedAccessView(FRHII
 	return UAV;
 }
 
-FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FRHIStructuredBuffer* StructuredBufferRHI)
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FStructuredBufferRHIParamRef StructuredBufferRHI)
 {
 	FVulkanStructuredBuffer* StructuredBuffer = ResourceCast(StructuredBufferRHI);
 	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, StructuredBuffer);
 	return SRV;
 }
 
-FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FRHIVertexBuffer* VertexBufferRHI, uint32 Stride, uint8 Format)
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FVertexBufferRHIParamRef VertexBufferRHI, uint32 Stride, uint8 Format)
 {	
 	if (!VertexBufferRHI)
 	{
@@ -298,13 +285,37 @@ FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FRHIVer
 	return new FVulkanShaderResourceView(Device, VertexBufferRHI, VertexBuffer, VertexBuffer->GetSize(), (EPixelFormat)Format);
 }
 
-FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FRHITexture* Texture, const FRHITextureSRVCreateInfo& CreateInfo)
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FTexture2DRHIParamRef Texture2DRHI, uint8 MipLevel)
 {
-	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, Texture, CreateInfo);
+	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, Texture2DRHI, MipLevel, 1, ResourceCast(Texture2DRHI)->Surface.PixelFormat);
 	return SRV;
 }
 
-FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FRHIIndexBuffer* IndexBufferRHI)
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FTexture2DRHIParamRef Texture2DRHI, uint8 MipLevel, uint8 NumMipLevels, uint8 Format)
+{
+	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, Texture2DRHI, MipLevel, NumMipLevels, (EPixelFormat)Format);
+	return SRV;
+}
+
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FTexture3DRHIParamRef Texture3DRHI, uint8 MipLevel)
+{
+	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, Texture3DRHI, MipLevel, 1, ResourceCast(Texture3DRHI)->Surface.PixelFormat);
+	return SRV;
+}
+
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FTexture2DArrayRHIParamRef Texture2DArrayRHI, uint8 MipLevel)
+{
+	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, Texture2DArrayRHI, MipLevel, 1, ResourceCast(Texture2DArrayRHI)->Surface.PixelFormat);
+	return SRV;
+}
+
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FTextureCubeRHIParamRef TextureCubeRHI, uint8 MipLevel)
+{
+	FVulkanShaderResourceView* SRV = new FVulkanShaderResourceView(Device, TextureCubeRHI, MipLevel, 1, ResourceCast(TextureCubeRHI)->Surface.PixelFormat);
+	return SRV;
+}
+
+FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FIndexBufferRHIParamRef IndexBufferRHI)
 {
 	if (!IndexBufferRHI)
 	{
@@ -317,7 +328,7 @@ FShaderResourceViewRHIRef FVulkanDynamicRHI::RHICreateShaderResourceView(FRHIInd
 	return SRV;
 }
 
-void FVulkanDynamicRHI::RHIUpdateShaderResourceView(FRHIShaderResourceView* SRV, FRHIVertexBuffer* VertexBuffer, uint32 Stride, uint8 Format)
+void FVulkanDynamicRHI::RHIUpdateShaderResourceView(FShaderResourceViewRHIParamRef SRV, FVertexBufferRHIParamRef VertexBuffer, uint32 Stride, uint8 Format)
 {
 	FVulkanShaderResourceView* SRVVk = ResourceCast(SRV);
 	check(SRVVk && SRVVk->GetParent() == Device);
@@ -332,7 +343,7 @@ void FVulkanDynamicRHI::RHIUpdateShaderResourceView(FRHIShaderResourceView* SRV,
 	}
 }
 
-void FVulkanDynamicRHI::RHIUpdateShaderResourceView(FRHIShaderResourceView* SRV, FRHIIndexBuffer* IndexBuffer)
+void FVulkanDynamicRHI::RHIUpdateShaderResourceView(FShaderResourceViewRHIParamRef SRV, FIndexBufferRHIParamRef IndexBuffer)
 {
 	FVulkanShaderResourceView* SRVVk = ResourceCast(SRV);
 	check(SRVVk && SRVVk->GetParent() == Device);
@@ -347,7 +358,7 @@ void FVulkanDynamicRHI::RHIUpdateShaderResourceView(FRHIShaderResourceView* SRV,
 	}
 }
 
-void FVulkanCommandListContext::RHIClearTinyUAV(FRHIUnorderedAccessView* UnorderedAccessViewRHI, const uint32* Values)
+void FVulkanCommandListContext::RHIClearTinyUAV(FUnorderedAccessViewRHIParamRef UnorderedAccessViewRHI, const uint32* Values)
 {
 	FVulkanUnorderedAccessView* UnorderedAccessView = ResourceCast(UnorderedAccessViewRHI);
 	FVulkanCmdBuffer* CmdBuffer = CommandBufferManager->GetActiveCmdBuffer();
@@ -439,7 +450,7 @@ FGPUFenceRHIRef FVulkanDynamicRHI::RHICreateGPUFence(const FName& Name)
 	return new FVulkanGPUFence(Name);
 }
 
-void FVulkanCommandListContext::RHIWaitComputeFence(FRHIComputeFence* InFence)
+void FVulkanCommandListContext::RHIWaitComputeFence(FComputeFenceRHIParamRef InFence)
 {
 	FVulkanComputeFence* Fence = ResourceCast(InFence);
 	FVulkanCmdBuffer* CmdBuffer = CommandBufferManager->GetActiveCmdBuffer();

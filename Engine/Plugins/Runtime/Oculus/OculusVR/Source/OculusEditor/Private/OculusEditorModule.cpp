@@ -4,7 +4,6 @@
 #include "OculusToolStyle.h"
 #include "OculusToolCommands.h"
 #include "OculusToolWidget.h"
-#include "OculusPlatformToolWidget.h"
 #include "OculusAssetDirectory.h"
 #include "OculusHMDRuntimeSettings.h"
 #include "LevelEditor.h"
@@ -24,7 +23,6 @@
 #define LOCTEXT_NAMESPACE "OculusEditor"
 
 const FName FOculusEditorModule::OculusPerfTabName = FName("OculusPerfCheck");
-const FName FOculusEditorModule::OculusPlatToolTabName = FName("OculusPlatormTool");
 
 void FOculusEditorModule::PostLoadCallback()
 {
@@ -33,16 +31,6 @@ void FOculusEditorModule::PostLoadCallback()
 
 void FOculusEditorModule::StartupModule()
 {
-	void* ModuleCheck = FPlatformProcess::GetDllHandle(TEXT("OVRPlugin.dll"));
-	if (!ModuleCheck)
-	{
-		return;
-	}
-
-	FPlatformProcess::FreeDllHandle(ModuleCheck);
-	ModuleCheck = nullptr;
-
-	bModuleValid = true;
 	RegisterSettings();
 	FOculusAssetDirectory::LoadForCook();
 
@@ -74,29 +62,20 @@ void FOculusEditorModule::StartupModule()
 		LevelEditorModule.GetToolBarExtensibilityManager()->AddExtender(ToolbarExtender);
 		*/
 
+
 		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(OculusPerfTabName, FOnSpawnTab::CreateRaw(this, &FOculusEditorModule::OnSpawnPluginTab))
 			.SetDisplayName(LOCTEXT("FOculusEditorTabTitle", "Oculus Performance Check"))
-			.SetMenuType(ETabSpawnerMenuType::Hidden);
-
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(OculusPlatToolTabName, FOnSpawnTab::CreateRaw(this, &FOculusEditorModule::OnSpawnPlatToolTab))
-			.SetDisplayName(LOCTEXT("FOculusPlatfToolTabTitle", "Oculus Platform Tool"))
 			.SetMenuType(ETabSpawnerMenuType::Hidden);
 	 }
 }
 
 void FOculusEditorModule::ShutdownModule()
 {
-	if (!bModuleValid)
-	{
-		return;
-	}
-
 	if(!IsRunningCommandlet())
 	{
 		FOculusToolStyle::Shutdown();
 		FOculusToolCommands::Unregister();
 		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(OculusPerfTabName);
-		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(OculusPlatToolTabName);
 	}
 
 	FOculusAssetDirectory::ReleaseAll();
@@ -114,17 +93,6 @@ TSharedRef<SDockTab> FOculusEditorModule::OnSpawnPluginTab(const FSpawnTabArgs& 
 			SNew(SOculusToolWidget)
 		];
 
-
-	return myTab;
-}
-
-TSharedRef<SDockTab> FOculusEditorModule::OnSpawnPlatToolTab(const FSpawnTabArgs& SpawnTabArgs)
-{
-	auto myTab = SNew(SDockTab)
-		.TabRole(ETabRole::NomadTab)
-		[
-			SNew(SOculusPlatformToolWidget)
-		];
 
 	return myTab;
 }
@@ -183,15 +151,9 @@ TSharedRef<IDetailCustomization> FOculusHMDSettingsDetailsCustomization::MakeIns
 	return MakeShareable(new FOculusHMDSettingsDetailsCustomization);
 }
 
-FReply FOculusHMDSettingsDetailsCustomization::PluginClickPerfFn(bool text)
+FReply FOculusHMDSettingsDetailsCustomization::PluginClickFn(bool text)
 {
 	FGlobalTabmanager::Get()->InvokeTab(FOculusEditorModule::OculusPerfTabName);
-	return FReply::Handled();
-}
-
-FReply FOculusHMDSettingsDetailsCustomization::PluginClickPlatFn(bool text)
-{
-	FGlobalTabmanager::Get()->InvokeTab(FOculusEditorModule::OculusPlatToolTabName);
 	return FReply::Handled();
 }
 
@@ -202,29 +164,14 @@ void FOculusHMDSettingsDetailsCustomization::CustomizeDetails(IDetailLayoutBuild
 	CategoryBuilder.AddCustomRow(LOCTEXT("General Oculus", "General"))
 		.WholeRowContent()
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().Padding(2)
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth()
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("LaunchTool", "Launch Oculus Performance Window"))
-					.OnClicked(this, &FOculusHMDSettingsDetailsCustomization::PluginClickPerfFn, true)
-				]
-				+ SHorizontalBox::Slot().FillWidth(8)
+				SNew(SButton)
+				.Text(LOCTEXT("LaunchTool", "Launch Oculus Utilities Window"))
+				.OnClicked(this, &FOculusHMDSettingsDetailsCustomization::PluginClickFn, true)
 			]
-			+ SVerticalBox::Slot().AutoHeight().Padding(2)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SButton)
-					.Text(LOCTEXT("LaunchPlatTool", "Launch Oculus Platform Window"))
-					.OnClicked(this, &FOculusHMDSettingsDetailsCustomization::PluginClickPlatFn, true)
-				]
-				+ SHorizontalBox::Slot().FillWidth(8)
-			]
+			+ SHorizontalBox::Slot().FillWidth(8)
 		];
 }
 

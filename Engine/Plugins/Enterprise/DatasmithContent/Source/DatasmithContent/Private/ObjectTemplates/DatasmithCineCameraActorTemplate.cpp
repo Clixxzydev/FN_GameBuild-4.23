@@ -2,53 +2,47 @@
 
 #include "ObjectTemplates/DatasmithCineCameraActorTemplate.h"
 
-#include "ObjectTemplates/DatasmithActorTemplate.h"
-
 FDatasmithCameraLookatTrackingSettingsTemplate::FDatasmithCameraLookatTrackingSettingsTemplate()
 	: bEnableLookAtTracking( 0 )
-	, bAllowRoll( 0 )
 {
 }
 
 void FDatasmithCameraLookatTrackingSettingsTemplate::Apply( FCameraLookatTrackingSettings* Destination, FDatasmithCameraLookatTrackingSettingsTemplate* PreviousTemplate )
 {
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( bEnableLookAtTracking, Destination, PreviousTemplate );
-	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( bAllowRoll, Destination, PreviousTemplate );
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSETSOFTOBJECTPTR( ActorToTrack, Destination, PreviousTemplate );
 }
 
 void FDatasmithCameraLookatTrackingSettingsTemplate::Load( const FCameraLookatTrackingSettings& Source )
 {
 	bEnableLookAtTracking = Source.bEnableLookAtTracking;
-	bAllowRoll = Source.bAllowRoll;
 	ActorToTrack = Source.ActorToTrack;
 }
 
 bool FDatasmithCameraLookatTrackingSettingsTemplate::Equals( const FDatasmithCameraLookatTrackingSettingsTemplate& Other ) const
 {
 	bool bEquals = ( bEnableLookAtTracking == Other.bEnableLookAtTracking );
-	bEquals = bEquals && ( bAllowRoll == Other.bAllowRoll );
 	bEquals = bEquals && ( ActorToTrack == Other.ActorToTrack );
 
 	return bEquals;
 }
 
-UObject* UDatasmithCineCameraActorTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithCineCameraActorTemplate::Apply( UObject* Destination, bool bForce )
 {
-	ACineCameraActor* CineCameraActor = UDatasmithActorTemplate::GetActor< ACineCameraActor >( Destination );
+#if WITH_EDITORONLY_DATA
+	ACineCameraActor* CineCameraActor = Cast< ACineCameraActor >( Destination );
 
 	if ( !CineCameraActor )
 	{
-		return nullptr;
+		return;
 	}
 
-#if WITH_EDITORONLY_DATA
 	UDatasmithCineCameraActorTemplate* PreviousTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithCineCameraActorTemplate >( Destination ) : nullptr;
 
 	LookatTrackingSettings.Apply( &CineCameraActor->LookatTrackingSettings, PreviousTemplate ? &PreviousTemplate->LookatTrackingSettings : nullptr );
-#endif // #if WITH_EDITORONLY_DATA
 
-	return CineCameraActor->GetRootComponent();
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( CineCameraActor->GetRootComponent(), this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithCineCameraActorTemplate::Load( const UObject* Source )

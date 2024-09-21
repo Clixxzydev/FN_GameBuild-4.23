@@ -6,7 +6,6 @@
 #include "EditorStyleSet.h"
 #include "EditorModeRegistry.h"
 #include "EditorModes.h"
-#include "MeshPainterCommands.h"
 #include "MeshPaintAdapterFactory.h"
 #include "MeshPaintStaticMeshAdapter.h"
 #include "MeshPaintSplineMeshAdapter.h"
@@ -39,8 +38,6 @@ public:
 	 */
 	virtual void StartupModule() override
 	{
-		FMeshPainterCommands::Register();
-
 		RegisterGeometryAdapterFactory(MakeShareable(new FMeshPaintGeometryAdapterForSplineMeshesFactory));
 		RegisterGeometryAdapterFactory(MakeShareable(new FMeshPaintGeometryAdapterForStaticMeshesFactory));
 		RegisterGeometryAdapterFactory(MakeShareable(new FMeshPaintGeometryAdapterForSkeletalMeshesFactory));
@@ -63,8 +60,6 @@ public:
 
 	virtual void ShutdownModule() override
 	{
-		FMeshPainterCommands::Unregister();
-
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.UnregisterCustomClassLayout("VertexColorImportOptions");
 

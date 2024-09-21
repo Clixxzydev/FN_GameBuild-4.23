@@ -318,7 +318,6 @@ private:
 	TSharedPtr<SWidget> PreviewHitTestRoot;
 	TSharedPtr<SBox> PreviewAreaConstraint;
 	TSharedPtr<SDPIScaler> PreviewSurface;
-	TSharedPtr<SBox> PreviewSizeConstraint;
 
 	TSharedPtr<SCanvas> DesignerControls;
 	TSharedPtr<SCanvas> DesignerWidgetCanvas;

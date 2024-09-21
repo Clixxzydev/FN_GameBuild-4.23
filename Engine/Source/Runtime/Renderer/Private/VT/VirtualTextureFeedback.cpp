@@ -5,33 +5,24 @@
 
 #include "ClearQuad.h"
 
+TGlobalResource< FVirtualTextureFeedback > GVirtualTextureFeedback;
+
 FVirtualTextureFeedback::FVirtualTextureFeedback()
 	: Size( 0, 0 )
-	, GPUWriteIndex(0)
-	, CPUReadIndex(0)
-	, PendingTargetCount(0)
-{
-}
+{}
 
-void FVirtualTextureFeedback::ReleaseResources()
+void FVirtualTextureFeedback::InitDynamicRHI()
+{}
+
+void FVirtualTextureFeedback::ReleaseDynamicRHI()
 {
 	GRenderTargetPool.FreeUnusedResource( FeedbackTextureGPU );
-	for (int i = 0; i < TargetCapacity; ++i)
-	{
-		if (FeedbackTextureCPU[i].TextureCPU.IsValid())
-		{
-			GRenderTargetPool.FreeUnusedResource(FeedbackTextureCPU[i].TextureCPU);
-		}
-		FeedbackTextureCPU[i].GPUFenceRHI.SafeRelease();
-	}
-	CPUReadIndex = 0u;
-	GPUWriteIndex = 0u;
-	PendingTargetCount = 0u;
+	GRenderTargetPool.FreeUnusedResource( FeedbackTextureCPU );
 }
 
-void FVirtualTextureFeedback::CreateResourceGPU( FRHICommandListImmediate& RHICmdList, FIntPoint InSize)
+void FVirtualTextureFeedback::CreateResourceGPU( FRHICommandListImmediate& RHICmdList, int32 SizeX, int32 SizeY )
 {
-	Size = InSize;
+	Size = FIntPoint( SizeX, SizeY );
 
 	FPooledRenderTargetDesc Desc( FPooledRenderTargetDesc::Create2DDesc( Size, PF_R32_UINT, FClearValueBinding::None, TexCreate_None, TexCreate_UAV, false ) );
 	GRenderTargetPool.FindFreeElement( RHICmdList, Desc, FeedbackTextureGPU, TEXT("VTFeedbackGPU") );
@@ -42,90 +33,45 @@ void FVirtualTextureFeedback::CreateResourceGPU( FRHICommandListImmediate& RHICm
 	RHICmdList.TransitionResource( EResourceTransitionAccess::ERWNoBarrier, EResourceTransitionPipeline::EGfxToGfx, FeedbackTextureGPU->GetRenderTargetItem().UAV );
 }
 
-void FVirtualTextureFeedback::MakeSnapshot(const FVirtualTextureFeedback& SnapshotSource)
-{
-	Size = SnapshotSource.Size;
-	FeedbackTextureGPU = GRenderTargetPool.MakeSnapshot(SnapshotSource.FeedbackTextureGPU);
-	for (int i = 0; i < TargetCapacity; ++i)
-	{
-		FeedbackTextureCPU[i].TextureCPU = GRenderTargetPool.MakeSnapshot(SnapshotSource.FeedbackTextureCPU[i].TextureCPU);
-	}
-}
-
-void FVirtualTextureFeedback::TransferGPUToCPU( FRHICommandListImmediate& RHICmdList, FIntRect const& Rect )
+void FVirtualTextureFeedback::TransferGPUToCPU( FRHICommandListImmediate& RHICmdList )
 {
 	RHICmdList.TransitionResource( EResourceTransitionAccess::EReadable, EResourceTransitionPipeline::EGfxToGfx, FeedbackTextureGPU->GetRenderTargetItem().UAV );
 
 	GVisualizeTexture.SetCheckPoint( RHICmdList, FeedbackTextureGPU );
 	
-	if (PendingTargetCount >= TargetCapacity)
-	{
-		// If we have too many pending transfers, start throwing away the oldest
-
-		// will need to allocate a new fence,
-		// since the previous fence will still be set on the old CopyToResolveTarget command (which we will not ignore/discard)
-		FeedBackItem& DiscardFeedbackEntry = FeedbackTextureCPU[CPUReadIndex];
-		DiscardFeedbackEntry.GPUFenceRHI.SafeRelease();
-
-		--PendingTargetCount;
-		CPUReadIndex = (CPUReadIndex + 1) % TargetCapacity;
-	}
-
-	FeedBackItem& FeedbackEntryCPU = FeedbackTextureCPU[GPUWriteIndex];
-	FeedbackEntryCPU.Rect.Min = FIntPoint(Rect.Min.X / 16, Rect.Min.Y / 16);
-	FeedbackEntryCPU.Rect.Max = FIntPoint((Rect.Max.X + 15) / 16, (Rect.Max.Y + 15) / 16);
-
-	const FPooledRenderTargetDesc Desc(FPooledRenderTargetDesc::Create2DDesc(Size, PF_R32_UINT, FClearValueBinding::None, TexCreate_CPUReadback | TexCreate_HideInVisualizeTexture, TexCreate_None, false));
-
-	const TCHAR* DebugNames[TargetCapacity] = { TEXT("VTFeedbackCPU_0") , TEXT("VTFeedbackCPU_1") , TEXT("VTFeedbackCPU_2") , TEXT("VTFeedbackCPU_3") };
-	GRenderTargetPool.FindFreeElement(RHICmdList, Desc, FeedbackEntryCPU.TextureCPU, DebugNames[GPUWriteIndex]);
-
-	if (!FeedbackEntryCPU.GPUFenceRHI)
-	{
-		FeedbackEntryCPU.GPUFenceRHI = RHICmdList.CreateGPUFence(DebugNames[GPUWriteIndex]);
-	}
+	FPooledRenderTargetDesc Desc( FPooledRenderTargetDesc::Create2DDesc( Size, PF_R32_UINT, FClearValueBinding::None, TexCreate_CPUReadback | TexCreate_HideInVisualizeTexture, TexCreate_None, false ) );
+	GRenderTargetPool.FindFreeElement( RHICmdList, Desc, FeedbackTextureCPU, TEXT("VTFeedbackCPU") );
 
 	// Transfer memory GPU -> CPU
-	FeedbackEntryCPU.GPUFenceRHI->Clear();
-	RHICmdList.CopyToResolveTarget(
-		FeedbackTextureGPU->GetRenderTargetItem().TargetableTexture,
-		FeedbackEntryCPU.TextureCPU->GetRenderTargetItem().ShaderResourceTexture,
-		FResolveParams());
-	RHICmdList.WriteGPUFence(FeedbackEntryCPU.GPUFenceRHI);
-	
-	GRenderTargetPool.FreeUnusedResource( FeedbackTextureGPU );
+	RHICmdList.CopyToResolveTarget( FeedbackTextureGPU->GetRenderTargetItem().TargetableTexture, FeedbackTextureCPU->GetRenderTargetItem().ShaderResourceTexture, FResolveParams() );
 
-	GPUWriteIndex = (GPUWriteIndex + 1) % TargetCapacity;
-	++PendingTargetCount;
+	GRenderTargetPool.FreeUnusedResource( FeedbackTextureGPU );
 }
 
-bool FVirtualTextureFeedback::Map( FRHICommandListImmediate& RHICmdList, MapResult& OutResult )
+uint32* FVirtualTextureFeedback::Map( FRHICommandListImmediate& RHICmdList, int32& Pitch )
 {
-	const FeedBackItem& FeedbackEntryCPU = FeedbackTextureCPU[CPUReadIndex];
-	if (PendingTargetCount > 0u &&
-		FeedbackEntryCPU.TextureCPU.IsValid() &&
-		FeedbackEntryCPU.GPUFenceRHI->Poll())
+	uint32* FeedbackBuffer = nullptr;
+
+	if( Size.X > 0 && Size.Y > 0 )
 	{
-		OutResult.MapHandle = CPUReadIndex;
-		OutResult.Rect = FeedbackEntryCPU.Rect;
+		uint32 IdleStart = FPlatformTime::Cycles();
 
-		int32 LockHeight = 0;
-		RHICmdList.MapStagingSurface(FeedbackEntryCPU.TextureCPU->GetRenderTargetItem().ShaderResourceTexture, *(void**)&OutResult.Buffer, OutResult.Pitch, LockHeight);
+		int32 Temp;
+		RHICmdList.MapStagingSurface( FeedbackTextureCPU->GetRenderTargetItem().ShaderResourceTexture, *(void**)&FeedbackBuffer, Pitch, Temp );
 
-		check(PendingTargetCount > 0u);
-		--PendingTargetCount;
-		CPUReadIndex = (CPUReadIndex + 1) % TargetCapacity;
-
-		return true;
+		// RHIMapStagingSurface will block until the results are ready (from the previous frame) so we need to consider this RT idle time
+		GRenderThreadIdle[ERenderThreadIdleTypes::WaitingForGPUQuery] += FPlatformTime::Cycles() - IdleStart;
+		GRenderThreadNumIdle[ERenderThreadIdleTypes::WaitingForGPUQuery]++;
 	}
 
-	return false;
+	return FeedbackBuffer;
 }
 
-void FVirtualTextureFeedback::Unmap( FRHICommandListImmediate& RHICmdList, int32 MapHandle )
+void FVirtualTextureFeedback::Unmap( FRHICommandListImmediate& RHICmdList )
 {
-	check(FeedbackTextureCPU[MapHandle].TextureCPU.IsValid());
+	check( Size.X > 0 && Size.Y > 0 );
+	RHICmdList.UnmapStagingSurface( FeedbackTextureCPU->GetRenderTargetItem().ShaderResourceTexture );
 
-	RHICmdList.UnmapStagingSurface(FeedbackTextureCPU[MapHandle].TextureCPU->GetRenderTargetItem().ShaderResourceTexture);
-	GRenderTargetPool.FreeUnusedResource(FeedbackTextureCPU[MapHandle].TextureCPU);
+	GRenderTargetPool.FreeUnusedResource( FeedbackTextureCPU );
+	Size = FIntPoint::ZeroValue;
 }

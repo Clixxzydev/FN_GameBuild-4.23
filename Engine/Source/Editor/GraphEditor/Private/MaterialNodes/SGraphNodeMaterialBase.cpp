@@ -453,7 +453,6 @@ TSharedRef<SWidget> SGraphNodeMaterialBase::CreatePreviewWidget()
 
 		TSharedPtr<SViewport> ViewportWidget = 
 			SNew( SViewport )
-			.RenderDirectlyToWindow(true)
 			.EnableGammaCorrection(false);
 
 		PreviewViewport = MakeShareable(new FPreviewViewport(MaterialNode));
@@ -470,32 +469,12 @@ TSharedRef<SWidget> SGraphNodeMaterialBase::CreatePreviewWidget()
 				.Padding(CentralPadding)
 				.BorderImage( FEditorStyle::GetBrush("NoBorder") )
 				[
-					SNew(SOverlay)
-					+ SOverlay::Slot()
-					[
-						ViewportWidget.ToSharedRef()
-					]
-					+ SOverlay::Slot()
-					.HAlign(HAlign_Right)
-					.VAlign(VAlign_Bottom)
-					.Padding(0.0f,0.0f,8.0f,0.0f)
-					[
-						SNew(STextBlock)
-						.ShadowColorAndOpacity(FLinearColor::Black)
-						.ShadowOffset(FVector2D(1.0f, 1.0f))
-						.Text(this, &SGraphNodeMaterialBase::ExpressionPreviewOverlayText)
-					]
+					ViewportWidget.ToSharedRef()
 				]
 			];
 	}
 
 	return SNullWidget::NullWidget;
-}
-
-FText SGraphNodeMaterialBase::ExpressionPreviewOverlayText() const
-{
-	UMaterialExpression* MaterialExpression = MaterialNode->MaterialExpression;
-	return MaterialNode->MaterialExpression->GetPreviewOverlayText();
 }
 
 EVisibility SGraphNodeMaterialBase::ExpressionPreviewVisibility() const

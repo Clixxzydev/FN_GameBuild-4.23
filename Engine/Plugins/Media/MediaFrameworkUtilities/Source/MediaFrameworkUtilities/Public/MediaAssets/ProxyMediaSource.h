@@ -59,15 +59,6 @@ public:
 	 */
 	void SetDynamicMediaSource(UMediaSource* InProxy);
 
-#if WITH_EDITOR
-	/**
-	 * Set the media source proxy.
-	 *
-	 * @param InProxy The proxy to set.
-	 */
-	void SetMediaSource(UMediaSource* InProxy);
-#endif
-
 public:
 
 	//~ UMediaSource interface

@@ -1042,11 +1042,16 @@ FKeyPropertyResult FAudioTrackEditor::AddNewMasterSound( FFrameNumber KeyTime, U
 
 		if (GetSequencer().IsValid())
 		{
-			GetSequencer()->OnAddTrack(AudioTrack, FGuid());
+			GetSequencer()->OnAddTrack(AudioTrack);
 		}
 	}
 
 	KeyPropertyResult.bTrackModified = true;
+
+	GetSequencer()->EmptySelection();
+	GetSequencer()->SelectSection(NewSection);
+	GetSequencer()->ThrobSectionSelection();
+
 	return KeyPropertyResult;
 }
 
@@ -1115,8 +1120,10 @@ void FAudioTrackEditor::HandleAddAudioTrackMenuEntryExecute()
 
 	if (GetSequencer().IsValid())
 	{
-		GetSequencer()->OnAddTrack(NewTrack, FGuid());
+		GetSequencer()->OnAddTrack(NewTrack);
 	}
+
+	GetSequencer()->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 }
 
 TSharedRef<SWidget> FAudioTrackEditor::BuildAudioSubMenu(UMovieSceneTrack* Track)

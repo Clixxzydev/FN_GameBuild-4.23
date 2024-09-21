@@ -299,14 +299,7 @@ public:
 	 *
 	 * @param Section The section to remove.
 	 */
-	virtual void RemoveSection(UMovieSceneSection& Section) PURE_VIRTUAL(UMovieSceneSection::RemoveSection, );
-
-	/**
-	 * Removes a section from this track at a particular index
-	 *
-	 * @param SectionIndex The section index to remove.
-	 */
-	virtual void RemoveSectionAt(int32 SectionIndex) PURE_VIRTUAL(UMovieSceneSection::RemoveSectionAt, );
+	virtual void RemoveSection(UMovieSceneSection& Section) PURE_VIRTUAL(UMovieSceneSection::RemoveSection,);
 
 #if WITH_EDITOR
 

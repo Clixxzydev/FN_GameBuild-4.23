@@ -1,9 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "OnlineStoreKitHelper.h"
-#include "Interfaces/OnlineStoreInterface.h"
-#include "OnlineSubsystemIOS.h"
-#include "IOS/IOSAppDelegate.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
+#import "OnlineStoreKitHelper.h"
 
 /**
  * Convert an Apple SKPaymentTransaction receipt into a string

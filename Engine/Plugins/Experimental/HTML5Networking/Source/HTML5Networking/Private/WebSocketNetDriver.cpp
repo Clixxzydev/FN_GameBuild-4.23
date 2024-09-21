@@ -106,8 +106,6 @@ bool UWebSocketNetDriver::InitListen(FNetworkNotify* InNotify, FURL& LocalURL, b
 
 	WebSocketServer->Tick();
 	LocalURL.Port = WebSocketPort;
-	LocalAddr = GetSocketSubsystem()->GetLocalBindAddr(*GLog);
-	LocalAddr->SetPort(WebSocketPort);
 	UE_LOG(LogHTML5Networking, Log, TEXT("%s WebSocketNetDriver listening on port %i"), *GetDescription(), LocalURL.Port);
 
 	// server has no server connection.
@@ -123,9 +121,17 @@ void UWebSocketNetDriver::TickDispatch(float DeltaTime)
 		WebSocketServer->Tick();
 }
 
-void UWebSocketNetDriver::LowLevelSend(TSharedPtr<const FInternetAddr> Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
+void UWebSocketNetDriver::LowLevelSend(FString Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
 {
-	if (Address.IsValid() && Address->IsValid())
+	bool bValidAddress = !Address.IsEmpty();
+	TSharedRef<FInternetAddr> RemoteAddr = GetSocketSubsystem()->CreateInternetAddr();
+
+	if (bValidAddress)
+	{
+		RemoteAddr->SetIp(*Address, bValidAddress);
+	}
+
+	if (bValidAddress)
 	{
 		const uint8* DataToSend = reinterpret_cast<uint8*>(Data);
 
@@ -153,7 +159,7 @@ void UWebSocketNetDriver::LowLevelSend(TSharedPtr<const FInternetAddr> Address, 
 			for (int32 i = 0; i<ClientConnections.Num(); ++i)
 			{
 				UWebSocketConnection* Connection = (UWebSocketConnection*)ClientConnections[i];
-				if (Connection && ( Connection->LowLevelGetRemoteAddress(true) == Address->ToString(true) ) )
+				if (Connection && ( Connection->LowLevelGetRemoteAddress(true) == Address ) )
 				{
 					Connection->GetWebSocket()->Send((uint8*)DataToSend, FMath::DivideAndRoundUp(CountBits, 8));
 					break;
@@ -163,13 +169,13 @@ void UWebSocketNetDriver::LowLevelSend(TSharedPtr<const FInternetAddr> Address, 
 	}
 	else
 	{
-		UE_LOG(LogNet, Warning, TEXT("UWebSocketNetDriver::LowLevelSend: Invalid send address '%s'"), *Address->ToString(false));
+		UE_LOG(LogNet, Warning, TEXT("UWebSocketNetDriver::LowLevelSend: Invalid send address '%s'"), *Address);
 	}
 }
 
 FString UWebSocketNetDriver::LowLevelGetNetworkNumber()
 {
-	return WebSocketServer != nullptr ? WebSocketServer->Info() : FString(TEXT(""));
+	return WebSocketServer->Info();
 }
 
 void UWebSocketNetDriver::LowLevelDestroy()
@@ -219,9 +225,9 @@ void UWebSocketNetDriver::OnWebSocketClientConnected(FWebSocket* ClientWebSocket
 		check(Connection);
 
 		TSharedRef<FInternetAddr> InternetAddr = GetSocketSubsystem()->CreateInternetAddr();
-		int32 AddressPort = 0;
+		bool Ok;
 
-		InternetAddr->SetRawIp(ClientWebSocket->GetRawRemoteAddr(AddressPort));
+		InternetAddr->SetIp(*(ClientWebSocket->RemoteEndPoint(false)),Ok);
 		InternetAddr->SetPort(0);
 		Connection->SetWebSocket(ClientWebSocket);
 		Connection->InitRemoteConnection(this, NULL, FURL(), *InternetAddr, USOCK_Open);

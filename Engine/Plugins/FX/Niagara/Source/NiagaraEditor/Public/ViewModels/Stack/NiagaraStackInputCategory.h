@@ -9,12 +9,6 @@
 class UNiagaraStackFunctionInput;
 class UNiagaraNodeFunctionCall;
 
-UENUM()
-enum class EStackParameterBehavior
-{
-	Dynamic, Static
-};
-
 UCLASS()
 class NIAGARAEDITOR_API UNiagaraStackInputCategory : public UNiagaraStackItemContent
 {
@@ -32,7 +26,7 @@ public:
 
 	void ResetInputs();
 
-	void AddInput(FName InInputParameterHandle, FNiagaraTypeDefinition InInputType, EStackParameterBehavior InParameterBehavior, bool bIsVisible);
+	void AddInput(FName InInputParameterHandle, FNiagaraTypeDefinition InInputType);
 
 	//~ UNiagaraStackEntry interface
 	virtual FText GetDisplayName() const override;
@@ -55,8 +49,6 @@ private:
 	{
 		FName ParameterHandle;
 		FNiagaraTypeDefinition Type;
-		EStackParameterBehavior ParameterBehavior;
-		bool bIsVisible;
 	};
 
 	UNiagaraNodeFunctionCall* ModuleNode;

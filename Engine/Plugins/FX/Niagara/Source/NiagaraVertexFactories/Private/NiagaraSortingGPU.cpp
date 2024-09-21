@@ -16,14 +16,6 @@ static FAutoConsoleVariableRef CVarNiagaraGPUSorting(
 	ECVF_Default
 );
 
-int32 GNiagaraGPUSortingUseMaxPrecision = 0;
-static FAutoConsoleVariableRef CVarNiagaraGPUSortinUseMaxPrecision(
-	TEXT("Niagara.GPUSorting.UseMaxPrecision"),
-	GNiagaraGPUSortingUseMaxPrecision,
-	TEXT("Wether sorting using fp32 instead of fp16. (default=0)"),
-	ECVF_Default
-);
-
 int32 GNiagaraGPUSortingCPUToGPUThreshold = -1;
 static FAutoConsoleVariableRef CVarNiagaraGPUSortinCPUToGPUThreshold(
 	TEXT("Niagara.GPUSorting.CPUToGPUThreshold"),
@@ -56,23 +48,7 @@ static FAutoConsoleVariableRef CVarNiagaraGPUSortingFrameCountBeforeBufferShrink
 	ECVF_Default
 );
 
-class FNiagaraSortingDummyUAV : public FRenderResource
-{
-public:
-	FRWBuffer Buffer;
-
-	virtual void InitRHI() override
-	{
-		Buffer.Initialize(sizeof(int32), 1, EPixelFormat::PF_R32_SINT, BUF_Static, TEXT("FNiagaraSortingDummyUAV"));
-	}
-
-	virtual void ReleaseRHI() override
-	{
-		Buffer.Release();
-	}
-}; 
-
-IMPLEMENT_GLOBAL_SHADER(FNiagaraSortKeyGenCS, "/Plugin/FX/Niagara/Private/NiagaraSortKeyGen.usf", "GenerateParticleSortKeys", SF_Compute);
+IMPLEMENT_SHADER_TYPE(, FNiagaraSortKeyGenCS, TEXT("/Engine/Private/NiagaraSortKeyGen.usf"), TEXT("GenerateParticleSortKeys"), SF_Compute);
 
 void FNiagaraSortKeyGenCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
@@ -93,7 +69,6 @@ FNiagaraSortKeyGenCS::FNiagaraSortKeyGenCS(const ShaderMetaType::CompiledShaderI
 	GPUParticleCountBuffer.Bind(Initializer.ParameterMap, TEXT("GPUParticleCountBuffer"));
 	ParticleCountParams.Bind(Initializer.ParameterMap, TEXT("ParticleCountParams"));
 	SortParams.Bind(Initializer.ParameterMap, TEXT("SortParams"));
-	SortKeyParams.Bind(Initializer.ParameterMap, TEXT("SortKeyParams"));
 	CameraPosition.Bind(Initializer.ParameterMap, TEXT("CameraPosition"));
 	CameraDirection.Bind(Initializer.ParameterMap, TEXT("CameraDirection"));
 
@@ -110,7 +85,6 @@ bool FNiagaraSortKeyGenCS::Serialize(FArchive& Ar)
 	Ar << GPUParticleCountBuffer;
 	Ar << ParticleCountParams;
 	Ar << SortParams;
-	Ar << SortKeyParams;
 	Ar << CameraPosition;
 	Ar << CameraDirection;
 	Ar << OutKeys;
@@ -118,9 +92,9 @@ bool FNiagaraSortKeyGenCS::Serialize(FArchive& Ar)
 	return bShaderHasOutdatedParameters;
 }
 
-void FNiagaraSortKeyGenCS::SetOutput(FRHICommandList& RHICmdList, FRHIUnorderedAccessView* OutKeysUAV, FRHIUnorderedAccessView* OutIndicesUAV)
+void FNiagaraSortKeyGenCS::SetOutput(FRHICommandList& RHICmdList, FUnorderedAccessViewRHIParamRef OutKeysUAV, FUnorderedAccessViewRHIParamRef OutIndicesUAV)
 {
-	FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+	FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 	if (OutKeys.IsBound())
 	{
 		RHICmdList.SetUAVParameter(ComputeShaderRHI, OutKeys.GetBaseIndex(), OutKeysUAV);
@@ -131,9 +105,9 @@ void FNiagaraSortKeyGenCS::SetOutput(FRHICommandList& RHICmdList, FRHIUnorderedA
 	}
 }
 
-void FNiagaraSortKeyGenCS::SetParameters(FRHICommandList& RHICmdList, const FNiagaraGPUSortInfo& SortInfo, uint32 EmitterKey, int32 OutputOffset, const FUintVector4& SortKeyParamsValue)
+void FNiagaraSortKeyGenCS::SetParameters(FRHICommandList& RHICmdList, const FNiagaraGPUSortInfo& SortInfo, int32 EmitterIndex, int32 OutputOffset)
 {
-	FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+	FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 
 	RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, NiagaraParticleDataFloat.GetBaseIndex(), SortInfo.ParticleDataFloatSRV);
 	RHICmdList.SetShaderParameter(ComputeShaderRHI, FloatDataOffset.GetBufferIndex(), FloatDataOffset.GetBaseIndex(), FloatDataOffset.GetNumBytes(), &SortInfo.FloatDataOffset);
@@ -144,42 +118,37 @@ void FNiagaraSortKeyGenCS::SetParameters(FRHICommandList& RHICmdList, const FNia
 	RHICmdList.SetShaderParameter(ComputeShaderRHI, ParticleCountParams.GetBufferIndex(), ParticleCountParams.GetBaseIndex(), ParticleCountParams.GetNumBytes(), &ParticleCountParamsValue);
 
 	// (EmitterKey, OutputOffset, SortMode, SortAttributeOffset)
-	const FUintVector4 SortParamsValue(EmitterKey, OutputOffset, (uint8)SortInfo.SortMode, SortInfo.SortAttributeOffset);
+	const FUintVector4 SortParamsValue((uint32)EmitterIndex << 16, OutputOffset, (uint8)SortInfo.SortMode, SortInfo.SortAttributeOffset);
 	RHICmdList.SetShaderParameter(ComputeShaderRHI, SortParams.GetBufferIndex(), SortParams.GetBaseIndex(), SortParams.GetNumBytes(), &SortParamsValue);
 
-	// SortKeyParams only exists in the permutation with SORT_MAX_PRECISION set.
-	if(SortKeyParams.IsBound())
-	{
-		RHICmdList.SetShaderParameter(ComputeShaderRHI, SortKeyParams.GetBufferIndex(), SortKeyParams.GetBaseIndex(), SortKeyParams.GetNumBytes(), &SortKeyParamsValue);
-	}
 	RHICmdList.SetShaderParameter(ComputeShaderRHI, CameraPosition.GetBufferIndex(), CameraPosition.GetBaseIndex(), CameraPosition.GetNumBytes(), &SortInfo.ViewOrigin);
 	RHICmdList.SetShaderParameter(ComputeShaderRHI, CameraDirection.GetBufferIndex(), CameraDirection.GetBaseIndex(), CameraDirection.GetNumBytes(), &SortInfo.ViewDirection);
 }
 
 void FNiagaraSortKeyGenCS::UnbindBuffers(FRHICommandList& RHICmdList)
 {
-	FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+	FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 	if (NiagaraParticleDataFloat.IsBound())
 	{
-		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, NiagaraParticleDataFloat.GetBaseIndex(), nullptr);
+		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, NiagaraParticleDataFloat.GetBaseIndex(), FShaderResourceViewRHIParamRef());
 	}
 	if (GPUParticleCountBuffer.IsBound())
 	{
-		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, GPUParticleCountBuffer.GetBaseIndex(), nullptr);
+		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, GPUParticleCountBuffer.GetBaseIndex(), FShaderResourceViewRHIParamRef());
 	}
 	if (OutKeys.IsBound())
 	{
-		RHICmdList.SetUAVParameter(ComputeShaderRHI, OutKeys.GetBaseIndex(), nullptr);
+		RHICmdList.SetUAVParameter(ComputeShaderRHI, OutKeys.GetBaseIndex(), FUnorderedAccessViewRHIParamRef());
 	}
 	if (OutParticleIndices.IsBound())
 	{
-		RHICmdList.SetUAVParameter(ComputeShaderRHI, OutParticleIndices.GetBaseIndex(), nullptr);
+		RHICmdList.SetUAVParameter(ComputeShaderRHI, OutParticleIndices.GetBaseIndex(), FUnorderedAccessViewRHIParamRef());
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-IMPLEMENT_SHADER_TYPE(, FNiagaraCopyIntBufferRegionCS, TEXT("/Plugin/FX/Niagara/Private/NiagaraCopyIntBuffer.usf"), TEXT("MainCS"), SF_Compute);
+IMPLEMENT_SHADER_TYPE(, FNiagaraCopyIntBufferRegionCS, TEXT("/Engine/Private/NiagaraCopyIntBuffer.usf"), TEXT("MainCS"), SF_Compute);
 
 FNiagaraCopyIntBufferRegionCS::FNiagaraCopyIntBufferRegionCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 	: FGlobalShader(Initializer)
@@ -204,16 +173,14 @@ bool FNiagaraCopyIntBufferRegionCS::Serialize(FArchive& Ar)
 
 void FNiagaraCopyIntBufferRegionCS::SetParameters(
 	FRHICommandList& RHICmdList,
-	FRHIShaderResourceView* InSourceData,
-	FRHIUnorderedAccessView* const* InDestDatas,
+	const FShaderResourceViewRHIParamRef InSourceData,
+	const FUnorderedAccessViewRHIParamRef* InDestDatas,
 	const int32* InUsedIndexCounts,
 	int32 StartingIndex,
 	int32 DestCount)
 {
-	static TGlobalResource<FNiagaraSortingDummyUAV> NiagaraSortingDummyUAV[NIAGARA_COPY_BUFFER_BUFFER_COUNT];
-		
-	FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
-	check(DestCount > 0 && DestCount <= NIAGARA_COPY_BUFFER_BUFFER_COUNT);
+	FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
+	check(DestCount > 0);
 
 	RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, SourceData.GetBaseIndex(), InSourceData);
 
@@ -223,28 +190,21 @@ void FNiagaraCopyIntBufferRegionCS::SetParameters(
 		RHICmdList.SetUAVParameter(ComputeShaderRHI, DestData[Index].GetBaseIndex(), InDestDatas[Index]);
 		CopyParamsValue[Index + 1] = InUsedIndexCounts[Index];
 	}
-
-	for (int32 Index = DestCount; Index < NIAGARA_COPY_BUFFER_BUFFER_COUNT; ++Index)
-	{
-		RHICmdList.TransitionResource(EResourceTransitionAccess::ERWNoBarrier, EResourceTransitionPipeline::EComputeToCompute, NiagaraSortingDummyUAV[Index].Buffer.UAV);
-		RHICmdList.SetUAVParameter(ComputeShaderRHI, DestData[Index].GetBaseIndex(), NiagaraSortingDummyUAV[Index].Buffer.UAV);
-	}
-
 	RHICmdList.SetShaderParameter(ComputeShaderRHI, CopyParams.GetBufferIndex(), CopyParams.GetBaseIndex(), CopyParams.GetNumBytes(), &CopyParamsValue);
 }
 
 void FNiagaraCopyIntBufferRegionCS::UnbindBuffers(FRHICommandList& RHICmdList)
 {
-	FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+	FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 	if (SourceData.IsBound())
 	{
-		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, SourceData.GetBaseIndex(), nullptr);
+		RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, SourceData.GetBaseIndex(), FShaderResourceViewRHIParamRef());
 	}
 	for (int32 Index = 0; Index < NIAGARA_COPY_BUFFER_BUFFER_COUNT; ++Index)
 	{
 		if (DestData[Index].IsBound())
 		{
-			RHICmdList.SetUAVParameter(ComputeShaderRHI, DestData[Index].GetBaseIndex(), nullptr);
+			RHICmdList.SetUAVParameter(ComputeShaderRHI, DestData[Index].GetBaseIndex(), FUnorderedAccessViewRHIParamRef());
 		}
 	}
 }

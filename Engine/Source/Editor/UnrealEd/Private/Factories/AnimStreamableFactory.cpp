@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
 	AnimCompositeFactory.cpp: Factory for AnimComposite
@@ -32,21 +32,16 @@ bool UAnimStreamableFactory::ConfigureProperties()
 	// Null the skeleton so we can check for selection later
 	/*TargetSkeleton = NULL;
 	SourceAnimation = NULL;
-
 	// Load the content browser module to display an asset picker
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-
 	FAssetPickerConfig AssetPickerConfig;
 	
 	AssetPickerConfig.Filter.ClassNames.Add(USkeleton::StaticClass()->GetFName());
 	AssetPickerConfig.Filter.bRecursiveClasses = true;
-
 	// The delegate that fires when an asset was selected
 	AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateUObject(this, &UAnimCompositeFactory::OnTargetSkeletonSelected);
-
 	//The default view mode should be a list view
 	AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;
-
 	PickerWindow = SNew(SWindow)
 	.Title(LOCTEXT("CreateAnimCompositeOptions", "Pick Skeleton"))
 	.ClientSize(FVector2D(500, 600))
@@ -58,10 +53,8 @@ bool UAnimStreamableFactory::ConfigureProperties()
 			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
 		]
 	];
-
 	GEditor->EditorAddModalWindow(PickerWindow.ToSharedRef());
 	PickerWindow.Reset();
-
 	return TargetSkeleton != NULL;*/
 	return true;
 }
@@ -73,7 +66,7 @@ UObject* UAnimStreamableFactory::FactoryCreateNew(UClass* Class, UObject* InPare
 		UAnimStreamable* StreamableAnim = NewObject<UAnimStreamable>(InParent, Class, Name, Flags);
 
 		StreamableAnim->InitFrom(SourceAnimation);
-		
+
 		return StreamableAnim;
 	}
 

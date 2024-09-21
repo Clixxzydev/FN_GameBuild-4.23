@@ -235,20 +235,11 @@ void RunGetVarArgsTests()
 	TestGetVarArgs(OutputString, TEXT("Test D|%p|"), 0x12345);
 	check(FString(OutputString) == FString(TEXT("Test D|0x12345|")));
 
-	TestGetVarArgs(OutputString, TEXT("Test E|%" INT64_FMT "|"), int64(12345678912345LL));
+	TestGetVarArgs(OutputString, TEXT("Test E|%lld|"), 12345678912345);
 	check(FString(OutputString) == FString(TEXT("Test E|12345678912345|")));
 
 	TestGetVarArgs(OutputString, TEXT("Test F|%f|%e|%g|"), 123.456, 123.456, 123.456);
 	check(FString(OutputString) == FString(TEXT("Test F|123.456000|1.234560e+02|123.456|")));
-
-	TestGetVarArgs(OutputString, TEXT("Test G|%" UPTRINT_X_FMT"|"), UPTRINT(49374));
-	check(FString(OutputString) == FString(TEXT("Test G|C0DE|")));
-
-	TestGetVarArgs(OutputString, TEXT("Test H|%" UPTRINT_x_FMT "|"), UPTRINT(49374));
-	check(FString(OutputString) == FString(TEXT("Test H|c0de|")));
-
-	TestGetVarArgs(OutputString, TEXT("Test I|%" UINT64_FMT "|"), MAX_uint64);
-	check(FString(OutputString) == FString(TEXT("Test I|18446744073709551615|")));
 }
 #endif
 
@@ -338,11 +329,6 @@ namespace
 		WIDECHAR* Ptr;
 		WIDECHAR* EndMinusOne; // when null, this means the iterator has already moved past the writable area of the buffer
 	};
-
-	static inline bool CharIsIntegerFormatSpecifier(TCHAR Char)
-	{
-		return (Char == 'i') | (Char == 'd') | (Char == 'u') | (Char == 'X') | (Char == 'x');
-	}
 }
 
 int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, const WIDECHAR*& Fmt, va_list ArgPtr )
@@ -471,7 +457,7 @@ int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, c
 				Src++;
 				int Val = va_arg(ArgPtr, int);
 				ANSICHAR AnsiNum[64];
-				ANSICHAR FmtBuf[30];
+				ANSICHAR FmtBuf[30] = {0};
 
 				// limit width to the buffer size
 				FieldLen = FMath::Min(static_cast<int>(sizeof(AnsiNum)) - 1, FieldLen);
@@ -520,7 +506,7 @@ int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, c
 				size_t Val = va_arg(ArgPtr, size_t);
 
 				ANSICHAR AnsiNum[64];
-				ANSICHAR FmtBuf[30];
+				ANSICHAR FmtBuf[30] = {0};
 
 				// limit width to the buffer size
 				FieldLen = FMath::Min(static_cast<int>(sizeof(AnsiNum)) - 1, FieldLen);
@@ -592,11 +578,11 @@ int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, c
 					break;
 				}
 
-				// treat %ld as %d. Also shorts for %h will be promoted to ints. This path also handles %li, %lu, %lx and %lX.
-				if ((Src[0] == 'l' && CharIsIntegerFormatSpecifier(Src[1])) || Src[0] == 'h')
+				// treat %ld as %d. Also shorts for %h will be promoted to ints
+				if ((Src[0] == 'l' && Src[1] == 'd') || Src[0] == 'h')
 				{
 					Src+=2;
-					long int Val = va_arg(ArgPtr, long int);
+					int Val = va_arg(ArgPtr, int);
 					ANSICHAR AnsiNum[30];
 					ANSICHAR FmtBuf[30];
 
@@ -622,7 +608,7 @@ int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, c
 				{
 					Src += 2;
 					double Val = va_arg(ArgPtr, double);
-					ANSICHAR AnsiNum[340]; // make sure buffer is large enough to handle the longest double values, such as the largest number which is 316 characters including decimal point and 6 decimals
+					ANSICHAR AnsiNum[30];
 					ANSICHAR FmtBuf[30];
 
 					// Yes, this is lame.
@@ -643,65 +629,62 @@ int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, c
 					break;
 				}
 
-				// At this point we expect RemainingSize >= 3, but we know it's at least 2.
-				if (RemainingSize < 3)
-				{
-					printf("Unknown percent [%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], TCHAR_TO_ANSI(Fmt));
-					Src++;  // skip it, I guess.
-					break;
-				}
-
 				if (Src[0] == 'l')
 				{
-					if (Src[1] != 'l' || !CharIsIntegerFormatSpecifier(Src[2]))
+					if (Src[1] != 'l' && Src[1] != 'u' && Src[1] != 'x')
 					{
-						printf("Unknown percent [%lc%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], Src[2], TCHAR_TO_ANSI(Fmt));
+						printf("Unknown percent [%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], TCHAR_TO_ANSI(Fmt));
+						Src++;  // skip it, I guess.
+						break;
+					}
+					else if (Src[1] == 'l' && RemainingSize == 2)
+					{
+						printf("Unknown percent [%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], TCHAR_TO_ANSI(Fmt));
 						Src++;  // skip it, I guess.
 						break;
 					}
 				}
 				else if (Src[0] == 'I')
 				{
-					if (RemainingSize < 4)
+					if (RemainingSize == 2)
+					{
+						printf("Unknown percent [%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], TCHAR_TO_ANSI(Fmt));
+						Src++;  // skip it, I guess.
+						break;
+					}
+					else if (RemainingSize == 3)
 					{
 						printf("Unknown percent [%lc%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], Src[2], TCHAR_TO_ANSI(Fmt));
 						Src++;  // skip it, I guess.
 						break;
 					}
-					else if (Src[1] != '6' || Src[2] != '4' || !CharIsIntegerFormatSpecifier(Src[3]))
+					else if (Src[1] != '6' || Src[2] != '4')
 					{
-						printf("Unknown percent [%lc%lc%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], Src[2], Src[3], TCHAR_TO_ANSI(Fmt));
+						printf("Unknown percent [%lc%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], Src[2], TCHAR_TO_ANSI(Fmt));
 						Src++;  // skip it, I guess.
 						break;
 					}
 				}
-				else
-				{
-					printf("Unknown percent [%lc%lc%lc] in FGenericWidePlatformString::GetVarArgs() [%s]\n.", Src[0], Src[1], Src[2], TCHAR_TO_ANSI(Fmt));
-					Src++;  // skip it, I guess.
-					break;
-				}
 
 				// Yes, this is lame.
+				int CpyIdx = 0;
 				unsigned long long Val = va_arg(ArgPtr, unsigned long long);
 				ANSICHAR AnsiNum[60];
 				ANSICHAR FmtBuf[30];
-
-				int CpyIdx;
-				if (Src[0] == 'I')
+				if (Src[0] == 'l' && Src[1] == 'l')
 				{
-					// Convert I64 syntax to ll 
-					Src += 4;
-					Percent += 3;
-					CpyIdx = 3;
-					FmtBuf[0] = '%';
-					FmtBuf[1] = 'l';
-					FmtBuf[2] = 'l';
+					Src += 3;
+				}
+				else if (Src[0] == 'l')
+				{
+					Src += 2;
 				}
 				else
 				{
-					Src += 3;
-					CpyIdx = 0;
+					Src += 4;
+					strcpy(FmtBuf, "%L");
+					Percent += 4;
+					CpyIdx = 2;
 				}
 
 				while (Percent < Src && CpyIdx < ARRAY_COUNT(FmtBuf))
@@ -726,7 +709,8 @@ int32 FGenericWidePlatformString::GetVarArgs( WIDECHAR* Dest, SIZE_T DestSize, c
 			{
 				Src++;
 				double Val = va_arg(ArgPtr, double);
-				ANSICHAR AnsiNum[340]; // make sure buffer is large enough to handle the longest double values, such as the largest number which is 316 characters including decimal point and 6 decimals
+				// doubles in the form of 1e+9999 can get quite large, make sure we have enough room for them
+				ANSICHAR AnsiNum[48];
 				ANSICHAR FmtBuf[30];
 
 				// Yes, this is lame.

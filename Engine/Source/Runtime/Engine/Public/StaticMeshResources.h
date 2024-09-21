@@ -250,40 +250,6 @@ protected:
 	FStaticMeshLODResources* Owner;
 };
 
-typedef TArray<FStaticMeshSectionAreaWeightedTriangleSampler> FStaticMeshSectionAreaWeightedTriangleSamplerArray;
-
-/** Represents GPU resource needed for area weighted uniform sampling of a mesh surface. */
-class FStaticMeshSectionAreaWeightedTriangleSamplerBuffer : public FRenderResource
-{
-public:
-
-	ENGINE_API FStaticMeshSectionAreaWeightedTriangleSamplerBuffer();
-	ENGINE_API ~FStaticMeshSectionAreaWeightedTriangleSamplerBuffer();
-
-	ENGINE_API void Init(FStaticMeshSectionAreaWeightedTriangleSamplerArray* SamplerToUpload) { Samplers = SamplerToUpload; }
-
-	// FRenderResource interface.
-	ENGINE_API virtual void InitRHI() override;
-	ENGINE_API virtual void ReleaseRHI() override;
-	virtual FString GetFriendlyName() const override { return TEXT("FStaticMeshSectionAreaWeightedTriangleSamplerBuffer"); }
-
-	ENGINE_API const FShaderResourceViewRHIRef& GetBufferSRV() const { return BufferSectionTriangleSRV; }
-
-private:
-	struct SectionTriangleInfo
-	{
-		float  Prob;
-		uint32 Alias;
-		uint32 pad0;
-		uint32 pad1;
-	};
-
-	FVertexBufferRHIRef BufferSectionTriangleRHI = nullptr;
-	FShaderResourceViewRHIRef BufferSectionTriangleSRV = nullptr;
-
-	FStaticMeshSectionAreaWeightedTriangleSamplerArray* Samplers = nullptr;
-};
-
 
 struct FDynamicMeshVertex;
 struct FModelVertex;
@@ -374,9 +340,7 @@ struct FStaticMeshLODResources
 	/**	Allows uniform random selection of mesh sections based on their area. */
 	FStaticMeshAreaWeightedSectionSampler AreaWeightedSampler;
 	/**	Allows uniform random selection of triangles on each mesh section based on triangle area. */
-	FStaticMeshSectionAreaWeightedTriangleSamplerArray AreaWeightedSectionSamplers;
-	/** Allows uniform random selection of triangles on GPU. It is not cooked and serialised but created at runtime from AreaWeightedSectionSamplers when it is available and static mesh bSupportGpuUniformlyDistributedSampling=true*/
-	FStaticMeshSectionAreaWeightedTriangleSamplerBuffer AreaWeightedSectionSamplersBuffer;
+	TArray<FStaticMeshSectionAreaWeightedTriangleSampler> AreaWeightedSectionSamplers;
 
 	uint32 DepthOnlyNumTriangles;
 
@@ -675,6 +639,12 @@ public:
 	{
 		for (TObjectIterator<UStaticMeshComponent> It; It; ++It)
 		{
+			// First, flush all deferred render updates, as they may depend on InStaticMesh.
+			if (It->IsRenderStateDirty() && It->IsRegistered() && !It->IsTemplate() && !It->IsPendingKill())
+			{
+				It->DoDeferredRenderUpdates_Concurrent();
+			}
+
 			if ( It->GetStaticMesh() == InStaticMesh )
 			{
 				checkf( !It->IsUnreachable(), TEXT("%s"), *It->GetFullName() );
@@ -685,11 +655,6 @@ public:
 					It->DestroyRenderState_Concurrent();
 					StaticMeshComponents.Add(*It);
 				}
-			}
-			// Recreate dirty render state, if needed, only for components not using the static mesh we currently have released resources for.
-			else if (It->IsRenderStateDirty() && It->IsRegistered() && !It->IsTemplate() && !It->IsPendingKill())
-			{
-				It->DoDeferredRenderUpdates_Concurrent();
 			}
 		}
 
@@ -763,19 +728,10 @@ public:
 		bool bAllowPreCulledIndices,
 		FMeshBatch& OutMeshBatch) const;
 
-	virtual int32 CollectOccluderElements(class FOccluderElementsCollector& Collector) const override;
+	virtual bool CollectOccluderElements(class FOccluderElementsCollector& Collector) const override;
 
 	/** Sets up a wireframe FMeshBatch for a specific LOD. */
 	virtual bool GetWireframeMeshElement(int32 LODIndex, int32 BatchIndex, const FMaterialRenderProxy* WireframeRenderProxy, uint8 InDepthPriorityGroup, bool bAllowPreCulledIndices, FMeshBatch& OutMeshBatch) const;
-
-	/** Sets up a collision FMeshBatch for a specific LOD and element. */
-	virtual bool GetCollisionMeshElement(
-		int32 LODIndex,
-		int32 BatchIndex,
-		int32 ElementIndex,
-		uint8 InDepthPriorityGroup,
-		const FMaterialRenderProxy* RenderProxy,
-		FMeshBatch& OutMeshBatch) const;
 
 	virtual uint8 GetCurrentFirstLODIdx_RenderThread() const override
 	{
@@ -783,23 +739,10 @@ public:
 	}
 
 protected:
-	/** Configures mesh batch vertex / index state. Returns the number of primitives used in the element. */
-	uint32 SetMeshElementGeometrySource(
-		int32 LODIndex,
-		int32 ElementIndex,
-		bool bWireframe,
-		bool bRequiresAdjacencyInformation,
-		bool bUseInversedIndices,
-		bool bAllowPreCulledIndices,
-		const FVertexFactory* VertexFactory,
-		FMeshBatch& OutMeshElement) const;
-
-	/** Sets the screen size on a mesh element. */
-	void SetMeshElementScreenSize(int32 LODIndex, bool bDitheredLODTransition, FMeshBatch& OutMeshBatch) const;
-
-	/** Returns whether this mesh needs reverse culling when using reversed indices. */
-	bool IsReversedCullingNeeded(bool bUseReversedIndices) const;
-
+	/**
+	 * Sets IndexBuffer, FirstIndex and NumPrimitives of OutMeshElement.
+	 */
+	virtual void SetIndexSource(int32 LODIndex, int32 ElementIndex, FMeshBatch& OutMeshElement, bool bWireframe, bool bRequiresAdjacencyInformation, bool bUseInversedIndices, bool bAllowPreCulledIndices) const;
 	bool IsCollisionView(const FEngineShowFlags& EngineShowFlags, bool& bDrawSimpleCollision, bool& bDrawComplexCollision) const;
 
 	/** Only call on render thread timeline */
@@ -819,7 +762,7 @@ public:
 	virtual bool CanBeOccluded() const override;
 	virtual bool IsUsingDistanceCullFade() const override;
 	virtual void GetLightRelevance(const FLightSceneProxy* LightSceneProxy, bool& bDynamic, bool& bRelevant, bool& bLightMapped, bool& bShadowMapped) const override;
-	virtual void GetDistancefieldAtlasData(FBox& LocalVolumeBounds, FVector2D& OutDistanceMinMax, FIntVector& OutBlockMin, FIntVector& OutBlockSize, bool& bOutBuiltAsIfTwoSided, bool& bMeshWasPlane, float& SelfShadowBias, TArray<FMatrix>& ObjectLocalToWorldTransforms, bool& bOutThrottled) const override;
+	virtual void GetDistancefieldAtlasData(FBox& LocalVolumeBounds, FVector2D& OutDistanceMinMax, FIntVector& OutBlockMin, FIntVector& OutBlockSize, bool& bOutBuiltAsIfTwoSided, bool& bMeshWasPlane, float& SelfShadowBias, TArray<FMatrix>& ObjectLocalToWorldTransforms) const override;
 	virtual void GetDistanceFieldInstanceInfo(int32& NumInstances, float& BoundsSurfaceArea) const override;
 	virtual bool HasDistanceFieldRepresentation() const override;
 	virtual bool HasDynamicIndirectShadowCasterRepresentation() const override;

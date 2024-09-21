@@ -318,10 +318,15 @@ TSharedRef<SWidget> FActorDetails::OnGetConvertContent()
 
 	return
 		SNew(SBox)
-		.WidthOverride(280)
-		.MaxDesiredHeight(500)
+			.WidthOverride(280)
 		[
-			ClassPicker
+			SNew(SVerticalBox)
+			+SVerticalBox::Slot()
+				.AutoHeight()
+				.MaxHeight(500)
+			[
+				ClassPicker
+			]			
 		];
 }
 

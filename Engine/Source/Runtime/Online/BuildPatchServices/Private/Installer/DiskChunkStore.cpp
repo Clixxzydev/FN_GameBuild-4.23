@@ -77,7 +77,7 @@ namespace BuildPatchServices
 	{
 		QueueTrigger = FPlatformProcess::GetSynchEventFromPool(true);
 		IoThreadTrigger = FPlatformProcess::GetSynchEventFromPool(true);
-		IoThreadFuture = Async(EAsyncExecution::Thread, [this]()
+		IoThreadFuture = Async<void>(EAsyncExecution::Thread, [this]()
 		{
 			return IoThread();
 		});

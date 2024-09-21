@@ -99,9 +99,6 @@ bool GAllowActorScriptExecutionInEditor = false;
 /** Forces use of template names for newly instanced components in a CDO */
 bool GCompilingBlueprint = false;
 
-/** True if we're garbage collecting after a blueprint compilation */
-bool GIsGCingAfterBlueprintCompile = false;
-
 /** True if we're reconstructing blueprint instances. Should never be true on cooked builds */
 bool GIsReconstructingBlueprintInstances = false;
 
@@ -110,7 +107,7 @@ bool GIsReinstancing = false;
 
 /**
  * If true, we are running an editor script that should not prompt any dialog modal. The default value of any model will be used.
- * This is used when running an editor utility blueprint or script like Python and we don't want an OK dialog to pop while the script is running.
+ * This is used when running a Blutility or script like Python and we don't want an OK dialog to pop while the script is running.
  * Could be set for commandlet with -RUNNINGUNATTENDEDSCRIPT
  */
 bool GIsRunningUnattendedScript = false;
@@ -184,7 +181,7 @@ bool					GExitPurge						= false;
 
 FChunkedFixedUObjectArray* GCoreObjectArrayForDebugVisualizers = nullptr;
 #if PLATFORM_UNIX
-uint8** CORE_API GNameBlocksDebug = FNameDebugVisualizer::GetBlocks();
+FNameEntry*** CORE_API GFNameTableForDebuggerVisualizers_MT = FName::GetNameTableForDebuggerVisualizers_MT();
 FChunkedFixedUObjectArray*& CORE_API GObjectArrayForDebugVisualizers = GCoreObjectArrayForDebugVisualizers;
 #endif
 
@@ -304,8 +301,6 @@ bool					GIsDemoMode						= false;
 bool					GIsAutomationTesting					= false;
 /** Whether or not messages are being pumped outside of the main loop										*/
 bool					GPumpingMessagesOutsideOfMainLoop = false;
-/** Whether or not messages are being pumped */
-bool					GPumpingMessages = false;
 
 /** Enables various editor and HMD hacks that allow the experimental VR editor feature to work, perhaps at the expense of other systems */
 bool					GEnableVREditorHacks = false;
@@ -367,7 +362,6 @@ FScopedBootTiming::~FScopedBootTiming()
 }
 void BootTimingPoint(const ANSICHAR *Message)
 {
-	TRACE_BOOKMARK(TEXT("%s"), *FString(Message));
 }
 void DumpBootTiming()
 {
@@ -404,8 +398,6 @@ void DumpBootTiming()
 
 static void BootTimingPoint(const TCHAR *Message, const TCHAR *Prefix = nullptr, int32 Depth = 0, double TookTime = 0.0)
 {
-	TRACE_BOOKMARK(TEXT("%s"), Message);
-
 	static double LastTime = 0.0;
 	static TArray<FString> MessageStack;
 	static FString LastGapMessage;
@@ -558,6 +550,8 @@ DEFINE_STAT(STAT_SkeletalMeshMotionBlurSkinningMemory);
 DEFINE_STAT(STAT_VertexShaderMemory);
 DEFINE_STAT(STAT_PixelShaderMemory);
 DEFINE_STAT(STAT_NavigationMemory);
+DEFINE_STAT(STAT_PhysSceneReadLock);
+DEFINE_STAT(STAT_PhysSceneWriteLock);
 
 DEFINE_STAT(STAT_ReflectionCaptureTextureMemory);
 DEFINE_STAT(STAT_ReflectionCaptureMemory);
@@ -590,21 +584,20 @@ DEFINE_STAT(STAT_CPUTimePct);
 DEFINE_STAT(STAT_CPUTimePctRelative);
 
 DEFINE_LOG_CATEGORY(LogHAL);
+DEFINE_LOG_CATEGORY(LogMac);
+DEFINE_LOG_CATEGORY(LogLinux);
+DEFINE_LOG_CATEGORY(LogIOS);
+DEFINE_LOG_CATEGORY(LogAndroid);
+DEFINE_LOG_CATEGORY(LogWindows);
+DEFINE_LOG_CATEGORY(LogXboxOne);
 DEFINE_LOG_CATEGORY(LogSerialization);
 DEFINE_LOG_CATEGORY(LogContentComparisonCommandlet);
 DEFINE_LOG_CATEGORY(LogNetPackageMap);
 DEFINE_LOG_CATEGORY(LogNetSerialization);
 DEFINE_LOG_CATEGORY(LogMemory);
 DEFINE_LOG_CATEGORY(LogProfilingDebugging);
-DEFINE_LOG_CATEGORY(LogTemp);
+DEFINE_LOG_CATEGORY(LogSwitch);
 
-// need another layer of macro to help using a define in a define
-#define DEFINE_LOG_CATEGORY_HELPER(A) DEFINE_LOG_CATEGORY(A)
-#ifdef PLATFORM_GLOBAL_LOG_CATEGORY
-	DEFINE_LOG_CATEGORY_HELPER(PLATFORM_GLOBAL_LOG_CATEGORY);
-#endif
-#ifdef PLATFORM_GLOBAL_LOG_CATEGORY_ALT
-	DEFINE_LOG_CATEGORY_HELPER(PLATFORM_GLOBAL_LOG_CATEGORY_ALT);
-#endif
+DEFINE_LOG_CATEGORY(LogTemp);
 
 #undef LOCTEXT_NAMESPACE

@@ -185,11 +185,6 @@ public:
 	int32 MinDrawCalls;
 	int32 TotalDrawCalls;
 
-	/** Total number of player ticks (note: it is up to the game to populate this field) */
-	int32 MaxPlayerTicks;
-	int32 MinPlayerTicks;
-	int32 TotalPlayerTicks;
-
 	/** Total number of primitives drawn */
 	int32 MaxDrawnPrimitives;
 	int32 MinDrawnPrimitives;

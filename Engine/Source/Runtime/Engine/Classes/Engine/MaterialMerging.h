@@ -32,115 +32,105 @@ struct FMaterialProxySettings
 	// Size of generated BaseColor map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta =(ClampMin = "1", UIMin = "1"))
 	FIntPoint TextureSize;
-	
-	// Gutter space to take into account 
+
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta=(DisplayAfter="TextureSizingType"))
 	float GutterSpace;
 
-	// Constant value to use for the Metallic property
+	// Metallic constant
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter="bMetallicMap", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1", editcondition = "!bMetallicMap"))
 	float MetallicConstant;
 
-	// Constant value to use for the Roughness property
+	// Roughness constant
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter="bRoughnessMap", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1", editcondition = "!bRoughnessMap"))
 	float RoughnessConstant;
 
-	// Constant value to use for the Specular property
+	// Specular constant
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter="bSpecularMap", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1", editcondition = "!bSpecularMap"))
 	float SpecularConstant;
 
-	// Constant value to use for the Opacity property
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter="bOpacityMap", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1", editcondition = "!bOpacityMap"))
 	float OpacityConstant;
 
-	// Constant value to use for the Opacity mask property
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter="bOpacityMaskMap", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1", editcondition = "!bOpacityMaskMap"))
 	float OpacityMaskConstant;
 
-	// Constant value to use for the Ambient Occlusion property
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter="bAmbientOcclusionMap", ClampMin = "0", ClampMax = "1", UIMin = "0", UIMax = "1", editcondition = "!bAmbientOcclusionMap"))
 	float AmbientOcclusionConstant;
 
-	// Method that should be used to generate the sizes of the output textures
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	TEnumAsByte<ETextureSizingType> TextureSizingType;
 
 	UPROPERTY()
 	TEnumAsByte<EMaterialMergeType> MaterialMergeType;
 
-	// Target blend mode for the generated material
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta=(DisplayAfter="AmbientOcclusionTextureSize"))
 	TEnumAsByte<EBlendMode> BlendMode;
 
-	// Whether or not to allow the generated material can be two-sided
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere, meta = (DisplayAfter = "BlendMode"))
 	uint8 bAllowTwoSidedMaterial : 1;
 
-	// Whether to generate a texture for the Normal property
+	// Whether to generate normal map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bNormalMap:1;
 
-	// Whether to generate a texture for the Metallic property
+	// Whether to generate metallic map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bMetallicMap:1;
 
-	// Whether to generate a texture for the Roughness property
+	// Whether to generate roughness map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bRoughnessMap:1;
 
-	// Whether to generate a texture for the Specular property
+	// Whether to generate specular map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bSpecularMap:1;
 
-	// Whether to generate a texture for the Emissive property
+	// Whether to generate emissive map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bEmissiveMap:1;
 
-	// Whether to generate a texture for the Opacity property
+	// Whether to generate opacity map
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bOpacityMap:1;
 
-	// Whether to generate a texture for the Opacity Mask property
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bOpacityMaskMap:1;
 
-	// Whether to generate a texture for the Ambient Occlusion property
 	UPROPERTY(Category = Material, BlueprintReadWrite, EditAnywhere)
 	uint8 bAmbientOcclusionMap:1;
 
-	// Override Diffuse texture size
+	// Override diffuse map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint DiffuseTextureSize;
 
-	// Override Normal texture size
+	// Override normal map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint NormalTextureSize;
 
-	// Override Metallic texture size
+	// Override metallic map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint MetallicTextureSize;
 
-	// Override Roughness texture size
+	// Override roughness map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint RoughnessTextureSize;
 
-	// Override Specular texture size
+	// Override specular map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint SpecularTextureSize;
 
-	// Override Emissive texture size
+	// Override emissive map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint EmissiveTextureSize;
 
-	// Override Opacity texture size
+	// Override opacity map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint OpacityTextureSize;
 	
-	// Override Opacity Mask texture size
+	// Override opacity map size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint OpacityMaskTextureSize;
 
-	// Override Ambient Occlusion texture size
 	UPROPERTY(Category = Material, BlueprintReadWrite, AdvancedDisplay, EditAnywhere, meta = (ClampMin = "1", UIMin = "1"))
 	FIntPoint AmbientOcclusionTextureSize;
 

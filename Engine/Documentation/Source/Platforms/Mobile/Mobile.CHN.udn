@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6549201
+﻿INTSourceChangelist:3782314
 Availability:Public
 Title:移动平台游戏开发
 Crumbs:%ROOT%, Platforms
@@ -16,26 +16,23 @@ topic-image:MobileGameDevelopment_topic.png
 ![](mobile_banner.png)
 [/REGION]
 
+(#StartingOut)
 ## 开始
 
-[DIR(output:"topic" parent:"Platforms/Mobile/Android" type:"quick start")]
-[DIR(output:"topic" parent:"Platforms/Mobile/iOS" type:"quick start")]
+[DIR(output:"topiccompact" type:"quick start" tags:"mobile")]
 
+(#MobilePlatforms)
 ## 移动平台
 
-%Platforms/Mobile/Android:topic%
-%Platforms/Mobile/iOS:topic%
+[DIR(output:"listbutton" type:"landing" parent:"Platforms/Mobile")]
 
+(#MobileServices)
 ## 移动服务
 
-[DIR(output:"fancy" parent:"Platforms/Mobile/iOS" tags:"mobileservices")]
-[DIR(output:"fancy" parent:"Platforms/Mobile" tags:"mobileservices")]
-[DIR(output:"fancy" parent:"Platforms/Mobile/Android" tags:"leaderboards")]
-[DIR(output:"fancy" tags:in-app purchase" parent:"Platforms/Mobile")]
+[DIR(end:"1" output:"listbutton" type:"how-to" parent:"Platforms/Mobile")]
 
+(#GeneralMobileDevelopment)
 ## 通用移动开发
 
-[DIR(end:"1" output:"fancy" skilllevel:"Beginner" parent:"Platforms/Mobile")]
-[DIR(end:"1" output:"fancy" skilllevel:"Intermediate" parent:"Platforms/Mobile" tags:"!mobileservices")]
-[DIR(end:"1" output:"fancy" skilllevel:"Intermediate" parent:"Platforms/Mobile/Performance")]
+[DIR(end:"1" output:"listbutton" type:"overview" parent:"Platforms/Mobile")]
 

@@ -53,7 +53,7 @@ struct FParameterNameAndAction
 
 	bool operator<(FParameterNameAndAction const& Other) const
 	{
-		return ParameterName.LexicalLess(Other.ParameterName);
+		return ParameterName < Other.ParameterName;
 	}
 };
 

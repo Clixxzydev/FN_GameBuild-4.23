@@ -188,7 +188,7 @@ bool FGoogleVRSplash::IsTickable() const
 	return bIsShown;
 }
 
-void FGoogleVRSplash::RenderStereoSplashScreen(FRHICommandListImmediate& RHICmdList, FRHITexture2D* DstTexture)
+void FGoogleVRSplash::RenderStereoSplashScreen(FRHICommandListImmediate& RHICmdList, FTexture2DRHIParamRef DstTexture)
 {
 	UpdateSplashScreenEyeOffset();
 
@@ -301,7 +301,7 @@ void FGoogleVRSplash::SubmitBlackFrame()
 	check(IsInRenderingThread());
 
 	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	FRHITexture2D* DstTexture = GVRCustomPresent->TextureSet->GetTexture2D();
+	FTexture2DRHIParamRef DstTexture = GVRCustomPresent->TextureSet->GetTexture2D();
 
 	GVRCustomPresent->BeginRendering(GVRHMD->CachedHeadPose);
 

@@ -6,25 +6,25 @@
 
 #include "Engine/PostProcessVolume.h"
 
-UObject* UDatasmithPostProcessVolumeTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithPostProcessVolumeTemplate::Apply( UObject* Destination, bool bForce )
 {
-	APostProcessVolume* PostProcessVolume = UDatasmithActorTemplate::GetActor< APostProcessVolume >( Destination );
+#if WITH_EDITORONLY_DATA
 
+	APostProcessVolume* PostProcessVolume = UDatasmithActorTemplate::GetActor< APostProcessVolume >( Destination );
 	if ( !PostProcessVolume )
 	{
-		return nullptr;
+		return;
 	}
 
-#if WITH_EDITORONLY_DATA
 	UDatasmithPostProcessVolumeTemplate* PreviousTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithPostProcessVolumeTemplate >( Destination ) : nullptr;
 
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( bEnabled, PostProcessVolume, PreviousTemplate );
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( bUnbound, PostProcessVolume, PreviousTemplate );
 
 	Settings.Apply( &PostProcessVolume->Settings, PreviousTemplate ? &PreviousTemplate->Settings : nullptr );
-#endif // #if WITH_EDITORONLY_DATA
 
-	return PostProcessVolume->GetRootComponent();
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( PostProcessVolume->GetRootComponent(), this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithPostProcessVolumeTemplate::Load( const UObject* Source )

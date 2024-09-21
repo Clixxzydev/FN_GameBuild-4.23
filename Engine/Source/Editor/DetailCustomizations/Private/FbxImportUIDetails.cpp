@@ -445,25 +445,20 @@ void FFbxImportUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder 
 						}
 					}
 
-					if (ImportType == FBXIT_StaticMesh)
+					if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UFbxStaticMeshImportData, VertexOverrideColor))
 					{
-						if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UFbxStaticMeshImportData, VertexOverrideColor))
-						{
-							// Cache the VertexColorImportOption property
-							VertexColorImportOptionHandle = StaticMeshDataProp->GetChildHandle(GET_MEMBER_NAME_CHECKED(UFbxStaticMeshImportData, VertexColorImportOption));
+						// Cache the VertexColorImportOption property
+						VertexColorImportOptionHandle = StaticMeshDataProp->GetChildHandle(GET_MEMBER_NAME_CHECKED(UFbxStaticMeshImportData, VertexColorImportOption));
 
-							PropertyRow.IsEnabled(TAttribute<bool>(this, &FFbxImportUIDetails::GetVertexOverrideColorEnabledState));
-						}
+						PropertyRow.IsEnabled(TAttribute<bool>(this, &FFbxImportUIDetails::GetVertexOverrideColorEnabledState));
 					}
-					else
-					{
-						if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UFbxSkeletalMeshImportData, VertexOverrideColor))
-						{
-							// Cache the VertexColorImportOption property
-							SkeletalMeshVertexColorImportOptionHandle = SkeletalMeshDataProp->GetChildHandle(GET_MEMBER_NAME_CHECKED(UFbxSkeletalMeshImportData, VertexColorImportOption));
 
-							PropertyRow.IsEnabled(TAttribute<bool>(this, &FFbxImportUIDetails::GetSkeletalMeshVertexOverrideColorEnabledState));
-						}
+					if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(UFbxSkeletalMeshImportData, VertexOverrideColor))
+					{
+						// Cache the VertexColorImportOption property
+						SkeletalMeshVertexColorImportOptionHandle = SkeletalMeshDataProp->GetChildHandle(GET_MEMBER_NAME_CHECKED(UFbxSkeletalMeshImportData, VertexColorImportOption));
+
+						PropertyRow.IsEnabled(TAttribute<bool>(this, &FFbxImportUIDetails::GetSkeletalMeshVertexOverrideColorEnabledState));
 					}
 					
 				}
@@ -598,18 +593,6 @@ void FFbxImportUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder 
 				}
 			}
 		}
-
-		TSharedPtr<IPropertyHandle> ReorderMaterialToFbxOrderProp = nullptr;
-		if (ImportUI->MeshTypeToImport == FBXIT_StaticMesh)
-		{
-			ReorderMaterialToFbxOrderProp = StaticMeshDataProp->GetChildHandle(GET_MEMBER_NAME_CHECKED(UFbxStaticMeshImportData, bReorderMaterialToFbxOrder));
-		}
-		else if (ImportUI->MeshTypeToImport == FBXIT_SkeletalMesh)
-		{
-			ReorderMaterialToFbxOrderProp = SkeletalMeshDataProp->GetChildHandle(GET_MEMBER_NAME_CHECKED(UFbxSkeletalMeshImportData, bReorderMaterialToFbxOrder));
-		}
-		//Add the advance reorder option at the end
-		MaterialCategory.AddProperty(ReorderMaterialToFbxOrderProp);
 	}
 
 	//Information category

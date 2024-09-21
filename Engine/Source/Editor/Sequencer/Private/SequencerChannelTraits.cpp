@@ -20,11 +20,6 @@ void DrawKeys(FMovieSceneChannel* Channel, TArrayView<const FKeyHandle> InHandle
 	}
 }
 
-bool SupportsCurveEditorModels(const FMovieSceneChannelHandle& ChannelHandle)
-{
-	return false;
-}
-
 TUniquePtr<FCurveModel> CreateCurveEditorModel(const FMovieSceneChannelHandle& ChannelHandle, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer)
 {
 	return nullptr;

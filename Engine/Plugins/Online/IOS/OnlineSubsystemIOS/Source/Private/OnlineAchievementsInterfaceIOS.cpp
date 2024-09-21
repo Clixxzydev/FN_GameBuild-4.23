@@ -1,8 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 // Module includes
-#include "OnlineAchievementsInterfaceIOS.h"
-#include "OnlineSubsystem.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
 
 // Game Center includes
 #include <GameKit/GKAchievement.h>

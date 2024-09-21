@@ -4,8 +4,7 @@
 
 #include "Input/Devices/IDisplayClusterInputDevice.h"
 #include "Input/Devices/DisplayClusterInputDeviceTraits.h"
-
-#include "DisplayClusterLog.h"
+#include "Misc/DisplayClusterLog.h"
 
 #include "CoreMinimal.h"
 

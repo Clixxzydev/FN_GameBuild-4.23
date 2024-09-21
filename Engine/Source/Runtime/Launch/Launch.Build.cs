@@ -31,7 +31,6 @@ public class Launch : ModuleRules
 				"Slate",
 				"SlateCore",
 				"Sockets",
-				"TraceLog",
 				"Overlay",
 				"UtilityShaders",
 				"PreLoadScreen"
@@ -81,12 +80,6 @@ public class Launch : ModuleRules
 					"WindowsPlatformFeatures",
 					"GameplayMediaEncoder",
 				});
-			}
-			else if (Target.Platform == UnrealTargetPlatform.HoloLens)
-			{
-				DynamicallyLoadedModuleNames.Add("D3D11RHI");
-				DynamicallyLoadedModuleNames.Add("XAudio2");
-				DynamicallyLoadedModuleNames.Add("AudioMixerXAudio2");
 			}
 			else if (Target.Platform == UnrealTargetPlatform.Mac)
 			{
@@ -248,13 +241,10 @@ public class Launch : ModuleRules
 				"IOSRuntimeSettings",
 			});
 
-            // For 4.23 the below check fails for binary builds, re-enabling for all builds UE-77520
-            // ES support will be fully removed in 4.24
-
-            // no longer build GL for apps requiring iOS 12 or later
-            //if (Target.IOSPlatform.RuntimeVersion < 12.0)
-            {
-                PublicFrameworks.Add("OpenGLES");
+			// no longer build GL for apps requiring iOS 12 or later
+			if (Target.IOSPlatform.RuntimeVersion < 12.0)
+			{
+				PublicFrameworks.Add("OpenGLES");
 				PrivateDependencyModuleNames.Add("OpenGLDrv");
 			}
 			// needed for Metal layer

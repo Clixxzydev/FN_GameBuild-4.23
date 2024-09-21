@@ -20,16 +20,11 @@
 
 #define LOCTEXT_NAMESPACE "EmitterHandleViewModel"
 
-FNiagaraEmitterHandleViewModel::FNiagaraEmitterHandleViewModel(UNiagaraSystem& InOwningSystem)
-	: EmitterHandle(nullptr)
+FNiagaraEmitterHandleViewModel::FNiagaraEmitterHandleViewModel(FNiagaraEmitterHandle* InEmitterHandle, TWeakPtr<FNiagaraEmitterInstance> InSimulation, UNiagaraSystem& InOwningSystem)
+	: EmitterHandle(InEmitterHandle)
 	, OwningSystem(InOwningSystem)
-	, EmitterViewModel(MakeShared<FNiagaraEmitterViewModel>())
+	, EmitterViewModel(MakeShareable(new FNiagaraEmitterViewModel((InEmitterHandle ? InEmitterHandle->GetInstance() : nullptr), InSimulation)))
 {
-}
-
-bool FNiagaraEmitterHandleViewModel::IsValid() const
-{
-	return EmitterHandle != nullptr;
 }
 
 void FNiagaraEmitterHandleViewModel::Cleanup()
@@ -47,9 +42,14 @@ FNiagaraEmitterHandleViewModel::~FNiagaraEmitterHandleViewModel()
 	Cleanup();
 }
 
-void FNiagaraEmitterHandleViewModel::Set(FNiagaraEmitterHandle* InEmitterHandle, TWeakPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> InSimulation)
+bool FNiagaraEmitterHandleViewModel::Set(FNiagaraEmitterHandle* InEmitterHandle, TWeakPtr<FNiagaraEmitterInstance> InSimulation, UNiagaraSystem& InOwningSystem)
 {
-	EmitterHandle = InEmitterHandle;
+	if (&OwningSystem != &InOwningSystem)
+	{
+		return false;
+	}
+
+	SetEmitterHandle(InEmitterHandle);
 	SetSimulation(InSimulation);
 	
 	UNiagaraEmitter* EmitterProperties = nullptr;
@@ -58,10 +58,16 @@ void FNiagaraEmitterHandleViewModel::Set(FNiagaraEmitterHandle* InEmitterHandle,
 		EmitterProperties = InEmitterHandle->GetInstance();
 	}
 	check(EmitterViewModel.IsValid());
-	EmitterViewModel->Set(EmitterProperties, InSimulation);
+	return EmitterViewModel->Set(EmitterProperties, InSimulation);
 }
 
-void FNiagaraEmitterHandleViewModel::SetSimulation(TWeakPtr<FNiagaraEmitterInstance, ESPMode::ThreadSafe> InSimulation)
+
+void FNiagaraEmitterHandleViewModel::SetEmitterHandle(FNiagaraEmitterHandle* InEmitterHandle)
+{
+	EmitterHandle = InEmitterHandle;
+}
+
+void FNiagaraEmitterHandleViewModel::SetSimulation(TWeakPtr<FNiagaraEmitterInstance> InSimulation)
 {
 	check(EmitterViewModel.IsValid());
 	EmitterViewModel->SetSimulation(InSimulation);
@@ -156,6 +162,24 @@ FText FNiagaraEmitterHandleViewModel::GetNameText() const
 	return FText();
 }
 
+FText FNiagaraEmitterHandleViewModel::GetSourceNameText() const
+{
+	if (EmitterHandle && EmitterHandle->GetSource())
+	{
+		return FText::FromString(EmitterHandle->GetSource()->GetName()); 
+	}
+	return FText();
+}
+
+FText FNiagaraEmitterHandleViewModel::GetSourcePathNameText() const
+{
+	if (EmitterHandle && EmitterHandle->GetSource())
+	{
+		return FText::FromString(EmitterHandle->GetSource()->GetPathName());
+	}
+	return FText();
+}
+
 void FNiagaraEmitterHandleViewModel::OnNameTextComitted(const FText& InText, ETextCommit::Type CommitInfo)
 {
 	SetName(*InText.ToString());
@@ -214,6 +238,19 @@ FNiagaraEmitterHandle* FNiagaraEmitterHandleViewModel::GetEmitterHandle()
 TSharedPtr<FNiagaraEmitterViewModel> FNiagaraEmitterHandleViewModel::GetEmitterViewModel()
 {
 	return EmitterViewModel;
+}
+
+
+void FNiagaraEmitterHandleViewModel::OpenSourceEmitter()
+{
+	if (EmitterHandle)
+	{
+		UNiagaraEmitter* EmitterSource = const_cast<UNiagaraEmitter*>(EmitterHandle->GetSource());
+		if (EmitterSource)
+		{
+			FAssetEditorManager::Get().OpenEditorForAsset(EmitterSource);
+		}
+	}
 }
 
 FNiagaraEmitterHandleViewModel::FOnPropertyChanged& FNiagaraEmitterHandleViewModel::OnPropertyChanged()

@@ -64,7 +64,7 @@ public:
 
 	virtual void AddItemDirectly() override { unimplemented(); }
 
-	virtual void GenerateAddActions(TArray<TSharedRef<INiagaraStackItemGroupAddAction>>& OutAddActions, const FNiagaraStackItemGroupAddOptions& AddProperties) const override
+	virtual void GenerateAddActions(TArray<TSharedRef<INiagaraStackItemGroupAddAction>>& OutAddActions) const override
 	{
 		TArray<UClass*> RendererClasses;
 		GetDerivedClasses(UNiagaraRendererProperties::StaticClass(), RendererClasses);

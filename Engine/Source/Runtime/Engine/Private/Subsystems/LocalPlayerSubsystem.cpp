@@ -6,4 +6,11 @@
 ULocalPlayerSubsystem::ULocalPlayerSubsystem()
 	: USubsystem()
 {
+
 }
+
+ULocalPlayer* ULocalPlayerSubsystem::GetLocalPlayer() const
+{
+	return Cast<ULocalPlayer>(GetOuter());
+}
+

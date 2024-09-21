@@ -32,7 +32,6 @@
 #include "Components/BoxReflectionCaptureComponent.h"
 #include "Engine/PlaneReflectionCapture.h"
 #include "Engine/BoxReflectionCapture.h"
-#include "EngineUtils.h"
 #include "Components/PlaneReflectionCaptureComponent.h"
 #include "Components/BoxComponent.h"
 #include "Components/SkyLightComponent.h"
@@ -58,16 +57,10 @@ ENGINE_API TAutoConsoleVariable<int32> CVarReflectionCaptureSize(
 	TEXT("Set the resolution for all reflection capture cubemaps. Should be set via project's Render Settings. Must be power of 2. Defaults to 128.\n")
 	);
 
-TAutoConsoleVariable<int32> CVarUpdateReflectionCaptureEveryFrame(
-	TEXT("r.UpdateReflectionCaptureEveryFrame"),
-	0,
-	TEXT("When set, reflection captures will constantly be scheduled for update.\n")
-);
-
 static int32 SanitizeReflectionCaptureSize(int32 ReflectionCaptureSize)
 {
-	const int32 MaxReflectionCaptureSize = GetMaxCubeTextureDimension();
-	const int32 MinReflectionCaptureSize = 1;
+	static const int32 MaxReflectionCaptureSize = 1024;
+	static const int32 MinReflectionCaptureSize = 1;
 
 	return FMath::Clamp(ReflectionCaptureSize, MinReflectionCaptureSize, MaxReflectionCaptureSize);
 }
@@ -123,7 +116,7 @@ void UReflectionCaptureComponent::PropagateLightingScenarioChange()
 AReflectionCapture::AReflectionCapture(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	CaptureComponent = CreateDefaultSubobject<UReflectionCaptureComponent>(TEXT("NewReflectionComponent"));
+	CaptureComponent = CreateAbstractDefaultSubobject<UReflectionCaptureComponent>(TEXT("NewReflectionComponent"));
 
 	bCanBeInCluster = true;
 
@@ -702,7 +695,7 @@ public:
 		return Size;
 	}
 
-	FRHITexture* GetTextureRHI() 
+	FTextureRHIParamRef GetTextureRHI() 
 	{
 		return TextureCubeRHI;
 	}
@@ -738,7 +731,7 @@ void UReflectionCaptureComponent::CreateRenderState_Concurrent()
 
 	UpdatePreviewShape();
 
-	if (ShouldComponentAddToScene() && ShouldRender())
+	if (ShouldRender())
 	{
 		GetWorld()->Scene->AddReflectionCapture(this);
 	}
@@ -752,7 +745,7 @@ void UReflectionCaptureComponent::SendRenderTransform_Concurrent()
 	{
 		UpdatePreviewShape();
 
-		if (ShouldComponentAddToScene() && ShouldRender())
+		if (ShouldRender())
 		{
 			GetWorld()->Scene->UpdateReflectionCaptureTransform(this);
 		}
@@ -1048,19 +1041,6 @@ void UReflectionCaptureComponent::UpdateReflectionCaptureContents(UWorld* WorldT
 	{
 		//guarantee that all render proxies are up to date before kicking off this render
 		WorldToUpdate->SendAllEndOfFrameUpdates();
-
-		if (CVarUpdateReflectionCaptureEveryFrame.GetValueOnGameThread())
-		{
-			for (FActorIterator It(WorldToUpdate); It; ++It)
-			{
-				TInlineComponentArray<UReflectionCaptureComponent*> Components;
-				(*It)->GetComponents(Components);
-				for (int32 ComponentIndex = 0; ComponentIndex < Components.Num(); ComponentIndex++)
-				{
-					Components[ComponentIndex]->MarkDirtyForRecapture(); // Continuously refresh reflection captures
-				}
-			}
-		}
 
 		TArray<UReflectionCaptureComponent*> WorldCombinedCaptures;
 

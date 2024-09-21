@@ -1987,6 +1987,11 @@ FAutoConsoleCommandWithWorld AbilitySystemPrevDebugTargetCmd(
 	FConsoleCommandWithWorldDelegate::CreateStatic(AbilitySystemCycleDebugTarget, false)
 	);
 
+static void	AbilitySystemDebugNextCategory(UWorld* InWorld, bool Next)
+{
+	CycleDebugTarget( GetDebugTargetInfo(InWorld), Next );
+}
+
 FAutoConsoleCommandWithWorld AbilitySystemDebugNextCategoryCmd(
 	TEXT("AbilitySystem.Debug.NextCategory"),
 	TEXT("Targets previous AbilitySystemComponent in ShowDebug AbilitySystem"),

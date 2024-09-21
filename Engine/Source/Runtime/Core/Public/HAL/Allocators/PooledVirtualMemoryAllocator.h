@@ -72,7 +72,7 @@ struct FPooledVirtualMemoryAllocator
 		FPoolDescriptorBase* Next;
 
 		/** Total size to be deallocated, which includes both pool memory and all the descriptor/bookkeeping memory */
-		SIZE_T VMSizeDivVirtualSizeAlignment;
+		SIZE_T TotalSize;
 	};
 
 	/** Returns free memory in the pools */

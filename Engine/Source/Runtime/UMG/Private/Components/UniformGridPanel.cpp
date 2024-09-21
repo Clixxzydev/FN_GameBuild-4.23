@@ -67,17 +67,9 @@ TSharedRef<SWidget> UUniformGridPanel::RebuildWidget()
 	return MyUniformGridPanel.ToSharedRef();
 }
 
-UUniformGridSlot* UUniformGridPanel::AddChildToUniformGrid(UWidget* Content, int32 InRow, int32 InColumn)
+UUniformGridSlot* UUniformGridPanel::AddChildToUniformGrid(UWidget* Content)
 {
-	UUniformGridSlot* GridSlot = Cast<UUniformGridSlot>(Super::AddChild(Content));
-
-	if (GridSlot != nullptr)
-	{
-		GridSlot->SetRow(InRow);
-		GridSlot->SetColumn(InColumn);
-	}
-
-	return GridSlot;
+	return Cast<UUniformGridSlot>(Super::AddChild(Content));
 }
 
 void UUniformGridPanel::SetSlotPadding(FMargin InSlotPadding)

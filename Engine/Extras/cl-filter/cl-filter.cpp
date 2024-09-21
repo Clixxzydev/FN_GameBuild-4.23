@@ -13,91 +13,33 @@
 
 void GetLocalizedIncludePrefixes(const wchar_t* CompilerPath, std::vector<std::vector<char>>& Prefixes);
 
-#define EXIT_CODE_SUCCESS 0
-#define EXIT_CODE_FAILURE -1
-
-#define OUTPUT_FILENAME_INDEX 1
-#define TIMING_FILENAME_INDEX 2
-#define COMPILER_FILENAME_INDEX_OFFSET 2
-#define MINIMUM_VALID_COMMAND_LINE_ARGS 4
-
-void PrintUsage()
-{
-	wprintf(L"Usage: cl-filter.exe -dependencies=<dependencies-file> -compiler=<compiler-file> [Optional Args] -- <child command line>\n");
-	wprintf(L"Optional Args:\n");
-	wprintf(L"\t-timing=<timing-file>\tThe file to write any timing data to.\n");
-}
-
-struct CommandLineArgs
-{
-	const wchar_t*	OutputFileName = nullptr;
-	const wchar_t*	TimingFileName = nullptr;
-	const wchar_t*	CompilerFileName = nullptr;
-};
-
-CommandLineArgs* ParseCommandLineArgs(int ArgC, const wchar_t* ArgV[])
-{
-	CommandLineArgs* ParsedArgs = new CommandLineArgs();
-	for (int i = 1; i < ArgC; ++i)
-	{
-		// If this arg is the splitter, we're done parsing args.
-		if (wcscmp(ArgV[i], L"--") == 0)
-		{
-			break;
-		}
-
-		// If it starts with a -, parse the arg.
-		if (ArgV[i][0] == '-')
-		{
-			if (wcsstr(ArgV[i], L"-dependencies=") != nullptr)
-			{
-				ParsedArgs->OutputFileName = ArgV[i] + 14;
-			}
-			else if (wcsstr(ArgV[i], L"-compiler=") != nullptr)
-			{
-				ParsedArgs->CompilerFileName = ArgV[i] + 10;
-			}
-			else if (wcsstr(ArgV[i], L"-timing=") != nullptr)
-			{
-				ParsedArgs->TimingFileName = ArgV[i] + 8;
-			}
-		}
-	}
-
-	return ParsedArgs;
-}
-
 int wmain(int ArgC, const wchar_t* ArgV[])
 {
+	// Get the full command line, and find the '--' marker
 	wchar_t* CmdLine = ::GetCommandLineW();
-	CommandLineArgs* ParsedArgs = ParseCommandLineArgs(ArgC, ArgV);
-	if (ParsedArgs->OutputFileName == nullptr)
-	{
-		wprintf(L"ERROR: No output file name was specified! (%s)\n\n", CmdLine);
-		PrintUsage();
-		return EXIT_CODE_FAILURE;
-	}
 
-	if (ParsedArgs->CompilerFileName == nullptr)
-	{
-		wprintf(L"ERROR: No compiler file name was found! (%s)\n\n", CmdLine);
-		PrintUsage();
-		return EXIT_CODE_FAILURE;
-	}
-
-	// Get the child command line.
-	wchar_t* ChildCmdLine = wcsstr(CmdLine, L" -- ");
+	wchar_t *ChildCmdLine = wcsstr(CmdLine, L" -- ");
 	if (ChildCmdLine == nullptr)
 	{
-		wprintf(L"ERROR: Unable to find child command line! (%s)\n\n", CmdLine);
-		PrintUsage();
-		return EXIT_CODE_FAILURE;
+		wprintf(L"ERROR: Unable to find child command line (%s)", CmdLine);
+		return -1;
 	}
 	ChildCmdLine += 4;
-	
+
+	// Make sure we've got an output file and compiler path
+	if (ArgC <= 4 || wcscmp(ArgV[2], L"--") != 0)
+	{
+		wprintf(L"ERROR: Syntax: cl-filter <dependencies-file> -- <child command line>\n");
+		return -1;
+	}
+
+	// Get the arguments we care about
+	const wchar_t* OutputFileName = ArgV[1];
+	const wchar_t* CompilerFileName = ArgV[3];
+
 	// Get all the possible localized string prefixes for /showIncludes output
-	std::vector<std::vector<char>> LocalizedIncludePrefixes;
-	GetLocalizedIncludePrefixes(ParsedArgs->CompilerFileName, LocalizedIncludePrefixes);
+	std::vector<std::vector<char>> LocalizedPrefixes;
+	GetLocalizedIncludePrefixes(CompilerFileName, LocalizedPrefixes);
 
 	// Create the child process
 	PROCESS_INFORMATION ProcessInfo;
@@ -112,14 +54,14 @@ int wmain(int ArgC, const wchar_t* ArgV[])
 	if (CreatePipe(&StdOutReadHandle, &StdOutWriteHandle, &SecurityAttributes, 0) == 0)
 	{
 		wprintf(L"ERROR: Unable to create output pipe for child process\n");
-		return EXIT_CODE_FAILURE;
+		return -1;
 	}
 
 	HANDLE StdErrWriteHandle;
 	if (DuplicateHandle(GetCurrentProcess(), StdOutWriteHandle, GetCurrentProcess(), &StdErrWriteHandle, 0, true, DUPLICATE_SAME_ACCESS) == 0)
 	{
 		wprintf(L"ERROR: Unable to create stderr pipe handle for child process\n");
-		return EXIT_CODE_FAILURE;
+		return -1;
 	}
 
 	// Create the new process as suspended, so we can modify it before it starts executing (and potentially preempting us)
@@ -135,7 +77,7 @@ int wmain(int ArgC, const wchar_t* ArgV[])
 	if (CreateProcessW(NULL, ChildCmdLine, NULL, NULL, TRUE, ProcessCreationFlags, NULL, NULL, &StartupInfo, &ProcessInfo) == 0)
 	{
 		wprintf(L"ERROR: Unable to create child process\n");
-		return EXIT_CODE_FAILURE;
+		return -1;
 	}
 
 	// Close the startup thread handle; we don't need it.
@@ -145,49 +87,25 @@ int wmain(int ArgC, const wchar_t* ArgV[])
 	CloseHandle(StdOutWriteHandle);
 	CloseHandle(StdErrWriteHandle);
 
-	// Delete the output file.
-	DeleteFileW(ParsedArgs->OutputFileName);
+	// Delete the output file
+	DeleteFileW(OutputFileName);
 
-	// Delete the timing file if needed.
-	if (ParsedArgs->TimingFileName != nullptr)
-	{
-		DeleteFileW(ParsedArgs->TimingFileName);
-	}
-
-	// Get the path to a temporary output filename.
-	std::wstring TempOutputFileName(ParsedArgs->OutputFileName);
+	// Get the path to a temporary output filename
+	std::wstring TempOutputFileName(OutputFileName);
 	TempOutputFileName += L".tmp";
 
-	// Get the path to a temporary timing filename.
-	std::wstring TempTimingFileName(ParsedArgs->TimingFileName == nullptr ? L"" : ParsedArgs->TimingFileName);
-	TempTimingFileName += L".tmp";
-
-	// Create a file to contain the dependency list.
+	// Create a file to contain the dependency list
 	HANDLE OutputFile = CreateFileW(TempOutputFileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	if(OutputFile == INVALID_HANDLE_VALUE)
 	{
 		wprintf(L"ERROR: Unable to open %s for output", TempOutputFileName.c_str());
-		return EXIT_CODE_FAILURE;
-	}
-
-	// If needed, create a file to contain unparsed timing info.
-	HANDLE TimingFile = INVALID_HANDLE_VALUE;
-	if (ParsedArgs->TimingFileName != nullptr)
-	{
-		TimingFile = CreateFileW(TempTimingFileName.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (TimingFile == INVALID_HANDLE_VALUE)
-		{
-			wprintf(L"ERROR: Unable to open %s for output", TempTimingFileName.c_str());
-			return EXIT_CODE_FAILURE;
-		}
+		return -1;
 	}
 
 	// Pipe the output to stdout
 	char Buffer[1024];
 	size_t BufferSize = 0;
 
-	bool InTimingInfo = false;
-	int TimingLinesToCapture = 0;
 	for (;;)
 	{
 		// Read the next chunk of data from the output stream
@@ -232,7 +150,7 @@ int wmain(int ArgC, const wchar_t* ArgV[])
 			}
 
 			// Filter out any lines that have the "Note: including file: " prefix.
-			for (const std::vector<char>& LocalizedPrefix : LocalizedIncludePrefixes)
+			for (const std::vector<char>& LocalizedPrefix : LocalizedPrefixes)
 			{
 				if (memcmp(Buffer + LineStart, LocalizedPrefix.data(), LocalizedPrefix.size() - 1) == 0)
 				{
@@ -246,27 +164,6 @@ int wmain(int ArgC, const wchar_t* ArgV[])
 					WriteFile(OutputFile, Buffer + FileNameStart, (DWORD)(LineEnd - FileNameStart), &BytesWritten, NULL);
 					LineStart = LineEnd;
 					break;
-				}
-			}
-
-			// Handling timing info parsing if needed.
-			if (ParsedArgs->TimingFileName != nullptr && LineStart < LineEnd)
-			{
-				// See if we've moved into a block of timing information. Order is always Headers -> Classes -> Functions, so to keep for loops to a minimum,
-				//   handle by what our current state is.
-				const char StartTimingInfoText[] = "Include Headers:";
-				
-				if (!InTimingInfo && memcmp(Buffer + LineStart, StartTimingInfoText, 16) == 0)
-				{
-					InTimingInfo = true;	
-				}
-
-				if (InTimingInfo)
-				{
-					DWORD BytesWritten;
-					WriteFile(TimingFile, Buffer + LineStart, (DWORD)(LineEnd - LineStart), &BytesWritten, NULL);
-					LineStart = LineEnd;
-					continue;
 				}
 			}
 
@@ -291,25 +188,15 @@ int wmain(int ArgC, const wchar_t* ArgV[])
 	DWORD ExitCode;
 	if (!GetExitCodeProcess(ProcessInfo.hProcess, &ExitCode))
 	{
-		ExitCode = (DWORD)EXIT_CODE_FAILURE;
+		ExitCode = (DWORD)-1;
 	}
 
 	CloseHandle(OutputFile);
 
-	if (ExitCode == 0 && !MoveFileW(TempOutputFileName.c_str(), ParsedArgs->OutputFileName))
+	if (ExitCode == 0 && !MoveFileW(TempOutputFileName.c_str(), OutputFileName))
 	{
-		wprintf(L"ERROR: Unable to rename %s to %s\n", TempOutputFileName.c_str(), ParsedArgs->OutputFileName);
+		wprintf(L"ERROR: Unable to rename %s to %s\n", TempOutputFileName.c_str(), OutputFileName);
 		ExitCode = 1;
-	}
-
-	if (ParsedArgs->TimingFileName != nullptr)
-	{
-		CloseHandle(TimingFile);
-		if (ExitCode == 0 && !MoveFileW(TempTimingFileName.c_str(), ParsedArgs->TimingFileName))
-		{
-			wprintf(L"ERROR: Unable to rename %s to %s\n", TempTimingFileName.c_str(), ParsedArgs->TimingFileName);
-			ExitCode = 1;
-		}
 	}
 
 	return ExitCode;

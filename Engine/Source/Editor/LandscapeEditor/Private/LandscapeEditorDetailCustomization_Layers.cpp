@@ -127,7 +127,19 @@ void FLandscapeEditorCustomNodeBuilder_Layers::SetOnRebuildChildren(FSimpleDeleg
 
 void FLandscapeEditorCustomNodeBuilder_Layers::GenerateHeaderRowContent(FDetailWidgetRow& NodeRow)
 {
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 
+	if (LandscapeEdMode == NULL)
+	{
+		return;
+	}
+
+	NodeRow.NameWidget
+		[
+			SNew(STextBlock)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.Text(FText::FromString(TEXT("Layers")))
+		];
 }
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -343,80 +355,7 @@ void FLandscapeEditorCustomNodeBuilder_Layers::SetLayerName(const FText& InText,
 	{
 		const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_Rename", "Rename Layer"));
 		LandscapeEdMode->SetLayerName(InLayerIndex, *InText.ToString());
-		OnLayerSelectionChanged(InLayerIndex);
 	}
-}
-
-
-void FLandscapeEditorCustomNodeBuilder_Layers::FillAddBrushMenu(FMenuBuilder& MenuBuilder, TArray<ALandscapeBlueprintBrushBase*> Brushes)
-{
-	for (ALandscapeBlueprintBrushBase* Brush : Brushes)
-	{
-		TSharedRef<FLandscapeEditorCustomNodeBuilder_Layers> SharedThis = AsShared();
-		FUIAction AddAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, Brush]() { SharedThis->AddBrushToCurrentLayer(Brush); }));
-		MenuBuilder.AddMenuEntry(FText::FromString(Brush->GetActorLabel()), FText(), FSlateIcon(), AddAction);
-	}
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::FillClearPaintLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex, TArray<ULandscapeLayerInfoObject*> InUsedLayerInfos)
-{
-	// Clear All Weightmap Data
-	TSharedRef<FLandscapeEditorCustomNodeBuilder_Layers> SharedThis = AsShared();
-	FUIAction ClearAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex]() { SharedThis->ClearLayer(InLayerIndex, ELandscapeClearMode::Clear_Weightmap); }));
-	MenuBuilder.AddMenuEntry(LOCTEXT("LandscapeClearAllWeightmap", "All"), FText(), FSlateIcon(), ClearAction);
-	MenuBuilder.AddMenuSeparator();
-
-	// Clear Per LayerInfo
-	for (ULandscapeLayerInfoObject* LayerInfo : InUsedLayerInfos)
-	{
-		FUIAction ClearLayerInfoAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex, LayerInfo]() { SharedThis->ClearPaintLayer(InLayerIndex, LayerInfo); }));
-		MenuBuilder.AddMenuEntry(FText::FromName(LayerInfo->LayerName), FText(), FSlateIcon(), ClearLayerInfoAction);
-	}
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::FillClearLayerMenu(FMenuBuilder& MenuBuilder, int32 InLayerIndex)
-{
-	TSharedRef<FLandscapeEditorCustomNodeBuilder_Layers> SharedThis = AsShared();
-	const UEnum* EnumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("ELandscapeClearMode"), true);
-	if (ensure(EnumPtr != nullptr))
-	{
-		// NumEnums()-1 to exclude Enum Max Value
-		for (int32 i = 0; i < EnumPtr->NumEnums()-1; ++i)
-		{
-			ELandscapeClearMode EnumValue = (ELandscapeClearMode)EnumPtr->GetValueByIndex(i);
-			if(EnumValue == ELandscapeClearMode::Clear_Weightmap)
-			{
-				TArray<ULandscapeLayerInfoObject*> UsedLayerInfos;
-				FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-				check(LandscapeEdMode);
-				ALandscape* Landscape = LandscapeEdMode->GetLandscape();
-				check(Landscape);
-
-				Landscape->GetUsedPaintLayers(InLayerIndex, UsedLayerInfos);
-				if (UsedLayerInfos.Num() > 0)
-				{
-					MenuBuilder.AddSubMenu(
-						EnumPtr->GetDisplayNameTextByIndex(i),
-						FText(),
-						FNewMenuDelegate::CreateSP(this, &FLandscapeEditorCustomNodeBuilder_Layers::FillClearPaintLayerMenu, InLayerIndex, UsedLayerInfos),
-						false,
-						FSlateIcon()
-					);
-				}
-			}
-			else
-			{
-				FUIAction ClearAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex, EnumValue]() { SharedThis->ClearLayer(InLayerIndex, EnumValue); }));
-				MenuBuilder.AddMenuEntry(EnumPtr->GetDisplayNameTextByIndex(i), FText(), FSlateIcon(), ClearAction);
-			}
-		}
-	}
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::AddBrushToCurrentLayer(ALandscapeBlueprintBrushBase* Brush)
-{
-	const FScopedTransaction Transaction(LOCTEXT("LandscapeBrushAddToCurrentLayerTransaction", "Add brush to current layer"));
-	GetEditorMode()->AddBrushToCurrentLayer(Brush);
 }
 
 TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_Layers::OnLayerContextMenuOpening(int32 InLayerIndex)
@@ -444,13 +383,8 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_Layers::OnLayerContextMenu
 				if (!Layer->bLocked)
 				{
 					// Clear Layer
-					MenuBuilder.AddSubMenu(
-						LOCTEXT("LandscapeEditorClearLayerSubMenu", "Clear"),
-						FText(),
-						FNewMenuDelegate::CreateSP(this, &FLandscapeEditorCustomNodeBuilder_Layers::FillClearLayerMenu, InLayerIndex),
-						false,
-						FSlateIcon()
-					);
+					FUIAction ClearLayerAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->ClearLayer(InLayerIndex); }));
+					MenuBuilder.AddMenuEntry(LOCTEXT("ClearLayer", "Clear..."), LOCTEXT("ClearLayerTooltip", "Clear Layer"), FSlateIcon(), ClearLayerAction);
 
 					// Delete Layer
 					FUIAction DeleteLayerAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->DeleteLayer(InLayerIndex); }), FCanExecuteAction::CreateLambda([Landscape] { return Landscape->LandscapeLayers.Num() > 1; }));
@@ -468,9 +402,6 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_Layers::OnLayerContextMenu
 				{
 					FUIAction RemoveReserveLayerAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->SetLandscapeSplinesReservedLayer(INDEX_NONE); }));
 					MenuBuilder.AddMenuEntry(LOCTEXT("RemoveReserveLayerForSplines", "Remove Reserve for Splines"), LOCTEXT("RemoveReserveLayerForSplinesTooltip", "Remove reservation of Layer for Landscape Splines"), FSlateIcon(), RemoveReserveLayerAction);
-
-					FUIAction ForceUpdateSplinesAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->ForceUpdateSplines(); }));
-					MenuBuilder.AddMenuEntry(LOCTEXT("UpdateSplines", "Update Splines"), LOCTEXT("UpdateSplinesTooltip", "Update Landscape Splines"), FSlateIcon(), ForceUpdateSplinesAction);
 				}
 			}
 		}
@@ -484,18 +415,18 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_Layers::OnLayerContextMenu
 				{
 					// Hide Selected Layer
 					FUIAction HideSelectedLayerAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->OnToggleVisibility(InLayerIndex); }));
-					MenuBuilder.AddMenuEntry(LOCTEXT("HideSelected", "Hide Selected"), LOCTEXT("HideSelectedLayerTooltip", "Hide Selected Layer"), FSlateIcon(), HideSelectedLayerAction);
+					MenuBuilder.AddMenuEntry(LOCTEXT("HideSelectedLayer", "Hide Selected"), LOCTEXT("HideSelectedLayerTooltip", "Hide Selected Layer"), FSlateIcon(), HideSelectedLayerAction);
 				}
 				else
 				{
 					// Show Selected Layer
 					FUIAction ShowSelectedLayerAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->OnToggleVisibility(InLayerIndex); }));
-					MenuBuilder.AddMenuEntry(LOCTEXT("ShowSelected", "Show Selected"), LOCTEXT("ShowSelectedLayerTooltip", "Show Selected Layer"), FSlateIcon(), ShowSelectedLayerAction);
+					MenuBuilder.AddMenuEntry(LOCTEXT("ShowSelectedLayer", "Show Selected"), LOCTEXT("ShowSelectedLayerTooltip", "Show Selected Layer"), FSlateIcon(), ShowSelectedLayerAction);
 				}
 
 				// Show Only Selected Layer
 				FUIAction ShowOnlySelectedLayerAction = FUIAction(FExecuteAction::CreateLambda([SharedThis, InLayerIndex] { SharedThis->ShowOnlySelectedLayer(InLayerIndex); }));
-				MenuBuilder.AddMenuEntry(LOCTEXT("ShowOnlySelected", "Show Only Selected"), LOCTEXT("ShowOnlySelectedLayerTooltip", "Show Only Selected Layer"), FSlateIcon(), ShowOnlySelectedLayerAction);
+				MenuBuilder.AddMenuEntry(LOCTEXT("ShowOnlySelectedLayer", "Show Only Selected"), LOCTEXT("ShowOnlySelectedLayerTooltip", "Show Only Selected Layer"), FSlateIcon(), ShowOnlySelectedLayerAction);
 			}
 
 			// Show All Layers
@@ -504,38 +435,9 @@ TSharedPtr<SWidget> FLandscapeEditorCustomNodeBuilder_Layers::OnLayerContextMenu
 		}
 		MenuBuilder.EndSection();
 
-		const TArray<ALandscapeBlueprintBrushBase*>& Brushes = LandscapeEdMode->GetBrushList();
-		TArray<ALandscapeBlueprintBrushBase*> FilteredBrushes = Brushes.FilterByPredicate([](ALandscapeBlueprintBrushBase* Brush) { return Brush->GetOwningLandscape() == nullptr; });
-		if (FilteredBrushes.Num())
-		{
-			MenuBuilder.BeginSection("LandscapeEditorBrushActions", LOCTEXT("LandscapeEditorBrushActions.Heading", "Brushes"));
-			{
-				MenuBuilder.AddSubMenu(
-					LOCTEXT("LandscaeEditorBrushAddSubMenu", "Add"),
-					LOCTEXT("LandscaeEditorBrushAddSubMenuToolTip", "Add brush to current layer"),
-					FNewMenuDelegate::CreateSP(this, &FLandscapeEditorCustomNodeBuilder_Layers::FillAddBrushMenu, FilteredBrushes),
-					false,
-					FSlateIcon()
-				);
-			}
-			MenuBuilder.EndSection();
-		}
-
 		return MenuBuilder.MakeWidget();
 	}
-	return nullptr;
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::ForceUpdateSplines()
-{
-	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
-	if (Landscape && Landscape->HasLayersContent() && Landscape->GetLandscapeSplinesReservedLayer())
-	{
-		const bool bUpdateOnlySelection = false;
-		const bool bForceUpdate = true;
-		Landscape->UpdateLandscapeSplines(FGuid(), bUpdateOnlySelection, bForceUpdate);
-	}
+	return NULL;
 }
 
 void FLandscapeEditorCustomNodeBuilder_Layers::SetLandscapeSplinesReservedLayer(int32 InLayerIndex)
@@ -564,7 +466,6 @@ void FLandscapeEditorCustomNodeBuilder_Layers::SetLandscapeSplinesReservedLayer(
 				Landscape->SetLandscapeSplinesReservedLayer(InLayerIndex);
 				LandscapeEdMode->RefreshDetailPanel();
 				LandscapeEdMode->AutoUpdateDirtyLandscapeSplines();
-				OnLayerSelectionChanged(InLayerIndex);
 			}
 		}
 	}
@@ -578,27 +479,7 @@ void FLandscapeEditorCustomNodeBuilder_Layers::RenameLayer(int32 InLayerIndex)
 	}
 }
 
-void FLandscapeEditorCustomNodeBuilder_Layers::ClearPaintLayer(int32 InLayerIndex, ULandscapeLayerInfoObject* InLayerInfo)
-{
-	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
-	if (Landscape)
-	{
-		FLandscapeLayer* Layer = LandscapeEdMode->GetLayer(InLayerIndex);
-		if (Layer)
-		{
-			EAppReturnType::Type Result = FMessageDialog::Open(EAppMsgType::YesNo, FText::Format(LOCTEXT("Landscape_ClearPaintLayer_Message", "The layer {0} : {1} content will be completely cleared.  Continue?"), FText::FromName(Layer->Name), FText::FromName(InLayerInfo->LayerName)));
-			if (Result == EAppReturnType::Yes)
-			{
-				const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_PaintClear", "Clear Paint Layer"));
-				Landscape->ClearPaintLayer(InLayerIndex, InLayerInfo);
-				LandscapeEdMode->RequestUpdateShownLayerList();
-			}
-		}
-	}
-}
-
-void FLandscapeEditorCustomNodeBuilder_Layers::ClearLayer(int32 InLayerIndex, ELandscapeClearMode InClearMode)
+void FLandscapeEditorCustomNodeBuilder_Layers::ClearLayer(int32 InLayerIndex)
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
 	ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
@@ -611,12 +492,7 @@ void FLandscapeEditorCustomNodeBuilder_Layers::ClearLayer(int32 InLayerIndex, EL
 			if (Result == EAppReturnType::Yes)
 			{
 				const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_Clean", "Clear Layer"));
-				Landscape->ClearLayer(InLayerIndex, nullptr, InClearMode);
-				OnLayerSelectionChanged(InLayerIndex);
-				if (InClearMode & ELandscapeClearMode::Clear_Weightmap)
-				{
-					LandscapeEdMode->RequestUpdateShownLayerList();
-				}
+				Landscape->ClearLayer(InLayerIndex);
 			}
 		}
 	}
@@ -652,7 +528,6 @@ void FLandscapeEditorCustomNodeBuilder_Layers::ShowOnlySelectedLayer(int32 InLay
 	{
 		const FScopedTransaction Transaction(LOCTEXT("ShowOnlySelectedLayer", "Show Only Selected Layer"));
 		Landscape->ShowOnlySelectedLayer(InLayerIndex);
-		OnLayerSelectionChanged(InLayerIndex);
 	}
 }
 
@@ -669,23 +544,22 @@ void FLandscapeEditorCustomNodeBuilder_Layers::ShowAllLayers()
 
 void FLandscapeEditorCustomNodeBuilder_Layers::CreateLayer()
 {
-FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
-if (Landscape)
-{
+	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
+	ALandscape* Landscape = LandscapeEdMode ? LandscapeEdMode->GetLandscape() : nullptr;
+	if (Landscape)
 	{
-		const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_Create", "Create Layer"));
-		Landscape->CreateLayer();
-		OnLayerSelectionChanged(Landscape->GetLayerCount() - 1);
+		{
+			const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_Create", "Create Layer"));
+			Landscape->CreateLayer();
+		}
+		LandscapeEdMode->RefreshDetailPanel();
 	}
-	LandscapeEdMode->RefreshDetailPanel();
-}
 }
 
 void FLandscapeEditorCustomNodeBuilder_Layers::OnLayerSelectionChanged(int32 InLayerIndex)
 {
 	FEdModeLandscape* LandscapeEdMode = GetEditorMode();
-	if (LandscapeEdMode && LandscapeEdMode->GetCurrentLayerIndex() != InLayerIndex)
+	if (LandscapeEdMode)
 	{
 		FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_SetCurrentLayer", "Set Current Layer"));
 		LandscapeEdMode->SetCurrentLayer(InLayerIndex);
@@ -729,10 +603,6 @@ FReply FLandscapeEditorCustomNodeBuilder_Layers::OnToggleVisibility(int32 InLaye
 	{
 		const FScopedTransaction Transaction(LOCTEXT("Landscape_Layers_SetVisibility", "Set Layer Visibility"));
 		LandscapeEdMode->SetLayerVisibility(!LandscapeEdMode->IsLayerVisible(InLayerIndex), InLayerIndex);
-		if (LandscapeEdMode->IsLayerVisible(InLayerIndex))
-		{
-			OnLayerSelectionChanged(InLayerIndex);
-		}
 	}
 	return FReply::Handled();
 }
@@ -823,6 +693,7 @@ FReply FLandscapeEditorCustomNodeBuilder_Layers::HandleAcceptDrop(FDragDropEvent
 			{
 				LandscapeEdMode->SetCurrentLayer(DestinationLayerIndex);
 				LandscapeEdMode->RefreshDetailPanel();
+				LandscapeEdMode->RequestLayersContentUpdateForceAll();
 				return FReply::Handled();
 			}
 		}

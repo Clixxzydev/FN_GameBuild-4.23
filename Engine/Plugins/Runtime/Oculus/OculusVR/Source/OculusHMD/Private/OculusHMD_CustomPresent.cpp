@@ -23,16 +23,21 @@ namespace OculusHMD
 // FCustomPresent
 //-------------------------------------------------------------------------------------------------
 
-FCustomPresent::FCustomPresent(class FOculusHMD* InOculusHMD, ovrpRenderAPIType InRenderAPI, EPixelFormat InDefaultPixelFormat, bool bInSupportsSRGB)
+FCustomPresent::FCustomPresent(class FOculusHMD* InOculusHMD, ovrpRenderAPIType InRenderAPI, EPixelFormat InDefaultPixelFormat, bool bInSupportsSRGB, bool bInSupportsDepth)
 	: OculusHMD(InOculusHMD)
 	, RenderAPI(InRenderAPI)
 	, DefaultPixelFormat(InDefaultPixelFormat)
 	, bSupportsSRGB(bInSupportsSRGB)
+#if PLATFORM_ANDROID
+	, bSupportsDepth(false)
+#else
+	, bSupportsDepth(bInSupportsDepth)
+#endif
 {
 	CheckInGameThread();
 
 	DefaultOvrpTextureFormat = GetOvrpTextureFormat(GetDefaultPixelFormat());
-	DefaultDepthOvrpTextureFormat = ovrpTextureFormat_None;
+	DefaultDepthOvrpTextureFormat = bSupportsDepth ? ovrpTextureFormat_D32_S824_FP : ovrpTextureFormat_None;
 
 	// grab a pointer to the renderer module for displaying our mirror window
 	static const FName RendererModuleName("Renderer");
@@ -276,7 +281,7 @@ int FCustomPresent::GetSystemRecommendedMSAALevel() const
 }
 
 
-FXRSwapChainPtr FCustomPresent::CreateSwapChain_RenderThread(uint32 InSizeX, uint32 InSizeY, EPixelFormat InFormat, FClearValueBinding InBinding, uint32 InNumMips, uint32 InNumSamples, uint32 InNumSamplesTileMem, ERHIResourceType InResourceType, const TArray<ovrpTextureHandle>& InTextures, uint32 InTexCreateFlags)
+FTextureSetProxyPtr FCustomPresent::CreateTextureSetProxy_RenderThread(uint32 InSizeX, uint32 InSizeY, EPixelFormat InFormat, FClearValueBinding InBinding, uint32 InNumMips, uint32 InNumSamples, uint32 InNumSamplesTileMem, ERHIResourceType InResourceType, const TArray<ovrpTextureHandle>& InTextures, uint32 InTexCreateFlags)
 {
 	CheckInRenderThread();
 
@@ -293,19 +298,19 @@ FXRSwapChainPtr FCustomPresent::CreateSwapChain_RenderThread(uint32 InSizeX, uin
 		}
 	}
 
-	return CreateXRSwapChain(MoveTemp(RHITextureSwapChain), RHITexture);
+	return MakeShareable(new FTextureSetProxy(RHITexture, RHITextureSwapChain));
 }
 
 
-void FCustomPresent::CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture* DstTexture, FRHITexture* SrcTexture,
+void FCustomPresent::CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdList, FTextureRHIParamRef DstTexture, FTextureRHIParamRef SrcTexture,
 	FIntRect DstRect, FIntRect SrcRect, bool bAlphaPremultiply, bool bNoAlphaWrite, bool bInvertY, bool sRGBSource) const
 {
 	CheckInRenderThread();
 
-	FRHITexture2D* DstTexture2D = DstTexture->GetTexture2D();
-	FRHITextureCube* DstTextureCube = DstTexture->GetTextureCube();
-	FRHITexture2D* SrcTexture2D = SrcTexture->GetTexture2D();
-	FRHITextureCube* SrcTextureCube = SrcTexture->GetTextureCube();
+	FTexture2DRHIParamRef DstTexture2D = DstTexture->GetTexture2D();
+	FTextureCubeRHIParamRef DstTextureCube = DstTexture->GetTextureCube();
+	FTexture2DRHIParamRef SrcTexture2D = SrcTexture->GetTexture2D();
+	FTextureCubeRHIParamRef SrcTextureCube = SrcTexture->GetTextureCube();
 
 	FIntPoint DstSize;
 	FIntPoint SrcSize;
@@ -406,7 +411,7 @@ void FCustomPresent::CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdLi
 			}
 
 			RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
-			FRHISamplerState* SamplerState = DstRect.Size() == SrcRect.Size() ? TStaticSamplerState<SF_Point>::GetRHI() : TStaticSamplerState<SF_Bilinear>::GetRHI();
+			FSamplerStateRHIParamRef SamplerState = DstRect.Size() == SrcRect.Size() ? TStaticSamplerState<SF_Point>::GetRHI() : TStaticSamplerState<SF_Bilinear>::GetRHI();
 
 			if (!sRGBSource)
 			{
@@ -455,7 +460,7 @@ void FCustomPresent::CopyTexture_RenderThread(FRHICommandListImmediate& RHICmdLi
 				TShaderMapRef<FOculusCubemapPS> PixelShader(ShaderMap);
 				GraphicsPSOInit.BoundShaderState.PixelShaderRHI = GETSAFERHISHADER_PIXEL(*PixelShader);
 				SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit);
-				FRHISamplerState* SamplerState = DstRect.Size() == SrcRect.Size() ? TStaticSamplerState<SF_Point>::GetRHI() : TStaticSamplerState<SF_Bilinear>::GetRHI();
+				FSamplerStateRHIParamRef SamplerState = DstRect.Size() == SrcRect.Size() ? TStaticSamplerState<SF_Point>::GetRHI() : TStaticSamplerState<SF_Bilinear>::GetRHI();
 				PixelShader->SetParameters(RHICmdList, SamplerState, SrcTextureRHI, FaceIndex);
 
 				RHICmdList.SetViewport(DstRect.Min.X, DstRect.Min.Y, 0.0f, DstRect.Max.X, DstRect.Max.Y, 1.0f);

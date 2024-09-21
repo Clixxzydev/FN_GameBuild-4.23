@@ -122,7 +122,6 @@ FEditorDelegates::FOnMapOpened							FEditorDelegates::OnMapOpened;
 FEditorDelegates::FOnEditorCameraMoved					FEditorDelegates::OnEditorCameraMoved;
 FEditorDelegates::FOnDollyPerspectiveCamera				FEditorDelegates::OnDollyPerspectiveCamera;
 FSimpleMulticastDelegate								FEditorDelegates::OnShutdownPostPackagesSaved;
-FEditorDelegates::FOnAssetsCanDelete					FEditorDelegates::OnAssetsCanDelete;
 FEditorDelegates::FOnAssetsPreDelete					FEditorDelegates::OnAssetsPreDelete;
 FEditorDelegates::FOnAssetsDeleted						FEditorDelegates::OnAssetsDeleted;
 FEditorDelegates::FOnAssetDragStarted					FEditorDelegates::OnAssetDragStarted;
@@ -203,8 +202,6 @@ void FReimportManager::UpdateReimportPaths( UObject* Obj, const TArray<FString>&
 {
 	if (Obj)
 	{
-		SortHandlersIfNeeded();
-
 		TArray<FString> UnusedExistingFilenames;
 		auto* Handler = Handlers.FindByPredicate([&](FReimportHandler* InHandler){ return InHandler->CanReimport(Obj, UnusedExistingFilenames); });
 		if (Handler)
@@ -219,8 +216,6 @@ void FReimportManager::UpdateReimportPath(UObject* Obj, const FString& Filename,
 {
 	if (Obj)
 	{
-		SortHandlersIfNeeded();
-
 		TArray<FString> UnusedExistingFilenames;
 		auto* Handler = Handlers.FindByPredicate([&](FReimportHandler* InHandler) { return InHandler->CanReimport(Obj, UnusedExistingFilenames); });
 		if (Handler)
@@ -249,8 +244,13 @@ bool FReimportManager::Reimport( UObject* Obj, bool bAskForNewFileIfMissing, boo
 	bool bSuccess = false;
 	if ( Obj )
 	{
-		SortHandlersIfNeeded();
-
+		if (bHandlersNeedSorting)
+		{
+			// Use > operator because we want higher priorities earlier in the list
+			Handlers.Sort([](const FReimportHandler& A, const FReimportHandler& B) { return A.GetPriority() > B.GetPriority(); });
+			bHandlersNeedSorting = false;
+		}
+		
 		bool bValidSourceFilename = false;
 		TArray<FString> SourceFilenames;
 
@@ -329,32 +329,16 @@ bool FReimportManager::Reimport( UObject* Obj, bool bAskForNewFileIfMissing, boo
 						GetNewReimportPath(Obj, SourceFilenames, FileIndex);
 					}
 				}
-				bool bAllSourceFileEmpty = true;
-				for (int32 SourceIndex = 0; SourceIndex < SourceFilenames.Num(); ++SourceIndex)
-				{
-					if (!SourceFilenames[SourceIndex].IsEmpty())
-					{
-						bAllSourceFileEmpty = false;
-						break;
-					}
-				}
-				if ( SourceFilenames.Num() == 0 || bAllSourceFileEmpty)
+				if ( SourceFilenames.Num() == 0 )
 				{
 					// Failed to specify a new filename. Don't show a notification of the failure since the user exited on his own
 					bValidSourceFilename = false;
 					bShowNotification = false;
-					SourceFilenames.Empty();
 				}
 				else
 				{
 					// A new filename was supplied, update the path
-					for (int32 SourceIndex = 0; SourceIndex < SourceFilenames.Num(); ++SourceIndex)
-					{
-						if (!SourceFilenames[SourceIndex].IsEmpty())
-						{
-							CanReimportHandler->SetReimportPaths(Obj, SourceFilenames[SourceIndex], SourceIndex);
-						}
-					}
+					CanReimportHandler->SetReimportPaths(Obj, SourceFilenames[0], SourceFileIndex);
 				}
 			}
 			else if (!PreferredReimportFile.IsEmpty() && !SourceFilenames.Contains(PreferredReimportFile))
@@ -585,16 +569,6 @@ void FReimportManager::AddReferencedObjects( FReferenceCollector& Collector )
 	}
 }
 
-void FReimportManager::SortHandlersIfNeeded()
-{
-	if (bHandlersNeedSorting)
-	{
-		// Use > operator because we want higher priorities earlier in the list
-		Handlers.Sort([](const FReimportHandler& A, const FReimportHandler& B) { return A.GetPriority() > B.GetPriority(); });
-		bHandlersNeedSorting = false;
-	}
-}
-
 bool FReimportManager::ReimportMultiple(TArrayView<UObject*> Objects, bool bAskForNewFileIfMissing /*= false*/, bool bShowNotification /*= true*/, FString PreferredReimportFile /*= TEXT("")*/, FReimportHandler* SpecifiedReimportHandler /*= nullptr */, int32 SourceFileIndex /*= INDEX_NONE*/)
 {
 	bool bBulkSuccess = true;
@@ -620,7 +594,6 @@ bool FReimportManager::ReimportMultiple(TArrayView<UObject*> Objects, bool bAskF
 
 void FReimportManager::GetNewReimportPath(UObject* Obj, TArray<FString>& InOutFilenames, int32 SourceFileIndex /*= INDEX_NONE*/)
 {
-	int32 RealSourceFileIndex = SourceFileIndex == INDEX_NONE ? 0 : SourceFileIndex;
 	TArray<UObject*> ReturnObjects;
 	FString FileTypes;
 	FString AllExtensions;
@@ -636,19 +609,8 @@ void FReimportManager::GetNewReimportPath(UObject* Obj, TArray<FString>& InOutFi
 	}
 
 	// Determine whether we will allow multi select and clear old filenames
-	bool bAllowMultiSelect = SourceFileIndex == INDEX_NONE && InOutFilenames.Num() > 1;
-	if (bAllowMultiSelect)
-	{
-		InOutFilenames.Empty();
-	}
-	else
-	{
-		if (!InOutFilenames.IsValidIndex(RealSourceFileIndex))
-		{
-			InOutFilenames.AddZeroed(RealSourceFileIndex - InOutFilenames.Num() + 1);
-		}
-		InOutFilenames[RealSourceFileIndex].Empty();
-	}
+	bool bAllowMultiSelect = InOutFilenames.Num() > 1;
+	InOutFilenames.Empty();
 
 	// Get the list of valid factories
 	for( TObjectIterator<UClass> It ; It ; ++It )
@@ -738,20 +700,9 @@ void FReimportManager::GetNewReimportPath(UObject* Obj, TArray<FString>& InOutFi
 
 	if ( bOpened )
 	{
-		if (bAllowMultiSelect)
+		for (int32 FileIndex = 0; FileIndex < OpenFilenames.Num(); ++FileIndex)
 		{
-			for (int32 FileIndex = 0; FileIndex < OpenFilenames.Num(); ++FileIndex)
-			{
-				InOutFilenames.Add(OpenFilenames[FileIndex]);
-			}
-		}
-		else
-		{
-			//Use the first valid entry
-			if(OpenFilenames.Num() > 0)
-			{
-				InOutFilenames[RealSourceFileIndex] = OpenFilenames[0];
-			}
+			InOutFilenames.Add(OpenFilenames[FileIndex]);
 		}
 	}
 }
@@ -1266,8 +1217,7 @@ namespace EditorUtilities
 
 			if( !bIsTransient && !bIsIdentical && !bIsComponentContainer && !bIsComponentProp && !bIsBlueprintReadonly)
 			{
-				const bool bIsSafeToCopy = (!( Options.Flags & ECopyOptions::OnlyCopyEditOrInterpProperties ) || ( Property->HasAnyPropertyFlags( CPF_Edit | CPF_Interp ) ))
-				                        && (!( Options.Flags & ECopyOptions::SkipInstanceOnlyProperties) || ( !Property->HasAllPropertyFlags(CPF_DisableEditOnTemplate) ) );
+				const bool bIsSafeToCopy = !( Options.Flags & ECopyOptions::OnlyCopyEditOrInterpProperties ) || ( Property->HasAnyPropertyFlags( CPF_Edit | CPF_Interp ) );
 				if( bIsSafeToCopy )
 				{
 					if (!Options.CanCopyProperty(*Property, *SourceActor))
@@ -1392,8 +1342,7 @@ namespace EditorUtilities
 					if( !bIsTransient && !bIsIdentical && !bIsComponent && !SourceUCSModifiedProperties.Contains(Property)
 						&& ( !bIsTransform || SourceComponent != SourceActor->GetRootComponent() || ( !SourceActor->HasAnyFlags( RF_ClassDefaultObject | RF_ArchetypeObject ) && !TargetActor->HasAnyFlags( RF_ClassDefaultObject | RF_ArchetypeObject ) ) ) )
 					{
-						const bool bIsSafeToCopy = (!(Options.Flags & ECopyOptions::OnlyCopyEditOrInterpProperties) || (Property->HasAnyPropertyFlags(CPF_Edit | CPF_Interp)))
-						                        && (!(Options.Flags & ECopyOptions::SkipInstanceOnlyProperties) || (!Property->HasAllPropertyFlags(CPF_DisableEditOnTemplate)));
+						const bool bIsSafeToCopy = !( Options.Flags & ECopyOptions::OnlyCopyEditOrInterpProperties ) || ( Property->HasAnyPropertyFlags( CPF_Edit | CPF_Interp ) );
 						if( bIsSafeToCopy )
 						{
 							if (!Options.CanCopyProperty(*Property, *SourceActor))

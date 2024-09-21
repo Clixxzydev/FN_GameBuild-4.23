@@ -38,7 +38,6 @@ UMovieSceneAudioSection::UMovieSceneAudioSection( const FObjectInitializer& Obje
 	AudioVolume_DEPRECATED = AudioDeprecatedMagicNumber;
 	bSuppressSubtitles = false;
 	bOverrideAttenuation = false;
-	BlendType = EMovieSceneBlendType::Absolute;
 
 	EvalOptions.EnableAndSetCompletionMode
 		(GetLinkerCustomVersion(FSequencerObjectVersion::GUID) < FSequencerObjectVersion::WhenFinishedDefaultsToProjectDefault ? 
@@ -118,10 +117,8 @@ void UMovieSceneAudioSection::PostLoad()
 
 	if (StartOffsetToUpgrade.IsSet())
 	{
-		FFrameRate DisplayRate = GetTypedOuter<UMovieScene>()->GetDisplayRate();
-		FFrameRate TickResolution = GetTypedOuter<UMovieScene>()->GetTickResolution();
-
-		StartFrameOffset = ConvertFrameTime(FFrameTime::FromDecimal(DisplayRate.AsDecimal() * StartOffsetToUpgrade.GetValue()), DisplayRate, TickResolution).FrameNumber;
+		FFrameNumber StartFrame = UpgradeLegacyMovieSceneTime(this, LegacyFrameRate, StartOffsetToUpgrade.GetValue());
+		StartFrameOffset = StartFrame.Value;
 	}
 }
 

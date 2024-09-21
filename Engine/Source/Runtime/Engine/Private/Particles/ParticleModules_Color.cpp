@@ -155,7 +155,7 @@ bool UParticleModuleColor::AddModuleCurvesToEditor(UInterpCurveEdSetup* EdSetup,
 
 void UParticleModuleColor::Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase)
 {
-	SpawnEx(Owner, Offset, SpawnTime, &GetRandomStream(Owner), ParticleBase);
+	SpawnEx(Owner, Offset, SpawnTime, NULL, ParticleBase);
 }
 
 
@@ -192,11 +192,27 @@ UParticleModuleColor_Seeded::UParticleModuleColor_Seeded(const FObjectInitialize
 	bRequiresLoopingNotification = true;
 }
 
+void UParticleModuleColor_Seeded::Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase)
+{
+	FParticleRandomSeedInstancePayload* Payload = (FParticleRandomSeedInstancePayload*)(Owner->GetModuleInstanceData(this));
+	SpawnEx(Owner, Offset, SpawnTime, (Payload != NULL) ? &(Payload->RandomStream) : NULL, ParticleBase);
+}
+
+uint32 UParticleModuleColor_Seeded::RequiredBytesPerInstance()
+{
+	return RandomSeedInfo.GetInstancePayloadSize();
+}
+
+uint32 UParticleModuleColor_Seeded::PrepPerInstanceBlock(FParticleEmitterInstance* Owner, void* InstData)
+{
+	return PrepRandomSeedInstancePayload(Owner, (FParticleRandomSeedInstancePayload*)InstData, RandomSeedInfo);
+}
+
 void UParticleModuleColor_Seeded::EmitterLoopingNotify(FParticleEmitterInstance* Owner)
 {
 	if (RandomSeedInfo.bResetSeedOnEmitterLooping == true)
 	{
-		FParticleRandomSeedInstancePayload* Payload = Owner->GetModuleRandomSeedInstanceData(this);
+		FParticleRandomSeedInstancePayload* Payload = (FParticleRandomSeedInstancePayload*)(Owner->GetModuleInstanceData(this));
 		PrepRandomSeedInstancePayload(Owner, Payload, RandomSeedInfo);
 	}
 }

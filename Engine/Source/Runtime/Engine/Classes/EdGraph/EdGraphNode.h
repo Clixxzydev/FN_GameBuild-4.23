@@ -170,36 +170,6 @@ struct FGraphNodeContextMenuBuilder
 	FGraphNodeContextMenuBuilder(const UEdGraph* InGraph, const UEdGraphNode* InNode, const UEdGraphPin* InPin, class FMenuBuilder* InMenuBuilder, bool bInDebuggingMode);
 };
 
-/** Deprecation types for node response. */
-enum class EEdGraphNodeDeprecationType
-{
-	/** The node type is deprecated. */
-	NodeTypeIsDeprecated,
-	/** The node references a deprecated member or type (e.g. variable or function). */
-	NodeHasDeprecatedReference
-};
-
-/** Deprecation response message types. */
-enum class EEdGraphNodeDeprecationMessageType
-{
-	/** No message. The Blueprint will compile successfully. */
-	None,
-	/** Emit the message as a note at compile time. This will appear as a note on the node and in the compiler log. */
-	Note,
-	/** Emit the message as a Blueprint compiler warning. This will appear as a warning on the node and in the compiler log. */
-	Warning
-};
-
-/** Deprecation response data. */
-struct FEdGraphNodeDeprecationResponse
-{
-	/** Message type. */
-	EEdGraphNodeDeprecationMessageType MessageType = EEdGraphNodeDeprecationMessageType::None;
-
-	/** Message text to display on the node and/or emit to the compile log. */
-	FText MessageText;
-};
-
 UCLASS()
 class ENGINE_API UEdGraphNode : public UObject
 {
@@ -275,33 +245,24 @@ private:
 	/** Whether the node was created as part of an expansion step */
 	uint8 bIsIntermediateNode : 1;
 
-#if WITH_EDITORONLY_DATA
-	/** Whether this node is unrelated to the selected nodes or not */
-	uint8 bUnrelated : 1;
-
-#endif
-
 public:
-
 	/** Flag to check for compile error/warning */
 	UPROPERTY()
 	uint8 bHasCompilerMessage:1;
 
 	/** Comment bubble pinned state */
-
-
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
-	uint8 bCommentBubblePinned : 1;
+	uint8 bCommentBubblePinned:1;
 
 	/** Comment bubble visibility */
 	UPROPERTY()
-	uint8 bCommentBubbleVisible : 1;
+	uint8 bCommentBubbleVisible:1;
 
 	/** Make comment bubble visible */
 	UPROPERTY(Transient)
-	uint8 bCommentBubbleMakeVisible : 1;
+	uint8 bCommentBubbleMakeVisible:1;
 
+#if WITH_EDITORONLY_DATA
 	/** If true, this node can be renamed in the editor */
 	UPROPERTY()
 	uint8 bCanRenameNode:1;
@@ -364,20 +325,6 @@ public:
 		return bUserSetEnabledState;
 	}
 
-#if WITH_EDITOR
-	/** Set this node unrelated or not. */
-	FORCEINLINE void SetNodeUnrelated(bool bNodeUnrelated)
-	{
-		bUnrelated = bNodeUnrelated;
-	}
-
-	/** Determines whether this node is unrelated to the selected nodes or not. */
-	FORCEINLINE bool IsNodeUnrelated() const
-	{
-		return bUnrelated;
-	}
-#endif
-
 	/** Determines whether or not the node will compile in development mode. */
 	virtual bool IsInDevelopmentMode() const;
 
@@ -412,7 +359,7 @@ public:
 	TWeakPtr<SGraphNode> DEPRECATED_NodeWidget;
 
 	/** Get all pins this node owns */
-	const TArray<UEdGraphPin*>& GetAllPins() const { return Pins; }
+	TArray<UEdGraphPin*> GetAllPins() { return Pins; }
 
 	struct FNameParameterHelper
 	{
@@ -776,18 +723,10 @@ public:
 	// Returns true if this node is deprecated
 	virtual bool IsDeprecated() const;
 
-	// Returns true if this node references a deprecated type or member
-	virtual bool HasDeprecatedReference() const { return false; }
-
-	// Returns the response to use when reporting a deprecation
-	virtual FEdGraphNodeDeprecationResponse GetDeprecationResponse(EEdGraphNodeDeprecationType DeprecationType) const;
-
 	// Returns true if this node should produce a compiler warning on deprecation
-	UE_DEPRECATED(4.23, "Use GetDeprecationResponse instead.")
-	virtual bool ShouldWarnOnDeprecation() const;
+	virtual bool ShouldWarnOnDeprecation() const { return true; }
 
 	// Returns the string to use when reporting the deprecation
-	UE_DEPRECATED(4.23, "Use GetDeprecationResponse instead.")
 	virtual FString GetDeprecationMessage() const;
 
 	// Returns the object that should be focused when double-clicking on this node
@@ -896,7 +835,7 @@ public:
 	
 protected:
 	/**
-	 * Finds the difference in properties of node instance, for subobjects
+	 * Finds the difference in properties of node instance
 	 *
 	 * @param StructA The struct of the class we are looking at LHS
 	 * @param StructB The struct of the class we are looking at RHS
@@ -906,18 +845,6 @@ protected:
 	 * @param Diff The single result with default parameters setup
 	 */
 	virtual void DiffProperties(UClass* StructA, UClass* StructB, UObject* DataA, UObject* DataB, FDiffResults& Results, FDiffSingleResult& Diff) const;
-
-	/**
-	 * Finds the difference in properties of node instance, for arbitrary UStructs
-	 *
-	 * @param StructA The struct we are looking at LHS
-	 * @param StructB The struct we are looking at RHS
-	 * @param DataA The raw data we are comparing LHS
-	 * @param DataB The raw data we are comparing RHS
-	 * @param Results The Results where differences are stored
-	 * @param Diff The single result with default parameters setup
-	 */
-	virtual void DiffProperties(UStruct* StructA, UStruct* StructB, uint8* DataA, uint8* DataB, FDiffResults& Results, FDiffSingleResult& Diff) const;
 
 	// Returns a human-friendly description of the property in the form "PropertyName: Value"
 	virtual FString GetPropertyNameAndValueForDiff(const UProperty* Prop, const uint8* PropertyAddr) const;

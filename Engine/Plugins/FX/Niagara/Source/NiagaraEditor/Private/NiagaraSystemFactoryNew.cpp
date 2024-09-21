@@ -146,8 +146,6 @@ UObject* UNiagaraSystemFactoryNew::FactoryCreateNew(UClass* Class, UObject* InPa
 		InitializeSystem(NewSystem, true);
 	}
 
-	NewSystem->RequestCompile(false);
-
 	return NewSystem;
 }
 

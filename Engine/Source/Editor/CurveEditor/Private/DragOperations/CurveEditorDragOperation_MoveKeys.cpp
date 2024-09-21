@@ -3,27 +3,26 @@
 #include "DragOperations/CurveEditorDragOperation_MoveKeys.h"
 #include "CurveEditorScreenSpace.h"
 #include "CurveEditor.h"
-#include "SCurveEditorView.h"
 
 void FCurveEditorDragOperation_MoveKeys::OnInitialize(FCurveEditor* InCurveEditor, const TOptional<FCurvePointHandle>& CardinalPoint)
 {
 	CurveEditor = InCurveEditor;
 }
 
+
 void FCurveEditorDragOperation_MoveKeys::OnBeginDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
 {
-	int32 NumKeys = CurveEditor->GetSelection().Count();
+	int32 NumKeys = CurveEditor->Selection.Count();
 	Transaction = MakeUnique<FScopedTransaction>(FText::Format(NSLOCTEXT("CurveEditor", "MoveKeysFormat", "Move {0}|plural(one=Key, other=Keys)"), NumKeys));
 
 	KeysByCurve.Reset();
-	CurveEditor->SuppressBoundTransformUpdates(true);
 
-	for (const TTuple<FCurveModelID, FKeyHandleSet>& Pair : CurveEditor->GetSelection().GetAll())
+	for (const TTuple<FCurveModelID, FKeyHandleSet>& Pair : CurveEditor->Selection.GetAll())
 	{
 		FCurveModelID CurveID = Pair.Key;
 		FCurveModel*  Curve   = CurveEditor->FindCurve(CurveID);
 
-		if (ensureAlways(Curve))
+		if (ensure(Curve))
 		{
 			Curve->Modify();
 
@@ -36,49 +35,40 @@ void FCurveEditorDragOperation_MoveKeys::OnBeginDrag(FVector2D InitialPosition, 
 			Curve->GetKeyPositions(KeyData.Handles, KeyData.StartKeyPositions);
 		}
 	}
-
-	SnappingState.Reset();
 }
 
 void FCurveEditorDragOperation_MoveKeys::OnDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
 {
 	TArray<FKeyPosition> NewKeyPositionScratch;
-	FVector2D MousePosition = CurveEditor->GetAxisSnap().GetSnappedPosition(InitialPosition, CurrentPosition, MouseEvent, SnappingState);
+
+	FVector2D MousePosition = GetLockedMousePosition(InitialPosition, CurrentPosition, MouseEvent);
+
+	FCurveEditorScreenSpace ScreenSpace = CurveEditor->GetScreenSpace();
+	double DeltaInput  =  (MousePosition.X - InitialPosition.X) / ScreenSpace.PixelsPerInput();
+	double DeltaOutput = -(MousePosition.Y - InitialPosition.Y) / ScreenSpace.PixelsPerOutput();
 
 	for (const FKeyData& KeyData : KeysByCurve)
 	{
-		const SCurveEditorView* View = CurveEditor->FindFirstInteractiveView(KeyData.CurveID);
-		if (!View)
-		{
-			continue;
-		}
-
 		FCurveModel* Curve = CurveEditor->FindCurve(KeyData.CurveID);
-		if (!ensureAlways(Curve))
+
+		if (ensure(Curve))
 		{
-			continue;
+			NewKeyPositionScratch.Reset();
+			NewKeyPositionScratch.Reserve(KeyData.StartKeyPositions.Num());
+
+			for (FKeyPosition StartPosition : KeyData.StartKeyPositions)
+			{
+				StartPosition.InputValue  += DeltaInput;
+				StartPosition.OutputValue += DeltaOutput;
+
+				StartPosition.InputValue  = SnapMetrics.SnapInputSeconds(StartPosition.InputValue);
+				StartPosition.OutputValue = SnapMetrics.SnapOutput(StartPosition.OutputValue);
+
+				NewKeyPositionScratch.Add(StartPosition);
+			}
+
+			Curve->SetKeyPositions(KeyData.Handles, NewKeyPositionScratch);
 		}
-
-		FCurveEditorScreenSpace CurveSpace = View->GetCurveSpace(KeyData.CurveID);
-
-		double DeltaInput = (MousePosition.X - InitialPosition.X) / CurveSpace.PixelsPerInput();
-		double DeltaOutput = -(MousePosition.Y - InitialPosition.Y) / CurveSpace.PixelsPerOutput();
-
-		NewKeyPositionScratch.Reset();
-		NewKeyPositionScratch.Reserve(KeyData.StartKeyPositions.Num());
-
-		for (FKeyPosition StartPosition : KeyData.StartKeyPositions)
-		{
-			StartPosition.InputValue  += DeltaInput;
-			StartPosition.OutputValue += DeltaOutput;
-
-			StartPosition.InputValue  = View->IsTimeSnapEnabled() ? SnapMetrics.SnapInputSeconds(StartPosition.InputValue) : StartPosition.InputValue;
-			StartPosition.OutputValue = View->IsValueSnapEnabled() ? SnapMetrics.SnapOutput(StartPosition.OutputValue) : StartPosition.OutputValue;
-
-			NewKeyPositionScratch.Add(StartPosition);
-		}
-
-		Curve->SetKeyPositions(KeyData.Handles, NewKeyPositionScratch);
 	}
 }
 
@@ -93,12 +83,4 @@ void FCurveEditorDragOperation_MoveKeys::OnCancelDrag()
 			Curve->SetKeyPositions(KeyData.Handles, KeyData.StartKeyPositions);
 		}
 	}
-
-	CurveEditor->SuppressBoundTransformUpdates(false);
-}
-
-void FCurveEditorDragOperation_MoveKeys::OnEndDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
-{
-	ICurveEditorKeyDragOperation::OnEndDrag(InitialPosition, CurrentPosition, MouseEvent);
-	CurveEditor->SuppressBoundTransformUpdates(false);
 }

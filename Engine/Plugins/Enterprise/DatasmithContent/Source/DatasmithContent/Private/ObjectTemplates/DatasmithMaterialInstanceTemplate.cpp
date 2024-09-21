@@ -148,16 +148,16 @@ bool FDatasmithStaticParameterSetTemplate::Equals( const FDatasmithStaticParamet
 	return DatasmithMaterialInstanceTemplateImpl::MapEquals( StaticSwitchParameters, Other.StaticSwitchParameters );
 }
 
-UObject* UDatasmithMaterialInstanceTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithMaterialInstanceTemplate::Apply( UObject* Destination, bool bForce )
 {
+#if WITH_EDITORONLY_DATA
 	UMaterialInstanceConstant* MaterialInstance = Cast< UMaterialInstanceConstant >( Destination );
 
 	if ( !MaterialInstance )
 	{
-		return nullptr;
+		return;
 	}
 
-#if WITH_EDITORONLY_DATA
 	UDatasmithMaterialInstanceTemplate* PreviousTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithMaterialInstanceTemplate >( MaterialInstance ) : nullptr;
 
 	if ( !PreviousTemplate )
@@ -217,9 +217,9 @@ UObject* UDatasmithMaterialInstanceTemplate::UpdateObject( UObject* Destination,
 	}
 
 	StaticParameters.Apply( MaterialInstance, PreviousTemplate ? &PreviousTemplate->StaticParameters : nullptr );
-#endif // #if WITH_EDITORONLY_DATA
 
-	return MaterialInstance;
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( MaterialInstance, this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithMaterialInstanceTemplate::Load( const UObject* Source )

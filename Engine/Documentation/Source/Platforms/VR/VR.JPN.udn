@@ -15,21 +15,15 @@ topic-image:VirtualRealityDevelopment_topic.png
 
 ## デスクトップ プラットフォーム
 
-%Platforms/VR/OculusVR:topic%
-
-%Platforms/VR/SteamVR:topic%
-
-%Platforms/VR/WMR:topic%
+[DIR(end:"1" output:"topic" type:"landing" tags:"platform" tags:"Desktop VR" parent:"Platforms/VR")]
 
 ## モバイル プラットフォーム
 
-%Platforms/VR/GoogleVR:topic%
-
-%Platforms/VR/GearVR:topic%
+[DIR(end:"1" output:"topic" type:"landing" tags:"platform" tags:"Mobile VR" parent:"Platforms/VR")]
 
 ## VR 開発全般
 
-[DIR(end:"1" output:"topic" parent:"Platforms/VR/DevelopVR" type:"overview,reference,how-to")]
+[DIR(end:"1" output:"topic" parent:"Platforms/VR" type:"overview,reference,how-to")]
 
 ## トレーニング ストリーム
 

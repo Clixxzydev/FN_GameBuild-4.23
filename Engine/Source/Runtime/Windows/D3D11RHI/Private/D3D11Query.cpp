@@ -30,22 +30,6 @@ public:
 			// This is correct even if CurrentId overflowed
 			if (CurrentId - Batch.Id >= NumBufferedFrames)
 			{
-				TArray<FRenderQueryRHIRef>& Queries = ActiveBatches[BatchIdx].Queries;
-				for (int32 QueryIdx = 0; QueryIdx < Queries.Num(); ++QueryIdx)
-				{
-					FD3D11RenderQuery* Query = FD3D11DynamicRHI::ResourceCast(Queries[QueryIdx].GetReference());
-
-					if (Query->bResultIsCached || Query->GetRefCount() == 1)
-					{
-						continue;
-					}
-
-					if (Query->QueryType == ERenderQueryType::RQT_AbsoluteTime)
-					{
-						check(GD3D11RHI->GetQueryData(Query->Resource, &Query->Result, sizeof(Query->Result), Query->QueryType, true, false));
-						Query->bResultIsCached = true;
-					}
-				}
 				ActiveBatches.RemoveAtSwap(BatchIdx--);
 			}
 		}
@@ -71,6 +55,8 @@ public:
 	void PollQueryResults()
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_PollQueryResults);
+		FD3D11DynamicRHI* D3D11RHI = static_cast<FD3D11DynamicRHI*>(GDynamicRHI);
+
 		for (int32 BatchIdx = 0; BatchIdx < ActiveBatches.Num(); ++BatchIdx)
 		{
 			TArray<FRenderQueryRHIRef>& Queries = ActiveBatches[BatchIdx].Queries;
@@ -83,7 +69,7 @@ public:
 				{
 					Queries.RemoveAtSwap(QueryIdx--);
 				}
-				else if (GD3D11RHI->GetQueryData(Query->Resource, &Query->Result, sizeof(Query->Result), Query->QueryType, false, false))
+				else if (D3D11RHI->GetQueryData(Query->Resource, &Query->Result, sizeof(Query->Result), Query->QueryType, false, false))
 				{
 					Query->bResultIsCached = true;
 					Queries.RemoveAtSwap(QueryIdx--);
@@ -203,7 +189,7 @@ FRenderQueryRHIRef FD3D11DynamicRHI::RHICreateRenderQuery(ERenderQueryType Query
 	return new FD3D11RenderQuery(Query, QueryType);
 }
 
-bool FD3D11DynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI,uint64& OutResult,bool bWait)
+bool FD3D11DynamicRHI::RHIGetRenderQueryResult(FRenderQueryRHIParamRef QueryRHI,uint64& OutResult,bool bWait)
 {
 	check(IsInRenderingThread());
 	FD3D11RenderQuery* Query = ResourceCast(QueryRHI);
@@ -250,7 +236,7 @@ bool FD3D11DynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI,uint64&
 
 
 // Occlusion/Timer queries.
-void FD3D11DynamicRHI::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
+void FD3D11DynamicRHI::RHIBeginRenderQuery(FRenderQueryRHIParamRef QueryRHI)
 {
 	FD3D11RenderQuery* Query = ResourceCast(QueryRHI);
 
@@ -268,7 +254,7 @@ void FD3D11DynamicRHI::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
 	}
 }
 
-void FD3D11DynamicRHI::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
+void FD3D11DynamicRHI::RHIEndRenderQuery(FRenderQueryRHIParamRef QueryRHI)
 {
 	FD3D11RenderQuery* Query = ResourceCast(QueryRHI);
 	Query->bResultIsCached = false; // for occlusion queries, this is redundant with the one in begin
@@ -298,35 +284,16 @@ bool FD3D11DynamicRHI::GetQueryData(ID3D11Query* Query, void* Data, SIZE_T DataS
 		SCOPE_CYCLE_COUNTER( STAT_RenderQueryResultTime );
 		uint32 IdleStart = FPlatformTime::Cycles();
 		double StartTime = FPlatformTime::Seconds();
-		double TimeoutWarningLimit = 5.0;
-		// timer queries are used for Benchmarks which can stall a bit more
-		double TimeoutValue = (QueryType == RQT_AbsoluteTime) ? 30.0 : 0.5;
-
-		do
+		do 
 		{
 			SAFE_GET_QUERY_DATA
 
-			if(Result == S_OK)
+			// timer queries are used for Benchmarks which can stall a bit more
+			double TimeoutValue = (QueryType == RQT_AbsoluteTime) ? 2.0 : 0.5;
+
+			if((FPlatformTime::Seconds() - StartTime) > TimeoutValue)
 			{
-				return true;
-			}
-
-
-
-			float DeltaTime = FPlatformTime::Seconds() - StartTime;
-			if(DeltaTime > TimeoutWarningLimit)
-			{
-				TimeoutWarningLimit += 5.0;
-				UE_LOG(LogD3D11RHI, Log, TEXT("GetQueryData is taking a very long time (%.1f s)"), DeltaTime);
-			}
-
-			if(DeltaTime > TimeoutValue)
-			{
-				UE_LOG(LogD3D11RHI, Log, TEXT("Timed out while waiting for GPU to catch up. (%.1f s) (ErrorCode %08x)"), TimeoutValue, (uint32)Result);
-				if(FAILED(Result))
-				{
-					VERIFYD3D11RESULT_EX(Result, Direct3DDevice);
-				}
+				UE_LOG(LogD3D11RHI, Log, TEXT("Timed out while waiting for GPU to catch up. (%.1f s)"), TimeoutValue);
 				return false;
 			}
 		} while ( Result == S_FALSE );

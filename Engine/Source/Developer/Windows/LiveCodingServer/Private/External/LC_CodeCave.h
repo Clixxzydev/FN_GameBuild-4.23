@@ -10,8 +10,7 @@
 class CodeCave
 {
 public:
-	// the jump-to-self code needs to be available in the address space of the given process
-	CodeCave(process::Handle processHandle, unsigned int processId, unsigned int commandThreadId, const void* jumpToSelf);
+	CodeCave(process::Handle processHandle, unsigned int processId, unsigned int commandThreadId);
 
 	void Install(void);
 	void Uninstall(void);
@@ -20,7 +19,8 @@ private:
 	process::Handle m_processHandle;
 	unsigned int m_processId;
 	unsigned int m_commandThreadId;
-	const void* m_jumpToSelf;
+
+	void* m_cave;
 
 	struct PerThreadData
 	{

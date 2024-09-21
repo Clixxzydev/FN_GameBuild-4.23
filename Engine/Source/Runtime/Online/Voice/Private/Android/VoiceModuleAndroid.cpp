@@ -576,10 +576,7 @@ IVoiceCapture* CreateVoiceCaptureObject(const FString& DeviceName, int32 SampleR
 		delete Capture;
 		Capture = nullptr;
 	}
-	else
-	{
-		ActiveVoiceCaptures.Add(Capture);
-	}
+	ActiveVoiceCaptures.Add(Capture);
 	return Capture;
 #else
 	return nullptr;

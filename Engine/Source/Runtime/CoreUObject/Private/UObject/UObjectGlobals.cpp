@@ -37,7 +37,6 @@
 #include "Serialization/DuplicatedObject.h"
 #include "Serialization/DuplicatedDataReader.h"
 #include "Serialization/DuplicatedDataWriter.h"
-#include "Serialization/LoadTimeTracePrivate.h"
 #include "Misc/PackageName.h"
 #include "UObject/LinkerLoad.h"
 #include "Blueprint/BlueprintSupport.h"
@@ -62,7 +61,7 @@ DEFINE_LOG_CATEGORY(LogUObjectGlobals);
 #endif
 
 bool GIsSavingPackage = false;
-bool GAllowUnversionedContentInEditor = false;
+bool GAllowUnversionedContentInEditor = true;
 
 /** Object annotation used by the engine to keep track of which objects are selected */
 FUObjectAnnotationSparseBool GSelectedObjectAnnotation;
@@ -468,9 +467,9 @@ void StaticTick( float DeltaTime, bool bUseFullTimeLimit, float AsyncLoadingTime
 
 #if STATS
 	// Set name table stats.
+	int32 NameTableEntries = FName::GetMaxNames();
 	int32 NameTableAnsiEntries = FName::GetNumAnsiNames();
 	int32 NameTableWideEntries = FName::GetNumWideNames();
-	int32 NameTableEntries = NameTableAnsiEntries + NameTableWideEntries;
 	int32 NameTableMemorySize = FName::GetNameTableMemorySize();
 	SET_DWORD_STAT( STAT_NameTableEntries, NameTableEntries );
 	SET_DWORD_STAT( STAT_NameTableAnsiEntries, NameTableAnsiEntries );
@@ -1762,13 +1761,12 @@ FName MakeUniqueObjectName( UObject* Parent, UClass* Class, FName InBaseName/*=N
 		do
 		{
 			// create the next name in the sequence for this class
-			static const FName NamePackage(NAME_Package);
-			if (BaseName == NamePackage)
+			if (BaseName.GetComparisonIndex() == NAME_Package)
 			{
 				if (Parent == NULL)
 				{
 					//package names should default to "/Temp/Untitled" when their parent is NULL. Otherwise they are a group.
-					TestName = FName(*FString::Printf(TEXT("/Temp/%s"), LexToString(NAME_Untitled)), ++Class->ClassUnique);
+					TestName = FName(*FString::Printf(TEXT("/Temp/%s"), *FName(NAME_Untitled).ToString()), ++Class->ClassUnique);
 				}
 				else
 				{
@@ -3077,13 +3075,12 @@ UObject* StaticConstructObject_Internal
 			!InTemplate || 
 			(InName != NAME_None && (bAssumeTemplateIsArchetype || InTemplate == UObject::GetArchetypeFromRequiredInfo(InClass, InOuter, InName, InFlags)))
 			);
-	const bool bCanRecycleSubobjects = bIsNativeFromCDO && (!(InFlags & RF_DefaultSubObject) || !FUObjectThreadContext::Get().IsInConstructor)
 #if WITH_HOT_RELOAD
 	// Do not recycle subobjects when performing hot-reload as they may contain old property values.
-	&& !GIsHotReload
+	const bool bCanRecycleSubobjects = bIsNativeFromCDO && !GIsHotReload;
+#else
+	const bool bCanRecycleSubobjects = bIsNativeFromCDO;
 #endif
-		;
-
 	bool bRecycledSubobject = false;	
 	Result = StaticAllocateObject(InClass, InOuter, InName, InFlags, InternalSetFlags, bCanRecycleSubobjects, &bRecycledSubobject);
 	check(Result != NULL);
@@ -3485,15 +3482,11 @@ private:
 	{
 #if ENABLE_GC_DEBUG_OUTPUT
 		// this message is to help track down culprits behind "Object in PIE world still referenced" errors
-		if ( GIsEditor && !GIsPlayInEditorWorld && !CurrentObject->HasAnyFlags(RF_Transient) && Object->RootPackageHasAnyFlags(PKG_PlayInEditor) )
+		if ( GIsEditor && !GIsPlayInEditorWorld && !CurrentObject->RootPackageHasAnyFlags(PKG_PlayInEditor) && Object->RootPackageHasAnyFlags(PKG_PlayInEditor) )
 		{
-			UPackage* ReferencingPackage = CurrentObject->GetOutermost();
-			if (!ReferencingPackage->HasAnyPackageFlags(PKG_PlayInEditor) && !ReferencingPackage->HasAnyFlags(RF_Transient))
-			{
-				UE_LOG(LogGarbage, Warning, TEXT("GC detected illegal reference to PIE object from content [possibly via %s]:"), *ReferencingProperty->GetFullName());
-				UE_LOG(LogGarbage, Warning, TEXT("      PIE object: %s"), *Object->GetFullName());
-				UE_LOG(LogGarbage, Warning, TEXT("  NON-PIE object: %s"), *CurrentObject->GetFullName());
-			}
+			UE_LOG(LogGarbage, Warning, TEXT("GC detected illegal reference to PIE object from content [possibly via %s]:"), *ReferencingProperty->GetFullName());
+			UE_LOG(LogGarbage, Warning, TEXT("      PIE object: %s"), *Object->GetFullName());
+			UE_LOG(LogGarbage, Warning, TEXT("  NON-PIE object: %s"), *CurrentObject->GetFullName());
 		}
 #endif
 
@@ -3642,7 +3635,7 @@ UScriptStruct* GetFallbackStruct()
 	return TBaseStructure<FFallbackStruct>::Get();
 }
 
-UObject* FObjectInitializer::CreateDefaultSubobject(UObject* Outer, FName SubobjectFName, UClass* ReturnType, UClass* ClassToCreateByDefault, bool bIsRequired, bool bIsTransient) const
+UObject* FObjectInitializer::CreateDefaultSubobject(UObject* Outer, FName SubobjectFName, UClass* ReturnType, UClass* ClassToCreateByDefault, bool bIsRequired, bool bAbstract, bool bIsTransient) const
 {
 	UE_CLOG(!FUObjectThreadContext::Get().IsInConstructor, LogClass, Fatal, TEXT("Subobjects cannot be created outside of UObject constructors. UObject constructing subobjects cannot be created using new or placement new operator."));
 	if (SubobjectFName == NAME_None)
@@ -3661,18 +3654,11 @@ UObject* FObjectInitializer::CreateDefaultSubobject(UObject* Outer, FName Subobj
 	{
 		check(OverrideClass->IsChildOf(ReturnType));
 
-		if (OverrideClass->HasAnyClassFlags(CLASS_Abstract))
-		{
-			// Attempts to create an abstract class will return null. If it is not optional or the owning class is not also abstract report a warning.
-			if (!bIsRequired && !Outer->GetClass()->HasAnyClassFlags(CLASS_Abstract))
-			{
-				UE_LOG(LogClass, Warning, TEXT("Required default subobject %s not created as requested class %s is abstract. Returning null."), *SubobjectFName.ToString(), *OverrideClass->GetName());
-			}
-		}
-		else
+		// Abstract sub-objects are only allowed when explicitly created with CreateAbstractDefaultSubobject.
+		if (!OverrideClass->HasAnyClassFlags(CLASS_Abstract) || !bAbstract)
 		{
 			UObject* Template = OverrideClass->GetDefaultObject(); // force the CDO to be created if it hasn't already
-			EObjectFlags SubobjectFlags = Outer->GetMaskedFlags(RF_PropagateToSubObjects) | RF_DefaultSubObject;
+			EObjectFlags SubobjectFlags = Outer->GetMaskedFlags(RF_PropagateToSubObjects);
 			bool bOwnerArchetypeIsNotNative;
 			UClass* OuterArchetypeClass;
 
@@ -3722,6 +3708,7 @@ UObject* FObjectInitializer::CreateDefaultSubobject(UObject* Outer, FName Subobj
 #endif
 				Outer->GetClass()->AddDefaultSubobject(Result, ReturnType);
 			}
+			Result->SetFlags(RF_DefaultSubObject);
 			// Clear PendingKill flag in case we recycled a subobject of a dead object.
 			// @todo: we should not be recycling subobjects unless we're currently loading from a package
 			Result->ClearInternalFlags(EInternalObjectFlags::PendingKill);
@@ -3734,7 +3721,7 @@ UObject* FObjectInitializer::CreateEditorOnlyDefaultSubobject(UObject* Outer, FN
 #if WITH_EDITOR
 	if (GIsEditor)
 	{
-		UObject* EditorSubobject = CreateDefaultSubobject(Outer, SubobjectName, ReturnType, ReturnType, /*bIsRequired =*/ false, bTransient);
+		UObject* EditorSubobject = CreateDefaultSubobject(Outer, SubobjectName, ReturnType, ReturnType, /*bIsRequired =*/ false, /*bIsAbstract =*/ false, bTransient);
 		if (EditorSubobject)
 		{
 			EditorSubobject->MarkAsEditorOnlySubobject();
@@ -4526,32 +4513,4 @@ namespace UE4CodeGen_Private
 
 		NewClass->StaticLink();
 	}
-}
-
-EDataValidationResult CombineDataValidationResults(EDataValidationResult Result1, EDataValidationResult Result2)
-{
-	/**
-	 * Anything combined with an Invalid result is Invalid. Any result combined with a NotValidated result is the same result
-	 *
-	 * The combined results should match the following matrix
-	 *
-	 *				|	NotValidated	|	Valid	|	Invalid
-	 * -------------+-------------------+-----------+----------
-	 * NotValidated	|	NotValidated	|	Valid	|	Invalid
-	 * Valid		|	Valid			|	Valid	|	Invalid
-	 * Invalid		|	Invalid			|	Invalid	|	Invalid
-	 *
-	 */
-
-	if (Result1 == EDataValidationResult::Invalid || Result2 == EDataValidationResult::Invalid)
-	{
-		return EDataValidationResult::Invalid;
-	}
-
-	if (Result1 == EDataValidationResult::Valid || Result2 == EDataValidationResult::Valid)
-	{
-		return EDataValidationResult::Valid;
-	}
-
-	return EDataValidationResult::NotValidated;
 }

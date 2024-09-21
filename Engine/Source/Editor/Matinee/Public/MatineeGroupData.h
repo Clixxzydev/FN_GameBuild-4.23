@@ -176,7 +176,7 @@ public:
 	/**
 	 * @return	true if the iterator has not reached the end; false, otherwise.
 	 */
-	FORCEINLINE explicit operator bool() const
+	FORCEINLINE operator bool()
 	{
 		return IsCurrentGroupValid();
 	}

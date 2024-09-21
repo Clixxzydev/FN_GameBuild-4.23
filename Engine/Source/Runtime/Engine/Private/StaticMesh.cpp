@@ -162,67 +162,6 @@ static void FillMaterialName(const TArray<FStaticMaterial>& StaticMaterials, TMa
 
 
 /*-----------------------------------------------------------------------------
-	FStaticMeshSectionAreaWeightedTriangleSamplerBuffer
------------------------------------------------------------------------------*/
-
-FStaticMeshSectionAreaWeightedTriangleSamplerBuffer::FStaticMeshSectionAreaWeightedTriangleSamplerBuffer()
-{
-}
-
-FStaticMeshSectionAreaWeightedTriangleSamplerBuffer::~FStaticMeshSectionAreaWeightedTriangleSamplerBuffer()
-{
-}
-
-void FStaticMeshSectionAreaWeightedTriangleSamplerBuffer::InitRHI()
-{
-	ReleaseRHI();
-
-	if (Samplers && Samplers->Num() > 0)
-	{
-		FRHIResourceCreateInfo CreateInfo;
-		void* BufferData = nullptr;
-
-		// Count triangle count for all sections and required memory
-		const uint32 AllSectionCount = Samplers->Num();
-		uint32 TriangleCount = 0;
-		for (uint32 i = 0; i < AllSectionCount; ++i)
-		{
-			TriangleCount += (*Samplers)[i].GetNumEntries();
-		}
-		uint32 SizeByte = TriangleCount * sizeof(SectionTriangleInfo);
-
-		BufferSectionTriangleRHI = RHICreateAndLockVertexBuffer(SizeByte, BUF_Static | BUF_ShaderResource, CreateInfo, BufferData);
-
-		// Now compute the alias look up table for unifor; distribution for all section and all triangles
-		SectionTriangleInfo* SectionTriangleInfoBuffer = (SectionTriangleInfo*)BufferData;
-		for (uint32 i = 0; i < AllSectionCount; ++i)
-		{
-			FStaticMeshSectionAreaWeightedTriangleSampler& sampler = (*Samplers)[i];
-			const TArray<float>& ProbTris = sampler.GetProb();
-			const TArray<int32>& AliasTris = sampler.GetAlias();
-			const uint32 NumTriangle = sampler.GetNumEntries();
-
-			for (uint32 t = 0; t < NumTriangle; ++t)
-			{
-				SectionTriangleInfo NewTriangleInfo = { ProbTris[t], (uint32)AliasTris[t], 0, 0 };
-				*SectionTriangleInfoBuffer = NewTriangleInfo;
-				SectionTriangleInfoBuffer++;
-			}
-		}
-		RHIUnlockVertexBuffer(BufferSectionTriangleRHI);
-
-		BufferSectionTriangleSRV = RHICreateShaderResourceView(BufferSectionTriangleRHI, sizeof(SectionTriangleInfo), PF_R32G32B32A32_UINT);
-	}
-}
-
-void FStaticMeshSectionAreaWeightedTriangleSamplerBuffer::ReleaseRHI()
-{
-	BufferSectionTriangleSRV.SafeRelease();
-	BufferSectionTriangleRHI.SafeRelease();
-}
-
-
-/*-----------------------------------------------------------------------------
 	FStaticMeshLODResources
 -----------------------------------------------------------------------------*/
 
@@ -1139,11 +1078,6 @@ void FStaticMeshLODResources::InitResources(UStaticMesh* Parent)
 		BeginInitResource(&AdditionalIndexBuffers->AdjacencyIndexBuffer);
 	}
 
-	if (Parent->bSupportGpuUniformlyDistributedSampling && Parent->bSupportUniformlyDistributedSampling && Parent->bAllowCPUAccess)
-	{
-		BeginInitResource(&AreaWeightedSectionSamplersBuffer);
-	}
-
 #if RHI_RAYTRACING
 	if (IsRayTracingEnabled())
 	{
@@ -1158,7 +1092,7 @@ void FStaticMeshLODResources::InitResources(UStaticMesh* Parent)
 				Initializer.VertexBufferByteOffset = 0;
 				Initializer.TotalPrimitiveCount = 0; // This is calculated below based on static mesh section data
 				Initializer.VertexBufferElementType = VET_Float3;
-				Initializer.GeometryType = RTGT_Triangles;
+				Initializer.PrimitiveType = PT_TriangleList;
 				Initializer.bFastBuild = false;
 				
 				TArray<FRayTracingGeometrySegment> GeometrySections;
@@ -1210,7 +1144,6 @@ void FStaticMeshLODResources::ReleaseResources()
 	BeginReleaseResource(&VertexBuffers.PositionVertexBuffer);
 	BeginReleaseResource(&VertexBuffers.ColorVertexBuffer);
 	BeginReleaseResource(&DepthOnlyIndexBuffer);
-	BeginReleaseResource(&AreaWeightedSectionSamplersBuffer);
 
 	if (AdditionalIndexBuffers)
 	{
@@ -1599,7 +1532,7 @@ void FStaticMeshRenderData::ResolveSectionInfo(UStaticMesh* Owner)
 		FStaticMeshLODResources& LOD = LODResources[LODIndex];
 		for (int32 SectionIndex = 0; SectionIndex < LOD.Sections.Num(); ++SectionIndex)
 		{
-			FMeshSectionInfo Info = Owner->GetSectionInfoMap().Get(LODIndex,SectionIndex);
+			FMeshSectionInfo Info = Owner->SectionInfoMap.Get(LODIndex,SectionIndex);
 			FStaticMeshSection& Section = LOD.Sections[SectionIndex];
 			Section.MaterialIndex = Info.MaterialIndex;
 			Section.bEnableCollision = Info.bEnableCollision;
@@ -1623,7 +1556,7 @@ void FStaticMeshRenderData::ResolveSectionInfo(UStaticMesh* Owner)
 			}
 			else
 			{
-				const float PixelError = Owner->IsSourceModelValid(LODIndex) ? Owner->GetSourceModel(LODIndex).ReductionSettings.PixelError : UStaticMesh::MinimumAutoLODPixelError;
+				const float PixelError = Owner->SourceModels.IsValidIndex(LODIndex) ? Owner->SourceModels[LODIndex].ReductionSettings.PixelError : UStaticMesh::MinimumAutoLODPixelError;
 				const float ViewDistance = CalculateViewDistance(LOD.MaxDeviation, PixelError);
 
 				// Generate a projection matrix.
@@ -1648,9 +1581,9 @@ void FStaticMeshRenderData::ResolveSectionInfo(UStaticMesh* Owner)
 				ScreenSize[LODIndex].Default = ScreenSize[LODIndex - 1].Default / 2.0f;
 			}
 		}
-		else if (Owner->IsSourceModelValid(LODIndex))
+		else if (Owner->SourceModels.IsValidIndex(LODIndex))
 		{
-			ScreenSize[LODIndex] = Owner->GetSourceModel(LODIndex).ScreenSize;
+			ScreenSize[LODIndex] = Owner->SourceModels[LODIndex].ScreenSize;
 		}
 		else
 		{
@@ -1710,7 +1643,7 @@ void FStaticMeshLODSettings::Initialize(const FConfigFile& IniFile)
 		};
 	}
 
-	Groups.KeySort(FNameLexicalLess());
+	Groups.KeySort(TLess<FName>());
 	GroupName2Index.Empty(Groups.Num());
 	{
 		int32 GroupIdx = 0;
@@ -1936,14 +1869,14 @@ bool UStaticMesh::IsReductionActive(int32 LODIndex) const
 
 FMeshReductionSettings UStaticMesh::GetReductionSettings(int32 LODIndex) const
 {
-	check(IsSourceModelValid(LODIndex));
+	check(SourceModels.IsValidIndex(LODIndex));
 	//Retrieve the reduction settings, make sure we use the LODGroup if the Group is valid
 	ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
 	ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
 	check(RunningPlatform);
 	const FStaticMeshLODSettings& LODSettings = RunningPlatform->GetStaticMeshLODSettings();
 	const FStaticMeshLODGroup& SMLODGroup = LODSettings.GetLODGroup(LODGroup);
-	const FStaticMeshSourceModel& SrcModel = GetSourceModel(LODIndex);
+	const FStaticMeshSourceModel& SrcModel = SourceModels[LODIndex];
 	return SMLODGroup.GetSettings(SrcModel.ReductionSettings, LODIndex);
 }
 
@@ -2083,10 +2016,10 @@ static FString BuildStaticMeshDerivedDataKeySuffix(UStaticMesh* Mesh, const FSta
 	}
 #endif
 
-	int32 NumLODs = Mesh->GetNumSourceModels();
+	int32 NumLODs = Mesh->SourceModels.Num();
 	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 	{
-		FStaticMeshSourceModel& SrcModel = Mesh->GetSourceModel(LODIndex);
+		FStaticMeshSourceModel& SrcModel = Mesh->SourceModels[LODIndex];
 		
 		if (SrcModel.MeshDescriptionBulkData.IsValid())
 		{
@@ -2290,11 +2223,9 @@ void FStaticMeshRenderData::Cache(UStaticMesh* Owner, const FStaticMeshLODSettin
 
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(TEXT("StaticMesh_Cache"));
-
 		COOK_STAT(auto Timer = StaticMeshCookStats::UsageStats.TimeSyncWork());
 		int32 T0 = FPlatformTime::Cycles();
-		int32 NumLODs = Owner->GetNumSourceModels();
+		int32 NumLODs = Owner->SourceModels.Num();
 		const FStaticMeshLODGroup& LODGroup = LODSettings.GetLODGroup(Owner->LODGroup);
 		const FString KeySuffix = BuildStaticMeshDerivedDataKeySuffix(Owner, LODGroup);
 		DerivedDataKey = BuildStaticMeshDerivedDataKey(KeySuffix);
@@ -2405,7 +2336,7 @@ void FStaticMeshRenderData::Cache(UStaticMesh* Owner, const FStaticMeshLODSettin
 				LODResources[0].DistanceFieldData = new FDistanceFieldVolumeData();
 			}
 
-			const FMeshBuildSettings& BuildSettings = Owner->GetSourceModel(0).BuildSettings;
+			const FMeshBuildSettings& BuildSettings = Owner->SourceModels[0].BuildSettings;
 			UStaticMesh* MeshToGenerateFrom = BuildSettings.DistanceFieldReplacementMesh ? BuildSettings.DistanceFieldReplacementMesh : Owner;
 
 			if (BuildSettings.DistanceFieldReplacementMesh)
@@ -2592,18 +2523,13 @@ void FStaticMeshRenderData::GetResourceSizeEx(FResourceSizeEx& CumulativeResourc
 		const int32 VBSize = LODRenderData.VertexBuffers.StaticMeshVertexBuffer.GetResourceSize() +
 			LODRenderData.VertexBuffers.PositionVertexBuffer.GetStride()			* LODRenderData.VertexBuffers.PositionVertexBuffer.GetNumVertices() +
 			LODRenderData.VertexBuffers.ColorVertexBuffer.GetStride()				* LODRenderData.VertexBuffers.ColorVertexBuffer.GetNumVertices();
-		
-		int32 NumIndicies = LODRenderData.IndexBuffer.GetNumIndices();
+		int32 IBSize = LODRenderData.IndexBuffer.GetAllocatedSize();
 
 		if (LODRenderData.AdditionalIndexBuffers)
 		{
-			NumIndicies += LODRenderData.AdditionalIndexBuffers->ReversedDepthOnlyIndexBuffer.GetNumIndices();
-			NumIndicies += LODRenderData.AdditionalIndexBuffers->ReversedIndexBuffer.GetNumIndices();
-			NumIndicies += LODRenderData.AdditionalIndexBuffers->WireframeIndexBuffer.GetNumIndices();
-			NumIndicies += (RHISupportsTessellation(GShaderPlatformForFeatureLevel[GMaxRHIFeatureLevel]) ? LODRenderData.AdditionalIndexBuffers->AdjacencyIndexBuffer.GetNumIndices() : 0);
+			IBSize += LODRenderData.AdditionalIndexBuffers->WireframeIndexBuffer.GetAllocatedSize()
+			+ (RHISupportsTessellation(GShaderPlatformForFeatureLevel[GMaxRHIFeatureLevel]) ? LODRenderData.AdditionalIndexBuffers->AdjacencyIndexBuffer.GetAllocatedSize() : 0);
 		}
-
-		int32 IBSize = NumIndicies * (LODRenderData.IndexBuffer.Is32Bit() ? 4 : 2);
 
 		CumulativeResourceSize.AddUnknownMemoryBytes(VBSize + IBSize);
 		CumulativeResourceSize.AddUnknownMemoryBytes(LODRenderData.Sections.GetAllocatedSize());
@@ -2915,18 +2841,18 @@ void UStaticMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 		&& RenderData
 		&& PropertyName == GET_MEMBER_NAME_CHECKED(UStaticMesh, bAutoComputeLODScreenSize))
 	{
-		for (int32 LODIndex = 1; LODIndex < GetNumSourceModels(); ++LODIndex)
+		for (int32 LODIndex = 1; LODIndex < SourceModels.Num(); ++LODIndex)
 		{
-			GetSourceModel(LODIndex).ScreenSize = RenderData->ScreenSize[LODIndex];
+			SourceModels[LODIndex].ScreenSize = RenderData->ScreenSize[LODIndex];
 		}
 	}
 
 	EnforceLightmapRestrictions();
 
 	// Following an undo or other operation which can change the SourceModels, ensure the StaticMeshOwner is up to date
-	for (int32 Index = 0; Index < GetNumSourceModels(); ++Index)
+	for (int32 Index = 0; Index < SourceModels.Num(); ++Index)
 	{
-		GetSourceModel(Index).StaticMeshOwner = this;
+		SourceModels[Index].StaticMeshOwner = this;
 	}
 
 	Build(/*bSilent=*/ true);
@@ -2965,9 +2891,9 @@ void UStaticMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedE
 void UStaticMesh::PostEditUndo()
 {
 	// Following an undo or other operation which can change the SourceModels, ensure the StaticMeshOwner is up to date
-	for (int32 Index = 0; Index < GetNumSourceModels(); ++Index)
+	for (int32 Index = 0; Index < SourceModels.Num(); ++Index)
 	{
-		GetSourceModel(Index).StaticMeshOwner = this;
+		SourceModels[Index].StaticMeshOwner = this;
 	}
 
 	// The super will cause a Build() via PostEditChangeProperty().
@@ -2997,27 +2923,25 @@ void UStaticMesh::SetLODGroup(FName NewGroup, bool bRebuildImmediately)
 		
 		for (int32 LODIndex = 0; LODIndex < DefaultLODCount; ++LODIndex)
 		{
-			FStaticMeshSourceModel& SourceModel = GetSourceModel(LODIndex);
-
 			// Set reduction settings to the defaults.
-			SourceModel.ReductionSettings = GroupSettings.GetDefaultSettings(LODIndex);
+			SourceModels[LODIndex].ReductionSettings = GroupSettings.GetDefaultSettings(LODIndex);
 			
 			//Reset the section info map
 			if (bResetSectionInfoMap)
 			{
-				for (int32 SectionIndex = 0; SectionIndex < GetSectionInfoMap().GetSectionNumber(LODIndex); ++SectionIndex)
+				for (int32 SectionIndex = 0; SectionIndex < SectionInfoMap.GetSectionNumber(LODIndex); ++SectionIndex)
 				{
 					FMeshSectionInfo Info;
 					Info.MaterialIndex = SectionIndex;
-					GetSectionInfoMap().Set(LODIndex, SectionIndex, Info);
+					SectionInfoMap.Set(LODIndex, SectionIndex, Info);
 				}
 			}
 			//Clear the raw data if we change the LOD Group and we do not reduce ourself, this will force the user to do a import LOD which will manage the section info map properly
-			if (!SourceModel.IsRawMeshEmpty() && SourceModel.ReductionSettings.BaseLODModel != LODIndex)
+			if (!SourceModels[LODIndex].IsRawMeshEmpty() && SourceModels[LODIndex].ReductionSettings.BaseLODModel != LODIndex)
 			{
 				FRawMesh EmptyRawMesh;
-				SourceModel.SaveRawMesh(EmptyRawMesh);
-				SourceModel.SourceImportFilename = FString();
+				SourceModels[LODIndex].SaveRawMesh(EmptyRawMesh);
+				SourceModels[LODIndex].SourceImportFilename = FString();
 			}
 		}
 		LightMapResolution = GroupSettings.GetDefaultLightMapResolution();
@@ -3053,45 +2977,42 @@ void UStaticMesh::BroadcastNavCollisionChange()
 
 FStaticMeshSourceModel& UStaticMesh::AddSourceModel()
 {
-	int32 LodModelIndex = GetSourceModels().AddDefaulted();
-	FStaticMeshSourceModel& NewSourceModel = GetSourceModel(LodModelIndex);
-	NewSourceModel.StaticMeshOwner = this;
-	return NewSourceModel;
+	int32 LodModelIndex = SourceModels.AddDefaulted();
+	SourceModels[LodModelIndex].StaticMeshOwner = this;
+	return SourceModels[LodModelIndex];
 }
 
 void UStaticMesh::SetNumSourceModels(const int32 Num)
 {
-	const int32 OldNum = GetNumSourceModels();
-	GetSourceModels().SetNum(Num);
+	const int32 OldNum = SourceModels.Num();
+	SourceModels.SetNum(Num);
 
 	//Shrink the SectionInfoMap if some SourceModel are removed
 	if (OldNum > Num)
 	{
 		for (int32 RemoveLODIndex = Num; RemoveLODIndex < OldNum; ++RemoveLODIndex)
 		{
-			int32 SectionCount = GetSectionInfoMap().GetSectionNumber(RemoveLODIndex);
+			int32 SectionCount = SectionInfoMap.GetSectionNumber(RemoveLODIndex);
 			for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 			{
-				GetSectionInfoMap().Remove(RemoveLODIndex, SectionIndex);
+				SectionInfoMap.Remove(RemoveLODIndex, SectionIndex);
 			}
-			SectionCount = GetOriginalSectionInfoMap().GetSectionNumber(RemoveLODIndex);
+			SectionCount = OriginalSectionInfoMap.GetSectionNumber(RemoveLODIndex);
 			for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 			{
-				GetOriginalSectionInfoMap().Remove(RemoveLODIndex, SectionIndex);
+				OriginalSectionInfoMap.Remove(RemoveLODIndex, SectionIndex);
 			}
 		}
 	}
 
 	for (int32 Index = OldNum; Index < Num; ++Index)
 	{
-		FStaticMeshSourceModel& ThisSourceModel = GetSourceModel(Index);
-
-		ThisSourceModel.StaticMeshOwner = this;
+		SourceModels[Index].StaticMeshOwner = this;
 		int32 PreviousCustomLODIndex = 0;
 		//Find the previous custom LOD
 		for (int32 ReverseIndex = Index - 1; ReverseIndex > 0; ReverseIndex--)
 		{
-			const FStaticMeshSourceModel& StaticMeshModel = GetSourceModel(ReverseIndex);
+			const FStaticMeshSourceModel& StaticMeshModel = SourceModels[ReverseIndex];
 			//If the custom import LOD is reduce and is not using himself as the source, do not consider it
 			if (IsMeshDescriptionValid(ReverseIndex) && !(IsReductionActive(ReverseIndex) && StaticMeshModel.ReductionSettings.BaseLODModel != ReverseIndex))
 			{
@@ -3099,57 +3020,57 @@ void UStaticMesh::SetNumSourceModels(const int32 Num)
 				break;
 			}
 		}
-		ThisSourceModel.ReductionSettings.BaseLODModel = PreviousCustomLODIndex;
+		SourceModels[Index].ReductionSettings.BaseLODModel = PreviousCustomLODIndex;
 		if (!IsMeshDescriptionValid(Index) && !IsReductionActive(Index))
 		{
 			//Set the Reduction percent
-			ThisSourceModel.ReductionSettings.PercentTriangles = FMath::Pow(0.5f, (float)(Index-PreviousCustomLODIndex));
+			SourceModels[Index].ReductionSettings.PercentTriangles = FMath::Pow(0.5f, (float)(Index-PreviousCustomLODIndex));
 		}
 	}
 }
 
 void UStaticMesh::RemoveSourceModel(const int32 Index)
 {
-	check(IsSourceModelValid(Index));
+	check(SourceModels.IsValidIndex(Index));
 
 	//Remove the SectionInfoMap of the LOD we remove
 	{
-		int32 SectionCount = GetSectionInfoMap().GetSectionNumber(Index);
+		int32 SectionCount = SectionInfoMap.GetSectionNumber(Index);
 		for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 		{
-			GetSectionInfoMap().Remove(Index, SectionIndex);
+			SectionInfoMap.Remove(Index, SectionIndex);
 		}
-		SectionCount = GetOriginalSectionInfoMap().GetSectionNumber(Index);
+		SectionCount = OriginalSectionInfoMap.GetSectionNumber(Index);
 		for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 		{
-			GetOriginalSectionInfoMap().Remove(Index, SectionIndex);
+			OriginalSectionInfoMap.Remove(Index, SectionIndex);
 		}
 	}
 
 	//Move down all SectionInfoMap for the next LOD
-	if (Index < GetNumSourceModels() - 1)
+	if (Index < SourceModels.Num() - 1)
 	{
-		for (int32 MoveIndex = Index + 1; MoveIndex < GetNumSourceModels(); ++MoveIndex)
+		for (int32 MoveIndex = Index + 1; MoveIndex < SourceModels.Num(); ++MoveIndex)
 		{
-			int32 SectionCount = GetSectionInfoMap().GetSectionNumber(MoveIndex);
+			int32 SectionCount = SectionInfoMap.GetSectionNumber(MoveIndex);
 			for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 			{
-				FMeshSectionInfo SectionInfo = GetSectionInfoMap().Get(MoveIndex, SectionIndex);
-				GetSectionInfoMap().Set(MoveIndex - 1, SectionIndex, SectionInfo);
-				GetSectionInfoMap().Remove(MoveIndex, SectionIndex);
+				FMeshSectionInfo SectionInfo = SectionInfoMap.Get(MoveIndex, SectionIndex);
+				SectionInfoMap.Set(MoveIndex - 1, SectionIndex, SectionInfo);
+				SectionInfoMap.Remove(MoveIndex, SectionIndex);
 			}
-			SectionCount = GetOriginalSectionInfoMap().GetSectionNumber(MoveIndex);
+			SectionCount = OriginalSectionInfoMap.GetSectionNumber(MoveIndex);
 			for (int32 SectionIndex = 0; SectionIndex < SectionCount; ++SectionIndex)
 			{
-				FMeshSectionInfo SectionInfo = GetOriginalSectionInfoMap().Get(MoveIndex, SectionIndex);
-				GetOriginalSectionInfoMap().Set(MoveIndex - 1, SectionIndex, SectionInfo);
-				GetOriginalSectionInfoMap().Remove(MoveIndex, SectionIndex);
+				FMeshSectionInfo SectionInfo = OriginalSectionInfoMap.Get(MoveIndex, SectionIndex);
+				OriginalSectionInfoMap.Set(MoveIndex - 1, SectionIndex, SectionInfo);
+				OriginalSectionInfoMap.Remove(MoveIndex, SectionIndex);
 			}
 		}
 	}
 
 	//Remove the LOD
-	GetSourceModels().RemoveAt(Index);
+	SourceModels.RemoveAt(Index);
 }
 
 bool UStaticMesh::FixLODRequiresAdjacencyInformation(const int32 LODIndex, const bool bPreviewMode, bool bPromptUser, bool* OutUserCancel)
@@ -3161,11 +3082,11 @@ bool UStaticMesh::FixLODRequiresAdjacencyInformation(const int32 LODIndex, const
 
 	bool bIsUnattended = FApp::IsUnattended() == true || GIsRunningUnattendedScript || GIsAutomationTesting;
 	//Cannot prompt user in unattended mode
-	if (!IsSourceModelValid(LODIndex) || (bIsUnattended && bPromptUser))
+	if (!SourceModels.IsValidIndex(LODIndex) || (bIsUnattended && bPromptUser))
 	{
 		return false;
 	}
-	FStaticMeshSourceModel& SourceModel = GetSourceModel(LODIndex);
+	FStaticMeshSourceModel& SourceModel = SourceModels[LODIndex];
 	FMeshDescription* MeshDescription = GetMeshDescription(LODIndex);
 	//In preview mode we simulate a false BuildAdjacencyBuffer
 	if (MeshDescription && (!(SourceModel.BuildSettings.bBuildAdjacencyBuffer) || bPreviewMode))
@@ -3182,7 +3103,7 @@ bool UStaticMesh::FixLODRequiresAdjacencyInformation(const int32 LODIndex, const
 				if (Material.ImportedMaterialSlotName != NAME_None && Material.ImportedMaterialSlotName == MaterialImportedName)
 				{
 					FStaticMaterial *RemapMaterial = &Material;
-					FMeshSectionInfo SectionInfo = GetSectionInfoMap().Get(LODIndex, SectionIndex);
+					FMeshSectionInfo SectionInfo = SectionInfoMap.Get(LODIndex, SectionIndex);
 					if (StaticMaterials.IsValidIndex(SectionInfo.MaterialIndex))
 					{
 						RemapMaterial = &StaticMaterials[SectionInfo.MaterialIndex];
@@ -3263,7 +3184,7 @@ int32 UStaticMesh::GetNumSectionsWithCollision() const
 		const FStaticMeshLODResources& CollisionLOD = RenderData->LODResources[UseLODIndex];
 		for (int32 SectionIndex = 0; SectionIndex < CollisionLOD.Sections.Num(); ++SectionIndex)
 		{
-			if (GetSectionInfoMap().Get(UseLODIndex, SectionIndex).bEnableCollision)
+			if (SectionInfoMap.Get(UseLODIndex, SectionIndex).bEnableCollision)
 			{
 				NumSectionsWithCollision++;
 			}
@@ -3400,8 +3321,8 @@ void FStaticMeshSourceModel::LoadRawMesh(FRawMesh& OutRawMesh) const
 		// We require the FStaticMeshSourceModel to be in the UStaticMesh::SourceModels array, so that we can infer which LOD it
 		// corresponds to. This would normally be unreasonably limiting, but since these methods are deprecated, we'll go with it.
 		check(StaticMeshOwner != nullptr);
-		const int32 LODIndex = this - &StaticMeshOwner->GetSourceModel(0);
-		check(LODIndex < StaticMeshOwner->GetNumSourceModels());
+		const int32 LODIndex = this - StaticMeshOwner->SourceModels.GetData();
+		check(LODIndex < StaticMeshOwner->SourceModels.Num());
 		if (FMeshDescription* CachedMeshDescription = StaticMeshOwner->GetMeshDescription(LODIndex))
 		{
 			TMap<FName, int32> MaterialMap;
@@ -3428,15 +3349,8 @@ void FStaticMeshSourceModel::SaveRawMesh(FRawMesh& InRawMesh, bool /* unused */)
 	//Save both format
 	RawMeshBulkData->SaveRawMesh(InRawMesh);
 
-	if (MeshDescription.IsValid())
-	{
-		MeshDescription->Empty();
-	}
-	else
-	{
-		MeshDescription = MakeUnique<FMeshDescription>();
-		UStaticMesh::RegisterMeshAttributes(*MeshDescription);
-	}
+	MeshDescription = MakeUnique<FMeshDescription>();
+	UStaticMesh::RegisterMeshAttributes(*MeshDescription);
 
 	TMap<int32, FName> MaterialMap;
 	check(StaticMeshOwner != nullptr);
@@ -3511,15 +3425,7 @@ void FStaticMeshSourceModel::SerializeBulkData(FArchive& Ar, UObject* Owner)
 			{
 				if (Ar.IsLoading())
 				{
-					if (MeshDescription.IsValid())
-					{
-						MeshDescription->Empty();
-					}
-					else
-					{
-						MeshDescription = MakeUnique<FMeshDescription>();
-						UStaticMesh::RegisterMeshAttributes(*MeshDescription);
-					}
+					MeshDescription = MakeUnique<FMeshDescription>();
 				}
 
 				Ar << (*MeshDescription);
@@ -3712,14 +3618,14 @@ static FStaticMeshRenderData& GetPlatformStaticMeshRenderData(UStaticMesh* Mesh,
 
 FMeshDescription* UStaticMesh::GetMeshDescription(int32 LodIndex) const
 {
-	if (!IsSourceModelValid(LodIndex))
+	if (!SourceModels.IsValidIndex(LodIndex))
 	{
 		return nullptr;
 	}
 
 	// Require a const_cast here, because GetMeshDescription should ostensibly have const semantics,
 	// but the lazy initialization (from the BulkData or the DDC) is a one-off event which breaks constness.
-	FStaticMeshSourceModel& SourceModel = const_cast<FStaticMeshSourceModel&>(GetSourceModel(LodIndex));
+	FStaticMeshSourceModel& SourceModel = const_cast<FStaticMeshSourceModel&>(SourceModels[LodIndex]);
 
 	if (!SourceModel.MeshDescription.IsValid())
 	{
@@ -3761,7 +3667,7 @@ FMeshDescription* UStaticMesh::GetMeshDescription(int32 LodIndex) const
 	}
 
 	// If after all this we *still* don't have a valid MeshDescription, but there's a valid RawMesh, convert that to a MeshDescription.
-	if (!SourceModel.MeshDescription.IsValid() && !SourceModel.RawMeshBulkData->IsEmpty())
+	if (!SourceModel.MeshDescription.IsValid() && !SourceModels[LodIndex].RawMeshBulkData->IsEmpty())
 	{
 		SourceModel.MeshDescription = MakeUnique<FMeshDescription>();
 		RegisterMeshAttributes(*SourceModel.MeshDescription);
@@ -3778,12 +3684,12 @@ FMeshDescription* UStaticMesh::GetMeshDescription(int32 LodIndex) const
 
 bool UStaticMesh::IsMeshDescriptionValid(int32 LodIndex) const
 {
-	if (!IsSourceModelValid(LodIndex))
+	if (!SourceModels.IsValidIndex(LodIndex))
 	{
 		return false;
 	}
 
-	const FStaticMeshSourceModel& SourceModel = GetSourceModel(LodIndex);
+	const FStaticMeshSourceModel& SourceModel = SourceModels[LodIndex];
 
 	// Determine whether a mesh description is valid without requiring it to be loaded first.
 	// If there is a valid MeshDescriptionBulkData, we know this implies a valid mesh description.
@@ -3795,9 +3701,9 @@ bool UStaticMesh::IsMeshDescriptionValid(int32 LodIndex) const
 
 FMeshDescription* UStaticMesh::CreateMeshDescription(int32 LodIndex)
 {
-	if (IsSourceModelValid(LodIndex))
+	if (SourceModels.IsValidIndex(LodIndex))
 	{
-		FStaticMeshSourceModel& SourceModel = GetSourceModel(LodIndex);
+		FStaticMeshSourceModel& SourceModel = SourceModels[LodIndex];
 		SourceModel.MeshDescription = MakeUnique<FMeshDescription>();
 		UStaticMesh::RegisterMeshAttributes(*SourceModel.MeshDescription);
 		return SourceModel.MeshDescription.Get();
@@ -3820,9 +3726,9 @@ FMeshDescription* UStaticMesh::CreateMeshDescription(int32 LodIndex, FMeshDescri
 void UStaticMesh::CommitMeshDescription(int32 LodIndex)
 {
 	// The source model must be created before calling this function
-	check(IsSourceModelValid(LodIndex));
+	check(SourceModels.IsValidIndex(LodIndex));
 
-	FStaticMeshSourceModel& SourceModel = GetSourceModel(LodIndex);
+	FStaticMeshSourceModel& SourceModel = SourceModels[LodIndex];
 	if (SourceModel.MeshDescription.IsValid())
 	{
 		// Convert MeshDescription to RawMesh
@@ -3856,18 +3762,10 @@ void UStaticMesh::CommitMeshDescription(int32 LodIndex)
 
 void UStaticMesh::ClearMeshDescription(int32 LodIndex)
 {
-	if (IsSourceModelValid(LodIndex))
+	if (SourceModels.IsValidIndex(LodIndex))
 	{
-		FStaticMeshSourceModel& SourceModel = GetSourceModel(LodIndex);
+		FStaticMeshSourceModel& SourceModel = SourceModels[LodIndex];
 		SourceModel.MeshDescription.Reset();
-	}
-}
-
-void UStaticMesh::ClearMeshDescriptions()
-{
-	for (int LODIndex = 0; LODIndex < GetNumSourceModels(); LODIndex++)
-	{
-		ClearMeshDescription(LODIndex);
 	}
 }
 
@@ -3924,14 +3822,14 @@ static const FString& GetMeshDataKeyStaticMeshDerivedDataVersion()
 bool UStaticMesh::GetMeshDataKey(int32 LodIndex, FString& OutKey) const
 {
 	OutKey.Empty();
-	if (LodIndex >= GetNumSourceModels())
+	if (LodIndex >= SourceModels.Num())
 	{
 		return false;
 	}
 
 	FSHA1 Sha;
 	FString LodIndexString = FString::Printf(TEXT("%d_"), LodIndex);
-	const FStaticMeshSourceModel& SourceModel = GetSourceModel(LodIndex);
+	const FStaticMeshSourceModel& SourceModel = SourceModels[LodIndex];
 	if(!SourceModel.RawMeshBulkData->IsEmpty())
 	{
 		LodIndexString += SourceModel.RawMeshBulkData->GetIdString();
@@ -3962,9 +3860,9 @@ bool UStaticMesh::GetMeshDataKey(int32 LodIndex, FString& OutKey) const
 void UStaticMesh::CacheMeshData()
 {
 	// Generate MeshDescription source data in the DDC if no bulk data is present from the asset
-	for (int32 LodIndex = 0; LodIndex < GetNumSourceModels(); ++LodIndex)
+	for (int32 LodIndex = 0; LodIndex < SourceModels.Num(); ++LodIndex)
 	{
-		FStaticMeshSourceModel& SourceModel = GetSourceModel(LodIndex);
+		FStaticMeshSourceModel& SourceModel = SourceModels[LodIndex];
 		if (!SourceModel.MeshDescriptionBulkData.IsValid())
 		{
 			// Legacy assets used to store their source data in the RawMeshBulkData
@@ -3982,23 +3880,15 @@ void UStaticMesh::CacheMeshData()
 						SourceModel.RawMeshBulkData->LoadRawMesh(TempRawMesh);
 
 						// Create a new MeshDescription
-						if (SourceModel.MeshDescription.IsValid())
-						{
-							SourceModel.MeshDescription->Empty();
-						}
-						else
-						{
-							SourceModel.MeshDescription = MakeUnique<FMeshDescription>();
-							RegisterMeshAttributes(*SourceModel.MeshDescription);
-						}
+						SourceModel.MeshDescription = MakeUnique<FMeshDescription>();
+						RegisterMeshAttributes(*SourceModel.MeshDescription);
 
 						// Convert the RawMesh to MeshDescription
 						TMap<int32, FName> MaterialMap;
 						FillMaterialName(StaticMaterials, MaterialMap);
 						FMeshDescriptionOperations::ConvertFromRawMesh(TempRawMesh, *SourceModel.MeshDescription, MaterialMap);
 
-						// Pack MeshDescription into temporary bulk data, ready to write out to DDC.
-						// This will be reloaded from the DDC when needed if a MeshDescription is requested from the static mesh.
+						// Pack MeshDescription into bulk data
 						FMeshDescriptionBulkData MeshDescriptionBulkData;
 						MeshDescriptionBulkData.SaveMeshDescription(*SourceModel.MeshDescription);
 
@@ -4043,7 +3933,7 @@ bool UStaticMesh::InsertUVChannel(int32 LODIndex, int32 UVChannelIndex)
 		if (FMeshDescriptionOperations::InsertUVChannel(*MeshDescription, UVChannelIndex))
 		{
 			// Adjust the lightmap UV indices in the Build Settings to account for the new channel
-			FMeshBuildSettings& LODBuildSettings = GetSourceModel(LODIndex).BuildSettings;
+			FMeshBuildSettings& LODBuildSettings = SourceModels[LODIndex].BuildSettings;
 			if (UVChannelIndex <= LODBuildSettings.SrcLightmapIndex)
 			{
 				++LODBuildSettings.SrcLightmapIndex;
@@ -4073,7 +3963,7 @@ bool UStaticMesh::RemoveUVChannel(int32 LODIndex, int32 UVChannelIndex)
 	FMeshDescription* MeshDescription = GetMeshDescription(LODIndex);
 	if (MeshDescription)
 	{
-		FMeshBuildSettings& LODBuildSettings = GetSourceModel(LODIndex).BuildSettings;
+		FMeshBuildSettings& LODBuildSettings = SourceModels[LODIndex].BuildSettings;
 
 		if (LODBuildSettings.bGenerateLightmapUVs)
 		{
@@ -4119,7 +4009,7 @@ bool UStaticMesh::RemoveUVChannel(int32 LODIndex, int32 UVChannelIndex)
 	return false;
 }
 
-bool UStaticMesh::SetUVChannel(int32 LODIndex, int32 UVChannelIndex, const TMap<FVertexInstanceID, FVector2D>& TexCoords)
+bool UStaticMesh::SetUVChannel(int32 LODIndex, int32 UVChannelIndex, const TArray<FVector2D>& TexCoords)
 {
 	FMeshDescription* MeshDescription = GetMeshDescription(LODIndex);
 	if (!MeshDescription)
@@ -4134,17 +4024,11 @@ bool UStaticMesh::SetUVChannel(int32 LODIndex, int32 UVChannelIndex, const TMap<
 
 	Modify();
 
+	int32 TextureCoordIndex = 0;
 	TMeshAttributesRef<FVertexInstanceID, FVector2D> UVs = MeshDescription->VertexInstanceAttributes().GetAttributesRef<FVector2D>(MeshAttribute::VertexInstance::TextureCoordinate);
 	for (const FVertexInstanceID& VertexInstanceID : MeshDescription->VertexInstances().GetElementIDs())
 	{
-		if (const FVector2D* UVCoord = TexCoords.Find(VertexInstanceID))
-		{
-			UVs.Set(VertexInstanceID, UVChannelIndex, *UVCoord);
-		}
-		else
-		{
-			ensureMsgf(false, TEXT("Tried to apply UV data that did not match the StaticMesh MeshDescription."));
-		}
+		UVs.Set(VertexInstanceID, UVChannelIndex, TexCoords[TextureCoordIndex++]);
 	}
 
 	CommitMeshDescription(LODIndex);
@@ -4362,15 +4246,15 @@ void UStaticMesh::Serialize(FArchive& Ar)
 #if WITH_EDITOR
 	if (!StripFlags.IsEditorDataStripped())
 	{
-		for (int32 i = 0; i < GetNumSourceModels(); ++i)
+		for (int32 i = 0; i < SourceModels.Num(); ++i)
 		{
-			FStaticMeshSourceModel& SrcModel = GetSourceModel(i);
+			FStaticMeshSourceModel& SrcModel = SourceModels[i];
 			SrcModel.SerializeBulkData(Ar, this);
 		}
 
 		if (Ar.CustomVer(FEditorObjectVersion::GUID) < FEditorObjectVersion::UPropertryForMeshSection)
 		{
-			GetSectionInfoMap().Serialize(Ar);
+			SectionInfoMap.Serialize(Ar);
 		}
 
 		// Need to set a flag rather than do conversion in place as RenderData is not
@@ -4440,7 +4324,7 @@ void UStaticMesh::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading() && Ar.CustomVer(FRenderingObjectVersion::GUID) < FRenderingObjectVersion::DistanceFieldSelfShadowBias)
 	{
-		DistanceFieldSelfShadowBias = GetSourceModel(0).BuildSettings.DistanceFieldBias_DEPRECATED * 10.0f;
+		DistanceFieldSelfShadowBias = SourceModels[0].BuildSettings.DistanceFieldBias_DEPRECATED * 10.0f;
 	}
 
 	if (Ar.CustomVer(FEditorObjectVersion::GUID) >= FEditorObjectVersion::RefactorMeshEditorMaterials)
@@ -4485,11 +4369,11 @@ void UStaticMesh::Serialize(FArchive& Ar)
 	if (Ar.CustomVer(FReleaseObjectVersion::GUID) < FReleaseObjectVersion::SpeedTreeBillboardSectionInfoFixup && bHasSpeedTreeWind)
 	{
 		// Ensure we have multiple tree LODs
-		if (GetNumSourceModels() > 1)
+		if (SourceModels.Num() > 1)
 		{
 			// Look a the last LOD model and check its vertices
-			const int32 LODIndex = GetNumSourceModels() - 1;
-			FStaticMeshSourceModel& SourceModel = GetSourceModel(LODIndex);
+			const int32 LODIndex = SourceModels.Num() - 1;
+			FStaticMeshSourceModel& SourceModel = SourceModels[LODIndex];
 
 			FRawMesh RawMesh;
 			SourceModel.LoadRawMesh(RawMesh);
@@ -4499,14 +4383,14 @@ void UStaticMesh::Serialize(FArchive& Ar)
 
 			// If there is no section info for the billboard LOD make sure we add it
 			uint32 Key = GetMeshMaterialKey(LODIndex, 0);
-			bool bSectionInfoExists = GetSectionInfoMap().Map.Contains(Key);
+			bool bSectionInfoExists = SectionInfoMap.Map.Contains(Key);
 			if (!bSectionInfoExists && bQuadVertices)
 			{
 				FMeshSectionInfo Info;
 				// Assuming billboard material is added last
 				Info.MaterialIndex = StaticMaterials.Num() - 1;
-				GetSectionInfoMap().Set(LODIndex, 0, Info);
-				GetOriginalSectionInfoMap().Set(LODIndex, 0, Info);
+				SectionInfoMap.Set(LODIndex, 0, Info);
+				OriginalSectionInfoMap.Set(LODIndex, 0, Info);
 			}
 		}
 	}
@@ -4528,9 +4412,9 @@ void UStaticMesh::PostLoad()
 
 #if WITH_EDITOR
 
-	if (GetNumSourceModels() > 0)
+	if (SourceModels.Num() > 0)
 	{
-		UStaticMesh* DistanceFieldReplacementMesh = GetSourceModel(0).BuildSettings.DistanceFieldReplacementMesh;
+		UStaticMesh* DistanceFieldReplacementMesh = SourceModels[0].BuildSettings.DistanceFieldReplacementMesh;
  
 		if (DistanceFieldReplacementMesh)
 		{
@@ -4539,10 +4423,10 @@ void UStaticMesh::PostLoad()
 		
 		//TODO remove this code when FRawMesh will be removed
 		//Fill the static mesh owner
-		int32 NumLODs = GetNumSourceModels();
+		int32 NumLODs = SourceModels.Num();
 		for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 		{
-			FStaticMeshSourceModel& SrcModel = GetSourceModel(LODIndex);
+			FStaticMeshSourceModel& SrcModel = SourceModels[LODIndex];
 			SrcModel.StaticMeshOwner = this;
 		}
 	}
@@ -4552,27 +4436,27 @@ void UStaticMesh::PostLoad()
 		// Needs to happen before 'CacheDerivedData'
 		if (GetLinkerUE4Version() < VER_UE4_BUILD_SCALE_VECTOR)
 		{
-			int32 NumLODs = GetNumSourceModels();
+			int32 NumLODs = SourceModels.Num();
 			for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 			{
-				FStaticMeshSourceModel& SrcModel = GetSourceModel(LODIndex);
+				FStaticMeshSourceModel& SrcModel = SourceModels[LODIndex];
 				SrcModel.BuildSettings.BuildScale3D = FVector(SrcModel.BuildSettings.BuildScale_DEPRECATED);
 			}
 		}
 
 		if (GetLinkerUE4Version() < VER_UE4_LIGHTMAP_MESH_BUILD_SETTINGS)
 		{
-			for (int32 i = 0; i < GetNumSourceModels(); i++)
+			for (int32 i = 0; i < SourceModels.Num(); i++)
 			{
-				GetSourceModel(i).BuildSettings.bGenerateLightmapUVs = false;
+				SourceModels[i].BuildSettings.bGenerateLightmapUVs = false;
 			}
 		}
 
 		if (GetLinkerUE4Version() < VER_UE4_MIKKTSPACE_IS_DEFAULT)
 		{
-			for (int32 i = 0; i < GetNumSourceModels(); ++i)
+			for (int32 i = 0; i < SourceModels.Num(); ++i)
 			{
-				GetSourceModel(i).BuildSettings.bUseMikkTSpace = true;
+				SourceModels[i].BuildSettings.bUseMikkTSpace = true;
 			}
 		}
 
@@ -4581,22 +4465,22 @@ void UStaticMesh::PostLoad()
 			FRawMesh TempRawMesh;
 			uint32 TotalIndexCount = 0;
 
-			for (int32 i = 0; i < GetNumSourceModels(); ++i)
+			for (int32 i = 0; i < SourceModels.Num(); ++i)
 			{
 				// Access RawMesh directly instead of through the FStaticMeshSourceModel API,
 				// because we don't want to perform an automatic conversion to MeshDescription at this point -
 				// this will be done below in CacheDerivedData().
 				// This is a path for legacy assets.
-				if (!GetSourceModel(i).RawMeshBulkData->IsEmpty())
+				if (!SourceModels[i].RawMeshBulkData->IsEmpty())
 				{
-					GetSourceModel(i).RawMeshBulkData->LoadRawMesh(TempRawMesh);
+					SourceModels[i].RawMeshBulkData->LoadRawMesh(TempRawMesh);
 					TotalIndexCount += TempRawMesh.WedgeIndices.Num();
 				}
 			}
 
-			for (int32 i = 0; i < GetNumSourceModels(); ++i)
+			for (int32 i = 0; i < SourceModels.Num(); ++i)
 			{
-				GetSourceModel(i).BuildSettings.bBuildAdjacencyBuffer = (TotalIndexCount < 50000);
+				SourceModels[i].BuildSettings.bBuildAdjacencyBuffer = (TotalIndexCount < 50000);
 			}
 		}
 
@@ -4637,7 +4521,7 @@ void UStaticMesh::PostLoad()
 							}
 							else
 							{
-								FMeshSectionInfo MeshSectionInfo = GetSectionInfoMap().Get(LODIndex, SectionIndex);
+								FMeshSectionInfo MeshSectionInfo = SectionInfoMap.Get(LODIndex, SectionIndex);
 								int32 CompactedIndex = INDEX_NONE;
 								if (StaticMaterials.IsValidIndex(MeshSectionInfo.MaterialIndex))
 								{
@@ -4659,7 +4543,7 @@ void UStaticMesh::PostLoad()
 								if (MeshSectionInfo.MaterialIndex != CompactedIndex)
 								{
 									MeshSectionInfo.MaterialIndex = CompactedIndex;
-									GetSectionInfoMap().Set(LODIndex, SectionIndex, MeshSectionInfo);
+									SectionInfoMap.Set(LODIndex, SectionIndex, MeshSectionInfo);
 									bMaterialChange = true;
 								}
 							}
@@ -4692,15 +4576,6 @@ void UStaticMesh::PostLoad()
 
 	if (RenderData)
 	{
-		if (bSupportGpuUniformlyDistributedSampling)
-		{
-			// Initialise pointers to samplers
-			for (FStaticMeshLODResources &LOD : RenderData->LODResources)
-			{
-				LOD.AreaWeightedSectionSamplersBuffer.Init(&LOD.AreaWeightedSectionSamplers);
-			}
-		}
-
 		// check the MinLOD values are all within range
 		bool bFixedMinLOD = false;
 		int32 MinAvailableLOD = FMath::Max<int32>(RenderData->LODResources.Num() - 1, 0);
@@ -4789,8 +4664,8 @@ void UStaticMesh::PostLoad()
 
 	//Always redo the whole SectionInfoMap to be sure it contain only valid data
 	//This will reuse everything valid from the just serialize SectionInfoMap.
-	FMeshSectionInfoMap TempOldSectionInfoMap = GetSectionInfoMap();
-	GetSectionInfoMap().Clear();
+	FMeshSectionInfoMap TempOldSectionInfoMap = SectionInfoMap;
+	SectionInfoMap.Clear();
 	for (int32 LODResourceIndex = 0; LODResourceIndex < RenderData->LODResources.Num(); ++LODResourceIndex)
 	{
 		FStaticMeshLODResources& LOD = RenderData->LODResources[LODResourceIndex];
@@ -4802,7 +4677,7 @@ void UStaticMesh::PostLoad()
 				if (StaticMaterials.IsValidIndex(Info.MaterialIndex))
 				{
 					//Reuse the valid data that come from the serialize
-					GetSectionInfoMap().Set(LODResourceIndex, SectionIndex, Info);
+					SectionInfoMap.Set(LODResourceIndex, SectionIndex, Info);
 				}
 				else
 				{
@@ -4811,7 +4686,7 @@ void UStaticMesh::PostLoad()
 					if (StaticMaterials.IsValidIndex(MaterialIndex))
 					{
 						Info.MaterialIndex = MaterialIndex;
-						GetSectionInfoMap().Set(LODResourceIndex, SectionIndex, Info);
+						SectionInfoMap.Set(LODResourceIndex, SectionIndex, Info);
 					}
 				}
 			}
@@ -4821,13 +4696,13 @@ void UStaticMesh::PostLoad()
 				const int32 MaterialIndex = LOD.Sections[SectionIndex].MaterialIndex;
 				if (StaticMaterials.IsValidIndex(MaterialIndex))
 				{
-					GetSectionInfoMap().Set(LODResourceIndex, SectionIndex, FMeshSectionInfo(MaterialIndex));
+					SectionInfoMap.Set(LODResourceIndex, SectionIndex, FMeshSectionInfo(MaterialIndex));
 				}
 			}
 			//Make sure the OriginalSectionInfoMap has some information, the post load only add missing slot, this data should be set when importing/re-importing the asset
-			if (!GetOriginalSectionInfoMap().IsValidSection(LODResourceIndex, SectionIndex))
+			if (!OriginalSectionInfoMap.IsValidSection(LODResourceIndex, SectionIndex))
 			{
-				GetOriginalSectionInfoMap().Set(LODResourceIndex, SectionIndex, GetSectionInfoMap().Get(LODResourceIndex, SectionIndex));
+				OriginalSectionInfoMap.Set(LODResourceIndex, SectionIndex, SectionInfoMap.Get(LODResourceIndex, SectionIndex));
 			}
 		}
 	}
@@ -4841,7 +4716,10 @@ void UStaticMesh::PostLoad()
 
 #if WITH_EDITOR
 	// Release cached mesh descriptions until they are loaded on demand
-	ClearMeshDescriptions();
+	for (int LODIndex = 0; LODIndex < SourceModels.Num(); LODIndex++)
+	{
+		ClearMeshDescription(LODIndex);
+	}
 #endif
 
 	CreateNavCollision();
@@ -5155,7 +5033,7 @@ static int32 GetCollisionVertIndexForMeshVertIndex(int32 MeshVertIndex, TMap<int
 bool UStaticMesh::GetPhysicsTriMeshData(struct FTriMeshCollisionData* CollisionData, bool bInUseAllTriData)
 {
 #if WITH_EDITORONLY_DATA
-	if (ComplexCollisionMesh && ComplexCollisionMesh != this)
+	if (ComplexCollisionMesh)
 	{
 		return ComplexCollisionMesh->GetPhysicsTriMeshData(CollisionData, bInUseAllTriData);
 	}
@@ -5182,7 +5060,7 @@ bool UStaticMesh::GetPhysicsTriMeshData(struct FTriMeshCollisionData* CollisionD
 	{
 		const FStaticMeshSection& Section = LOD.Sections[SectionIndex];
 
-		if (bInUseAllTriData || GetSectionInfoMap().Get(UseLODIndex,SectionIndex).bEnableCollision)
+		if (bInUseAllTriData || SectionInfoMap.Get(UseLODIndex,SectionIndex).bEnableCollision)
 		{
 			const uint32 OnePastLastIndex  = Section.FirstIndex + Section.NumTriangles*3;
 
@@ -5211,9 +5089,9 @@ bool UStaticMesh::GetPhysicsTriMeshData(struct FTriMeshCollisionData* CollisionD
 bool UStaticMesh::ContainsPhysicsTriMeshData(bool bInUseAllTriData) const 
 {
 #if WITH_EDITORONLY_DATA
-	if (ComplexCollisionMesh && ComplexCollisionMesh != this)
+	if (ComplexCollisionMesh)
 	{
-		return ComplexCollisionMesh->ContainsPhysicsTriMeshData(bInUseAllTriData);
+		ComplexCollisionMesh->ContainsPhysicsTriMeshData(bInUseAllTriData);
 	}
 	if(RenderData == nullptr || RenderData->LODResources.Num() == 0)
 	{
@@ -5231,7 +5109,7 @@ bool UStaticMesh::ContainsPhysicsTriMeshData(bool bInUseAllTriData) const
 		for (int32 SectionIndex = 0; SectionIndex < LOD.Sections.Num(); ++SectionIndex)
 		{
 			const FStaticMeshSection& Section = LOD.Sections[SectionIndex];
-			if ((bInUseAllTriData || GetSectionInfoMap().Get(UseLODIndex, SectionIndex).bEnableCollision) && Section.NumTriangles > 0)
+			if ((bInUseAllTriData || SectionInfoMap.Get(UseLODIndex, SectionIndex).bEnableCollision) && Section.NumTriangles > 0)
 			{
 				return true;
 			}
@@ -5354,13 +5232,13 @@ void UStaticMesh::GetVertexColorData(TMap<FVector, FColor>& VertexColorData)
 	// What LOD to get vertex colors from.  
 	// Currently mesh painting only allows for painting on the first lod.
 	const uint32 PaintingMeshLODIndex = 0;
-	if (IsSourceModelValid(PaintingMeshLODIndex))
+	if (SourceModels.IsValidIndex(PaintingMeshLODIndex))
 	{
-		if (!GetSourceModel(PaintingMeshLODIndex).IsRawMeshEmpty())
+		if (SourceModels[PaintingMeshLODIndex].IsRawMeshEmpty() == false)
 		{
 			// Extract the raw mesh.
 			FRawMesh Mesh;
-			GetSourceModel(PaintingMeshLODIndex).LoadRawMesh(Mesh);
+			SourceModels[PaintingMeshLODIndex].LoadRawMesh(Mesh);
 			// Nothing to copy if there are no colors stored.
 			if (Mesh.WedgeColors.Num() != 0 && Mesh.WedgeColors.Num() == Mesh.WedgeIndices.Num())
 			{
@@ -5393,13 +5271,13 @@ void UStaticMesh::SetVertexColorData(const TMap<FVector, FColor>& VertexColorDat
 	// What LOD to get vertex colors from.  
 	// Currently mesh painting only allows for painting on the first lod.
 	const uint32 PaintingMeshLODIndex = 0;
-	if (IsSourceModelValid(PaintingMeshLODIndex))
+	if (SourceModels.IsValidIndex(PaintingMeshLODIndex))
 	{
-		if (GetSourceModel(PaintingMeshLODIndex).IsRawMeshEmpty() == false)
+		if (SourceModels[PaintingMeshLODIndex].IsRawMeshEmpty() == false)
 		{
 			// Extract the raw mesh.
 			FRawMesh Mesh;
-			GetSourceModel(PaintingMeshLODIndex).LoadRawMesh(Mesh);
+			SourceModels[PaintingMeshLODIndex].LoadRawMesh(Mesh);
 
 			// Reserve space for the new vertex colors.
 			if (Mesh.WedgeColors.Num() == 0 || Mesh.WedgeColors.Num() != Mesh.WedgeIndices.Num())
@@ -5424,7 +5302,7 @@ void UStaticMesh::SetVertexColorData(const TMap<FVector, FColor>& VertexColorDat
 			}
 
 			// Save the new raw mesh.
-			GetSourceModel(PaintingMeshLODIndex).SaveRawMesh(Mesh);
+			SourceModels[PaintingMeshLODIndex].SaveRawMesh(Mesh);
 		}
 	}
 	// TODO_STATICMESH: Build?
@@ -5436,7 +5314,7 @@ ENGINE_API void UStaticMesh::RemoveVertexColors()
 #if WITH_EDITOR
 	bool bRemovedVertexColors = false;
 
-	for (FStaticMeshSourceModel& SourceModel : GetSourceModels())
+	for (FStaticMeshSourceModel& SourceModel : SourceModels)
 	{
 		if (!SourceModel.IsRawMeshEmpty())
 		{
@@ -5867,7 +5745,7 @@ void UStaticMesh::SetMaterial(int32 MaterialIndex, UMaterialInterface* NewMateri
 					{
 						if (FixLODAdjacencyOption[FixLODIndex])
 						{
-							GetSourceModel(FixLODIndex).BuildSettings.bBuildAdjacencyBuffer = false;
+							SourceModels[FixLODIndex].BuildSettings.bBuildAdjacencyBuffer = false;
 						}
 					}
 				}
@@ -5921,7 +5799,7 @@ const FStaticMeshLODResources& UStaticMesh::GetLODForExport(int32 LODIndex) cons
 bool UStaticMesh::CanLODsShareStaticLighting() const
 {
 	bool bCanShareData = true;
-	for (int32 LODIndex = 1; bCanShareData && LODIndex < GetNumSourceModels(); ++LODIndex)
+	for (int32 LODIndex = 1; bCanShareData && LODIndex < SourceModels.Num(); ++LODIndex)
 	{
 		bCanShareData = bCanShareData && !IsMeshDescriptionValid(LODIndex);
 	}
@@ -5937,14 +5815,13 @@ bool UStaticMesh::CanLODsShareStaticLighting() const
 
 void UStaticMesh::ConvertLegacyLODDistance()
 {
-	const int32 NumSourceModels = GetNumSourceModels();
-	check(NumSourceModels > 0);
-	check(NumSourceModels <= MAX_STATIC_MESH_LODS);
+	check(SourceModels.Num() > 0);
+	check(SourceModels.Num() <= MAX_STATIC_MESH_LODS);
 
-	if(NumSourceModels == 1)
+	if(SourceModels.Num() == 1)
 	{
 		// Only one model, 
-		GetSourceModel(0).ScreenSize.Default = 1.0f;
+		SourceModels[0].ScreenSize.Default = 1.0f;
 	}
 	else
 	{
@@ -5954,9 +5831,9 @@ void UStaticMesh::ConvertLegacyLODDistance()
 		const float ScreenWidth = 1920.0f;
 		const float ScreenHeight = 1080.0f;
 
-		for(int32 ModelIndex = 0 ; ModelIndex < NumSourceModels ; ++ModelIndex)
+		for(int32 ModelIndex = 0 ; ModelIndex < SourceModels.Num() ; ++ModelIndex)
 		{
-			FStaticMeshSourceModel& SrcModel = GetSourceModel(ModelIndex);
+			FStaticMeshSourceModel& SrcModel = SourceModels[ModelIndex];
 
 			if(SrcModel.LODDistance_DEPRECATED == 0.0f)
 			{
@@ -5983,14 +5860,13 @@ void UStaticMesh::ConvertLegacyLODDistance()
 
 void UStaticMesh::ConvertLegacyLODScreenArea()
 {
-	const int32 NumSourceModels = GetNumSourceModels();
-	check(NumSourceModels > 0);
-	check(NumSourceModels <= MAX_STATIC_MESH_LODS);
+	check(SourceModels.Num() > 0);
+	check(SourceModels.Num() <= MAX_STATIC_MESH_LODS);
 
-	if (NumSourceModels == 1)
+	if (SourceModels.Num() == 1)
 	{
 		// Only one model, 
-		GetSourceModel(0).ScreenSize.Default = 1.0f;
+		SourceModels[0].ScreenSize.Default = 1.0f;
 	}
 	else
 	{
@@ -6002,9 +5878,9 @@ void UStaticMesh::ConvertLegacyLODScreenArea()
 		FBoxSphereBounds Bounds = GetBounds();
 
 		// Multiple models, we should have LOD screen area data.
-		for (int32 ModelIndex = 0; ModelIndex < NumSourceModels; ++ModelIndex)
+		for (int32 ModelIndex = 0; ModelIndex < SourceModels.Num(); ++ModelIndex)
 		{
-			FStaticMeshSourceModel& SrcModel = GetSourceModel(ModelIndex);
+			FStaticMeshSourceModel& SrcModel = SourceModels[ModelIndex];
 
 			if (SrcModel.ScreenSize.Default == 0.0f)
 			{
@@ -6045,9 +5921,9 @@ void UStaticMesh::GenerateLodsInPackage()
 		// Clear LOD settings
 		LODGroup = NAME_None;
 		const auto& NewGroup = LODSettings.GetLODGroup(LODGroup);
-		for (int32 Index = 0; Index < GetNumSourceModels(); ++Index)
+		for (int32 Index = 0; Index < SourceModels.Num(); ++Index)
 		{
-			GetSourceModel(Index).ReductionSettings = NewGroup.GetDefaultSettings(0);
+			SourceModels[Index].ReductionSettings = NewGroup.GetDefaultSettings(0);
 		}
 
 		Build(true);
@@ -6058,11 +5934,6 @@ void UStaticMesh::GenerateLodsInPackage()
 }
 
 #endif // #if WITH_EDITOR
-
-void UStaticMesh::AddSocket(UStaticMeshSocket* Socket)
-{
-	Sockets.AddUnique(Socket);
-}
 
 UStaticMeshSocket* UStaticMesh::FindSocket(FName InSocketName) const
 {
@@ -6080,11 +5951,6 @@ UStaticMeshSocket* UStaticMesh::FindSocket(FName InSocketName) const
 		}
 	}
 	return NULL;
-}
-
-void UStaticMesh::RemoveSocket(UStaticMeshSocket* Socket)
-{
-	Sockets.Remove(Socket);
 }
 
 /*-----------------------------------------------------------------------------

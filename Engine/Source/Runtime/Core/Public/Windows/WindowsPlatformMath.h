@@ -12,9 +12,7 @@
 #include "XboxOne/XboxOneSystemIncludes.h"
 #endif
 
-#if PLATFORM_ENABLE_VECTORINTRINSICS
 #include "Math/UnrealPlatformMathSSE.h"
-#endif
 
 /**
 * Windows implementation of the Math OS functions

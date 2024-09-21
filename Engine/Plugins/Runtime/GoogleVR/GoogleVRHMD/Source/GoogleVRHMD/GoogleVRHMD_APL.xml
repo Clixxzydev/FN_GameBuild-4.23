@@ -557,7 +557,7 @@
 					{
 						if(!HasAllFiles)
 						{
-							HasAllFiles = DownloadShim.expansionFilesDelivered(this, VersionCode);
+							HasAllFiles = DownloadShim.expansionFilesDelivered(this);
 						}
 					}
 				</insert>

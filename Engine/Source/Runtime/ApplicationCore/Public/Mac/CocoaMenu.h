@@ -3,7 +3,7 @@
 
 #include "CoreMinimal.h"
 
-OBJC_EXPORT @interface FCocoaMenu : NSMenu
+@interface FCocoaMenu : NSMenu
 {
 @private
 	bool bHighlightingKeyEquivalent;

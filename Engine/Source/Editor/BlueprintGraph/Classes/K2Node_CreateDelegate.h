@@ -17,7 +17,7 @@ class UK2Node_CreateDelegate : public UK2Node
 {
 	GENERATED_UCLASS_BODY()
 
-	UPROPERTY(meta = (BlueprintSearchable = "true"))
+	UPROPERTY()
 	FName SelectedFunctionName;
 
 	UPROPERTY()

@@ -67,14 +67,22 @@ TArray<FGuid> FSequencerSelection::GetBoundObjectsGuids()
 	}
 	for (TSharedRef<FSequencerDisplayNode> Node : SelectedNodes)
 	{
-		TSharedPtr<FSequencerObjectBindingNode> ObjectNode = Node->FindParentObjectBindingNode();
+		TSharedPtr<FSequencerObjectBindingNode> ObjectNode;
 		if (Node->GetType() == ESequencerNode::Object)
 		{
 			ObjectNode = StaticCastSharedRef<FSequencerObjectBindingNode>(Node);
 		}
 		else
 		{
-			ObjectNode = Node->FindParentObjectBindingNode();
+			TSharedPtr<FSequencerDisplayNode> ParentNode = Node->GetParent();
+			if (ParentNode.IsValid())
+			{
+				while (ParentNode->GetParent().IsValid() && ParentNode->GetType() != ESequencerNode::Object)
+				{
+					ParentNode = ParentNode->GetParent();
+				}
+				ObjectNode = StaticCastSharedPtr<FSequencerObjectBindingNode>(ParentNode);
+			}
 		}
 
 		if (ObjectNode.IsValid())

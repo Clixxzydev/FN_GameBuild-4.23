@@ -48,6 +48,7 @@ class FRunnableThreadWin
 			uint32 dwFlags;		// Reserved for future use, must be zero.
 		};
 
+		Sleep(10);
 		THREADNAME_INFO ThreadNameInfo;
 		ThreadNameInfo.dwType		= 0x1000;
 		ThreadNameInfo.szName		= ThreadName;

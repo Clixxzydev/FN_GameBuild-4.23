@@ -138,11 +138,10 @@ namespace SwarmInterfaceLocalImpl
 		if (SocketSubsystem)
 		{
 			// create socket
-			TSharedRef<FInternetAddr> BindAddr = FIPv4Endpoint::Any.ToInternetAddr();
-			FSocket* Socket = SocketSubsystem->CreateSocket(NAME_DGram, TEXT("TestSocket"), BindAddr->GetProtocolType());
+			FSocket* Socket = SocketSubsystem->CreateSocket(NAME_DGram, TEXT("TestSocket"), true);
 			if (Socket)
 			{
-				if (Socket->Bind(*BindAddr))
+				if (Socket->Bind(*FIPv4Endpoint::Any.ToInternetAddr()))
 				{
 					if (Socket->SetBroadcast(true) && Socket->SetMulticastLoopback(true))
 					{

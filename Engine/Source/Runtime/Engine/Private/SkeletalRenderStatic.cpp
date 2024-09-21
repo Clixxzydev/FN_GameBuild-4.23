@@ -131,6 +131,7 @@ void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::InitResources(FSkelMeshC
 		FIndexBufferRHIRef IndexBufferRHI = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->IndexBufferRHI;
 		uint32 VertexBufferStride = LODModel.StaticVertexBuffers.PositionVertexBuffer.GetStride();
 
+		//#dxr_todo: do we need support for separate sections in FRayTracingGeometryData?
 		uint32 TrianglesCount = 0;
 		for (int32 SectionIndex = 0; SectionIndex < LODModel.RenderSections.Num(); SectionIndex++)
 		{
@@ -150,7 +151,7 @@ void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::InitResources(FSkelMeshC
 				Initializer.VertexBufferByteOffset = 0;
 				Initializer.TotalPrimitiveCount = TrianglesCount;
 				Initializer.VertexBufferElementType = VET_Float3;
-				Initializer.GeometryType = RTGT_Triangles;
+				Initializer.PrimitiveType = PT_TriangleList;
 				Initializer.bFastBuild = false;
 
 				TArray<FRayTracingGeometrySegment> GeometrySections;
@@ -186,3 +187,18 @@ void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::ReleaseResources()
 	bResourcesInitialized = false;
 }
 
+#if RHI_RAYTRACING
+// #dxr_todo: this looks like dead code
+void FSkeletalMeshObjectStatic::FSkeletalMeshObjectLOD::BuildRayTracingAccelerationStructure()
+{
+	if (RayTracingGeometry.Initializer.PositionVertexBuffer && RayTracingGeometry.Initializer.IndexBuffer)
+	{
+		ENQUEUE_RENDER_COMMAND(SkeletalRenderStaticBuildRayTracingAccelerationStructure)(
+			[this](FRHICommandListImmediate& RHICmdList)
+		{
+			RHICmdList.BuildAccelerationStructure(RayTracingGeometry.RayTracingGeometryRHI);
+		}
+		);
+	}
+}
+#endif // RHI_RAYTRACING

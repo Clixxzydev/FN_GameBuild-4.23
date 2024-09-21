@@ -15,15 +15,12 @@ public class OculusEditor : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"EngineSettings",
-				"AndroidRuntimeSettings",
 				"Slate",
 				"SlateCore",
 				"EditorStyle",
 				"Core",
 				"OculusHMD",
 				"OVRPlugin",
-				"HTTP",
-				"DesktopPlatform",
 			}
 			);
 

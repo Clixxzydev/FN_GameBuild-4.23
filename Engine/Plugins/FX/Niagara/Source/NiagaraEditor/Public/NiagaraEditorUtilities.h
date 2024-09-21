@@ -7,7 +7,6 @@
 #include "UObject/StructOnScope.h"
 #include "Misc/Attribute.h"
 #include "AssetData.h"
-#include "NiagaraGraph.h"
 
 class UNiagaraNodeInput;
 class UNiagaraNodeOutput;
@@ -26,7 +25,6 @@ class SWidget;
 class UNiagaraNode;
 class UEdGraphSchema_Niagara;
 class UEdGraphPin;
-class FCompileConstantResolver;
 
 namespace FNiagaraEditorUtilities
 {
@@ -139,17 +137,12 @@ namespace FNiagaraEditorUtilities
 
 	void FixUpNumericPins(const UEdGraphSchema_Niagara* Schema, UNiagaraNode* Node);
 
-	void SetStaticSwitchConstants(UNiagaraGraph* Graph, const TArray<UEdGraphPin*>& CallInputs, const FCompileConstantResolver& ConstantResolver);
-
-	bool ResolveConstantValue(UEdGraphPin* Pin, int32& Value);
-
-	void PreprocessFunctionGraph(const UEdGraphSchema_Niagara* Schema, UNiagaraGraph* Graph, const TArray<UEdGraphPin*>& CallInputs, const TArray<UEdGraphPin*>& CallOutputs, ENiagaraScriptUsage ScriptUsage, const FCompileConstantResolver& ConstantResolver);
+	void PreprocessFunctionGraph(const UEdGraphSchema_Niagara* Schema, UNiagaraGraph* Graph, const TArray<UEdGraphPin*>& CallInputs, const TArray<UEdGraphPin*>& CallOutputs, ENiagaraScriptUsage ScriptUsage);
 
 	/** Options for the GetScriptsByFilter function. 
 	** @Param ScriptUsageToInclude Only return Scripts that have this usage
 	** @Param (Optional) TargetUsageToMatch Only return Scripts that have this target usage (output node) 
 	** @Param bIncludeDeprecatedScripts Whether or not to return Scripts that are deprecated (defaults to false) 
-	** @Param bIncludeNonLibraryScripts Whether or not to return non-library scripts (defaults to false)
 	*/
 	struct FGetFilteredScriptAssetsOptions
 	{
@@ -157,14 +150,12 @@ namespace FNiagaraEditorUtilities
 			: ScriptUsageToInclude(ENiagaraScriptUsage::Module)
 			, TargetUsageToMatch()
 			, bIncludeDeprecatedScripts(false)
-			, bIncludeNonLibraryScripts(false)
 		{
 		}
 
 		ENiagaraScriptUsage ScriptUsageToInclude;
 		TOptional<ENiagaraScriptUsage> TargetUsageToMatch;
 		bool bIncludeDeprecatedScripts;
-		bool bIncludeNonLibraryScripts;
 	};
 
 	NIAGARAEDITOR_API void GetFilteredScriptAssets(FGetFilteredScriptAssetsOptions InFilter, TArray<FAssetData>& OutFilteredScriptAssets); 

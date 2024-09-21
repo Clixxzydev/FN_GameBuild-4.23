@@ -117,7 +117,6 @@ public:
 		SupportedFileExtensions.Add(TEXT("aac"));
 		SupportedFileExtensions.Add(TEXT("mp4"));
 		SupportedFileExtensions.Add(TEXT("m3u8"));
-		SupportedFileExtensions.Add(TEXT("mp3"));
 
 		// supported platforms
 		SupportedPlatforms.Add(TEXT("Android"));

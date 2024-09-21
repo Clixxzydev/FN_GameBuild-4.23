@@ -4,7 +4,11 @@ Crumbs:%ROOT%, Resources
 Description:Overview of the Platformer Sample Game.
 Version: 4.9
 topic-image:Platformer_Topic.png
-hero-image:PlatGame_Hero.png
+
+
+[REGION:fullwidth]
+![](platformer_game.png)
+[/REGION]
 
 [TOC(start:2)]
 

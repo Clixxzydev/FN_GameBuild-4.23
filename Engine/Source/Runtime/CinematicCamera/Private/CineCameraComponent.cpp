@@ -42,6 +42,11 @@ UCineCameraComponent::UCineCameraComponent()
 
 	bConstrainAspectRatio = true;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// Default to CircleDOF, but allow the user to customize it
+	PostProcessSettings.DepthOfFieldMethod = DOFM_CircleDOF;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	// Certain default values are set by a config, so Use the archetype to set them in the constructor, so they can be overridden in the editor.
 	UCineCameraComponent* Template = Cast<UCineCameraComponent>(GetArchetype());
 	
@@ -405,6 +410,9 @@ void UCineCameraComponent::UpdateCameraLens(float DeltaTime, FMinimalViewInfo& D
 {
 	if (FocusSettings.FocusMethod == ECameraFocusMethod::None)
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		DesiredView.PostProcessSettings.bOverride_DepthOfFieldMethod = false;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		DesiredView.PostProcessSettings.bOverride_DepthOfFieldFstop = false;
 		DesiredView.PostProcessSettings.bOverride_DepthOfFieldMinFstop = false;
 		DesiredView.PostProcessSettings.bOverride_DepthOfFieldBladeCount = false;
@@ -415,6 +423,10 @@ void UCineCameraComponent::UpdateCameraLens(float DeltaTime, FMinimalViewInfo& D
 	{
 		// Update focus/DoF
 		DesiredView.PostProcessBlendWeight = 1.f;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		DesiredView.PostProcessSettings.bOverride_DepthOfFieldMethod = true;
+		DesiredView.PostProcessSettings.DepthOfFieldMethod = PostProcessSettings.DepthOfFieldMethod;
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		DesiredView.PostProcessSettings.bOverride_DepthOfFieldFstop = true;
 		DesiredView.PostProcessSettings.DepthOfFieldFstop = CurrentAperture;

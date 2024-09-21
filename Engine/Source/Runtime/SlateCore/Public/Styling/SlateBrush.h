@@ -210,15 +210,6 @@ public:
 	}
 
 	/**
-	 * Unlinks all colors in this brush.
-	 * @see FSlateColor::Unlink
-	 */
-	void UnlinkColors()
-	{
-		TintColor.Unlink();
-	}
-
-	/**
 	 * Checks whether this brush has a UTexture object
 	 *
 	 * @return true if it has a UTexture object, false otherwise.

@@ -18,27 +18,30 @@ public class BuildCommonTools : BuildCommand
 	{
 		LogInformation("************************* BuildCommonTools");
 
-		List<UnrealTargetPlatform> Platforms = new List<UnrealTargetPlatform>();
+		// Get the list of platform names
+		string[] PlatformNames = ParseParamValue("platforms", BuildHostPlatform.Current.Platform.ToString()).Split('+');
+
+		// Parse the platforms
+		List<UnrealBuildTool.UnrealTargetPlatform> Platforms = new List<UnrealTargetPlatform>();
+		foreach(string PlatformName in PlatformNames)
+		{
+			UnrealBuildTool.UnrealTargetPlatform Platform;
+			if(!UnrealBuildTool.UnrealTargetPlatform.TryParse(PlatformName, true, out Platform))
+			{
+				throw new AutomationException("Unknown platform specified on command line - '{0}' - valid platforms are {1}", PlatformName, String.Join("/", Enum.GetNames(typeof(UnrealBuildTool.UnrealTargetPlatform))));
+			}
+			Platforms.Add(Platform);
+		}
 
 		// Add all the platforms if specified
-		if (ParseParam("allplatforms"))
+		if(ParseParam("allplatforms"))
 		{
-			Platforms = UnrealTargetPlatform.GetValidPlatforms().ToList();
-		}
-		else
-		{
-			// Get the list of platform names
-			string[] PlatformNames = ParseParamValue("platforms", BuildHostPlatform.Current.Platform.ToString()).Split('+');
-
-			// Parse the platforms
-			foreach (string PlatformName in PlatformNames)
+			foreach(UnrealTargetPlatform Platform in Enum.GetValues(typeof(UnrealTargetPlatform)))
 			{
-				UnrealBuildTool.UnrealTargetPlatform Platform;
-				if (!UnrealTargetPlatform.TryParse(PlatformName, out Platform))
+				if(!Platforms.Contains(Platform))
 				{
-					throw new AutomationException("Unknown platform specified on command line - '{0}' - valid platforms are {1}", PlatformName, String.Join("/", UnrealTargetPlatform.GetValidPlatformNames()));
+					Platforms.Add(Platform);
 				}
-				Platforms.Add(Platform);
 			}
 		}
 

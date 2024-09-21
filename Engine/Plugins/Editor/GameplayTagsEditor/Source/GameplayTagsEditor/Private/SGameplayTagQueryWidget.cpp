@@ -18,7 +18,6 @@ void SGameplayTagQueryWidget::Construct(const FArguments& InArgs, const TArray<F
 
 	bReadOnly = InArgs._ReadOnly;
 	bAutoSave = InArgs._AutoSave;
-	OnClosePreSave = InArgs._OnClosePreSave;
 	OnSaveAndClose = InArgs._OnSaveAndClose;
 	OnCancel = InArgs._OnCancel;
 	OnQueryChanged = InArgs._OnQueryChanged;
@@ -49,46 +48,45 @@ void SGameplayTagQueryWidget::Construct(const FArguments& InArgs, const TArray<F
 	Details->OnFinishedChangingProperties().AddSP(this, &SGameplayTagQueryWidget::OnFinishedChangingProperties);
 
 	ChildSlot
-		[
-			SNew(SBorder)
-			.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
+	[
+		SNew(SBorder)
+		.BorderImage(FEditorStyle::GetBrush("ToolPanel.GroupBorder"))
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
-		.AutoHeight()
-		.VAlign(VAlign_Top)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-		.AutoWidth()
-		[
-			SNew(SButton)
-			.IsEnabled(!bReadOnly)
-		.Visibility(this, &SGameplayTagQueryWidget::GetSaveAndCloseButtonVisibility)
-		.OnClicked(this, &SGameplayTagQueryWidget::OnSaveAndCloseClicked)
-		.Text(LOCTEXT("GameplayTagQueryWidget_SaveAndClose", "Save and Close"))
+			.AutoHeight()
+			.VAlign(VAlign_Top)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.IsEnabled(!bReadOnly)
+					.Visibility(this, &SGameplayTagQueryWidget::GetSaveAndCloseButtonVisibility)
+					.OnClicked(this, &SGameplayTagQueryWidget::OnSaveAndCloseClicked)
+					.Text(LOCTEXT("GameplayTagQueryWidget_SaveAndClose", "Save and Close"))
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SButton)
+					.Visibility(this, &SGameplayTagQueryWidget::GetCancelButtonVisibility)
+					.OnClicked(this, &SGameplayTagQueryWidget::OnCancelClicked)
+					.Text(LOCTEXT("GameplayTagQueryWidget_Cancel", "Close Without Saving"))
+				]
+			]
+			// to delete!
+			+ SVerticalBox::Slot()
+			[
+				Details.ToSharedRef()
+			]
 		]
-	+ SHorizontalBox::Slot()
-		.AutoWidth()
-		[
-			SNew(SButton)
-			.Visibility(this, &SGameplayTagQueryWidget::GetCancelButtonVisibility)
-		.OnClicked(this, &SGameplayTagQueryWidget::OnCancelClicked)
-		.Text(LOCTEXT("GameplayTagQueryWidget_Cancel", "Close Without Saving"))
-		]
-		]
-	// to delete!
-	+ SVerticalBox::Slot()
-		[
-			Details.ToSharedRef()
-		]
-		]
-		];
+	];
 }
 
 void SGameplayTagQueryWidget::OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	// Auto saved changes will not call pre and post notify; auto save should only be used to make changes coming from blueprints
 	if (bAutoSave)
 	{
 		SaveToTagQuery();
@@ -153,8 +151,6 @@ void SGameplayTagQueryWidget::SaveToTagQuery()
 
 FReply SGameplayTagQueryWidget::OnSaveAndCloseClicked()
 {
-	OnClosePreSave.ExecuteIfBound();
-
 	SaveToTagQuery();
 
 	OnSaveAndClose.ExecuteIfBound();

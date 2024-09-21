@@ -37,7 +37,7 @@ FRecordingMessageHandler::FRecordingMessageHandler(const TSharedPtr<FGenericAppl
 	: FProxyMessageHandler(InTargetHandler)
 {
 	OutputWriter = nullptr;
-	bConsumeInput = false;
+	ConsumeInput = false;
 	bIsTouching = false;
 	InputRect = FRect(EForceInit::ForceInitToZero);
 	LastTouchLocation = FVector2D(EForceInit::ForceInitToZero);
@@ -56,10 +56,6 @@ FRecordingMessageHandler::FRecordingMessageHandler(const TSharedPtr<FGenericAppl
 	BIND_PLAYBACK_HANDLER(TEXT("OnTouchGesture"), PlayOnTouchGesture);
 	BIND_PLAYBACK_HANDLER(TEXT("OnEndGesture"), PlayOnEndGesture);
 	BIND_PLAYBACK_HANDLER(TEXT("OnTouchForceChanged"), PlayOnTouchForceChanged);
-
-	BIND_PLAYBACK_HANDLER(TEXT("OnControllerAnalog"), PlayOnControllerAnalog);
-	BIND_PLAYBACK_HANDLER(TEXT("OnControllerButtonPressed"), PlayOnControllerButtonPressed);
-	BIND_PLAYBACK_HANDLER(TEXT("OnControllerButtonReleased"), PlayOnControllerButtonReleased);
 }
 
 #undef BIND_PLAYBACK_HANDLER
@@ -75,6 +71,11 @@ void FRecordingMessageHandler::RecordMessage(const TCHAR* MsgName, const TArray<
 	{
 		OutputWriter->RecordMessage(MsgName, Data);
 	}
+}
+
+void FRecordingMessageHandler::SetConsumeInput(bool bConsume)
+{
+	ConsumeInput = bConsume;
 }
 
 void FRecordingMessageHandler::SetPlaybackWindow(TWeakPtr<SWindow> InWindow, TWeakPtr<FSceneViewport> InViewport)
@@ -134,7 +135,7 @@ FVector2D FRecordingMessageHandler::ConvertFromNormalizedScreenLocation(const FV
 				FWidgetPath WidgetPath(GameWindow.ToSharedRef(), JustWindow);
 				if (WidgetPath.ExtendPathTo(FWidgetMatcher(ViewportWidget.ToSharedRef()), EVisibility::Visible))
 				{
-					FArrangedWidget ArrangedWidget = WidgetPath.FindArrangedWidget(ViewportWidget.ToSharedRef()).Get(FArrangedWidget::GetNullWidget());
+					FArrangedWidget ArrangedWidget = WidgetPath.FindArrangedWidget(ViewportWidget.ToSharedRef()).Get(FArrangedWidget::NullWidget);
 
 					FVector2D WindowClientOffset = ArrangedWidget.Geometry.GetAbsolutePosition();
 					FVector2D WindowClientSize = ArrangedWidget.Geometry.GetAbsoluteSize();
@@ -159,18 +160,9 @@ bool FRecordingMessageHandler::PlayMessage(const TCHAR* Message, const TArray<ui
 		// todo - can we steal this data in a more elegant way? :)
 		TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> DataCopy = MakeShareable(new TArray<uint8>(MoveTemp(*(TArray<uint8>*)&Data)));
 
-		AsyncTask(ENamedThreads::GameThread, [this, Dispatch, DataCopy] {
-
-			bool WasBlocking = IsConsumingInput();
-
-			if (WasBlocking)
-			{
-				SetConsumeInput(false);
-			}
+		AsyncTask(ENamedThreads::GameThread, [Dispatch, DataCopy] {
 			FMemoryReader Ar(*DataCopy);
 			Dispatch->ExecuteIfBound(Ar);
-
-			SetConsumeInput(WasBlocking);
 		});
 		
 	}
@@ -190,7 +182,7 @@ bool FRecordingMessageHandler::OnKeyChar(const TCHAR Character, const bool IsRep
 		RecordMessage(TEXT("OnKeyChar"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}	
@@ -212,7 +204,7 @@ bool FRecordingMessageHandler::OnKeyDown(const int32 KeyCode, const uint32 Chara
 		RecordMessage(TEXT("OnKeyDown"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -235,7 +227,7 @@ bool FRecordingMessageHandler::OnKeyUp(const int32 KeyCode, const uint32 Charact
 		RecordMessage(TEXT("OnKeyUp"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -265,7 +257,7 @@ bool FRecordingMessageHandler::OnTouchStarted(const TSharedPtr< FGenericWindow >
 		}
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -305,7 +297,7 @@ bool FRecordingMessageHandler::OnTouchMoved(const FVector2D& Location, float For
 		}
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -338,7 +330,7 @@ bool FRecordingMessageHandler::OnTouchEnded(const FVector2D& Location, int32 Tou
 		bIsTouching = false;
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -370,7 +362,7 @@ bool FRecordingMessageHandler::OnTouchForceChanged(const FVector2D& Location, fl
 		}
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -401,7 +393,7 @@ bool FRecordingMessageHandler::OnTouchFirstMove(const FVector2D& Location, float
 		}
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -426,7 +418,7 @@ void FRecordingMessageHandler::OnBeginGesture()
 		OutputWriter->RecordMessage(TEXT("OnBeginGesture"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return;
 	}
@@ -447,7 +439,7 @@ bool FRecordingMessageHandler::OnTouchGesture(EGestureEvent GestureType, const F
 		OutputWriter->RecordMessage(TEXT("OnTouchGesture"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -469,7 +461,7 @@ void FRecordingMessageHandler::OnEndGesture()
 		OutputWriter->RecordMessage(TEXT("OnEndGesture"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return;
 	}
@@ -492,7 +484,7 @@ bool FRecordingMessageHandler::OnMotionDetected(const FVector& Tilt, const FVect
 		OutputWriter->RecordMessage(TEXT("OnMotionDetected"), Msg.AsData());
 	}
 
-	if (bConsumeInput)
+	if (ConsumeInput)
 	{
 		return true;
 	}
@@ -504,71 +496,4 @@ void FRecordingMessageHandler::PlayOnMotionDetected(FArchive& Ar)
 {
 	FiveParamMsg<FVector, FVector, FVector, FVector, int32 > Msg(Ar);
 	OnMotionDetected(Msg.Param1, Msg.Param2, Msg.Param3, Msg.Param4, Msg.Param5);
-}
-
-bool FRecordingMessageHandler::OnControllerAnalog(FGamepadKeyNames::Type KeyName, int32 ControllerId, float AnalogValue)
-{
-	if (IsRecording())
-	{
-		ThreeParamMsg<FString, int32, float> Msg(KeyName.ToString(), ControllerId, AnalogValue);
-		RecordMessage(TEXT("OnControllerAnalog"), Msg.AsData());
-	}
-
-	if (bConsumeInput)
-	{
-		return true;
-	}
-
-	return FProxyMessageHandler::OnControllerAnalog(KeyName, ControllerId, AnalogValue);
-}
-
-void FRecordingMessageHandler::PlayOnControllerAnalog(FArchive& Ar)
-{
-	ThreeParamMsg<FString, int32, float > Msg(Ar);
-	OnControllerAnalog(FName(*Msg.Param1), Msg.Param2, Msg.Param3);
-}
-
-bool FRecordingMessageHandler::OnControllerButtonPressed(FGamepadKeyNames::Type KeyName, int32 ControllerId, bool IsRepeat)
-{
-	if (IsRecording())
-	{
-		ThreeParamMsg<FString, int32, bool> Msg(KeyName.ToString(), ControllerId, IsRepeat);
-		RecordMessage(TEXT("OnControllerButtonPressed"), Msg.AsData());
-	}
-
-	if (bConsumeInput)
-	{
-		return true;
-	}
-
-	return FProxyMessageHandler::OnControllerButtonPressed(KeyName, ControllerId, IsRepeat);
-}
-
-void FRecordingMessageHandler::PlayOnControllerButtonPressed(FArchive& Ar)
-{
-	ThreeParamMsg<FString, int32, bool > Msg(Ar);
-	OnControllerButtonPressed(FName(*Msg.Param1), Msg.Param2, Msg.Param3);
-}
-
-
-bool FRecordingMessageHandler::OnControllerButtonReleased(FGamepadKeyNames::Type KeyName, int32 ControllerId, bool IsRepeat)
-{
-	if (IsRecording())
-	{
-		ThreeParamMsg<FString, int32, bool> Msg(KeyName.ToString(), ControllerId, IsRepeat);
-		RecordMessage(TEXT("OnControllerButtonReleased"), Msg.AsData());
-	}
-
-	if (bConsumeInput)
-	{
-		return true;
-	}
-
-	return FProxyMessageHandler::OnControllerButtonReleased(KeyName, ControllerId, IsRepeat);
-}
-
-void FRecordingMessageHandler::PlayOnControllerButtonReleased(FArchive& Ar)
-{
-	ThreeParamMsg<FString, int32, bool > Msg(Ar);
-	OnControllerButtonReleased(FName(*Msg.Param1), Msg.Param2, Msg.Param3);
 }

@@ -16,7 +16,7 @@
 ///
 /// If your apps supports asset files, users are able to download them from within the Oculus app on PDP page of the main app (including in Home), and you also can manage the asset files from your app itself via SDK calls.
 
-/// DEPRECATED. Use ovr_AssetFile_DeleteById()
+/// Alias to DeleteById()
 ///
 /// A message with type ::ovrMessage_AssetFile_Delete will be generated in response.
 ///
@@ -52,7 +52,7 @@ OVRP_PUBLIC_FUNCTION(ovrRequest) ovr_AssetFile_DeleteById(ovrID assetFileID);
 /// Extract the payload from the message handle with ::ovr_Message_GetAssetFileDeleteResult().
 OVRP_PUBLIC_FUNCTION(ovrRequest) ovr_AssetFile_DeleteByName(const char *assetFileName);
 
-/// DEPRECATED. Use ovr_AssetFile_DownloadById()
+/// Alias to DownloadById()
 ///
 /// A message with type ::ovrMessage_AssetFile_Download will be generated in response.
 ///
@@ -88,7 +88,7 @@ OVRP_PUBLIC_FUNCTION(ovrRequest) ovr_AssetFile_DownloadById(ovrID assetFileID);
 /// Extract the payload from the message handle with ::ovr_Message_GetAssetFileDownloadResult().
 OVRP_PUBLIC_FUNCTION(ovrRequest) ovr_AssetFile_DownloadByName(const char *assetFileName);
 
-/// DEPRECATED. Use ovr_AssetFile_DownloadCancelById()
+/// Alias to DownloadCancelById()
 ///
 /// A message with type ::ovrMessage_AssetFile_DownloadCancel will be generated in response.
 ///
@@ -135,7 +135,7 @@ OVRP_PUBLIC_FUNCTION(ovrRequest) ovr_AssetFile_DownloadCancelByName(const char *
 /// Extract the payload from the message handle with ::ovr_Message_GetAssetDetailsArray().
 OVRP_PUBLIC_FUNCTION(ovrRequest) ovr_AssetFile_GetList();
 
-/// DEPRECATED. Use ovr_AssetFile_StatusById()
+/// Alias to StatusById()
 ///
 /// A message with type ::ovrMessage_AssetFile_Status will be generated in response.
 ///

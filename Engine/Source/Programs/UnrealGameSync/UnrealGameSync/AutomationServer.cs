@@ -131,8 +131,6 @@ namespace UnrealGameSync
 
 	class AutomationServer : IDisposable
 	{
-		public const int DefaultPortNumber = 30422;
-
 		TcpListener Listener;
 		TcpClient CurrentClient;
 		Thread BackgroundThread;
@@ -145,11 +143,13 @@ namespace UnrealGameSync
 			this.PostRequest = PostRequest;
 			this.Log = Log;
 
-			int PortNumber = GetPortNumber();
-			if(PortNumber > 0)
+			object PortValue = Registry.GetValue("HKEY_CURRENT_USER\\Software\\Epic Games\\UnrealGameSync", "AutomationPort", null);
+			if(PortValue != null)
 			{
 				try
 				{
+					int PortNumber = (int)PortValue;
+
 					Listener = new TcpListener(IPAddress.Loopback, PortNumber);
 					Listener.Start();
 
@@ -160,31 +160,6 @@ namespace UnrealGameSync
 				{
 					Log.WriteLine("Unable to start automation server: {0}", Ex.ToString());
 				}
-			}
-		}
-
-		public static void SetPortNumber(int PortNumber)
-		{
-			if(PortNumber <= 0)
-			{
-				Utility.DeleteRegistryKey(Registry.CurrentUser, "Software\\Epic Games\\UnrealGameSync", "AutomationPort");
-			}
-			else
-			{
-				Registry.SetValue("HKEY_CURRENT_USER\\Software\\Epic Games\\UnrealGameSync", "AutomationPort", PortNumber);
-			}
-		}
-
-		public static int GetPortNumber()
-		{
-			object PortValue = Registry.GetValue("HKEY_CURRENT_USER\\Software\\Epic Games\\UnrealGameSync", "AutomationPort", null);
-			if (PortValue != null && PortValue is int)
-			{
-				return (int)PortValue;
-			}
-			else
-			{
-				return -1;
 			}
 		}
 

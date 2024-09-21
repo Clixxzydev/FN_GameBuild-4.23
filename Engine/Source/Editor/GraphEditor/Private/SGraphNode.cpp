@@ -563,7 +563,7 @@ FSlateColor SGraphNode::GetNodeTitleColor() const
 {
 	FLinearColor ReturnTitleColor = GraphNode->IsDeprecated() ? FLinearColor::Red : GetNodeObj()->GetNodeTitleColor();
 
-	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || GraphNode->IsNodeUnrelated())
+	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced())
 	{
 		ReturnTitleColor *= FLinearColor(0.5f, 0.5f, 0.5f, 0.4f);
 	}
@@ -577,7 +577,7 @@ FSlateColor SGraphNode::GetNodeTitleColor() const
 FSlateColor SGraphNode::GetNodeBodyColor() const
 {
 	FLinearColor ReturnBodyColor = GraphNode->GetNodeBodyTintColor();
-	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || GraphNode->IsNodeUnrelated())
+	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced())
 	{
 		ReturnBodyColor *= FLinearColor(1.0f, 1.0f, 1.0f, 0.5f); 
 	}
@@ -592,7 +592,7 @@ const FSlateBrush *  SGraphNode::GetNodeBodyBrush() const
 FSlateColor SGraphNode::GetNodeTitleIconColor() const
 {
 	FLinearColor ReturnIconColor = IconColor;
-	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || GraphNode->IsNodeUnrelated())
+	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced())
 	{
 		ReturnIconColor *= FLinearColor(1.0f, 1.0f, 1.0f, 0.3f); 
 	}
@@ -602,7 +602,7 @@ FSlateColor SGraphNode::GetNodeTitleIconColor() const
 FLinearColor SGraphNode::GetNodeTitleTextColor() const
 {
 	FLinearColor ReturnTextColor = FLinearColor::White;
-	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced() || GraphNode->IsNodeUnrelated())
+	if(!GraphNode->IsNodeEnabled() || GraphNode->IsDisplayAsDisabledForced())
 	{
 		ReturnTextColor *= FLinearColor(1.0f, 1.0f, 1.0f, 0.3f); 
 	}
@@ -879,16 +879,33 @@ void SGraphNode::UpdateGraphNode()
 			CreateNodeContentArea()
 		];
 
-	TSharedPtr<SWidget> EnabledStateWidget = GetEnabledStateWidget();
-	if (EnabledStateWidget.IsValid())
+	if ((GraphNode->GetDesiredEnabledState() != ENodeEnabledState::Enabled) && !GraphNode->IsAutomaticallyPlacedGhostNode())
 	{
+		const bool bDevelopmentOnly = GraphNode->GetDesiredEnabledState() == ENodeEnabledState::DevelopmentOnly;
+		const FText StatusMessage = bDevelopmentOnly ? NSLOCTEXT("SGraphNode", "DevelopmentOnly", "Development Only") : NSLOCTEXT("SGraphNode", "DisabledNode", "Disabled");
+		const FText StatusMessageTooltip = bDevelopmentOnly ?
+			NSLOCTEXT("SGraphNode", "DevelopmentOnlyTooltip", "This node will only be executed in the editor and in Development builds in a packaged game (it will be treated as disabled in Shipping or Test builds cooked from a commandlet)") :
+			NSLOCTEXT("SGraphNode", "DisabledNodeTooltip", "This node is currently disabled and will not be executed");
+
 		InnerVerticalBox->AddSlot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
 			.VAlign(VAlign_Top)
 			.Padding(FMargin(2, 0))
 			[
-				EnabledStateWidget.ToSharedRef()
+				SNew(SBorder)
+				.BorderImage(FEditorStyle::GetBrush(bDevelopmentOnly ? "Graph.Node.DevelopmentBanner" : "Graph.Node.DisabledBanner"))
+				.HAlign(HAlign_Fill)
+				.VAlign(VAlign_Fill)
+				[
+					SNew(STextBlock)
+					.Text(StatusMessage)
+					.ToolTipText(StatusMessageTooltip)
+					.Justification(ETextJustify::Center)
+					.ColorAndOpacity(FLinearColor::White)
+					.ShadowOffset(FVector2D::UnitVector)
+					.Visibility(EVisibility::Visible)
+				]
 			];
 	}
 
@@ -959,34 +976,6 @@ void SGraphNode::UpdateGraphNode()
 }
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-
-TSharedPtr<SWidget> SGraphNode::GetEnabledStateWidget()
-{
-	if ((GraphNode->GetDesiredEnabledState() != ENodeEnabledState::Enabled) && !GraphNode->IsAutomaticallyPlacedGhostNode())
-	{
-		const bool bDevelopmentOnly = GraphNode->GetDesiredEnabledState() == ENodeEnabledState::DevelopmentOnly;
-		const FText StatusMessage = bDevelopmentOnly ? NSLOCTEXT("SGraphNode", "DevelopmentOnly", "Development Only") : NSLOCTEXT("SGraphNode", "DisabledNode", "Disabled");
-		const FText StatusMessageTooltip = bDevelopmentOnly ?
-			NSLOCTEXT("SGraphNode", "DevelopmentOnlyTooltip", "This node will only be executed in the editor and in Development builds in a packaged game (it will be treated as disabled in Shipping or Test builds cooked from a commandlet)") :
-			NSLOCTEXT("SGraphNode", "DisabledNodeTooltip", "This node is currently disabled and will not be executed");
-
-		return SNew(SBorder)
-			.BorderImage(FEditorStyle::GetBrush(bDevelopmentOnly ? "Graph.Node.DevelopmentBanner" : "Graph.Node.DisabledBanner"))
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Fill)
-			[
-				SNew(STextBlock)
-				.Text(StatusMessage)
-				.ToolTipText(StatusMessageTooltip)
-				.Justification(ETextJustify::Center)
-				.ColorAndOpacity(FLinearColor::White)
-				.ShadowOffset(FVector2D::UnitVector)
-				.Visibility(EVisibility::Visible)
-			];
-	}
-
-	return TSharedPtr<SWidget>();
-}
 
 TSharedRef<SWidget> SGraphNode::CreateNodeContentArea()
 {

@@ -29,7 +29,7 @@ struct ENGINE_API FComponentKey
 	FComponentKey(UBlueprint* Blueprint, const FUCSComponentId& UCSComponentID);
 #endif 
 
-	bool Match(const FComponentKey& OtherKey) const;
+	bool Match(const FComponentKey OtherKey) const;
 
 	bool IsSCSKey() const
 	{
@@ -105,19 +105,19 @@ private:
 
 public:
 
-	UActorComponent* CreateOverridenComponentTemplate(const FComponentKey& Key);
-	void RemoveOverridenComponentTemplate(const FComponentKey& Key);
+	UActorComponent* CreateOverridenComponentTemplate(FComponentKey Key);
+	void RemoveOverridenComponentTemplate(FComponentKey Key);
 	void UpdateOwnerClass(UBlueprintGeneratedClass* OwnerClass);
 	void ValidateTemplates();
 	bool IsValid() const;
-	UActorComponent* FindBestArchetype(const FComponentKey& Key) const;
+	UActorComponent* FindBestArchetype(FComponentKey Key) const;
 
 	bool IsEmpty() const
 	{
 		return 0 == Records.Num();
 	}
 
-	bool RefreshTemplateName(const FComponentKey& OldKey);
+	bool RefreshTemplateName(FComponentKey OldKey);
 
 	FComponentKey FindKey(UActorComponent* ComponentTemplate) const;
 #endif
@@ -134,8 +134,8 @@ public:
 
 	FComponentKey FindKey(const FName VariableName) const;
 
-	UActorComponent* GetOverridenComponentTemplate(const FComponentKey& Key) const;
-	const FBlueprintCookedComponentInstancingData* GetOverridenComponentTemplateData(const FComponentKey& Key) const;
+	UActorComponent* GetOverridenComponentTemplate(FComponentKey Key) const;
+	const FBlueprintCookedComponentInstancingData* GetOverridenComponentTemplateData(FComponentKey Key) const;
 
 	TArray<FComponentOverrideRecord>::TIterator CreateRecordIterator()
 	{
@@ -144,15 +144,14 @@ public:
 
 	void GetAllTemplates(TArray<UActorComponent*>& OutArray) const
 	{
-		OutArray.Reserve(OutArray.Num() + Records.Num());
-		for (const FComponentOverrideRecord& Record : Records)
+		for (auto Record : Records)
 		{
 			OutArray.Add(Record.ComponentTemplate);
 		}
 	}
 
 private:
-	const FComponentOverrideRecord* FindRecord(const FComponentKey& Key) const;
+	const FComponentOverrideRecord* FindRecord(const FComponentKey Key) const;
 
 	/** Helper method used to assist with fixing up component template names at load time. */
 	void FixComponentTemplateName(UActorComponent* ComponentTemplate, const FString& NewName);

@@ -302,17 +302,14 @@ void FSkinWeightProfilesData::ApplyOverrideProfile(FSkinWeightVertexBuffer* Over
 	const bool bExtraWeights = BaseBuffer->HasExtraBoneInfluences();
 	OverrideBuffer->SetHasExtraBoneInfluences(bExtraWeights);
 
-	const FRuntimeSkinWeightProfileData* ProfilePtr = OverrideData.Find(ProfileName);
-	if (ProfilePtr)
+	const FRuntimeSkinWeightProfileData& Profile = OverrideData.FindChecked(ProfileName);
+	if (bExtraWeights)
 	{
-		if (bExtraWeights)
-		{
-			ProfilePtr->ApplyOverrides<true>(OverrideBuffer, BaseBuffer);
-		}
-		else
-		{
-			ProfilePtr->ApplyOverrides<false>(OverrideBuffer, BaseBuffer);
-		}
+		Profile.ApplyOverrides<true>(OverrideBuffer, BaseBuffer);
+	}
+	else
+	{
+		Profile.ApplyOverrides<false>(OverrideBuffer, BaseBuffer);
 	}
 }
 

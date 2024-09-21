@@ -288,17 +288,19 @@ bool FGameplayMediaEncoder::Start()
 	//
 	// subscribe to engine delegates for audio output and back buffer
 	//
-
-	FAudioDevice* AudioDevice = GEngine->GetMainAudioDevice();
-	if (AudioDevice)
+	if (UGameEngine* GameEngine = Cast<UGameEngine>(GEngine))
 	{
-		AudioDevice->RegisterSubmixBufferListener(this);
-	}
+		FAudioDevice* AudioDevice = GameEngine->GetMainAudioDevice();
+		if (AudioDevice)
+		{
+			AudioDevice->RegisterSubmixBufferListener(this);
+		}
 
-	VideoEncoder->Start();
-	FSlateRenderer::FOnBackBufferReadyToPresent OnBackBufferReadyDelegate;
-	OnBackBufferReadyDelegate.AddRaw(this, &FGameplayMediaEncoder::OnBackBufferReady);
-	FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent() = OnBackBufferReadyDelegate;
+		VideoEncoder->Start();
+		FSlateRenderer::FOnBackBufferReadyToPresent OnBackBufferReadyDelegate;
+		OnBackBufferReadyDelegate.AddRaw(this, &FGameplayMediaEncoder::OnBackBufferReady);
+		FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent() = OnBackBufferReadyDelegate;
+	}
 
 	return true;
 }

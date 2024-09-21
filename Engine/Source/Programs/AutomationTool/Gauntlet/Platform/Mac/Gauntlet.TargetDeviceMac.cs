@@ -12,7 +12,7 @@ namespace Gauntlet
 	
 	public class MacDeviceFactory : IDeviceFactory
 	{
-		public bool CanSupportPlatform(UnrealTargetPlatform? Platform)
+		public bool CanSupportPlatform(UnrealTargetPlatform Platform)
 		{
 			return Platform == UnrealTargetPlatform.Mac;
 		}
@@ -86,7 +86,7 @@ namespace Gauntlet
 	{
 		public string Name { get; protected set; }
 
-		public UnrealTargetPlatform? Platform { get { return UnrealTargetPlatform.Mac; } }
+		public UnrealTargetPlatform Platform { get { return UnrealTargetPlatform.Mac; } }
 
 		public bool IsAvailable { get { return true; } }
 		public bool IsConnected { get { return true; } }
@@ -201,7 +201,7 @@ namespace Gauntlet
 
 			// Mac always forces this to stop logs and other artifacts going to different places
 			// Mac always forces this to stop logs and other artifacts going to different places
-			MacApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
+			MacApp.CommandArguments += string.Format(" -userdir={0}", UserDir);
 			MacApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
 
 			// temp - Mac doesn't support -userdir?
@@ -280,7 +280,7 @@ namespace Gauntlet
 			MacApp.RunOptions = RunOptions;
 
 			// Mac always forces this to stop logs and other artifacts going to different places
-			MacApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
+			MacApp.CommandArguments += string.Format(" -userdir={0}", UserDir);
 			MacApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
 
 			// now turn the Foo.app into Foo/Content/MacOS/Foo

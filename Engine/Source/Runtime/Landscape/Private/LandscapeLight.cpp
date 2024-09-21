@@ -45,9 +45,6 @@ FStaticLightingTextureMapping(
 
 void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* QuantizedData, const TMap<ULightComponent*,FShadowMapData2D*>& ShadowMapData, ULevel* LightingScenario)
 {
-	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VirtualTexturedLightmaps"));
-	const bool bUseVirtualTextures = (CVar->GetValueOnAnyThread() != 0) && UseVirtualTexturing(GMaxRHIFeatureLevel);
-
 	//ELightMapPaddingType PaddingType = GAllowLightmapPadding ? LMPT_NormalPadding : LMPT_NoPadding;
 	ELightMapPaddingType PaddingType = LMPT_NoPadding;
 
@@ -64,11 +61,9 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 	if (bNeedsLightMap)
 	{
 		// Create a light-map for the primitive.
-		TMap<ULightComponent*, FShadowMapData2D*> EmptyShadowMapData;
 		MeshBuildData.LightMap = FLightMap2D::AllocateLightMap(
 			Registry,
 			QuantizedData,
-			bUseVirtualTextures ? ShadowMapData : EmptyShadowMapData,
 			LandscapeComponent->Bounds,
 			PaddingType,
 			LMF_Streamed
@@ -79,7 +74,7 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 		MeshBuildData.LightMap = NULL;
 	}
 
-	if (ShadowMapData.Num() > 0 && !bUseVirtualTextures)
+	if (ShadowMapData.Num() > 0)
 	{
 		MeshBuildData.ShadowMap = FShadowMap2D::AllocateShadowMap(
 			Registry,
@@ -94,14 +89,6 @@ void FLandscapeStaticLightingTextureMapping::Apply(FQuantizedLightmapData* Quant
 		MeshBuildData.ShadowMap = NULL;
 	}
 
-	// Flush Grass 
-	if (ALandscapeProxy* Proxy = Cast<ALandscapeProxy>(LandscapeComponent->GetOuter()))
-	{
-		TSet<ULandscapeComponent*> Components;
-		Components.Add(LandscapeComponent);
-		Proxy->FlushGrassComponents(&Components, false);
-	}
-	
 	// Build the list of statically irrelevant lights.
 	// TODO: This should be stored per LOD.
 	for (int32 LightIndex = 0; LightIndex < Mesh->RelevantLights.Num(); LightIndex++)

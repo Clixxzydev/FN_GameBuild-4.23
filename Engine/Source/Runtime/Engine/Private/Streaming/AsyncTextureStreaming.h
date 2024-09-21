@@ -186,8 +186,6 @@ private:
 
 	void UpdateStats_Async();
 
-	void UpdateCSVOnlyStats_Async();
-
 	FORCEINLINE TStatId GetStatId() const
 	{
 		RETURN_QUICK_DECLARE_CYCLE_STAT(FRenderAssetStreamingMipCalcTask, STATGROUP_ThreadPoolAsyncTasks);

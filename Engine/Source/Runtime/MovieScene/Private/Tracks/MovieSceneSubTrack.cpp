@@ -192,11 +192,6 @@ void UMovieSceneSubTrack::RemoveSection(UMovieSceneSection& Section)
 	Sections.Remove(&Section);
 }
 
-void UMovieSceneSubTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	Sections.RemoveAt(SectionIndex);
-}
-
 
 bool UMovieSceneSubTrack::SupportsMultipleRows() const
 {

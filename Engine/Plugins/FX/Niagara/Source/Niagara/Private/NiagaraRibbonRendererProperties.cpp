@@ -3,36 +3,10 @@
 #include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraRendererRibbons.h"
 #include "NiagaraConstants.h"
-#include "NiagaraBoundsCalculatorHelper.h"
 
-UNiagaraRibbonRendererProperties::UNiagaraRibbonRendererProperties()
-	: Material(nullptr)
-	, FacingMode(ENiagaraRibbonFacingMode::Screen)
-	, UV0TilingDistance(0.0f)
-	, UV0Scale(FVector2D(1.0f, 1.0f))
-	, UV0AgeOffsetMode(ENiagaraRibbonAgeOffsetMode::Scale)
-	, UV1TilingDistance(0.0f)
-	, UV1Scale(FVector2D(1.0f, 1.0f))
-	, UV1AgeOffsetMode(ENiagaraRibbonAgeOffsetMode::Scale)
-	, CurveTension(0.f)
-	, TessellationMode(ENiagaraRibbonTessellationMode::Automatic)
-	, TessellationFactor(16)
-	, bUseConstantFactor(false)
-	, TessellationAngle(15)
-	, bScreenSpaceTessellation(true)
+NiagaraRenderer* UNiagaraRibbonRendererProperties::CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel)
 {
-}
-
-FNiagaraRenderer* UNiagaraRibbonRendererProperties::CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel, const FNiagaraEmitterInstance* Emitter)
-{
-	FNiagaraRenderer* NewRenderer = new FNiagaraRendererRibbons(FeatureLevel, this, Emitter);
-	NewRenderer->Initialize(FeatureLevel, this, Emitter);
-	return NewRenderer;
-}
-
-FNiagaraBoundsCalculator* UNiagaraRibbonRendererProperties::CreateBoundsCalculator()
-{
-	return new FNiagaraBoundsCalculatorHelper<false, false, true>();
+	return new NiagaraRendererRibbons(FeatureLevel, this);
 }
 
 void UNiagaraRibbonRendererProperties::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const
@@ -43,6 +17,7 @@ void UNiagaraRibbonRendererProperties::GetUsedMaterials(TArray<UMaterialInterfac
 void UNiagaraRibbonRendererProperties::PostInitProperties()
 {
 	Super::PostInitProperties();
+	SyncId = 0;
 	if (HasAnyFlags(RF_ClassDefaultObject) == false)
 	{
 		InitBindings();
@@ -81,13 +56,9 @@ void UNiagaraRibbonRendererProperties::InitBindings()
 void UNiagaraRibbonRendererProperties::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	FName PropertyName = PropertyChangedEvent.GetPropertyName();
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraRibbonRendererProperties, TessellationAngle))
+	if (PropertyChangedEvent.GetPropertyName() != TEXT("SyncId"))
 	{
-		if (TessellationAngle > 0.f && TessellationAngle < 1.f)
-		{
-			TessellationAngle = 1.f;
-		}
+		SyncId++;
 	}
 }
 
@@ -140,29 +111,6 @@ void UNiagaraRibbonRendererProperties::FixMaterial(UMaterial* InMaterial)
 	InMaterial->Modify();
 	InMaterial->bUsedWithNiagaraRibbons = true;
 	InMaterial->ForceRecompileForRendering();
-}
-
-bool UNiagaraRibbonRendererProperties::CanEditChange(const UProperty* InProperty) const
-{
-
-	if (InProperty->HasMetaData(TEXT("Category")) && InProperty->GetMetaData(TEXT("Category")).Contains("Tessellation"))
-	{
-		FName PropertyName = InProperty->GetFName();
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraRibbonRendererProperties, CurveTension))
-		{
-			return TessellationMode != ENiagaraRibbonTessellationMode::Disabled;
-		}
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraRibbonRendererProperties, TessellationFactor))
-		{
-			return TessellationMode == ENiagaraRibbonTessellationMode::Custom;
-		}
-		if (PropertyName == GET_MEMBER_NAME_CHECKED(UNiagaraRibbonRendererProperties, TessellationMode))
-		{
-			return Super::CanEditChange(InProperty);
-		}
-		return TessellationMode == ENiagaraRibbonTessellationMode::Custom;
-	}
-	return Super::CanEditChange(InProperty);
 }
 
 #endif // WITH_EDITORONLY_DATA

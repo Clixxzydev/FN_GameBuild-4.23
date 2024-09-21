@@ -30,27 +30,16 @@ namespace Tools.DotNETCommon
 		public Dictionary<FileReference, bool> ProjectReferences = new Dictionary<FileReference, bool>();
 
 		/// <summary>
-		/// List of compile references in the project.
-		/// </summary>
-		public List<FileReference> CompileReferences = new List<FileReference>();
-
-		/// <summary>
 		/// Mapping of content IF they are flagged Always or Newer
 		/// </summary>
 		public Dictionary<FileReference, bool> ContentReferences = new Dictionary<FileReference, bool>();
 
 		/// <summary>
-		/// Path to the CSProject file
-		/// </summary>
-		public FileReference ProjectPath;
-
-		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="InProperties">Initial mapping of property names to values</param>
-		CsProjectInfo(Dictionary<string, string> InProperties, FileReference InProjectPath)
+		CsProjectInfo(Dictionary<string, string> InProperties)
 		{
-			ProjectPath = InProjectPath;
 			Properties = new Dictionary<string, string>(InProperties);
 		}
 
@@ -70,17 +59,6 @@ namespace Tools.DotNETCommon
 			{
 				return BaseDirectory;
 			}
-		}
-
-		/// <summary>
-		/// Returns the assembly name used by this project
-		/// </summary>
-		/// <returns></returns>
-		public string GetAssemblyName()
-		{
-			string Output = "";
-			Properties.TryGetValue("AssemblyName", out Output);
-			return Output;
 		}
 
 		/// <summary>
@@ -256,7 +234,7 @@ namespace Tools.DotNETCommon
 			}
 
 			// Parse the basic structure of the document, updating properties and recursing into other referenced projects as we go
-			CsProjectInfo ProjectInfo = new CsProjectInfo(Properties, File);
+			CsProjectInfo ProjectInfo = new CsProjectInfo(Properties);
 			foreach (XmlElement Element in Document.DocumentElement.ChildNodes.OfType<XmlElement>())
 			{
 				switch (Element.Name)
@@ -325,13 +303,6 @@ namespace Tools.DotNETCommon
 							ParseProjectReference(BaseDirectory, ItemElement, ProjectInfo.ProjectReferences);
 						}
 						break;
-					case "Compile":
-						// Reference to another project
-						if (EvaluateCondition(ItemElement, ProjectInfo.Properties))
-						{
-							ParseCompileReference(BaseDirectory, ItemElement, ProjectInfo.CompileReferences);
-						}
-						break;
 					case "Content":
 					case "None":
 						// Reference to another project
@@ -380,22 +351,6 @@ namespace Tools.DotNETCommon
 				FileReference ProjectFile = FileReference.Combine(BaseDirectory, IncludePath);
 				bool bPrivate = GetChildElementBoolean(ParentElement, "Private", true);
 				ProjectReferences[ProjectFile] = bPrivate;
-			}
-		}
-
-		/// <summary>
-		/// Parses a project reference from a given 'ProjectReference' element
-		/// </summary>
-		/// <param name="BaseDirectory">Directory to resolve relative paths against</param>
-		/// <param name="ParentElement">The parent 'ProjectReference' element</param>
-		/// <param name="CompileReferences">List of source files.</param>
-		static void ParseCompileReference(DirectoryReference BaseDirectory, XmlElement ParentElement, List<FileReference> CompileReferences)
-		{
-			string IncludePath = UnescapeString(ParentElement.GetAttribute("Include"));
-			if (!String.IsNullOrEmpty(IncludePath))
-			{
-				FileReference SourceFile = FileReference.Combine(BaseDirectory, IncludePath);
-				CompileReferences.Add(SourceFile);
 			}
 		}
 
@@ -598,11 +553,6 @@ namespace Tools.DotNETCommon
 					}
 				}
 
-				if (TokenIdx < Tokens.Length && Tokens[TokenIdx] == ":")
-				{
-					TokenIdx = Tokens.Length;
-				}
-
 				// Make sure there's nothing left over
 				if(TokenIdx != Tokens.Length)
 				{
@@ -737,39 +687,6 @@ namespace Tools.DotNETCommon
 				}
 			}
 			return NewText;
-		}
-	}
-
-	/// <summary>
-	/// Extension methods for CsProject support
-	/// </summary>
-	public static class CsProjectInfoExtensionMethods
-	{
-		/// <summary>
-		/// Adds aall input/output properties of a CSProject to a hash collection
-		/// </summary>
-		/// <param name="Hasher"></param>
-		/// <param name="Project"></param>
-		/// <returns></returns>
-		public static bool AddCsProjectInfo(this HashCollection Hasher, CsProjectInfo Project, HashCollection.HashType HashType)
-		{
-			// Get the output assembly and pdb file
-			DirectoryReference ProjectDirectory = Project.ProjectPath.Directory;
-			DirectoryReference OutputDir = Project.GetOutputDir(ProjectDirectory);
-			FileReference OutputFile = FileReference.Combine(OutputDir, Project.GetAssemblyName() + ".dll");
-			FileReference DebugFile = OutputFile.ChangeExtension("pdb");
-
-			// build a list of all input and output files from this module
-			List<FileReference> DependentFiles = new List<FileReference> { Project.ProjectPath, OutputFile, DebugFile };
-
-			DependentFiles.AddRange(Project.CompileReferences);
-	
-			if (!Hasher.AddFiles(DependentFiles, HashType))
-			{
-				return false;
-			}
-
-			return true;
 		}
 	}
 }

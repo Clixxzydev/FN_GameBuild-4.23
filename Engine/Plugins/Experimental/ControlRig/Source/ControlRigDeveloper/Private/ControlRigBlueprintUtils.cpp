@@ -125,6 +125,7 @@ UControlRigGraphNode* FControlRigBlueprintUtils::InstantiateGraphNodeForProperty
 	NewNode->NodePosY = InLocation.Y;
 
 	NewNode->SetFlags(RF_Transactional);
+	NewNode->UpdateNodeColorFromMetadata();
 
 	return NewNode;
 }
@@ -149,6 +150,7 @@ UControlRigGraphNode* FControlRigBlueprintUtils::InstantiateGraphNodeForStructPa
 	NewNode->NodePosY = InLocation.Y;
 
 	NewNode->SetFlags(RF_Transactional);
+	NewNode->UpdateNodeColorFromMetadata();
 
 	return NewNode;
 }

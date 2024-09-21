@@ -46,9 +46,7 @@
 FReply FAssetViewModeUtils::OnViewModeKeyDown( const TSet< TSharedPtr<FAssetViewItem> >& SelectedItems, const FKeyEvent& InKeyEvent )
 {
 	// All asset views use Ctrl-C to copy references to assets
-	if ( InKeyEvent.IsControlDown() && InKeyEvent.GetCharacter() == 'C' 
-		&& !InKeyEvent.IsShiftDown() && !InKeyEvent.IsAltDown()
-		)
+	if ( InKeyEvent.IsControlDown() && InKeyEvent.GetCharacter() == 'C' )
 	{
 		FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 

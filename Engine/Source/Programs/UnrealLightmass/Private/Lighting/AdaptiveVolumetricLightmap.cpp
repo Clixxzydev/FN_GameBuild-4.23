@@ -202,6 +202,11 @@ bool FStaticLightingSystem::DoesVoxelIntersectSceneGeometry(const FBox& CellBoun
 
 bool FStaticLightingSystem::ShouldRefineVoxel(int32 TreeDepth, const FBox& CellBounds, const TArray<FVector>& VoxelTestPositions, bool bDebugThisVoxel) const
 {
+	if (bDebugThisVoxel)
+	{
+		int32 asdf = 0;
+	}
+
 	const bool bCellInsideImportanceVolume = Scene.IsBoxInImportanceVolume(CellBounds);
 
 	// The volumetric lightmap bounds are larger than the importance volume bounds, since we force the volumetric lightmap volume to have cube voxels
@@ -225,6 +230,11 @@ bool FStaticLightingSystem::ShouldRefineVoxel(int32 TreeDepth, const FBox& CellB
 			VolumeRange.X = FMath::Min(VolumeRange.X, SampleAllowedMipRange.X);
 			VolumeRange.Y = FMath::Min(VolumeRange.Y, SampleAllowedMipRange.Y);
 		}
+	}
+
+	if (bDebugThisVoxel)
+	{
+		int32 asdf = 0;
 	}
 
 	// Default unrestricted
@@ -335,12 +345,22 @@ bool FStaticLightingSystem::ShouldRefineVoxel(int32 TreeDepth, const FBox& CellB
 						{
 							if (PointUnderTriangle(TestPositions[PointIndex], Triangle))
 							{
+								if (bDebugThisVoxel)
+								{
+									int32 asdf = 0;
+								}
+
 								PositionUnderLandscape[PointIndex] = true;
 							}
 						}
 					}
 				}
 			}
+		}
+
+		if (bDebugThisVoxel)
+		{
+			int32 asdf = 0;
 		}
 
 		bool bAllPointsUnderLandscape = true;
@@ -419,6 +439,12 @@ void FStaticLightingSystem::RecursivelyBuildBrickTree(
 						const FBox CellBounds(ChildCellPosition, ChildCellPosition + WorldChildCellSize);
 
 						const bool bChildCoveringDebugPosition = bDebugVolumetricLightmapCell && CellBounds.IsInside(DebugWorldPosition);
+
+						if (bChildCoveringDebugPosition)
+						{
+							int32 asdf = 0;
+						}
+
 						const bool bSubdivideCell = ShouldRefineVoxel(TreeDepth + 1, CellBounds, VoxelTestPositions, bChildCoveringDebugPosition);
 
 						if (bSubdivideCell)
@@ -484,6 +510,11 @@ void FStaticLightingSystem::ProcessVolumetricLightmapBrickTask(FVolumetricLightm
 
 	const FIrradianceBrickBuildData& BuildData = Task->BuildData;
 	FIrradianceBrickData& BrickData = Task->BrickData;
+
+	if (BuildData.bDebugBrick)
+	{
+		int32 asdf = 0;
+	}
 
 	const int32 BrickSize = VolumetricLightmapSettings.BrickSize;
 	const int32 BrickSizeLog2 = FMath::FloorLog2(BrickSize);
@@ -572,6 +603,7 @@ void FStaticLightingSystem::ProcessVolumetricLightmapBrickTask(FVolumetricLightm
 				if (bDebugSamples)
 				{
 					Task->MappingContext.DebugOutput->bValid = true;
+					int32 asdf = 0;
 				}
 
 				float BackfacingHitsFraction = 0.0f;
@@ -629,6 +661,11 @@ void FStaticLightingSystem::ProcessVolumetricLightmapBrickTask(FVolumetricLightm
 	BrickData.AverageClosestGeometryDistance = AverageClosestGeometryDistance / TotalBrickSize;
 	
 	const bool bCullBrick = bAllCellsInsideGeometry;
+	
+	if (BuildData.bDebugBrick)
+	{
+		int32 asdf = 0;
+	}
 
 	if (bCullBrick && BuildData.TreeDepth > 0 && !BuildData.bHasChildren)
 	{
@@ -636,20 +673,16 @@ void FStaticLightingSystem::ProcessVolumetricLightmapBrickTask(FVolumetricLightm
 	}
 }
 
-bool FStaticLightingSystem::ProcessVolumetricLightmapTaskIfAvailable()
+void FStaticLightingSystem::ProcessVolumetricLightmapTaskIfAvailable()
 {
-	bool bAnyTaskProcessedByThisThread = false;
+	FVolumetricLightmapBrickTaskDescription* NextTask = VolumetricLightmapBrickTasks.Pop();
 
-	while (FVolumetricLightmapBrickTaskDescription * NextTask = VolumetricLightmapBrickTasks.Pop())
+	if (NextTask)
 	{
 		//UE_LOG(LogLightmass, Warning, TEXT("Thread picked up volumetric lightmap task"));
 		ProcessVolumetricLightmapBrickTask(NextTask);
 		FPlatformAtomics::InterlockedDecrement(NextTask->NumOutstandingBrickTasks);
-
-		bAnyTaskProcessedByThisThread = true;
 	}
-
-	return bAnyTaskProcessedByThisThread;
 }
 
 void FStaticLightingSystem::GenerateVoxelTestPositions(TArray<FVector>& VoxelTestPositions) const
@@ -733,6 +766,11 @@ void FStaticLightingSystem::CalculateAdaptiveVolumetricLightmap(int32 TaskIndex)
 
 	TArray<FVector> VoxelTestPositions;
 	GenerateVoxelTestPositions(VoxelTestPositions);
+
+	if (bCoveringDebugPosition)
+	{
+		int32 asdf = 0;
+	}
 
 	TArray<FIrradianceBrickBuildData> BrickBuildData;
 	RecursivelyBuildBrickTree(StartCellIndex, NumCells, FIntVector::ZeroValue, 0, bCoveringDebugPosition, TopLevelBounds, VoxelTestPositions, BrickBuildData);

@@ -16,7 +16,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// The platform to be compiled/linked for.
 		/// </summary>
-		public readonly UnrealTargetPlatform Platform;
+		public readonly CppPlatform Platform;
 
 		/// <summary>
 		/// The configuration to be compiled/linked for.
@@ -245,11 +245,6 @@ namespace UnrealBuildTool
 		public bool bUseFastPDBLinking;
 
 		/// <summary>
-		/// Whether to ignore dangling (i.e. unresolved external) symbols in modules
-		/// </summary>
-		public bool bIgnoreUnresolvedSymbols;
-
-		/// <summary>
 		/// Whether to log detailed timing information
 		/// </summary>
 		public bool bPrintTimingInfo;
@@ -268,6 +263,11 @@ namespace UnrealBuildTool
 		/// A list of the object files to be linked.
 		/// </summary>
 		public List<FileItem> InputFiles = new List<FileItem>();
+
+		/// <summary>
+		/// A list of dependent static or import libraries that need to be linked.
+		/// </summary>
+		public List<FileItem> InputLibraries = new List<FileItem>();
 
 		/// <summary>
 		/// The default resource file to link in to every binary if a custom one is not provided
@@ -298,7 +298,7 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Default constructor.
 		/// </summary>
-		public LinkEnvironment(UnrealTargetPlatform Platform, CppConfiguration Configuration, string Architecture)
+		public LinkEnvironment(CppPlatform Platform, CppConfiguration Configuration, string Architecture)
 		{
 			this.Platform = Platform;
 			this.Configuration = Configuration;
@@ -352,11 +352,11 @@ namespace UnrealBuildTool
             bAllowASLR = Other.bAllowASLR;
 			bUsePDBFiles = Other.bUsePDBFiles;
 			bUseFastPDBLinking = Other.bUseFastPDBLinking;
-			bIgnoreUnresolvedSymbols = Other.bIgnoreUnresolvedSymbols;
 			bPrintTimingInfo = Other.bPrintTimingInfo;
 			BundleVersion = Other.BundleVersion;
 			InstallName = Other.InstallName;
 			InputFiles.AddRange(Other.InputFiles);
+			InputLibraries.AddRange(Other.InputLibraries);
 			DefaultResourceFiles.AddRange(Other.DefaultResourceFiles);
 			CommonResourceFiles.AddRange(Other.CommonResourceFiles);
 			IncludeFunctions.AddRange(Other.IncludeFunctions);

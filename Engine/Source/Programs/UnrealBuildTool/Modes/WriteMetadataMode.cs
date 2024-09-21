@@ -296,16 +296,13 @@ namespace UnrealBuildTool
 		/// <returns>True if the manifest is out of date</returns>
 		bool IsOutOfDate(FileReference ManifestFileName, ModuleManifest Manifest)
 		{
-			if(!UnrealBuildTool.IsFileInstalled(ManifestFileName))
+			DateTime ManifestTime = FileReference.GetLastWriteTimeUtc(ManifestFileName);
+			foreach(string FileName in Manifest.ModuleNameToFileName.Values)
 			{
-				DateTime ManifestTime = FileReference.GetLastWriteTimeUtc(ManifestFileName);
-				foreach(string FileName in Manifest.ModuleNameToFileName.Values)
+				FileInfo ModuleInfo = new FileInfo(FileReference.Combine(ManifestFileName.Directory, FileName).FullName);
+				if(!ModuleInfo.Exists || ModuleInfo.LastWriteTimeUtc > ManifestTime)
 				{
-					FileInfo ModuleInfo = new FileInfo(FileReference.Combine(ManifestFileName.Directory, FileName).FullName);
-					if(!ModuleInfo.Exists || ModuleInfo.LastWriteTimeUtc > ManifestTime)
-					{
-						return true;
-					}
+					return true;
 				}
 			}
 			return false;

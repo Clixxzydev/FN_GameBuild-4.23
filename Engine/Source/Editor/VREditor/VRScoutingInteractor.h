@@ -16,7 +16,7 @@ class UStaticMeshSocket;
 /**
  * Represents the interactor in the world
  */
-UCLASS(Abstract)
+UCLASS()
 class VREDITOR_API UVRScoutingInteractor: public UVREditorInteractor
 {
 	GENERATED_BODY()

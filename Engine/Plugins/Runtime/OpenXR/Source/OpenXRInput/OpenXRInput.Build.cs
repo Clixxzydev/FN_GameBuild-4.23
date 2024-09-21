@@ -34,11 +34,6 @@ namespace UnrealBuildTool.Rules
                 );
 
             AddEngineThirdPartyPrivateStaticDependencies(Target, "OpenXR");
-
-            if (Target.bBuildEditor == true)
-            {
-                PrivateDependencyModuleNames.Add("UnrealEd");
-            }
         }
     }
 }

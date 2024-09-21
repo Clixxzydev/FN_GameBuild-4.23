@@ -376,7 +376,6 @@ void SMaterialParametersOverviewTree::Construct(const FArguments& InArgs)
 		.OnGenerateRow(this, &SMaterialParametersOverviewTree::OnGenerateRowMaterialLayersFunctionsTreeView)
 		.OnGetChildren(this, &SMaterialParametersOverviewTree::OnGetChildrenMaterialLayersFunctionsTreeView)
 		.OnExpansionChanged(this, &SMaterialParametersOverviewTree::OnExpansionChanged)
-		.ExternalScrollbar(InArgs._InScrollbar)
 	);
 }
 
@@ -622,6 +621,7 @@ void SMaterialParametersOverviewPanel::Refresh()
 			[
 				SNew(SVerticalBox)
 				+SVerticalBox::Slot()
+				.AutoHeight()
 				[
 					SNew(SBorder)
 					.BorderImage(this, &SMaterialParametersOverviewPanel::GetBackgroundImage)
@@ -646,36 +646,22 @@ void SMaterialParametersOverviewPanel::Refresh()
 						]
 						+ SVerticalBox::Slot()
 						.Padding(FMargin(3.0f, 2.0f, 3.0f, 3.0f))
+						.AutoHeight()
 						[
 							SNew(SBorder)
 							.BorderImage(FEditorStyle::GetBrush("DetailsView.CategoryTop"))
 							[
-								SNew(SHorizontalBox)
-								+ SHorizontalBox::Slot()
-								.HAlign(HAlign_Fill)
+								SNew(SWidgetSwitcher)
+								.WidgetIndex(this, &SMaterialParametersOverviewPanel::GetPanelIndex)
+								+SWidgetSwitcher::Slot()
 								[
-									SNew(SWidgetSwitcher)
-									.WidgetIndex(this, &SMaterialParametersOverviewPanel::GetPanelIndex)
-									+SWidgetSwitcher::Slot()
-									[
-										SNew(STextBlock)
-										.Text(LOCTEXT("AddParams", "Add parameters to see them here."))
-									]
-									+SWidgetSwitcher::Slot()
-									[
-										NestedTree.ToSharedRef()
-									]	
+									SNew(STextBlock)
+									.Text(LOCTEXT("AddParams", "Add parameters to see them here."))
 								]
-								+ SHorizontalBox::Slot()
-								.HAlign(HAlign_Right)
-								.AutoWidth()
+								+SWidgetSwitcher::Slot()
 								[
-									SNew(SBox)
-									.WidthOverride(16.0f)
-									[
-										ExternalScrollbar.ToSharedRef()
-									]
-								]
+									NestedTree.ToSharedRef()
+								]	
 							]
 						]
 					]
@@ -727,15 +713,13 @@ void SMaterialParametersOverviewPanel::Refresh()
 
 void SMaterialParametersOverviewPanel::Construct(const FArguments& InArgs)
 {
-	ExternalScrollbar = SNew(SScrollBar);
-
 	NestedTree = SNew(SMaterialParametersOverviewTree)
 		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
-		.InOwner(SharedThis(this))
-		.InScrollbar(ExternalScrollbar);
+		.InOwner(SharedThis(this));
 
 	MaterialEditorInstance = InArgs._InMaterialEditorInstance;
 	FEditorSupportDelegates::UpdateUI.AddSP(this, &SMaterialParametersOverviewPanel::Refresh);
+
 }
 
 void SMaterialParametersOverviewPanel::UpdateEditorInstance(UMaterialEditorPreviewParameters* InMaterialEditorInstance)

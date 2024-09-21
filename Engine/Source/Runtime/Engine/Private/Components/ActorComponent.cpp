@@ -145,8 +145,6 @@ FGlobalComponentRecreateRenderStateContext::~FGlobalComponentRecreateRenderState
 FActorComponentGlobalCreatePhysicsSignature UActorComponent::GlobalCreatePhysicsDelegate;
 // Destroy Physics global delegate
 FActorComponentGlobalDestroyPhysicsSignature UActorComponent::GlobalDestroyPhysicsDelegate;
-// Render state dirty global delegate
-UActorComponent::FOnMarkRenderStateDirty UActorComponent::MarkRenderStateDirtyEvent;
 
 const FString UActorComponent::ComponentTemplateNameSuffix(TEXT("_GEN_VARIABLE"));
 
@@ -199,8 +197,8 @@ void UActorComponent::PostInitProperties()
 				if (HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
 				{
 					// Async loading components cannot be pending kill, or the async loading code will assert when trying to postload them.
-					// Instead, wait until the postload and mark pending kill at that time
-					bMarkPendingKillOnPostLoad = true;
+					// Instead, wait until the linker is set and invalidate the export so it does not proceed to load
+					bInvalidateExportWhenLinkerIsSet = true;
 				}
 				else
 #endif // WITH_EDITOR
@@ -279,14 +277,6 @@ void UActorComponent::PostLoad()
 		// For a brief period of time we were inadvertently storing these for all components, need to clear it out
 		UCSModifiedProperties.Empty();
 	}
-
-#if WITH_EDITOR
-	if (bMarkPendingKillOnPostLoad)
-	{
-		MarkPendingKill();
-		bMarkPendingKillOnPostLoad = false;
-	}
-#endif // WITH_EDITOR
 }
 
 bool UActorComponent::Rename( const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags )
@@ -528,10 +518,10 @@ bool UActorComponent::NeedsLoadForEditorGame() const
 	return !IsEditorOnly() && Super::NeedsLoadForEditorGame();
 }
 
-int32 UActorComponent::GetFunctionCallspace( UFunction* Function, FFrame* Stack )
+int32 UActorComponent::GetFunctionCallspace( UFunction* Function, void* Parameters, FFrame* Stack )
 {
 	AActor* MyOwner = GetOwner();
-	return (MyOwner ? MyOwner->GetFunctionCallspace(Function, Stack) : FunctionCallspace::Local);
+	return (MyOwner ? MyOwner->GetFunctionCallspace(Function, Parameters, Stack) : FunctionCallspace::Local);
 }
 
 bool UActorComponent::CallRemoteFunction( UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack )
@@ -562,6 +552,17 @@ bool UActorComponent::CallRemoteFunction( UFunction* Function, void* Parameters,
 /** FComponentReregisterContexts for components which have had PreEditChange called but not PostEditChange. */
 static TMap<TWeakObjectPtr<UActorComponent>,FComponentReregisterContext*> EditReregisterContexts;
 
+void UActorComponent::PostLinkerChange()
+{
+	Super::PostLinkerChange();
+
+	if (bInvalidateExportWhenLinkerIsSet)
+	{
+		FLinkerLoad::InvalidateExport(this);
+		bInvalidateExportWhenLinkerIsSet = false;
+	}
+}
+
 bool UActorComponent::Modify( bool bAlwaysMarkDirty/*=true*/ )
 {
 	// If this is a construction script component we don't store them in the transaction buffer.  Instead, mark
@@ -585,7 +586,6 @@ void UActorComponent::PreEditChange(UProperty* PropertyThatWillChange)
 		// Don't do do a full recreate in this situation, and instead simply detach.
 		if( !IsPendingKill() )
 		{
-			// One way this check can fail is that component subclass does not call Super::PostEditChangeProperty
 			check(!EditReregisterContexts.Find(this));
 			EditReregisterContexts.Add(this,new FComponentReregisterContext(this));
 		}
@@ -1461,8 +1461,6 @@ void UActorComponent::MarkRenderStateDirty()
 		// Flag as dirty
 		bRenderStateDirty = true;
 		MarkForNeededEndOfFrameRecreate();
-
-		MarkRenderStateDirtyEvent.Broadcast(*this);
 	}
 }
 
@@ -1781,13 +1779,8 @@ void UActorComponent::DetermineUCSModifiedProperties()
 
 			virtual bool ShouldSkipProperty(const UProperty* InProperty) const override
 			{
-				static const FName MD_SkipUCSModifiedProperties(TEXT("SkipUCSModifiedProperties"));
-				return (InProperty->HasAnyPropertyFlags(CPF_Transient)
-					|| !InProperty->HasAnyPropertyFlags(CPF_Edit | CPF_Interp)
-#if WITH_EDITOR
-					|| InProperty->HasMetaData(MD_SkipUCSModifiedProperties)
-#endif
-					);
+				return (    InProperty->HasAnyPropertyFlags(CPF_Transient)
+						|| !InProperty->HasAnyPropertyFlags(CPF_Edit | CPF_Interp));
 			}
 		} PropertySkipper;
 

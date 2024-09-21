@@ -28,7 +28,34 @@ namespace ResonanceAudio
 
 		virtual bool SupportsPlatform(EAudioPlatform Platform) override
 		{
-			return true;
+			if (Platform == EAudioPlatform::Android)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::IOS)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Linux)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Mac)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Windows)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Lumin)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 
 		virtual TAudioSpatializationPtr CreateNewSpatializationPlugin(FAudioDevice* OwningDevice) override;
@@ -60,7 +87,34 @@ namespace ResonanceAudio
 
 		virtual bool SupportsPlatform(EAudioPlatform Platform) override
 		{
-			return true;
+			if (Platform == EAudioPlatform::Android)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::IOS)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Linux)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Mac)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Windows)
+			{
+				return true;
+			}
+			else if (Platform == EAudioPlatform::Lumin)
+			{
+				return true;
+			}
+			else
+			{
+				return false;
+			}
 		}
 
 		virtual TAudioReverbPtr CreateNewReverbPlugin(FAudioDevice* OwningDevice) override;

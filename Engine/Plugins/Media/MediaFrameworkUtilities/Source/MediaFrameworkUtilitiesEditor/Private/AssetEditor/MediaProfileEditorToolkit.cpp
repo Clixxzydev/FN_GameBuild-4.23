@@ -36,12 +36,10 @@ void FMediaProfileEditorToolkit::InitMediaProfileEditor(const EToolkitMode::Type
 
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &FMediaProfileEditorToolkit::HandleCoreObjectPropertyChanged);
 	FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddSP(this, &FMediaProfileEditorToolkit::HandleCorePreObjectPropertyChanged);
-	GetMutableDefault<UMediaProfileSettings>()->OnMediaProxiesChanged.AddSP(this, &FMediaProfileEditorToolkit::HandleMediaProxiesChanged);
 }
 
 FMediaProfileEditorToolkit::~FMediaProfileEditorToolkit()
 {
-	GetMutableDefault<UMediaProfileSettings>()->OnMediaProxiesChanged.RemoveAll(this);
 	FCoreUObjectDelegates::OnPreObjectPropertyChanged.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 }
@@ -131,13 +129,6 @@ void FMediaProfileEditorToolkit::HandleCoreObjectPropertyChanged(UObject* Object
 	}
 }
 
-
-void FMediaProfileEditorToolkit::HandleMediaProxiesChanged()
-{
-	CloseWindow();
-}
-
-
 void FMediaProfileEditorToolkit::SaveAsset_Execute()
 {
 	ApplyMediaProfile();
@@ -171,7 +162,7 @@ bool FMediaProfileEditorToolkit::OnRequestClose()
 			}
 		}
 	}
-	return Super::OnRequestClose();
+	return bClose;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -113,19 +113,6 @@ TSharedRef<IToolTip> FWidgetTemplateClass::GetToolTip() const
 	}
 }
 
-void FWidgetTemplateClass::GetFilterStrings(TArray<FString>& OutStrings) const
-{
-	FWidgetTemplate::GetFilterStrings(OutStrings);
-	if (WidgetClass.IsValid())
-	{
-		OutStrings.Add(WidgetClass->GetName());
-	}
-	if (WidgetAssetData.IsValid())
-	{
-		OutStrings.Add(WidgetAssetData.AssetName.ToString());
-	}
-}
-
 void FWidgetTemplateClass::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
 {
 	UObject* const* NewObject = ReplacementMap.Find(WidgetClass.Get());

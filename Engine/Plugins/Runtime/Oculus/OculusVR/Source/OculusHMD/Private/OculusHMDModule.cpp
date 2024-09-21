@@ -46,7 +46,7 @@ void FOculusHMDModule::ShutdownModule()
 }
 
 #if OCULUS_HMD_SUPPORTED_PLATFORMS && PLATFORM_ANDROID
-extern bool AndroidThunkCpp_IsOculusMobileApplication();
+extern bool AndroidThunkCpp_IsGearVRApplication();
 #endif
 
 FString FOculusHMDModule::GetModuleKeyName() const
@@ -74,9 +74,9 @@ bool FOculusHMDModule::PreInit()
 		bPreInitCalled = true;
 
 #if PLATFORM_ANDROID
-		if (!AndroidThunkCpp_IsOculusMobileApplication())
+		if (!AndroidThunkCpp_IsGearVRApplication())
 		{
-			UE_LOG(LogHMD, Log, TEXT("App is not packaged for Oculus Mobile"));
+			UE_LOG(LogHMD, Log, TEXT("App is not packaged for Gear VR"));
 			return false;
 		}
 #endif

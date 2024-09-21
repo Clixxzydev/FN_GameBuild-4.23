@@ -1589,7 +1589,7 @@ FString UAnimCompress::MakeDDCKey()
 	// is flagged as persistent so that machines of different endianness produce
 	// identical binary results.
 	PopulateDDCKey(ArcToHexString.Ar);
-
+	
 	return ArcToHexString.MakeString();
 }
 

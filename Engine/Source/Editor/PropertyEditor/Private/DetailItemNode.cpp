@@ -406,8 +406,15 @@ bool FDetailItemNode::ShouldBeExpanded() const
 
 ENodeVisibility FDetailItemNode::GetVisibility() const
 {
+	const bool bHasAnythingToShow = Customization.IsValidCustomization();
+
+	const bool bIsForcedHidden = 
+		!bHasAnythingToShow 
+		|| (Customization.HasCustomWidget() && Customization.WidgetDecl->VisibilityAttr.Get() != EVisibility::Visible )
+		|| (Customization.HasPropertyNode() && Customization.PropertyRow->GetPropertyVisibility() != EVisibility::Visible );
+
 	ENodeVisibility Visibility;
-	if(Customization.IsHidden())
+	if( bIsForcedHidden )
 	{
 		Visibility = ENodeVisibility::ForcedHidden;
 	}
@@ -415,6 +422,7 @@ ENodeVisibility FDetailItemNode::GetVisibility() const
 	{
 		Visibility = (bShouldBeVisibleDueToFiltering || bShouldBeVisibleDueToChildFiltering) ? ENodeVisibility::Visible : ENodeVisibility::HiddenDueToFiltering;
 	}
+
 	return Visibility;
 }
 

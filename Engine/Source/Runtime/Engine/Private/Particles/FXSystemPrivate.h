@@ -149,14 +149,14 @@ public:
 	virtual void RemoveVectorField(UVectorFieldComponent* VectorFieldComponent) override;
 	virtual void UpdateVectorField(UVectorFieldComponent* VectorFieldComponent) override;
 	FParticleEmitterInstance* CreateGPUSpriteEmitterInstance(FGPUSpriteEmitterInfo& EmitterInfo);
-	virtual void PreInitViews(FRHICommandListImmediate& RHICmdList) override;
+	virtual void PreInitViews() override;
 	virtual bool UsesGlobalDistanceField() const override;
-	virtual void PreRender(FRHICommandListImmediate& RHICmdList, const FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData, bool bAllowGPUParticleSceneUpdate) override;
+	virtual void PreRender(FRHICommandListImmediate& RHICmdList, const FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData) override;
 	virtual void PostRenderOpaque(
 		FRHICommandListImmediate& RHICmdList, 
-		FRHIUniformBuffer* ViewUniformBuffer,
+		const FUniformBufferRHIParamRef ViewUniformBuffer, 
 		const FShaderParametersMetadata* SceneTexturesUniformBufferStruct,
-		FRHIUniformBuffer* SceneTexturesUniformBuffer) override;
+		FUniformBufferRHIParamRef SceneTexturesUniformBuffer) override;
 	// End FFXSystemInterface.
 
 	/*--------------------------------------------------------------------------
@@ -255,10 +255,10 @@ private:
 	void SimulateGPUParticles(
 		FRHICommandListImmediate& RHICmdList,
 		EParticleSimulatePhase::Type Phase,
-		FRHIUniformBuffer* ViewUniformBuffer,
+		const FUniformBufferRHIParamRef ViewUniformBuffer,
 		const FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData,
 		const FShaderParametersMetadata* SceneTexturesUniformBufferStruct,
-		FRHIUniformBuffer* SceneTexturesUniformBuffer
+		FUniformBufferRHIParamRef SceneTexturesUniformBuffer
 		);
 
 	/**
@@ -273,10 +273,10 @@ private:
 	void SimulateGPUParticles_Internal(
 		FRHICommandListImmediate& RHICmdList,
 		EParticleSimulatePhase::Type Phase,
-		FRHIUniformBuffer* ViewUniformBuffer,
+		const FUniformBufferRHIParamRef ViewUniformBuffer,
 		const FGlobalDistanceFieldParameterData* GlobalDistanceFieldParameterData,
-		FRHITexture2D* SceneDepthTexture,
-		FRHITexture2D* GBufferATexture
+		FTexture2DRHIParamRef SceneDepthTexture,
+		FTexture2DRHIParamRef GBufferATexture
 	);
 
 	/*-------------------------------------------------------------------------

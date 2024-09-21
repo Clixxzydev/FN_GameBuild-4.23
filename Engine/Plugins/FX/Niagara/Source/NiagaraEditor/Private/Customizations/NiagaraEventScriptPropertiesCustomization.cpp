@@ -339,9 +339,9 @@ TSharedRef<SWidget> FNiagaraEventScriptPropertiesCustomization::OnGetMenuContent
 			SNew(SBox)
 			[
 				SNew(SGraphActionMenu)
-				.OnActionSelected(const_cast<FNiagaraEventScriptPropertiesCustomization*>(this), &FNiagaraEventScriptPropertiesCustomization::OnActionSelected)
-				.OnCreateWidgetForAction(SGraphActionMenu::FOnCreateWidgetForAction::CreateSP(const_cast<FNiagaraEventScriptPropertiesCustomization*>(this), &FNiagaraEventScriptPropertiesCustomization::OnCreateWidgetForAction))
-				.OnCollectAllActions(const_cast<FNiagaraEventScriptPropertiesCustomization*>(this), &FNiagaraEventScriptPropertiesCustomization::CollectAllActions)
+				.OnActionSelected(this, &FNiagaraEventScriptPropertiesCustomization::OnActionSelected)
+				.OnCreateWidgetForAction(SGraphActionMenu::FOnCreateWidgetForAction::CreateSP(this, &FNiagaraEventScriptPropertiesCustomization::OnCreateWidgetForAction))
+				.OnCollectAllActions(this, &FNiagaraEventScriptPropertiesCustomization::CollectAllActions)
 				.AutoExpandActionMenu(false)
 				.ShowFilterTextBox(true)
 			]

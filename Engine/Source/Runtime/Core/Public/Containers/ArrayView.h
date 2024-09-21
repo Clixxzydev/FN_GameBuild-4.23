@@ -3,7 +3,6 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "Templates/IsInitializerList.h"
 #include "Templates/PointerIsConvertibleFromTo.h"
 #include "Misc/AssertionMacros.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -138,9 +137,9 @@ public:
 	 *
 	 * @param List The initializer list to view.
 	 */
-	template <typename InitializerListType,
-		typename = typename TEnableIf<TAnd<TIsInitializerList<InitializerListType>, TIsCompatibleElementType<const typename InitializerListType::value_type>>::Value>::Type>
-	FORCEINLINE TArrayView(InitializerListType& List)
+	template <typename OtherElementType,
+		typename = typename TEnableIf<TIsCompatibleElementType<const OtherElementType>::Value>::Type>
+	FORCEINLINE TArrayView(std::initializer_list<OtherElementType> List)
 		: DataPtr(&*List.begin())
 		, ArrayNum(List.size())
 	{
@@ -597,13 +596,10 @@ TArrayView<const ElementType> MakeArrayView(const TArray<ElementType, Allocator>
 	return TArrayView<const ElementType>(Other);
 }
 
-template <typename InitializerListType>
-typename TEnableIf<
-	TIsInitializerList<InitializerListType>::Value,
-	TArrayView<const typename InitializerListType::value_type>
->::Type MakeArrayView(InitializerListType& List)
+template<typename ElementType>
+TArrayView<ElementType> MakeArrayView(std::initializer_list<ElementType> List)
 {
-	return TArrayView<const typename InitializerListType::value_type>(List);
+	return TArrayView<ElementType>(List);
 }
 
 template<typename ElementType>

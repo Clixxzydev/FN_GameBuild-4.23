@@ -366,19 +366,14 @@ void FPyWrapperTypeReinstancer::AddPendingStruct(UPythonGeneratedStruct* OldStru
 
 void FPyWrapperTypeReinstancer::ProcessPending()
 {
-	const bool bRunGC = ClassesToReinstance.Num() > 0 || StructsToReinstance.Num() > 0;
-
 	if (ClassesToReinstance.Num() > 0)
 	{
 		for (const auto& ClassToReinstancePair : ClassesToReinstance)
 		{
 			if (ClassToReinstancePair.Key && ClassToReinstancePair.Value)
 			{
-				if (!ClassToReinstancePair.Value->HasAnyClassFlags(CLASS_NewerVersionExists))
-				{
-					// Assume the classes have changed
-					FCoreUObjectDelegates::RegisterClassForHotReloadReinstancingDelegate.Broadcast(ClassToReinstancePair.Key, ClassToReinstancePair.Value, EHotReloadedClassFlags::Changed);
-				}
+				// Assume the classes have changed
+				FCoreUObjectDelegates::RegisterClassForHotReloadReinstancingDelegate.Broadcast(ClassToReinstancePair.Key, ClassToReinstancePair.Value, EHotReloadedClassFlags::Changed);
 			}
 		}
 		FCoreUObjectDelegates::ReinstanceHotReloadedClassesDelegate.Broadcast();
@@ -388,11 +383,6 @@ void FPyWrapperTypeReinstancer::ProcessPending()
 
 	// todo: need support for re-instancing structs
 	StructsToReinstance.Reset();
-
-	if (bRunGC)
-	{
-		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
-	}
 }
 
 void FPyWrapperTypeReinstancer::AddReferencedObjects(FReferenceCollector& InCollector)
@@ -730,10 +720,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		}
 
 		const FString PythonStructMethodName = PyGenUtil::GetScriptMethodPythonName(InFunc);
-		TArray<TUniqueObj<PyGenUtil::FGeneratedWrappedDynamicMethod>, TInlineAllocator<4>> DynamicMethodDefs;
+		TArray<PyGenUtil::FGeneratedWrappedDynamicMethod, TInlineAllocator<4>> DynamicMethodDefs;
 
 		// Copy the basic wrapped method as we need to adjust some parts of it below
-		PyGenUtil::FGeneratedWrappedDynamicMethod& GeneratedWrappedDynamicMethod = DynamicMethodDefs.AddDefaulted_GetRef().Get();
+		PyGenUtil::FGeneratedWrappedDynamicMethod& GeneratedWrappedDynamicMethod = DynamicMethodDefs.AddDefaulted_GetRef();
 		static_cast<PyGenUtil::FGeneratedWrappedMethod&>(GeneratedWrappedDynamicMethod) = InTypeMethod;
 		GeneratedWrappedDynamicMethod.SelfParam = SelfParam;
 
@@ -824,7 +814,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		{
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonStructMethodName, *PythonStructMethodName);
 
-			PyGenUtil::FGeneratedWrappedDynamicMethod& DeprecatedGeneratedWrappedMethod = DynamicMethodDefs.AddDefaulted_GetRef().Get();
+			PyGenUtil::FGeneratedWrappedDynamicMethod& DeprecatedGeneratedWrappedMethod = DynamicMethodDefs.AddDefaulted_GetRef();
 			DeprecatedGeneratedWrappedMethod = GeneratedWrappedDynamicMethod;
 			DeprecatedGeneratedWrappedMethod.MethodName = PyGenUtil::TCHARToUTF8Buffer(*DeprecatedPythonStructMethodName);
 			DeprecatedGeneratedWrappedMethod.MethodDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("deprecated: %s"), *DeprecationMessage));
@@ -846,10 +836,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			check(HostedClassGeneratedWrappedType.IsValid());
 
 			// Add the dynamic methods to the class
-			for (TUniqueObj<PyGenUtil::FGeneratedWrappedDynamicMethod>& GeneratedWrappedDynamicMethodToAdd : DynamicMethodDefs)
+			for (PyGenUtil::FGeneratedWrappedDynamicMethod& GeneratedWrappedDynamicMethodToAdd : DynamicMethodDefs)
 			{
-				HostedClassGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedDynamicMethodToAdd->MethodName.GetData()), InFunc);
-				HostedClassGeneratedWrappedType->AddDynamicMethod(MoveTemp(GeneratedWrappedDynamicMethodToAdd.Get()));
+				HostedClassGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedDynamicMethodToAdd.MethodName.GetData()), InFunc);
+				HostedClassGeneratedWrappedType->AddDynamicMethod(MoveTemp(GeneratedWrappedDynamicMethodToAdd));
 			}
 		}
 		else if (SelfParam.ParamProp->IsA<UStructProperty>())
@@ -866,10 +856,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			check(HostedStructGeneratedWrappedType.IsValid());
 
 			// Add the dynamic methods to the struct
-			for (TUniqueObj<PyGenUtil::FGeneratedWrappedDynamicMethod>& GeneratedWrappedDynamicMethodToAdd : DynamicMethodDefs)
+			for (PyGenUtil::FGeneratedWrappedDynamicMethod& GeneratedWrappedDynamicMethodToAdd : DynamicMethodDefs)
 			{
-				HostedStructGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedDynamicMethodToAdd->MethodName.GetData()), InFunc);
-				HostedStructGeneratedWrappedType->AddDynamicMethod(MoveTemp(GeneratedWrappedDynamicMethodToAdd.Get()));
+				HostedStructGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedDynamicMethodToAdd.MethodName.GetData()), InFunc);
+				HostedStructGeneratedWrappedType->AddDynamicMethod(MoveTemp(GeneratedWrappedDynamicMethodToAdd));
 			}
 		}
 		else
@@ -970,10 +960,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		}
 
 		const FString PythonConstantName = PyGenUtil::GetScriptConstantPythonName(InFunc);
-		TArray<TUniqueObj<PyGenUtil::FGeneratedWrappedConstant>, TInlineAllocator<4>> ConstantDefs;
+		TArray<PyGenUtil::FGeneratedWrappedConstant, TInlineAllocator<4>> ConstantDefs;
 
 		// Build the constant definition
-		PyGenUtil::FGeneratedWrappedConstant& GeneratedWrappedConstant = ConstantDefs.AddDefaulted_GetRef().Get();
+		PyGenUtil::FGeneratedWrappedConstant& GeneratedWrappedConstant = ConstantDefs.AddDefaulted_GetRef();
 		GeneratedWrappedConstant.ConstantName = PyGenUtil::TCHARToUTF8Buffer(*PythonConstantName);
 		GeneratedWrappedConstant.ConstantDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("(%s): %s"), *PyGenUtil::GetPropertyPythonType(ConstantFunc.OutputParams[0].ParamProp), *PyGenUtil::GetFieldTooltip(InFunc)));
 		GeneratedWrappedConstant.ConstantFunc = ConstantFunc;
@@ -984,7 +974,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		{
 			FString DeprecationMessage = FString::Printf(TEXT("'%s' was renamed to '%s'."), *DeprecatedPythonConstantName, *PythonConstantName);
 
-			PyGenUtil::FGeneratedWrappedConstant& DeprecatedGeneratedWrappedConstant = ConstantDefs.AddDefaulted_GetRef().Get();
+			PyGenUtil::FGeneratedWrappedConstant& DeprecatedGeneratedWrappedConstant = ConstantDefs.AddDefaulted_GetRef();
 			DeprecatedGeneratedWrappedConstant = GeneratedWrappedConstant;
 			DeprecatedGeneratedWrappedConstant.ConstantName = PyGenUtil::TCHARToUTF8Buffer(*DeprecatedPythonConstantName);
 			DeprecatedGeneratedWrappedConstant.ConstantDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("deprecated: %s"), *DeprecationMessage));
@@ -1008,10 +998,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				check(HostedClassGeneratedWrappedType.IsValid());
 
 				// Add the dynamic constants to the struct
-				for (TUniqueObj<PyGenUtil::FGeneratedWrappedConstant>& GeneratedWrappedConstantToAdd : ConstantDefs)
+				for (PyGenUtil::FGeneratedWrappedConstant& GeneratedWrappedConstantToAdd : ConstantDefs)
 				{
-					HostedClassGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedConstantToAdd->ConstantName.GetData()), InFunc);
-					HostedClassGeneratedWrappedType->AddDynamicConstant(MoveTemp(GeneratedWrappedConstantToAdd.Get()));
+					HostedClassGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedConstantToAdd.ConstantName.GetData()), InFunc);
+					HostedClassGeneratedWrappedType->AddDynamicConstant(MoveTemp(GeneratedWrappedConstantToAdd));
 				}
 			}
 			else if (HostType->IsA<UScriptStruct>())
@@ -1029,10 +1019,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 				check(HostedStructGeneratedWrappedType.IsValid());
 
 				// Add the dynamic constants to the struct
-				for (TUniqueObj<PyGenUtil::FGeneratedWrappedConstant>& GeneratedWrappedConstantToAdd : ConstantDefs)
+				for (PyGenUtil::FGeneratedWrappedConstant& GeneratedWrappedConstantToAdd : ConstantDefs)
 				{
-					HostedStructGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedConstantToAdd->ConstantName.GetData()), InFunc);
-					HostedStructGeneratedWrappedType->AddDynamicConstant(MoveTemp(GeneratedWrappedConstantToAdd.Get()));
+					HostedStructGeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedConstantToAdd.ConstantName.GetData()), InFunc);
+					HostedStructGeneratedWrappedType->AddDynamicConstant(MoveTemp(GeneratedWrappedConstantToAdd));
 				}
 			}
 			else
@@ -1043,10 +1033,10 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		else
 		{
 			// Add the static constants to this type
-			for (TUniqueObj<PyGenUtil::FGeneratedWrappedConstant>& GeneratedWrappedConstantToAdd : ConstantDefs)
+			for (PyGenUtil::FGeneratedWrappedConstant& GeneratedWrappedConstantToAdd : ConstantDefs)
 			{
-				GeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedConstantToAdd->ConstantName.GetData()), InFunc);
-				GeneratedWrappedType->Constants.TypeConstants.Add(MoveTemp(GeneratedWrappedConstantToAdd.Get()));
+				GeneratedWrappedType->FieldTracker.RegisterPythonFieldName(UTF8_TO_TCHAR(GeneratedWrappedConstantToAdd.ConstantName.GetData()), InFunc);
+				GeneratedWrappedType->Constants.TypeConstants.Add(MoveTemp(GeneratedWrappedConstantToAdd));
 			}
 		}
 	};
@@ -1102,11 +1092,6 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			GeneratedWrappedMethod.MethodCallback = GeneratedWrappedMethod.MethodFunc.InputParams.Num() > 0 ? PyCFunctionWithClosureCast(&FPyWrapperObject::CallMethodWithArgs_Impl) : PyCFunctionWithClosureCast(&FPyWrapperObject::CallMethodNoArgs_Impl);
 		}
 
-		// We must create a copy here because otherwise the reference will get invalidated by 
-		// subsequent modifications
-
-		const PyGenUtil::FGeneratedWrappedMethod GeneratedWrappedMethodCopy = GeneratedWrappedMethod;
-
 		const TArray<FString> DeprecatedPythonFuncNames = PyGenUtil::GetDeprecatedFunctionPythonNames(InFunc);
 		for (const FString& DeprecatedPythonFuncName : DeprecatedPythonFuncNames)
 		{
@@ -1114,7 +1099,7 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 			PythonMethods.Add(*DeprecatedPythonFuncName, InFunc->GetFName());
 			PythonDeprecatedMethods.Add(*DeprecatedPythonFuncName, DeprecationMessage);
 
-			PyGenUtil::FGeneratedWrappedMethod DeprecatedGeneratedWrappedMethod = GeneratedWrappedMethodCopy;
+			PyGenUtil::FGeneratedWrappedMethod DeprecatedGeneratedWrappedMethod = GeneratedWrappedMethod;
 			DeprecatedGeneratedWrappedMethod.MethodName = PyGenUtil::TCHARToUTF8Buffer(*DeprecatedPythonFuncName);
 			DeprecatedGeneratedWrappedMethod.MethodDoc = PyGenUtil::TCHARToUTF8Buffer(*FString::Printf(TEXT("deprecated: %s"), *DeprecationMessage));
 			DeprecatedGeneratedWrappedMethod.MethodFunc.DeprecationMessage = MoveTemp(DeprecationMessage);
@@ -1126,11 +1111,11 @@ PyTypeObject* FPyWrapperTypeRegistry::GenerateWrappedClassType(const UClass* InC
 		// Should this function also be hoisted as a struct method or operator?
 		if (InFunc->HasMetaData(PyGenUtil::ScriptMethodMetaDataKey))
 		{
-			GenerateWrappedDynamicMethod(InFunc, GeneratedWrappedMethodCopy);
+			GenerateWrappedDynamicMethod(InFunc, GeneratedWrappedMethod);
 		}
 		if (InFunc->HasMetaData(PyGenUtil::ScriptOperatorMetaDataKey))
 		{
-			GenerateWrappedOperator(InFunc, GeneratedWrappedMethodCopy);
+			GenerateWrappedOperator(InFunc, GeneratedWrappedMethod);
 		}
 	};
 
@@ -2018,7 +2003,7 @@ void FPyWrapperTypeRegistry::GenerateStubCodeForWrappedTypes(const EPyOnlineDocs
 	{
 		TArray<FName> ModuleNames;
 		GeneratedWrappedTypesForModule.GetKeys(ModuleNames);
-		ModuleNames.Sort(FNameLexicalLess());
+		ModuleNames.Sort();
 
 		bool bExportedImports = false;
 		for (const FName ModuleName : ModuleNames)

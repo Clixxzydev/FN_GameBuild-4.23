@@ -447,7 +447,12 @@ public:
 
 	virtual ~FOnlineSessionSteam() {}
 
-	virtual TSharedPtr<const FUniqueNetId> CreateSessionIdFromString(const FString& SessionIdStr) override;
+	virtual TSharedPtr<const FUniqueNetId> CreateSessionIdFromString(const FString& SessionIdStr) override
+	{
+		/* NYI */
+		TSharedPtr<const FUniqueNetId> SessionId;
+		return SessionId;
+	}
 
 	FNamedOnlineSession* GetNamedSession(FName SessionName) override
 	{

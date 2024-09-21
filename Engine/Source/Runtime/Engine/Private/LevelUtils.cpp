@@ -222,9 +222,44 @@ bool FLevelUtils::IsLevelLoaded(ULevel* Level)
 	}
 
 	ULevelStreaming* StreamingLevel = FindStreamingLevel( Level );
-	return (StreamingLevel != nullptr);
+	checkf( StreamingLevel, TEXT("Couldn't find streaming level" ) );
+
+	// @todo: Dave, please come talk to me before implementing anything like this.
+	return true;
 }
 
+/**
+ * Flags an unloaded level for loading.
+ *
+ * @param	Level		The level to modify.
+ */
+void FLevelUtils::MarkLevelForLoading(ULevel* Level)
+{
+	// If the level is valid and not the persistent level (which is always loaded) . . .
+	if ( Level && !Level->IsPersistentLevel() )
+	{
+		// Mark the level's stream for load.
+		ULevelStreaming* StreamingLevel = FindStreamingLevel( Level );
+		checkf( StreamingLevel, TEXT("Couldn't find streaming level" ) );
+		// @todo: Dave, please come talk to me before implementing anything like this.
+	}
+}
+
+/**
+ * Flags a loaded level for unloading.
+ *
+ * @param	Level		The level to modify.
+ */
+void FLevelUtils::MarkLevelForUnloading(ULevel* Level)
+{
+	// If the level is valid and not the persistent level (which is always loaded) . . .
+	if ( Level && !Level->IsPersistentLevel() )
+	{
+		ULevelStreaming* StreamingLevel = FindStreamingLevel( Level );
+		checkf( StreamingLevel, TEXT("Couldn't find streaming level" ) );
+		// @todo: Dave, please come talk to me before implementing anything like this.
+	}
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //
@@ -390,14 +425,14 @@ void FLevelUtils::ApplyLevelTransform( ULevel* Level, const FTransform& LevelTra
 		{
 			AActor* Actor = Level->Actors[ActorIndex];
 
-			// Don't want to transform children they should stay relative to their parents.
-			if( Actor && Actor->GetAttachParentActor() == nullptr )
+			// Don't want to transform children they should stay relative to there parents.
+			if( Actor && Actor->GetAttachParentActor() == NULL )
 			{
 				// Has to modify root component directly as GetActorPosition is incorrect this early
 				USceneComponent *RootComponent = Actor->GetRootComponent();
 				if (RootComponent)
 				{
-					RootComponent->SetRelativeLocationAndRotation( LevelTransform.TransformPosition(RootComponent->RelativeLocation), LevelTransform.TransformRotation(RootComponent->RelativeRotation.Quaternion()) );
+					RootComponent->SetRelativeLocationAndRotation( LevelTransform.TransformPosition(RootComponent->RelativeLocation), (FTransform(RootComponent->RelativeRotation) * LevelTransform).Rotator());
 				}			
 			}
 		}

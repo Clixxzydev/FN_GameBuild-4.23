@@ -15,8 +15,7 @@
 #include "SceneRendering.h"
 #include "DeferredShadingRenderer.h"
 #include "ScenePrivate.h"
-#include "ScreenSpaceRayTracing.h"
-#include "PostProcess/PostProcessMotionBlur.h"
+#include "PostProcess/ScreenSpaceReflections.h"
 #include "UnrealEngine.h"
 #if WITH_EDITOR
 #include "Misc/CoreMisc.h"
@@ -47,6 +46,11 @@ static TAutoConsoleVariable<int32> CVarRHICmdVelocityPassDeferredContexts(
 	1,
 	TEXT("True to use deferred contexts to parallelize velocity pass command list execution."));
 
+RENDERER_API TAutoConsoleVariable<int32> CVarAllowMotionBlurInVR(
+	TEXT("vr.AllowMotionBlurInVR"),
+	0,
+	TEXT("For projects with motion blur enabled, this allows motion blur to be enabled even while in VR."));
+
 DECLARE_GPU_STAT_NAMED(RenderVelocities, TEXT("Render Velocities"));
 
 bool IsParallelVelocity()
@@ -71,11 +75,8 @@ public:
 			true;
 	}
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform,const FMaterial* Material,const FVertexFactoryType* VertexFactoryType)
 	{
-		const EShaderPlatform Platform = Parameters.Platform;
-		const FMaterial* Material = Parameters.Material;
-
 		//Only compile the velocity shaders for the default material or if it's masked,
 		return ((Material->IsSpecialEngineMaterial() || !Material->WritesEveryPixel() 
 			//or if the material is opaque and two-sided,
@@ -83,7 +84,7 @@ public:
 			// or if the material modifies meshes
 			|| Material->MaterialMayModifyMeshPosition()))
 			&& IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM4) 
-			&& !FVelocityRendering::VertexFactoryOnlyOutputsVelocityInBasePass(Platform, Parameters.VertexFactoryType->SupportsStaticLighting());
+			&& !FVelocityRendering::VertexFactoryOnlyOutputsVelocityInBasePass(Platform, VertexFactoryType->SupportsStaticLighting());
 	}
 
 protected:
@@ -135,10 +136,10 @@ protected:
 
 	FVelocityHS() {}
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform,const FMaterial* Material,const FVertexFactoryType* VertexFactoryType)
 	{
-		return FBaseHS::ShouldCompilePermutation(Parameters) &&
-				FVelocityVS::ShouldCompilePermutation(Parameters); // same rules as VS
+		return FBaseHS::ShouldCompilePermutation(Platform, Material, VertexFactoryType) &&
+				FVelocityVS::ShouldCompilePermutation(Platform, Material, VertexFactoryType); // same rules as VS
 	}
 };
 
@@ -155,10 +156,10 @@ protected:
 
 	FVelocityDS() {}
 
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material, const FVertexFactoryType* VertexFactoryType)
 	{
-		return FBaseDS::ShouldCompilePermutation(Parameters) &&
-				FVelocityVS::ShouldCompilePermutation(Parameters); // same rules as VS
+		return FBaseDS::ShouldCompilePermutation(Platform, Material, VertexFactoryType) &&
+				FVelocityVS::ShouldCompilePermutation(Platform, Material, VertexFactoryType); // same rules as VS
 	}
 };
 
@@ -172,11 +173,8 @@ class FVelocityPS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FVelocityPS,MeshMaterial);
 public:
-	static bool ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
+	static bool ShouldCompilePermutation(EShaderPlatform Platform,const FMaterial* Material,const FVertexFactoryType* VertexFactoryType)
 	{
-		const EShaderPlatform Platform = Parameters.Platform;
-		const FMaterial* Material = Parameters.Material;
-
 		//Only compile the velocity shaders for the default material or if it's masked,
 		return ((Material->IsSpecialEngineMaterial() || !Material->WritesEveryPixel() 
 			//or if the material is opaque and two-sided,
@@ -184,12 +182,12 @@ public:
 			// or if the material modifies meshes
 			|| Material->MaterialMayModifyMeshPosition()))
 			&& IsFeatureLevelSupported(Platform, ERHIFeatureLevel::SM4) && 
-			!FVelocityRendering::VertexFactoryOnlyOutputsVelocityInBasePass(Platform, Parameters.VertexFactoryType->SupportsStaticLighting());
+			!FVelocityRendering::VertexFactoryOnlyOutputsVelocityInBasePass(Platform, VertexFactoryType->SupportsStaticLighting());
 	}
 
-	static void ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment )
+	static void ModifyCompilationEnvironment( EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment )
 	{
-		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		FMaterialShader::ModifyCompilationEnvironment(Platform, Material, OutEnvironment);
 		OutEnvironment.SetRenderTargetOutputFormat(0, PF_G16R16);
 	}
 
@@ -205,6 +203,36 @@ public:
 IMPLEMENT_MATERIAL_SHADER_TYPE(,FVelocityPS,TEXT("/Engine/Private/VelocityShader.usf"),TEXT("MainPixelShader"),SF_Pixel);
 
 IMPLEMENT_SHADERPIPELINE_TYPE_VSPS(VelocityPipeline, FVelocityVS, FVelocityPS, true);
+
+
+int32 GetMotionBlurQualityFromCVar()
+{
+	int32 MotionBlurQuality;
+
+	static const auto ICVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MotionBlurQuality"));
+	MotionBlurQuality = FMath::Clamp(ICVar->GetValueOnRenderThread(), 0, 4);
+
+	return MotionBlurQuality;
+}
+
+bool IsMotionBlurEnabled(const FViewInfo& View)
+{
+	if (View.GetFeatureLevel() < ERHIFeatureLevel::SM5)
+	{
+		return false; 
+	}
+
+	int32 MotionBlurQuality = GetMotionBlurQualityFromCVar();
+
+	return View.Family->EngineShowFlags.PostProcessing
+		&& View.Family->EngineShowFlags.MotionBlur
+		&& View.FinalPostProcessSettings.MotionBlurAmount > 0.001f
+		&& View.FinalPostProcessSettings.MotionBlurMax > 0.001f
+		&& View.Family->bRealtimeUpdate
+		&& MotionBlurQuality > 0
+		&& !IsSimpleForwardShadingEnabled(GShaderPlatformForFeatureLevel[View.GetFeatureLevel()])
+		&& (CVarAllowMotionBlurInVR->GetInt() != 0 || !(View.Family->Views.Num() > 1));
+}
 
 static void BeginVelocityRendering(FRHICommandList& RHICmdList, TRefCountPtr<IPooledRenderTarget>& VelocityRT, bool bPerformClear)
 {
@@ -394,12 +422,9 @@ bool FDeferredShadingSceneRenderer::ShouldRenderVelocities() const
 		bool bMotionBlur = IsMotionBlurEnabled(View);
 		bool bDistanceFieldAO = ShouldPrepareForDistanceFieldAO();
 
-		bool bSSRTemporal = ShouldRenderScreenSpaceReflections(View) && IsSSRTemporalPassRequired(View);
+		bool bSSRTemporal = IsSSRTemporalPassRequired(View);
 
-		bool bRayTracing = IsRayTracingEnabled();
-		bool bDenoise = bRayTracing;
-
-		bNeedsVelocity |= bMotionBlur || bTemporalAA || bDistanceFieldAO || bSSRTemporal || bDenoise;
+		bNeedsVelocity |= bMotionBlur || bTemporalAA || bDistanceFieldAO || bSSRTemporal;
 	}
 
 	return bNeedsVelocity;
@@ -502,9 +527,7 @@ bool FVelocityRendering::PrimitiveHasVelocity(ERHIFeatureLevel::Type FeatureLeve
 
 bool FVelocityRendering::PrimitiveHasVelocityForView(const FViewInfo& View, const FBoxSphereBounds& Bounds, const FPrimitiveSceneInfo* PrimitiveSceneInfo)
 {
-	// Skip camera cuts which effectively reset velocity for the new frame.
-	bool bRawCameraCut = View.bCameraCut && !View.PreviousViewTransform.IsSet();
-	if (bRawCameraCut)
+	if (View.bCameraCut)
 	{
 		return false;
 	}

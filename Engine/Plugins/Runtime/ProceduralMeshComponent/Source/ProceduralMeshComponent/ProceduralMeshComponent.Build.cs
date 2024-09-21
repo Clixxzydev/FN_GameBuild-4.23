@@ -6,9 +6,7 @@ namespace UnrealBuildTool.Rules
 	{
         public ProceduralMeshComponent(ReadOnlyTargetRules Target) : base(Target)
 		{
-            PrivateIncludePaths.Add("../../../../Shaders/Shared");
-
-            PublicDependencyModuleNames.AddRange(
+			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"Core",

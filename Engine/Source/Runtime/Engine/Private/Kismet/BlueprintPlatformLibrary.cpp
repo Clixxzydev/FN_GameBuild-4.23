@@ -96,38 +96,38 @@ void UBlueprintPlatformLibrary::ClearAllLocalNotifications()
 	platformService->ClearAllLocalNotifications();
 }
 
-int32 UBlueprintPlatformLibrary::ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool inLocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
+void UBlueprintPlatformLibrary::ScheduleLocalNotificationAtTime(const FDateTime& FireDateTime, bool inLocalTime, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
 {
 	if(platformService == nullptr)
 	{
 		UE_LOG(LogBlueprintUserMessages, Warning, TEXT("ScheduleLocalNotificationAtTime(): No local notification service"));
-		return -1;
+		return;
 	}
 
 	UE_LOG(LogBlueprintUserMessages, Log, TEXT("Scheduling notification %s at %d/%d/%d %d:%d:%d %s"), *(Title.ToString()), FireDateTime.GetMonth(), FireDateTime.GetDay(), FireDateTime.GetYear(), FireDateTime.GetHour(), FireDateTime.GetMinute(), FireDateTime.GetSecond(), inLocalTime ? TEXT("Local") : TEXT("UTC"));
 	
-	return platformService->ScheduleLocalNotificationAtTime(FireDateTime, inLocalTime, Title, Body, Action, ActivationEvent);
+	platformService->ScheduleLocalNotificationAtTime(FireDateTime, inLocalTime, Title, Body, Action, ActivationEvent);
 }
        
-int32 UBlueprintPlatformLibrary::ScheduleLocalNotificationFromNow(int32 inSecondsFromNow, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
+void UBlueprintPlatformLibrary::ScheduleLocalNotificationFromNow(int32 inSecondsFromNow, const FText& Title, const FText& Body, const FText& Action, const FString& ActivationEvent)
 {
 	FDateTime TargetTime = FDateTime::Now();
 	TargetTime += FTimespan::FromSeconds(inSecondsFromNow);
 
-	return ScheduleLocalNotificationAtTime(TargetTime, true, Title, Body, Action, ActivationEvent);
+	ScheduleLocalNotificationAtTime(TargetTime, true, Title, Body, Action, ActivationEvent);
 }
 
-int32 UBlueprintPlatformLibrary::ScheduleLocalNotificationBadgeAtTime(const FDateTime& FireDateTime, bool inLocalTime, const FString& ActivationEvent)
+void UBlueprintPlatformLibrary::ScheduleLocalNotificationBadgeAtTime(const FDateTime& FireDateTime, bool inLocalTime, const FString& ActivationEvent)
 {
 	if (platformService == nullptr)
 	{
 		UE_LOG(LogBlueprintUserMessages, Warning, TEXT("ScheduleLocalNotificationBadgeAtTime(): No local notification service"));
-		return -1;
+		return;
 	}
 
 	UE_LOG(LogBlueprintUserMessages, Log, TEXT("Scheduling notification badge %s at %d/%d/%d %d:%d:%d %s"), *ActivationEvent, FireDateTime.GetMonth(), FireDateTime.GetDay(), FireDateTime.GetYear(), FireDateTime.GetHour(), FireDateTime.GetMinute(), FireDateTime.GetSecond(), inLocalTime ? TEXT("Local") : TEXT("UTC"));
 
-	return platformService->ScheduleLocalNotificationBadgeAtTime(FireDateTime, inLocalTime, ActivationEvent);
+	platformService->ScheduleLocalNotificationBadgeAtTime(FireDateTime, inLocalTime, ActivationEvent);
 }
 
 void UBlueprintPlatformLibrary::ScheduleLocalNotificationBadgeFromNow(int32 inSecondsFromNow, const FString& ActivationEvent)
@@ -150,20 +150,6 @@ void UBlueprintPlatformLibrary::CancelLocalNotification(const FString& Activatio
 	UE_LOG(LogBlueprintUserMessages, Log, TEXT("Canceling notification %s"), *ActivationEvent);
 	
 	platformService->CancelLocalNotification(ActivationEvent);
-}
-
-UFUNCTION(BlueprintCallable, Category="Platform|LocalNotification")
-void UBlueprintPlatformLibrary::CancelLocalNotificationById(int32 NotificationId)
-{
-	if(platformService == nullptr)
-	{
-		UE_LOG(LogBlueprintUserMessages, Warning, TEXT("CancelLocalNotification(): No local notification service"));
-		return;
-	}
-	
-	UE_LOG(LogBlueprintUserMessages, Log, TEXT("Canceling notification %f"), NotificationId);
-	
-	platformService->CancelLocalNotification(NotificationId);
 }
 
 void UBlueprintPlatformLibrary::GetLaunchNotification(bool& NotificationLaunchedApp, FString& ActivationEvent, int32& FireDate)

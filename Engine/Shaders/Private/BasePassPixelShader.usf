@@ -12,7 +12,7 @@
 	#define EyeAdaptationStruct TranslucentBasePass.SceneTextures
 #else
 	#define EyeAdaptationStruct OpaqueBasePass
-#endif
+#endif 
 
 #include "SHCommon.ush"
 #include "/Engine/Generated/Material.ush"
@@ -29,7 +29,7 @@
 #include "DBufferDecalShared.ush"
 
 #define PREV_FRAME_COLOR	1
-#include "SSRT/SSRTRayCast.ush"
+#include "ScreenSpaceRayCast.ush"
 
 #if NEEDS_BASEPASS_PIXEL_FOGGING || NEEDS_BASEPASS_PIXEL_VOLUMETRIC_FOGGING
 	#include "HeightFogCommon.ush"
@@ -37,12 +37,15 @@
 
 #include "ReflectionEnvironmentShared.ush"
 
-#if LIGHTMAP_VT_ENABLED || NUM_VIRTUALTEXTURE_SAMPLES
-#if COMPILER_HLSLCC
-	RWTexture2D<uint> VTFeedbackBuffer;
-#else
-	RWTexture2D<uint> VTFeedbackBuffer : register(VT_FEEDBACK_REGISTER);
-#endif
+#if LIGHTMAP_VT_ENABLED
+RWTexture2D<uint> VTFeedbackBuffer : register(u7);
+
+Texture2D		PhysicalTexture;
+SamplerState	PhysicalTextureSampler;
+
+//Texture2D		PageTable;
+//SamplerState	PageTableSampler;
+Texture2D<uint>	PageTable;
 #endif
 
 float NormalCurvatureToRoughness(float3 WorldNormal)
@@ -226,7 +229,7 @@ float3 GetTranslucencyVolumeLighting(
 #endif
 
 /** Computes sky diffuse lighting, including precomputed shadowing. */
-void GetSkyLighting(FMaterialPixelParameters MaterialParameters, VTPageTableResult LightmapVTPageTableResult, FGBufferData GBuffer, float3 WorldNormal, float2 LightmapUV, uint LightmapDataIndex, float3 SkyOcclusionUV3D, out float3 OutDiffuseLighting, out float3 OutSubsurfaceLighting)
+void GetSkyLighting(FMaterialPixelParameters MaterialParameters, FGBufferData GBuffer, float3 WorldNormal, float2 LightmapUV, float3 SkyOcclusionUV3D, out float3 OutDiffuseLighting, out float3 OutSubsurfaceLighting)
 {
 	OutDiffuseLighting = 0;
 	OutSubsurfaceLighting = 0;
@@ -252,7 +255,7 @@ void GetSkyLighting(FMaterialPixelParameters MaterialParameters, VTPageTableResu
 			#elif HQ_TEXTURE_LIGHTMAP
 
 				// Bent normal from precomputed texture
-				float4 WorldSkyBentNormalAndOcclusion = GetSkyBentNormalAndOcclusion(LightmapVTPageTableResult, LightmapUV * float2(1, 2), LightmapDataIndex, MaterialParameters.SvPosition.xy);
+				float4 WorldSkyBentNormalAndOcclusion = GetSkyBentNormalAndOcclusion(LightmapUV * float2(1, 2), MaterialParameters.SvPosition.xy);
 				// Renormalize as vector was quantized and compressed
 				NormalizedBentNormal = normalize(WorldSkyBentNormalAndOcclusion.xyz);
 				SkyVisibility = WorldSkyBentNormalAndOcclusion.w;
@@ -319,7 +322,6 @@ void GetPrecomputedIndirectLightingAndSkyLight(
 	FMaterialPixelParameters MaterialParameters, 
 	FVertexFactoryInterpolantsVSToPS Interpolants,
 	FBasePassInterpolantsVSToPS BasePassInterpolants,
-	VTPageTableResult LightmapVTPageTableResult,
 	FGBufferData GBuffer,
 	float3 DiffuseDir,
 	float3 VolumetricLightmapBrickTextureUVs,
@@ -331,7 +333,6 @@ void GetPrecomputedIndirectLightingAndSkyLight(
 	OutDiffuseLighting = 0;
 	OutSubsurfaceLighting = 0;
 	float2 SkyOcclusionUV = 0;
-	uint SkyOcclusionDataIndex = 0u;
 
 	#if PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING
 
@@ -485,8 +486,19 @@ void GetPrecomputedIndirectLightingAndSkyLight(
 		uint LightmapDataIndex;
 		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
 		SkyOcclusionUV = LightmapUV0;
-		SkyOcclusionDataIndex = LightmapDataIndex;
-		GetLightMapColorHQ(LightmapVTPageTableResult, LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir, MaterialParameters.SvPosition.xy, GBuffer.ShadingModelID, OutDiffuseLighting, OutSubsurfaceLighting);
+
+		uint VTRequest = 0;
+		GetLightMapColorHQ(LightmapUV0, LightmapUV1, LightmapDataIndex, DiffuseDir, MaterialParameters.SvPosition.xy, GBuffer.ShadingModelID, OutDiffuseLighting, OutSubsurfaceLighting, VTRequest);
+
+	#if LIGHTMAP_VT_ENABLED
+		uint2 PixelPos = (uint2)MaterialParameters.SvPosition.xy;
+		if( ( (PixelPos.x | PixelPos.y) & 15 ) == 0 )
+		{
+			// TODO use append buffer
+			VTFeedbackBuffer[ PixelPos / 16 ] = VTRequest;
+		}
+	#endif
+
 
 	// Low quality texture lightmaps
 	#elif LQ_TEXTURE_LIGHTMAP
@@ -504,7 +516,7 @@ void GetPrecomputedIndirectLightingAndSkyLight(
 
 	float3 SkyDiffuseLighting;
 	float3 SkySubsurfaceLighting;
-	GetSkyLighting(MaterialParameters, LightmapVTPageTableResult, GBuffer, DiffuseDir, SkyOcclusionUV, SkyOcclusionDataIndex, VolumetricLightmapBrickTextureUVs, SkyDiffuseLighting, SkySubsurfaceLighting);
+	GetSkyLighting(MaterialParameters, GBuffer, DiffuseDir, SkyOcclusionUV, VolumetricLightmapBrickTextureUVs, SkyDiffuseLighting, SkySubsurfaceLighting);
 
 	OutSubsurfaceLighting += SkySubsurfaceLighting;
 
@@ -749,23 +761,13 @@ void FPixelShaderInOut_MainPS(
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Interpolants, In.SvPosition);
 	FPixelMaterialInputs PixelMaterialInputs;
 
-	VTPageTableResult LightmapVTPageTableResult = (VTPageTableResult)0.0f;
-#if LIGHTMAP_VT_ENABLED
-	{
-		float2 LightmapUV0, LightmapUV1;
-		uint LightmapDataIndex;
-		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
-		LightmapVTPageTableResult = LightmapGetVTSampleInfo(LightmapUV0, LightmapDataIndex, In.SvPosition.xy);
-	}
-#endif
-	
 #if HQ_TEXTURE_LIGHTMAP && USES_AO_MATERIAL_MASK && !MATERIAL_SHADINGMODEL_UNLIT
 	{
 		float2 LightmapUV0, LightmapUV1;
 		uint LightmapDataIndex;
 		GetLightMapCoordinates(Interpolants, LightmapUV0, LightmapUV1, LightmapDataIndex);
 		// Must be computed before BaseColor, Normal, etc are evaluated
-		MaterialParameters.AOMaterialMask = GetAOMaterialMask(LightmapVTPageTableResult, LightmapUV0 * float2(1, 2), LightmapDataIndex, In.SvPosition.xy);
+		MaterialParameters.AOMaterialMask = GetAOMaterialMask(LightmapUV0 * float2(1, 2), In.SvPosition.xy);
 	}
 #endif
 
@@ -781,12 +783,6 @@ void FPixelShaderInOut_MainPS(
 		float3 TranslatedWorldPosition = SvPositionToResolvedTranslatedWorld(In.SvPosition);
 		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, In.SvPosition, ScreenPosition, In.bIsFrontFace, TranslatedWorldPosition, TranslatedWorldPosition);
 	}
-#endif
-
-#if LIGHTMAP_VT_ENABLED
-	// This must occur after CalcMaterialParameters(), which is required to initialize the VT feedback mechanism
-	// Lightmap request is always the first VT sample in the shader
-	StoreVirtualTextureFeedback(MaterialParameters.VirtualTextureFeedback, 0, LightmapVTPageTableResult.PackedRequest);
 #endif
 
 #if USE_EDITOR_COMPOSITING && (FEATURE_LEVEL >= FEATURE_LEVEL_SM4 || MOBILE_EMULATION)
@@ -849,7 +845,6 @@ void FPixelShaderInOut_MainPS(
 	}
 #endif
 
-	float DBufferOpacity = 1.0f;
 #if USE_DBUFFER && MATERIALDECALRESPONSEMASK && !MATERIALBLENDING_ANY_TRANSLUCENT
 	// apply decals from the DBuffer
 #if SM5_PROFILE
@@ -874,7 +869,6 @@ void FPixelShaderInOut_MainPS(
 				FDBufferData DBufferData = GetDBufferData(ScreenUV, DBufferMask);
 
 				ApplyDBufferData(DBufferData, MaterialParameters.WorldNormal, SubsurfaceColor, Roughness, BaseColor, Metallic, Specular);
-				DBufferOpacity = (DBufferData.ColorOpacity + DBufferData.NormalOpacity + DBufferData.RoughnessOpacity) * (1.0f / 3.0f);
 			}
 		}
 #endif
@@ -892,7 +886,7 @@ void FPixelShaderInOut_MainPS(
 	GBuffer.GBufferAO = MaterialAO;
 	GBuffer.PerObjectGBufferData = GetPrimitiveData(MaterialParameters.PrimitiveId).PerObjectGBufferData;
 	GBuffer.Depth = MaterialParameters.ScreenPosition.w;
-	GBuffer.PrecomputedShadowFactors = GetPrecomputedShadowMasks(LightmapVTPageTableResult, Interpolants, MaterialParameters.PrimitiveId, MaterialParameters.AbsoluteWorldPosition, VolumetricLightmapBrickTextureUVs);
+	GBuffer.PrecomputedShadowFactors = GetPrecomputedShadowMasks(Interpolants, MaterialParameters.PrimitiveId, MaterialParameters.AbsoluteWorldPosition, VolumetricLightmapBrickTextureUVs);
 
 	const float GBufferDither = InterleavedGradientNoise(MaterialParameters.SvPosition.xy, View.StateFrameIndexMod8);
 	// Use GBuffer.ShadingModelID after SetGBufferForShadingModel(..) because the ShadingModel input might not be the same as the output
@@ -926,7 +920,7 @@ ShadingModel);
 	#endif
 
 		// Make sure not to touch 0,0 which is clear color
-		float4 EncodedVelocity = float4(EncodeVelocityToTexture(Velocity) * GetPrimitiveData(MaterialParameters.PrimitiveId).DrawsVelocity, 0, 0);
+		float4 EncodedVelocity = float4(EncodeVelocityToTexture(Velocity), 0, 0);
 	#if USES_GBUFFER
 		GBuffer.Velocity = EncodedVelocity;
 	#else
@@ -975,13 +969,12 @@ ShadingModel);
 	}
 #endif
 
-    #if !FORCE_FULLY_ROUGH
-	if (View.RenderingReflectionCaptureMask) // Force material rendered in reflection capture to have an expanded albedo to try to be energy conservative (when specular is removed).
+    #if FORCE_FULLY_ROUGH
+		// Factors derived from EnvBRDFApprox( SpecularColor, 1, 1 ) == SpecularColor * 0.4524 - 0.0024
+		GBuffer.DiffuseColor += GBuffer.SpecularColor * 0.45;
+		GBuffer.SpecularColor = 0;
+		GBuffer.Roughness = 1;
 	#endif
-	{
-		EnvBRDFApproxFullyRough(GBuffer.DiffuseColor, GBuffer.SpecularColor);
-		// When rendering reflection captures, GBuffer.Roughness is already forced to 1 using RoughnessOverrideParameter in GetMaterialRoughness.
-	}
 
 	float3 BentNormal = MaterialParameters.WorldNormal;
 			
@@ -1030,16 +1023,14 @@ ShadingModel);
 			float3 V = MaterialParameters.CameraVector;
 			float3 L = normalize( V - N * dot(V,N) );
 			DiffuseDir = L;
-			bool bEvalMultiScatter = true;
-			DiffuseColorForIndirect = 2*PI * HairShading( GBuffer, L, V, N, 1, 0, 0.2, uint2(0,0), bEvalMultiScatter );
+			DiffuseColorForIndirect = 2*PI * HairShading( GBuffer, L, V, N, 1, 0, 0.2, uint2(0,0) );
 		}
 		#endif
 
 		float3 DiffuseIndirectLighting;
 		float3 SubsurfaceIndirectLighting;
-		GetPrecomputedIndirectLightingAndSkyLight(MaterialParameters, Interpolants, BasePassInterpolants, LightmapVTPageTableResult, GBuffer, DiffuseDir, VolumetricLightmapBrickTextureUVs, DiffuseIndirectLighting, SubsurfaceIndirectLighting, IndirectIrradiance);
+		GetPrecomputedIndirectLightingAndSkyLight(MaterialParameters, Interpolants, BasePassInterpolants, GBuffer, DiffuseDir, VolumetricLightmapBrickTextureUVs, DiffuseIndirectLighting, SubsurfaceIndirectLighting, IndirectIrradiance);
 		
-
 		float IndirectOcclusion = 1.0f;
 		float2 NearestResolvedDepthScreenUV = 0;
 
@@ -1138,10 +1129,7 @@ ShadingModel);
 #endif
 
 	#if !MATERIAL_SHADINGMODEL_UNLIT && USE_DEVELOPMENT_SHADERS
-		float3 GBufferDiffuseColor = GBuffer.DiffuseColor;
-		float3 GBufferSpecularColor = GBuffer.SpecularColor;
-		EnvBRDFApproxFullyRough(GBufferDiffuseColor, GBufferSpecularColor);
-		Color = lerp(Color, GBufferDiffuseColor, View.UnlitViewmodeMask);
+		Color = lerp(Color, GBuffer.DiffuseColor + GBuffer.SpecularColor * 0.45, View.UnlitViewmodeMask);
 	#endif
 
 	half3 Emissive = GetMaterialEmissive(PixelMaterialInputs);
@@ -1174,10 +1162,6 @@ ShadingModel);
 		#else
 			Out.MRT[0] = half4(Color, 0);
 		#endif
-		Out.MRT[0] = RETURN_COLOR(Out.MRT[0]);
-	#elif MATERIALBLENDING_ALPHAHOLDOUT
-		// not implemented for holdout
-		Out.MRT[0] = half4(Color * Fogging.a + Fogging.rgb * Opacity, Opacity);
 		Out.MRT[0] = RETURN_COLOR(Out.MRT[0]);
 	#elif MATERIALBLENDING_ALPHACOMPOSITE
 		Out.MRT[0] = half4(Color * Fogging.a + Fogging.rgb * Opacity, Opacity);
@@ -1277,16 +1261,6 @@ ShadingModel);
 
 #if !MATERIALBLENDING_MODULATE && USE_PREEXPOSURE
 	Out.MRT[0].xyz *= View.PreExposure;
-#endif
-
-#if NUM_VIRTUALTEXTURE_SAMPLES || LIGHTMAP_VT_ENABLED
-	FinalizeVirtualTextureFeedback(
-		MaterialParameters.VirtualTextureFeedback,
-		MaterialParameters.SvPosition,
-		Opacity * DBufferOpacity,
-		View.FrameNumber,
-		VTFeedbackBuffer
-	);
 #endif
 }
 

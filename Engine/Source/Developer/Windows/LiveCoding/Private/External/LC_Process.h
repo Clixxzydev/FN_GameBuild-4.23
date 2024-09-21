@@ -25,12 +25,6 @@ namespace process
 		uint32_t sizeOfImage;
 	};
 
-	struct Environment
-	{
-		size_t size;
-		char* data;
-	};
-
 	typedef HANDLE Handle;
 
 	// returns the process ID for the calling process
@@ -42,23 +36,15 @@ namespace process
 		enum Enum : uint32_t
 		{
 			NONE = 0u,
-			REDIRECT_STDOUT = 1u << 0u,
-			NO_WINDOW = 1u << 1u,
-			SUSPENDED = 1u << 2u
+			REDIRECT_STDOUT = 1u << 0u
 		};
 	};
 
 	// spawns a new process
 	Context* Spawn(const wchar_t* exePath, const wchar_t* workingDirectory, const wchar_t* commandLine, const void* environmentBlock, uint32_t flags);
 
-	// resumes a process that was spawned in a suspended state
-	void ResumeMainThread(Context* context);
-
 	// waits until a spawned process has exited
 	unsigned int Wait(Context* context);
-
-	// waits until a process has exited
-	unsigned int Wait(Handle handle);
 
 	// destroys a spawned process
 	void Destroy(Context*& context);
@@ -82,12 +68,6 @@ namespace process
 
 	// returns the path to the executable of the calling process
 	std::wstring GetImagePath(void);
-
-	// returns the working directory of the calling process
-	std::wstring GetWorkingDirectory(void);
-
-	// returns the command line of the calling process
-	std::wstring GetCommandLine(void);
 
 	// returns the size of a module loaded into the virtual address space of a given process
 	uint32_t GetImageSize(Handle handle, void* moduleBase);
@@ -149,26 +129,6 @@ namespace process
 	// enumerates all modules of a process, returning their info.
 	// NOTE: only call on suspended processes!
 	std::vector<Module> EnumerateModules(Handle handle);
-
-
-	// converts any combination of page protection flags (e.g. PAGE_NOACCESS, PAGE_GUARD, ...) to protection flags
-	// that specify an executable page (e.g. PAGE_EXECUTE).
-	uint32_t ConvertPageProtectionToExecutableProtection(uint32_t protection);
-
-
-	// returns whether a process runs under Wow64 (32-bit emulation on 64-bit versions of Windows)
-	bool IsWoW64(Handle handle);
-
-	
-	// reads the environment of any process
-	Environment* CreateEnvironment(Handle handle);
-
-	// BEGIN EPIC MOD - Allow passing environment block for linker
-	Environment* CreateEnvironmentFromMap(const TMap<FString, FString>& Pairs);
-	// END EPIC MOD
-
-	// destroys an environment
-	void DestroyEnvironment(Environment*& environment);
 
 
 	// dumps raw memory for a given process

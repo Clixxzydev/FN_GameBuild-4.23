@@ -15,7 +15,6 @@ public:
 	FDelayedDrag(FVector2D InInitialPosition, FKey InEffectiveKey)
 		: InitialPosition(InInitialPosition), bHasInitiatedDrag(false), DistanceDragged(0), EffectiveKey(InEffectiveKey)
 	{
-		TriggerDistance = FSlateApplication::Get().GetDragTriggerDistance();
 	}
 
 	/** Get the initial start position (before any drag has started) */
@@ -33,19 +32,13 @@ public:
 		if (!bHasInitiatedDrag && MouseEvent.IsMouseButtonDown(EffectiveKey))
 		{
 			DistanceDragged += MouseEvent.GetCursorDelta().Size();
-			if (!bHasInitiatedDrag && DistanceDragged > TriggerDistance)
+			if (!bHasInitiatedDrag && DistanceDragged > FSlateApplication::Get().GetDragTriggerDistance())
 			{
 				ForceDragStart();
 				return true;
 			}
 		}
 		return false;
-	}
-
-	/** Assign a new scale factor to apply to the drag trigger distance */
-	void SetTriggerScaleFactor(float InTriggerScaleFactor)
-	{
-		TriggerDistance = FMath::Max(FSlateApplication::Get().GetDragTriggerDistance() * InTriggerScaleFactor, 1.f);
 	}
 
 protected:
@@ -56,8 +49,6 @@ protected:
 	bool bHasInitiatedDrag;
 	/** The amount we have dragged */
 	float DistanceDragged;
-	/** The minimum distance that must be moved before the drag initiates. */
-	float TriggerDistance;
 	/** The key that must be pressed to initiate the drag */
 	FKey EffectiveKey;
 };

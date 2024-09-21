@@ -156,8 +156,9 @@ void FMaterialParameterCollectionTrackEditor::AddTrackToSequence(const FAssetDat
 
 	if (GetSequencer().IsValid())
 	{
-		GetSequencer()->OnAddTrack(Track, FGuid());
+		GetSequencer()->OnAddTrack(Track);
 	}
+	GetSequencer()->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemAdded);
 }
 
 void FMaterialParameterCollectionTrackEditor::AddTrackToSequenceEnterPressed(const TArray<FAssetData>& InAssetData)
@@ -202,7 +203,7 @@ TSharedRef<SWidget> FMaterialParameterCollectionTrackEditor::OnGetAddParameterMe
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ScalarParametersHeading", "Scalar"));
 	{
 		TArray<FCollectionScalarParameter> ScalarParameters = MPCTrack->MPC->ScalarParameters;
-		Algo::SortBy(ScalarParameters, &FCollectionParameterBase::ParameterName, FNameLexicalLess());
+		Algo::SortBy(ScalarParameters, &FCollectionParameterBase::ParameterName);
 
 		for (const FCollectionScalarParameter& Scalar : ScalarParameters)
 		{
@@ -219,7 +220,7 @@ TSharedRef<SWidget> FMaterialParameterCollectionTrackEditor::OnGetAddParameterMe
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("VectorParametersHeading", "Vector"));
 	{
 		TArray<FCollectionVectorParameter> VectorParameters = MPCTrack->MPC->VectorParameters;
-		Algo::SortBy(VectorParameters, &FCollectionParameterBase::ParameterName, FNameLexicalLess());
+		Algo::SortBy(VectorParameters, &FCollectionParameterBase::ParameterName);
 
 		for (const FCollectionVectorParameter& Vector : VectorParameters)
 		{

@@ -1,13 +1,13 @@
-﻿Availability: Public
+Availability: Public
+Crumbs: %ROOT%, Platforms, Platforms/MR
 Title: How To Use The Mixed Reality Capture Calibration Tool
-Description: A guide to using the Mixed Reality Capture Calibration Tool. 
+Description: Product documentation including reference and guides for Unreal Engine 4
 Version: 4.20
 Parent: Platforms/MR
 Tags: GettingStarted
 Tags: MR
 Tags: landingpage
 Tags: Early Access
-type:how-to
 topic-image:AdjustingAlignmentStep.png
 reference-image:AdjustingAlignment2.gif
 reference-image:MR_AdjustSample.gif

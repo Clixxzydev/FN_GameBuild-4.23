@@ -7,13 +7,6 @@
 
 namespace Chaos
 {
-
-/**
- * A Particle Rule that applies some effect to all particles in parallel.
- * This should only be used if the effect on any particle is independent of
- * all others (i.e., the implementation of ApplySingle only reads/writes to
- * the one particle).
- */
 template<class T, int d>
 class TPerParticleRule : public TParticleRule<T, d>
 {

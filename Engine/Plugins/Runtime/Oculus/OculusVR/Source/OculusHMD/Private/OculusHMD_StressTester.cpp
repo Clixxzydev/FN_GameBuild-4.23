@@ -142,7 +142,7 @@ public:
 	//This function is required to let us bind our runtime surface to the shader using an SRV.
 	void SetSurfaces(FRHICommandList& RHICmdList, FShaderResourceViewRHIRef TextureParameterSRV)
 	{
-		FRHIPixelShader* PixelShaderRHI = GetPixelShader();
+		FPixelShaderRHIParamRef PixelShaderRHI = GetPixelShader();
 
 		if (TextureParameter.IsBound())
 		{
@@ -166,11 +166,11 @@ public:
 	//This is used to clean up the buffer binds after each invocation to let them be changed and used elsewhere if needed.
 	void UnbindBuffers(FRHICommandList& RHICmdList)
 	{
-		FRHIPixelShader* PixelShaderRHI = GetPixelShader();
+		FPixelShaderRHIParamRef PixelShaderRHI = GetPixelShader();
 
 		if (TextureParameter.IsBound())
 		{
-			RHICmdList.SetShaderResourceViewParameter(PixelShaderRHI, TextureParameter.GetBaseIndex(), nullptr);
+			RHICmdList.SetShaderResourceViewParameter(PixelShaderRHI, TextureParameter.GetBaseIndex(), FShaderResourceViewRHIParamRef());
 		}
 	}
 

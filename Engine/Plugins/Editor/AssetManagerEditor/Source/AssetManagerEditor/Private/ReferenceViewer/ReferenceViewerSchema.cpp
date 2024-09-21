@@ -62,12 +62,11 @@ void UReferenceViewerSchema::GetContextMenuActions(const UEdGraph* CurrentGraph,
 
 	MenuBuilder->BeginSection(TEXT("Misc"), NSLOCTEXT("ReferenceViewerSchema", "MiscSectionLabel", "Misc"));
 	{
-		MenuBuilder->AddMenuEntry(FAssetManagerEditorCommands::Get().ZoomToFit);
 		MenuBuilder->AddMenuEntry(FAssetManagerEditorCommands::Get().ReCenterGraph);
 		MenuBuilder->AddSubMenu(
 			NSLOCTEXT("ReferenceViewerSchema", "MakeCollectionWithTitle", "Make Collection with"),
 			NSLOCTEXT("ReferenceViewerSchema", "MakeCollectionWithTooltip", "Makes a collection with either the referencers or dependencies of the selected nodes."),
-			FNewMenuDelegate::CreateUObject(const_cast<UReferenceViewerSchema*>(this), &UReferenceViewerSchema::GetMakeCollectionWithSubMenu)
+			FNewMenuDelegate::CreateUObject(this, &UReferenceViewerSchema::GetMakeCollectionWithSubMenu)
 		);
 	}
 	MenuBuilder->EndSection();

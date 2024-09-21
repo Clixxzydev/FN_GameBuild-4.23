@@ -464,5 +464,4 @@ struct SLATECORE_API FStandaloneCompositeFont : public FCompositeFont, public FG
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
 };

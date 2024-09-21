@@ -25,10 +25,10 @@ struct FApplePlatformSymbolCache
  */
 struct FApplePlatformSymbolDatabase
 {
-	CORE_API FApplePlatformSymbolDatabase();
-	CORE_API FApplePlatformSymbolDatabase(FApplePlatformSymbolDatabase const& Other);
-	CORE_API ~FApplePlatformSymbolDatabase();
-	CORE_API FApplePlatformSymbolDatabase& operator=(FApplePlatformSymbolDatabase const& Other);
+	FApplePlatformSymbolDatabase();
+	FApplePlatformSymbolDatabase(FApplePlatformSymbolDatabase const& Other);
+	~FApplePlatformSymbolDatabase();
+	FApplePlatformSymbolDatabase& operator=(FApplePlatformSymbolDatabase const& Other);
 	
 	TSharedPtr<FGenericPlatformSymbolDatabase> GenericDB;
 	FApplePlatformSymbolCache AppleDB;

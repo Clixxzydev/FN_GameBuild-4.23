@@ -1,10 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "OnlineIdentityInterfaceIOS.h"
-#include "OnlineSubsystem.h"
-#include "OnlineSubsystemIOS.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
 #include "OnlineError.h"
-#include "IOS/IOSAppDelegate.h"
 #import "OnlineAppStoreUtils.h"
 
 FOnlineIdentityIOS::FOnlineIdentityIOS()

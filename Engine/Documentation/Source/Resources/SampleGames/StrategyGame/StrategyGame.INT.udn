@@ -12,7 +12,11 @@ Related: Gameplay/Input
 Related: Engine/Rendering/ParticleSystems
 Version: 4.9
 topic-image:StrategyGameTopic.png
-hero-image:StragetyGame.png
+
+
+[REGION:fullwidth]
+![](StragetyGame.png)
+[/REGION]
 
 
 [TOC(start:2 end:2)]

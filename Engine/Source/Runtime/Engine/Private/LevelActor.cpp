@@ -309,6 +309,7 @@ AActor* UWorld::SpawnActor( UClass* Class, FTransform const* UserTransformPtr, c
 {
 	SCOPE_CYCLE_COUNTER(STAT_SpawnActorTime);
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ActorSpawning);
+	SCOPE_TIME_GUARD_NAMED_MS(TEXT("SpawnActor Of Type"), Class->GetFName(), 2);
 
 #if WITH_EDITORONLY_DATA
 	check( CurrentLevel ); 	
@@ -323,8 +324,6 @@ AActor* UWorld::SpawnActor( UClass* Class, FTransform const* UserTransformPtr, c
 		UE_LOG(LogSpawn, Warning, TEXT("SpawnActor failed because no class was specified") );
 		return NULL;
 	}
-
-	SCOPE_TIME_GUARD_NAMED_MS(TEXT("SpawnActor Of Type"), Class->GetFName(), 2);
 
 #if ENABLE_SPAWNACTORTIMER
 	FScopedSpawnActorTimer SpawnTimer(Class->GetFName(), SpawnParameters.bDeferConstruction ? ESpawnActorTimingType::SpawnActorDeferred : ESpawnActorTimingType::SpawnActorNonDeferred);
@@ -806,44 +805,13 @@ bool UWorld::FindTeleportSpot(const AActor* TestActor, FVector& TestLocation, FR
 
 	if ( Adjust.IsNearlyZero() )
 	{
-		// EncroachingBlockingGeometry fails to produce adjustment if movement component's target, or root component,
-		// fallback to a box when calling GetCollisionShape (UPrimitiveComponent's behaviour).
-		// This would occur if SkeletalMeshComponent was root, instead of capsule, for example.
-		// Here we test for these cases and warn user why this function is failing.
-		UMovementComponent* const MoveComponent = TestActor->FindComponentByClass<UMovementComponent>();
-		if (MoveComponent && MoveComponent->UpdatedPrimitive)
-		{
-			UPrimitiveComponent* const PrimComponent = MoveComponent->UpdatedPrimitive;
-			FCollisionShape shape = PrimComponent->GetCollisionShape();
-			if (shape.IsBox() && (Cast<UBoxComponent>(PrimComponent) == nullptr))
-			{
-				UE_LOG(LogPhysics, Warning, TEXT("UWorld::FindTeleportSpot called with an actor that is intersecting geometry. Failed to find new location likely due to "
-					"movement component's 'UpdatedComponent' not being a collider component."));
-			}
-		}
-		else
-		{
-			USceneComponent* const RootComponent = TestActor->GetRootComponent();
-			UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(RootComponent);
-			if(PrimComponent != nullptr)
-			{
-				FCollisionShape shape = PrimComponent->GetCollisionShape();
-				if (shape.IsBox() && (Cast<UBoxComponent>(PrimComponent) == nullptr))
-				{
-					UE_LOG(LogPhysics, Warning, TEXT("UWorld::FindTeleportSpot called with an actor that is intersecting geometry. Failed to find new location likely due to "
-						" actor's root component not being a collider component."));
-				}
-			}
-		}
-
 		// Reset in case Adjust is not actually zero
 		TestLocation = OriginalTestLocation;
 		return false;
 	}
 
 	// first do only Z
-	const bool bZeroZ = FMath::IsNearlyZero(Adjust.Z, KINDA_SMALL_NUMBER);
-	if (!bZeroZ)
+	if (!FMath::IsNearlyZero(Adjust.Z)) 
 	{
 		TestLocation.Z += Adjust.Z;
 		if( !EncroachingBlockingGeometry(TestActor, TestLocation, TestRotation) )
@@ -855,67 +823,40 @@ bool UWorld::FindTeleportSpot(const AActor* TestActor, FVector& TestLocation, FR
 	}
 
 	// now try just XY
-	const bool bZeroX = FMath::IsNearlyZero(Adjust.X, KINDA_SMALL_NUMBER);
-	const bool bZeroY = FMath::IsNearlyZero(Adjust.Y, KINDA_SMALL_NUMBER);
-	if (!bZeroX || !bZeroY)
+	if (!FMath::IsNearlyZero(Adjust.X) || !FMath::IsNearlyZero(Adjust.Y))
 	{
-		const float X = bZeroX ? 0.f : Adjust.X;
-		const float Y = bZeroY ? 0.f : Adjust.Y;
-		FVector Adjustments[8];
-		Adjustments[0] = FVector(X, Y, 0);
-
 		// If initially spawning allow testing a few permutations (though this needs improvement).
 		// During play only test the first adjustment, permuting axes could put the location on other sides of geometry.
 		const int32 Iterations = (TestActor->HasActorBegunPlay() ? 1 : 8);
-
-		if (Iterations > 1)
-		{
-			if (!bZeroX && !bZeroY)
-			{
-				Adjustments[1] = FVector(-X,  Y, 0);
-				Adjustments[2] = FVector( X, -Y, 0);
-				Adjustments[3] = FVector(-X, -Y, 0);
-				Adjustments[4] = FVector( Y,  X, 0);
-				Adjustments[5] = FVector(-Y,  X, 0);
-				Adjustments[6] = FVector( Y, -X, 0);
-				Adjustments[7] = FVector(-Y, -X, 0);
-			}
-			else
-			{
-				// If either X or Y was zero, the permutations above would result in only 4 unique attempts.
-				Adjustments[1] = FVector(-X, -Y, 0);
-				Adjustments[2] = FVector( Y,  X, 0);
-				Adjustments[3] = FVector(-Y, -X, 0);
-				// Mirror the dominant non-zero value
-				const float D = bZeroY ? X : Y;
-				Adjustments[4] = FVector( D,  D, 0);
-				Adjustments[5] = FVector( D, -D, 0);
-				Adjustments[6] = FVector(-D,  D, 0);
-				Adjustments[7] = FVector(-D, -D, 0);
-			}
-		}
-
 		for (int i = 0; i < Iterations; ++i)
 		{
-			TestLocation = OriginalTestLocation + Adjustments[i];
+			TestLocation = OriginalTestLocation;
+			TestLocation.X += (i < 4 ? Adjust.X : Adjust.Y) * (i % 2 == 0 ? 1 : -1);
+			TestLocation.Y += (i < 4 ? Adjust.Y : Adjust.X) * (i % 4 < 2 ? 1 : -1);
 			if (!EncroachingBlockingGeometry(TestActor, TestLocation, TestRotation))
 			{
 				return true;
 			}
 		}
 
-		// Try XY adjustment including Z. Note that even with only 1 iteration, this will still try the full proposed (X,Y,Z) adjustment.
-		if (!bZeroZ)
+		// now z again (with the last XY offset we tried)
+		if (!FMath::IsNearlyZero(Adjust.Z))
 		{
-			for (int i = 0; i < Iterations; ++i)
+			TestLocation.Z += Adjust.Z;
+			if( !EncroachingBlockingGeometry(TestActor, TestLocation, TestRotation) )
 			{
-				TestLocation = OriginalTestLocation + Adjustments[i];
-				TestLocation.Z += Adjust.Z;
-				if (!EncroachingBlockingGeometry(TestActor, TestLocation, TestRotation))
-				{
-					return true;
-				}
+				return true;
 			}
+		}
+	}
+
+	// Now try full adjustment (only if we're not in a match, otherwise this test is actually redundant because we did it right above.)
+	if (!TestActor->HasActorBegunPlay())
+	{
+		TestLocation = OriginalTestLocation + Adjust;
+		if( !EncroachingBlockingGeometry(TestActor, TestLocation, TestRotation, &Adjust) )
+		{
+			return true;
 		}
 	}
 

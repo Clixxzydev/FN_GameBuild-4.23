@@ -76,24 +76,22 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 		return false;
 	}
 
-	const int32 NumSourceModels = StaticMesh->GetNumSourceModels();
-	StaticMeshRenderData.AllocateLODResources(NumSourceModels);
+	StaticMeshRenderData.AllocateLODResources(StaticMesh->SourceModels.Num());
 
 	TArray<FMeshDescription> MeshDescriptions;
-	MeshDescriptions.SetNum(NumSourceModels);
+	MeshDescriptions.SetNum(StaticMesh->SourceModels.Num());
 
-	const FMeshSectionInfoMap BeforeBuildSectionInfoMap = StaticMesh->GetSectionInfoMap();
-	const FMeshSectionInfoMap BeforeBuildOriginalSectionInfoMap = StaticMesh->GetOriginalSectionInfoMap();
+	const FMeshSectionInfoMap BeforeBuildSectionInfoMap = StaticMesh->SectionInfoMap;
+	const FMeshSectionInfoMap BeforeBuildOriginalSectionInfoMap = StaticMesh->OriginalSectionInfoMap;
 
-	for (int32 LodIndex = 0; LodIndex < NumSourceModels; ++LodIndex)
+	for (int32 LodIndex = 0; LodIndex < StaticMesh->SourceModels.Num(); ++LodIndex)
 	{
-		FStaticMeshSourceModel& SrcModel = StaticMesh->GetSourceModel(LodIndex);
-
 		float MaxDeviation = 0.0f;
-		FMeshBuildSettings& LODBuildSettings = SrcModel.BuildSettings;
+		FMeshBuildSettings& LODBuildSettings = StaticMesh->SourceModels[LodIndex].BuildSettings;
 		const FMeshDescription* OriginalMeshDescription = StaticMesh->GetMeshDescription(LodIndex);
 		FMeshDescriptionHelper MeshDescriptionHelper(&LODBuildSettings);
 
+		const FStaticMeshSourceModel& SrcModel = StaticMesh->SourceModels[LodIndex];
 		FMeshReductionSettings ReductionSettings = LODGroup.GetSettings(SrcModel.ReductionSettings, LodIndex);
 
 		//Make sure we do not reduce a non custom LOD by himself
@@ -117,26 +115,26 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 				//Duplicate the lodindex 0 we have a 100% reduction which is like a duplicate
 				MeshDescriptions[LodIndex] = MeshDescriptions[BaseReduceLodIndex];
 				//Set the overlapping threshold
-				float ComparisonThreshold = StaticMesh->GetSourceModel(BaseReduceLodIndex).BuildSettings.bRemoveDegenerates ? THRESH_POINTS_ARE_SAME : 0.0f;
+				float ComparisonThreshold = StaticMesh->SourceModels[BaseReduceLodIndex].BuildSettings.bRemoveDegenerates ? THRESH_POINTS_ARE_SAME : 0.0f;
 				MeshDescriptionHelper.FindOverlappingCorners(MeshDescriptions[LodIndex], ComparisonThreshold);
 				if (LodIndex > 0)
 				{
 					
 					//Make sure the SectionInfoMap is taken from the Base RawMesh
-					int32 SectionNumber = StaticMesh->GetOriginalSectionInfoMap().GetSectionNumber(BaseReduceLodIndex);
+					int32 SectionNumber = StaticMesh->OriginalSectionInfoMap.GetSectionNumber(BaseReduceLodIndex);
 					for (int32 SectionIndex = 0; SectionIndex < SectionNumber; ++SectionIndex)
 					{
 						//Keep the old data if its valid
-						bool bHasValidLODInfoMap = StaticMesh->GetSectionInfoMap().IsValidSection(LodIndex, SectionIndex);
+						bool bHasValidLODInfoMap = StaticMesh->SectionInfoMap.IsValidSection(LodIndex, SectionIndex);
 						//Section material index have to be remap with the ReductionSettings.BaseLODModel SectionInfoMap to create
 						//a valid new section info map for the reduced LOD.
-						if (!bHasValidLODInfoMap && StaticMesh->GetSectionInfoMap().IsValidSection(BaseReduceLodIndex, SectionIndex))
+						if (!bHasValidLODInfoMap && StaticMesh->SectionInfoMap.IsValidSection(BaseReduceLodIndex, SectionIndex))
 						{
 							//Copy the BaseLODModel section info to the reduce LODIndex.
-							FMeshSectionInfo SectionInfo = StaticMesh->GetSectionInfoMap().Get(BaseReduceLodIndex, SectionIndex);
-							FMeshSectionInfo OriginalSectionInfo = StaticMesh->GetOriginalSectionInfoMap().Get(BaseReduceLodIndex, SectionIndex);
-							StaticMesh->GetSectionInfoMap().Set(LodIndex, SectionIndex, SectionInfo);
-							StaticMesh->GetOriginalSectionInfoMap().Set(LodIndex, SectionIndex, OriginalSectionInfo);
+							FMeshSectionInfo SectionInfo = StaticMesh->SectionInfoMap.Get(BaseReduceLodIndex, SectionIndex);
+							FMeshSectionInfo OriginalSectionInfo = StaticMesh->OriginalSectionInfoMap.Get(BaseReduceLodIndex, SectionIndex);
+							StaticMesh->SectionInfoMap.Set(LodIndex, SectionIndex, SectionInfo);
+							StaticMesh->OriginalSectionInfoMap.Set(LodIndex, SectionIndex, OriginalSectionInfo);
 						}
 					}
 				}
@@ -144,7 +142,7 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 
 			if (LodIndex > 0)
 			{
-				LODBuildSettings = StaticMesh->GetSourceModel(BaseReduceLodIndex).BuildSettings;
+				LODBuildSettings = StaticMesh->SourceModels[BaseReduceLodIndex].BuildSettings;
 			}
 		}
 
@@ -155,7 +153,7 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 			FOverlappingCorners OverlappingCorners;
 			FMeshDescriptionOperations::FindOverlappingCorners(OverlappingCorners, MeshDescriptions[BaseReduceLodIndex], OverlappingThreshold);
 
-			int32 OldSectionInfoMapCount = StaticMesh->GetSectionInfoMap().GetSectionNumber(LodIndex);
+			int32 OldSectionInfoMapCount = StaticMesh->SectionInfoMap.GetSectionNumber(LodIndex);
 
 			if (LodIndex == BaseReduceLodIndex)
 			{
@@ -201,7 +199,7 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 			}
 
 			//If the reduce did not output the same number of section use the base LOD sectionInfoMap
-			bool bIsOldMappingInvalid = OldSectionInfoMapCount != MeshDescriptions[LodIndex].PolygonGroups().Num();
+			bool bIsOldMappingInvalid = OldSectionInfoMapCount != UniqueMaterialIndex.Num();
 
 			bool bValidBaseSectionInfoMap = BeforeBuildSectionInfoMap.GetSectionNumber(BaseReduceLodIndex) > 0;
 			//All used material represent a different section
@@ -225,8 +223,8 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 								//Copy the base sectionInfoMap
 								FMeshSectionInfo SectionInfo = BeforeBuildSectionInfoMap.Get(BaseReduceLodIndex, BaseSectionIndex);
 								FMeshSectionInfo OriginalSectionInfo = BeforeBuildOriginalSectionInfoMap.Get(BaseReduceLodIndex, BaseSectionIndex);
-								StaticMesh->GetSectionInfoMap().Set(LodIndex, SectionIndex, SectionInfo);
-								StaticMesh->GetOriginalSectionInfoMap().Set(LodIndex, BaseSectionIndex, OriginalSectionInfo);
+								StaticMesh->SectionInfoMap.Set(LodIndex, SectionIndex, SectionInfo);
+								StaticMesh->OriginalSectionInfoMap.Set(LodIndex, BaseSectionIndex, OriginalSectionInfo);
 								bSectionInfoSet = true;
 								break;
 							}
@@ -238,8 +236,8 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, USta
 						//Just set the default section info in case we did not found any match with the Base Lod
 						FMeshSectionInfo SectionInfo;
 						SectionInfo.MaterialIndex = SectionIndex;
-						StaticMesh->GetSectionInfoMap().Set(LodIndex, SectionIndex, SectionInfo);
-						StaticMesh->GetOriginalSectionInfoMap().Set(LodIndex, SectionIndex, SectionInfo);
+						StaticMesh->SectionInfoMap.Set(LodIndex, SectionIndex, SectionInfo);
+						StaticMesh->OriginalSectionInfoMap.Set(LodIndex, SectionIndex, SectionInfo);
 					}
 				}
 			}

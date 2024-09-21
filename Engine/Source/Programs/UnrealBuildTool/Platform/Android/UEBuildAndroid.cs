@@ -76,13 +76,12 @@ namespace UnrealBuildTool
 	{
 		AndroidPlatformSDK SDK;
 
-		public AndroidPlatform(UnrealTargetPlatform InTargetPlatform, AndroidPlatformSDK InSDK) 
-			: base(InTargetPlatform)
+		public AndroidPlatform(UnrealTargetPlatform InTargetPlatform, CppPlatform InCppPlatform, AndroidPlatformSDK InSDK) : base(InTargetPlatform, InCppPlatform)
 		{
 			SDK = InSDK;
 		}
 
-		public AndroidPlatform(AndroidPlatformSDK InSDK) : this(UnrealTargetPlatform.Android, InSDK)
+		public AndroidPlatform(AndroidPlatformSDK InSDK) : this(UnrealTargetPlatform.Android, CppPlatform.Android, InSDK)
 		{
 		}
 
@@ -266,7 +265,8 @@ namespace UnrealBuildTool
 
 		public override List<FileReference> FinalizeBinaryPaths(FileReference BinaryName, FileReference ProjectFile, ReadOnlyTargetRules Target)
 		{
-			AndroidToolChain ToolChain = CreateToolChain(Target) as AndroidToolChain;
+			// the CppPlatform here doesn't actually matter, so this will work even for sub-platforms
+			AndroidToolChain ToolChain = CreateToolChain(CppPlatform.Android, Target) as AndroidToolChain;
 
 			List<string> Architectures = ToolChain.GetAllArchitectures();
 			List<string> GPUArchitectures = ToolChain.GetAllGPUArchitectures();
@@ -441,7 +441,7 @@ namespace UnrealBuildTool
 			};
 		}
 
-		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
+		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
 		{
 			bool bUseLdGold = Target.bUseUnityBuild;
 			return new AndroidToolChain(Target.ProjectFile, bUseLdGold, Target.AndroidPlatform.Architectures, Target.AndroidPlatform.GPUArchitectures);
@@ -531,7 +531,7 @@ namespace UnrealBuildTool
 		{
 			string NDKPath = Environment.GetEnvironmentVariable("NDKROOT");
 			{
-				ConfigHierarchy configCacheIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, (DirectoryReference)null, BuildHostPlatform.Current.Platform);
+				ConfigHierarchy configCacheIni = ConfigCache.ReadHierarchy(ConfigHierarchyType.Engine, (DirectoryReference)null, UnrealTargetPlatform.Unknown);
 				Dictionary<string, string> AndroidEnv = new Dictionary<string, string>();
 
 				Dictionary<string, string> EnvVarNames = new Dictionary<string, string> { 

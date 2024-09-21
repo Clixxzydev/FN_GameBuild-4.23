@@ -14,19 +14,6 @@ class FTabManager;
 class SWindow;
 
 /**
- * Data needed to display a Developer tools in the status bar.
- */
-struct FMainFrameDeveloperTool
-{
-	/* Visiblility of the developer tool. */
-	TAttribute<EVisibility> Visibility;
-	/* Label of the developer tool. */
-	TAttribute<FText> Label;
-	/* Value of the developer tool. */
-	TAttribute<FText> Value;
-};
-
-/**
  * Interface for main frame modules.
  */
 class IMainFrameModule
@@ -66,13 +53,9 @@ public:
 	virtual TSharedRef<SWidget> MakeMainTabMenu( const TSharedPtr<FTabManager>& TabManager, const TSharedRef< FExtender > Extender ) const = 0;
 
 	/**
-	 * Generates a menu for status and developer
-	 *
-	 * @param	AdditionalTools	Additional developer tools that would be added to the main frame menu
-	 *
-	 * @return	The newly-created menu widget
+	 * @todo Editor: add documentation for MakeDeveloperTools
 	 */
-	virtual TSharedRef<SWidget> MakeDeveloperTools( const TArray<FMainFrameDeveloperTool>& AdditionalTools ) const = 0;
+	virtual TSharedRef<SWidget> MakeDeveloperTools( ) const = 0;
 
 	/**
 	 * Checks to see if the main frame window is currently initialized

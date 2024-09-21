@@ -3,6 +3,7 @@
 #include "PropertyValue.h"
 
 #include "CoreMinimal.h"
+
 #include "Components/ActorComponent.h"
 #include "HAL/UnrealMemory.h"
 #include "UObject/Package.h"
@@ -11,8 +12,6 @@
 #include "VariantManagerObjectVersion.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/Script.h"
-#include "Engine/SCS_Node.h"
-#include "Engine/BlueprintGeneratedClass.h"
 #if WITH_EDITOR
 #include "EdGraphSchema_K2.h"
 #endif
@@ -20,191 +19,6 @@
 #define LOCTEXT_NAMESPACE "PropertyValue"
 
 DEFINE_LOG_CATEGORY(LogVariantContent);
-
-// Non-asserting way of checking if an Index is valid for an enum.
-// Warning: This will claim that the _MAX entry's index is also invalid
-bool IsEnumIndexValid(UEnum* Enum, int32 Index)
-{
-	if (Enum)
-	{
-		FName EntryName = Enum->GetNameByIndex(Index);
-
-		bool bIsInvalidEntry = (EntryName == NAME_None);
-		bool bIndexIsMAXEntry = Enum->ContainsExistingMax() && (EntryName.ToString().EndsWith(TEXT("_MAX"), ESearchCase::CaseSensitive));
-
-		return (!bIsInvalidEntry && !bIndexIsMAXEntry);
-	}
-
-	return false;
-}
-
-// Assuming that ValueBytes stores the bytes of a value for Enum, this will try to convert it into
-// the index of that value. May return INDEX_NONE if it doesn't match or if it is invalid in some other way.
-// Warning: This will happily return the index of the _MAX enum entry if that is the case.
-int32 EnumValueBytesToIndex(UEnum* Enum, const TArray<uint8>& ValueBytes, bool bEnumIsSignedInt)
-{
-	const uint8* DataPointer = ValueBytes.GetData();
-	int64 EnumValue = 0;
-	int32 Size = ValueBytes.Num();
-
-	if (bEnumIsSignedInt)
-	{
-		switch (Size)
-		{
-		case sizeof(int8):
-		{
-			int8 CastValue = *(int8*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		case sizeof(int16):
-		{
-			int16 CastValue = *(int16*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		case sizeof(int32):
-		{
-			int32 CastValue = *(int32*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		case sizeof(int64):
-		{
-			int64 CastValue = *(int64*)DataPointer;
-			EnumValue = CastValue;
-			break;
-		}
-		default:
-			UE_LOG(LogVariantContent, Error, TEXT("Invalid size for signed int value: %d"), Size);
-			return INDEX_NONE;
-			break;
-		}
-	}
-	else
-	{
-		switch (Size)
-		{
-		case sizeof(uint8):
-		{
-			uint8 CastValue = *(uint8*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		case sizeof(uint16):
-		{
-			uint16 CastValue = *(uint16*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		case sizeof(uint32):
-		{
-			uint32 CastValue = *(uint32*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		case sizeof(uint64):
-		{
-			uint64 CastValue = *(int64*)DataPointer;
-			EnumValue = static_cast<int64>(CastValue);
-			break;
-		}
-		default:
-			UE_LOG(LogVariantContent, Error, TEXT("Invalid size for unsigned int value: %d"), Size);
-			return INDEX_NONE;
-			break;
-		}
-	}
-
-	return Enum->GetIndexByValue(EnumValue);
-}
-
-// Searches the value of Index within Enum and return an array of bytes that stores that value
-TArray<uint8> EnumIndexToValueBytes(UEnum* Enum, int32 Index, int32 Size, bool bEnumIsSignedInt)
-{
-	TArray<uint8> NewValueBytes;
-	NewValueBytes.SetNumZeroed(Size);
-
-	// Do this check or else GetValueByIndex may assert
-	if (!IsEnumIndexValid(Enum, Index))
-	{
-		return NewValueBytes;
-	}
-
-	int64 EnumVal = Enum->GetValueByIndex(Index);
-
-	// We have to do this below because GetValueByIndex always gives us an int64. We need to cast this down to the
-	// ElementSize of the property
-
-	if (bEnumIsSignedInt)
-	{
-		switch (Size)
-		{
-		case sizeof(int8):
-		{
-			int8 CastValue = static_cast<int8>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		case sizeof(int16):
-		{
-			int16 CastValue = static_cast<int16>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		case sizeof(int32):
-		{
-			int32 CastValue = static_cast<int32>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		case sizeof(int64):
-		{
-			int64 CastValue = static_cast<int64>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		default:
-			UE_LOG(LogVariantContent, Error, TEXT("Invalid size for signed int value: %d"), Size);
-			return NewValueBytes;
-		}
-	}
-	else
-	{
-		switch (Size)
-		{
-		case sizeof(uint8):
-		{
-			uint8 CastValue = static_cast<uint8>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		case sizeof(uint16):
-		{
-			uint16 CastValue = static_cast<uint16>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		case sizeof(uint32):
-		{
-			uint32 CastValue = static_cast<uint32>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		case sizeof(uint64):
-		{
-			uint64 CastValue = static_cast<uint64>(EnumVal);
-			FMemory::Memcpy(NewValueBytes.GetData(), (uint8*)(&CastValue), Size);
-			break;
-		}
-		default:
-			UE_LOG(LogVariantContent, Error, TEXT("Invalid size for unsigned int value: %d"), Size);
-			return NewValueBytes;
-		}
-	}
-
-	return NewValueBytes;
-}
 
 UPropertyValue::UPropertyValue(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -225,8 +39,7 @@ void UPropertyValue::Init(const TArray<FCapturedPropSegment>& InCapturedPropSegm
 	}
 
 	ClearLastResolve();
-	ValueBytes.Empty();
-	DefaultValue.Empty();
+	ValueBytes.SetNumUninitialized(GetValueSizeInBytes());
 	TempObjPtr.Reset();
 }
 
@@ -302,8 +115,6 @@ void UPropertyValue::Serialize(FArchive& Ar)
 	}
 	else if (Ar.IsLoading())
 	{
-		DefaultValue.Empty();
-
 		if (PropertySetterName == TEXT("SetRelativeLocation") || PropertySetterName == TEXT("SetRelativeRotation"))
 		{
 			PropertySetterName = FName(*(TEXT("K2_") + PropertySetterName.ToString()));
@@ -367,15 +178,21 @@ void UPropertyValue::Serialize(FArchive& Ar)
 			{
 				if (PropClass->IsChildOf(UNameProperty::StaticClass()))
 				{
-					SetRecordedDataInternal((uint8*)&TempName, sizeof(FName));
+					int32 NumBytes = sizeof(FName);
+					ValueBytes.SetNumUninitialized(NumBytes);
+					FMemory::Memcpy(ValueBytes.GetData(), &TempName, NumBytes);
 				}
 				else if (PropClass->IsChildOf(UStrProperty::StaticClass()))
 				{
-					SetRecordedDataInternal((uint8*)&TempStr, sizeof(FString));
+					int32 NumBytes = sizeof(FString);
+					ValueBytes.SetNumUninitialized(NumBytes);
+					FMemory::Memcpy(ValueBytes.GetData(), &TempStr, NumBytes);
 				}
 				else if (PropClass->IsChildOf(UTextProperty::StaticClass()))
 				{
-					SetRecordedDataInternal((uint8*)&TempText, sizeof(FText));
+					int32 NumBytes = sizeof(FText);
+					ValueBytes.SetNumUninitialized(NumBytes);
+					FMemory::Memcpy(ValueBytes.GetData(), &TempText, NumBytes);
 				}
 			}
 			else
@@ -393,7 +210,9 @@ void UPropertyValue::Serialize(FArchive& Ar)
 			{
 				if (PropClass == UNameProperty::StaticClass())
 				{
-					SetRecordedDataInternal((uint8*)&Name, sizeof(FName));
+					int32 NumBytes = sizeof(FName);
+					ValueBytes.SetNumUninitialized(NumBytes);
+					FMemory::Memcpy(ValueBytes.GetData(), &Name, NumBytes);
 				}
 			}
 			else
@@ -401,11 +220,6 @@ void UPropertyValue::Serialize(FArchive& Ar)
 				//UE_LOG(LogVariantContent, Error, TEXT("Failed to retrieve property class for property '%s'"), *GetFullDisplayString());
 				bHasRecordedData = false;
 			}
-		}
-
-		if (UEnum* Enum = GetEnumPropertyEnum())
-		{
-			SanitizeRecordedEnumData();
 		}
 	}
 }
@@ -433,6 +247,7 @@ bool UPropertyValue::Resolve(UObject* Object)
 
 	if (!ResolvePropertiesRecursive(Object->GetClass(), Object, 0))
 	{
+		// UE_LOG(LogVariantContent, Error, TEXT("Failed to resolve UPropertyValue '%s' on UObject '%s'"), *GetFullDisplayString(), *Object->GetName());
 		return false;
 	}
 
@@ -750,89 +565,6 @@ FString UPropertyValue::GetEnumDocumentationLink()
 	return TEXT("");
 }
 
-int32 UPropertyValue::GetRecordedDataAsEnumIndex()
-{
-	UEnum* Enum = GetEnumPropertyEnum();
-	if (!Enum)
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Invalid enum for enum property '%s'"), *GetFullDisplayString());
-		return INDEX_NONE;
-	}
-
-	if (!HasRecordedData())
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Enum property '%s' has no recorded data!"), *GetFullDisplayString());
-		return INDEX_NONE;
-	}
-
-	const TArray<uint8>& RecordedData = GetRecordedData();
-	ensure(RecordedData.Num() == GetValueSizeInBytes());
-
-	bool bEnumIsSignedInt = IsNumericPropertySigned();
-	if (!bEnumIsSignedInt && !IsNumericPropertyUnsigned())
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Invalid underlying format for enum property!"));
-		return INDEX_NONE;
-	}
-
-	return EnumValueBytesToIndex(Enum, RecordedData, bEnumIsSignedInt);
-}
-
-void UPropertyValue::SanitizeRecordedEnumData()
-{
-	UEnum* Enum = GetEnumPropertyEnum();
-	if (!Enum)
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Invalid enum for enum property '%s'"), *GetFullDisplayString());
-		return;
-	}
-
-	int32 CurrentIndex = GetRecordedDataAsEnumIndex();
-	if (!IsEnumIndexValid(Enum, CurrentIndex))
-	{
-		if (IsEnumIndexValid(Enum, 0))
-		{
-			// All the enums we can capture are UENUMs, which are guaranteed to have at least one entry
-			SetRecordedDataFromEnumIndex(0);
-		}
-		else
-		{
-			UE_LOG(LogVariantContent, Error, TEXT("Enum property '%s' points to an enum that doesn't have any valid values!"), *GetFullDisplayString());
-			return;
-		}
-	}
-}
-
-void UPropertyValue::SetRecordedDataFromEnumIndex(int32 Index)
-{
-	UEnum* Enum = GetEnumPropertyEnum();
-	if (!Enum)
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Invalid enum for enum property '%s'"), *GetFullDisplayString());
-		return;
-	}
-
-	if(!IsEnumIndexValid(Enum, Index))
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Invalid index for enum '%s'!"), *Enum->GetName());
-		return;
-	}
-
-	bool bEnumIsSignedInt = IsNumericPropertySigned();
-	if (!bEnumIsSignedInt && !IsNumericPropertyUnsigned())
-	{
-		UE_LOG(LogVariantContent, Error, TEXT("Invalid underlying format for enum property!"));
-		return;
-	}
-
-	int32 Size = GetValueSizeInBytes();
-	TArray<uint8> NewValueBytes = EnumIndexToValueBytes(Enum, Index, Size, bEnumIsSignedInt);
-
-	ensure(NewValueBytes.Num() == Size);
-
-	SetRecordedDataInternal(NewValueBytes.GetData(), Size);
-}
-
 bool UPropertyValue::IsNumericPropertySigned()
 {
 	UProperty* Prop = GetProperty();
@@ -950,7 +682,6 @@ int32 UPropertyValue::GetValueSizeInBytes() const
 		return Prop->ElementSize;
 	}
 
-	UE_LOG(LogVariantContent, Warning, TEXT("Returning size zero for PropertyValue '%s'"), *GetFullDisplayString());
 	return 0;
 }
 
@@ -963,7 +694,6 @@ int32 UPropertyValue::GetPropertyOffsetInBytes() const
 	}
 
 	// Dangerous
-	UE_LOG(LogVariantContent, Warning, TEXT("Returning offset zero for PropertyValue '%s'"), *GetFullDisplayString());
 	return 0;
 }
 
@@ -974,6 +704,8 @@ bool UPropertyValue::HasRecordedData() const
 
 const TArray<uint8>& UPropertyValue::GetRecordedData()
 {
+	check(bHasRecordedData);
+
 	ValueBytes.SetNum(GetValueSizeInBytes());
 
 	// We need to resolve our softpath still
@@ -985,7 +717,11 @@ const TArray<uint8>& UPropertyValue::GetRecordedData()
 
 		if (Obj && Obj->IsValidLowLevel())
 		{
-			SetRecordedDataInternal((uint8*)&Obj, sizeof(UObject*));
+			int32 NumBytes = sizeof(UObject**);
+			ValueBytes.SetNumUninitialized(NumBytes);
+			FMemory::Memcpy(ValueBytes.GetData(), &Obj, NumBytes);
+
+			bHasRecordedData = true;
 		}
 		else
 		{
@@ -1010,21 +746,36 @@ void UPropertyValue::SetRecordedData(const uint8* NewDataBytes, int32 NumBytes, 
 		if (NumBytes == sizeof(FName) && GetPropertyClass()->IsChildOf(UNameProperty::StaticClass()))
 		{
 			TempName = *((FName*)NewDataBytes);
-			SetRecordedDataInternal((uint8*)&TempName, NumBytes, Offset);
+			ValueBytes.SetNumUninitialized(NumBytes);
+
+			FMemory::Memcpy(ValueBytes.GetData(), (uint8*)&TempName, NumBytes);
+			bHasRecordedData = true;
 		}
 		else if (NumBytes == sizeof(FString) && GetPropertyClass()->IsChildOf(UStrProperty::StaticClass()))
 		{
 			TempStr = *((FString*)NewDataBytes);
-			SetRecordedDataInternal((uint8*)&TempStr, NumBytes, Offset);
+			ValueBytes.SetNumUninitialized(NumBytes);
+
+			FMemory::Memcpy(ValueBytes.GetData(), (uint8*)&TempStr, NumBytes);
+			bHasRecordedData = true;
 		}
 		else if (NumBytes == sizeof(FText) && GetPropertyClass()->IsChildOf(UTextProperty::StaticClass()))
 		{
 			TempText = *((FText*)NewDataBytes);
-			SetRecordedDataInternal((uint8*)&TempText, NumBytes, Offset);
+			ValueBytes.SetNumUninitialized(NumBytes);
+
+			FMemory::Memcpy(ValueBytes.GetData(), (uint8*)&TempText, NumBytes);
+			bHasRecordedData = true;
 		}
 		else
 		{
-			SetRecordedDataInternal(NewDataBytes, NumBytes, Offset);
+			if (ValueBytes.Num() < NumBytes + Offset)
+			{
+				ValueBytes.SetNumUninitialized(NumBytes+Offset);
+			}
+
+			FMemory::Memcpy(ValueBytes.GetData() + Offset, NewDataBytes, NumBytes);
+			bHasRecordedData = true;
 
 			// Don't need to actually update the pointer, as that will be done when serializing
 			// But we do need to reset it or else GetRecordedData will read its data instead of ValueBytes
@@ -1033,109 +784,8 @@ void UPropertyValue::SetRecordedData(const uint8* NewDataBytes, int32 NumBytes, 
 			{
 				TempObjPtr.Reset();
 			}
-
-			if (UEnum* Enum = GetEnumPropertyEnum())
-			{
-				SanitizeRecordedEnumData();
-			}
 		}
 	}
-}
-
-void UPropertyValue::SetRecordedDataInternal(const uint8* NewDataBytes, int32 NumBytes, int32 Offset)
-{
-	if (NumBytes <= 0)
-	{
-		return;
-	}
-
-	if (ValueBytes.Num() < NumBytes + Offset)
-	{
-		ValueBytes.SetNumUninitialized(NumBytes+Offset);
-	}
-
-	FMemory::Memcpy(ValueBytes.GetData() + Offset, NewDataBytes, NumBytes);
-	bHasRecordedData = true;
-}
-
-const TArray<uint8>& UPropertyValue::GetDefaultValue()
-{
-	if (DefaultValue.Num() == 0)
-	{
-		if (UVariantObjectBinding* Binding = GetParent())
-		{
-			if (UObject* Object = Binding->GetObject())
-			{
-				int32 NumBytes = GetValueSizeInBytes();
-				DefaultValue.SetNumZeroed(NumBytes);
-
-				if (Resolve(Object->GetClass()->GetDefaultObject()))
-				{
-					if (UBoolProperty* PropAsBool = Cast<UBoolProperty>(LeafProperty))
-					{
-						bool* DefaultValueAsBoolPtr = (bool*)DefaultValue.GetData();
-						*DefaultValueAsBoolPtr = PropAsBool->GetPropertyValue(PropertyValuePtr);
-					}
-					else
-					{
-						if (UEnumProperty* PropAsEnum = Cast<UEnumProperty>(LeafProperty))
-						{
-							UNumericProperty* UnderlyingProp = PropAsEnum->GetUnderlyingProperty();
-							NumBytes = UnderlyingProp->ElementSize;
-						}
-
-						// If we're a material property value we won't have PropertyValuePtr
-						if (PropertyValuePtr)
-						{
-							FMemory::Memcpy(DefaultValue.GetData(), PropertyValuePtr, NumBytes);
-						}
-
-						// If a valid enum value hasn't been specified as default, the default will be the _MAX value
-						// which we don't allow recording. This will detect that and change the value to match the
-						// value of whatever enum is index zero
-						if (UEnum* Enum = GetEnumPropertyEnum())
-						{
-							bool bEnumIsSignedInt = IsNumericPropertySigned();
-							if (!bEnumIsSignedInt && !IsNumericPropertyUnsigned())
-							{
-								UE_LOG(LogVariantContent, Error, TEXT("Invalid underlying format for enum property!"));
-								return DefaultValue;
-							}
-
-							int32 Size = GetValueSizeInBytes();
-							int32 Index = EnumValueBytesToIndex(Enum, DefaultValue, bEnumIsSignedInt);
-							if (!IsEnumIndexValid(Enum, Index))
-							{
-								if (IsEnumIndexValid(Enum, 0))
-								{
-									TArray<uint8> SanitizedDefault = EnumIndexToValueBytes(Enum, 0, Size, bEnumIsSignedInt);
-
-									ensure(SanitizedDefault.Num() == Size);
-									Swap(SanitizedDefault, DefaultValue);
-								}
-								else
-								{
-									UE_LOG(LogVariantContent, Error, TEXT("Enum property '%s' points to an enum that doesn't have any valid values!"), *GetFullDisplayString());
-								}
-							}
-						}
-					}
-				}
-
-				// Try to resolve to our parent again, or else we will leave our pointers
-				// invalidated or pointing at the CDO
-				ClearLastResolve();
-				Resolve();
-			}
-		}
-	}
-
-	return DefaultValue;
-}
-
-void UPropertyValue::ClearDefaultValue()
-{
-	DefaultValue.Empty();
 }
 
 FOnPropertyApplied& UPropertyValue::GetOnPropertyApplied()
@@ -1261,30 +911,6 @@ void UPropertyValue::ApplyViaFunctionSetter(UObject* TargetObject)
 	}
 }
 
-bool UPropertyValue::ResolveUSCSNodeRecursive(const USCS_Node* Node, int32 SegmentIndex)
-{
-	// If we're the last segment, we need to capture an actual property, not step into another component,
-	// so go back to the regular recursion
-	if (SegmentIndex >= (CapturedPropSegments.Num() - 1))
-	{
-		return ResolvePropertiesRecursive(Node->ComponentClass, Node->ComponentTemplate, SegmentIndex);
-	}
-
-	// Step into another USCS_Node
-	FCapturedPropSegment& Seg = CapturedPropSegments[SegmentIndex];
-	FString TargetComponentNameSuffixed = Seg.ComponentName + TEXT("_GEN_VARIABLE");
-	for (const USCS_Node* ChildNode : Node->GetChildNodes())
-	{
-		if (ChildNode->ComponentClass->IsChildOf(UActorComponent::StaticClass()) &&
-			TargetComponentNameSuffixed == ChildNode->ComponentTemplate->GetName())
-		{
-			return ResolveUSCSNodeRecursive(ChildNode, SegmentIndex + 1);
-		}
-	}
-
-	return false;
-}
-
 bool UPropertyValue::ResolvePropertiesRecursive(UStruct* ContainerClass, void* ContainerAddress, int32 SegmentIndex)
 {
 	// Adapted from PropertyPathHelpers.cpp because it is incomplete for arrays of UObjects (important for components)
@@ -1316,32 +942,6 @@ bool UPropertyValue::ResolvePropertiesRecursive(UStruct* ContainerClass, void* C
 					ParentContainerAddress = CurrentObject;
 
 					return ResolvePropertiesRecursive(CurrentObject->GetClass(), CurrentObject, SegmentIndex + 1);
-				}
-				// We may be using Resolve to resolve on a CDO. If it's a blueprint class, there is no regular
-				// component hierarchy to step into, we need to step into its USCS_NODEs
-				// Note that we don't need to do this for arrays of UObject properties (e.g. AttachChildren), as we
-				// can always reach all the components from expanding from the scene root component through this
-				else if (UBlueprintGeneratedClass* GeneratedClass = Cast<UBlueprintGeneratedClass>(ContainerClass))
-				{
-					if ((void*)GeneratedClass->GetDefaultObject() == ContainerAddress)
-					{
-						const TArray<USCS_Node*>& BPNodes = GeneratedClass->SimpleConstructionScript->GetAllNodes();
-
-						// So that we can compare with CDO components, given that they receive UActorComponent::ComponentTemplateNameSuffix
-						FString TargetComponentNameSuffixed = Seg.ComponentName + TEXT("_GEN_VARIABLE");
-
-						for (USCS_Node* BPNode : BPNodes)
-						{
-							if (BPNode->ComponentClass->IsChildOf(ObjectProperty->PropertyClass) &&
-								TargetComponentNameSuffixed == BPNode->ComponentTemplate->GetName())
-							{
-								ParentContainerClass = BPNode->ComponentClass;
-								ParentContainerAddress = BPNode->ComponentTemplate;
-
-								return ResolvePropertiesRecursive(BPNode->ComponentClass, BPNode->ComponentTemplate, SegmentIndex + 1);
-							}
-						}
-					}
 				}
 			}
 			// Check to see if this is a simple weak object property (eg. not an array of weak objects).

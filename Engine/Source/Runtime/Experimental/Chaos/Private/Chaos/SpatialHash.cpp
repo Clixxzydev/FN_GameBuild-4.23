@@ -6,7 +6,6 @@ namespace Chaos
 {
 	DEFINE_LOG_CATEGORY_STATIC(LogChaosSpatialHash, Verbose, All);
 
-
 	template<class T>
 	void TSpatialHash<T>::Init(const T Radius)
 	{
@@ -21,15 +20,9 @@ namespace Chaos
 			MBoundingBox.GrowToInclude(MParticles[Idx]);
 		}
 		TVector<T, 3> Extents = MBoundingBox.Extents();
-
-		// MCellSize needs to be smaller than smallest axis length
-		T SmallestAxisLength = Extents[SmallestAxis()];
-		if (MCellSize > SmallestAxisLength)
-		{
-			MCellSize = SmallestAxisLength / 2.0;
-		}
-
+//		ensure(MCellSize < Extents[0] && MCellSize < Extents[1] && MCellSize < Extents[2]);
 		T PrincipalAxisLength = Extents[MBoundingBox.LargestAxis()];
+
 		int32 NumberOfCellsOnPrincipalAxis = FMath::CeilToInt(PrincipalAxisLength / MCellSize);
 		MCellSize = PrincipalAxisLength / (T)NumberOfCellsOnPrincipalAxis;
 		T CellSizeInv = 1.0 / MCellSize;
@@ -69,12 +62,11 @@ namespace Chaos
 			MBoundingBox.GrowToInclude(MParticles[Idx]);
 		}
 		TVector<T, 3> Extents = MBoundingBox.Extents();
-
-		// MCellSize needs to be smaller than smallest axis length
-		T SmallestAxisLength = Extents[SmallestAxis()];
-		MCellSize = SmallestAxisLength / 10.0;
-
 		T PrincipalAxisLength = Extents[MBoundingBox.LargestAxis()];
+
+		MCellSize = PrincipalAxisLength / 20.0;
+//		ensure(MCellSize < Extents[0] && MCellSize < Extents[1] && MCellSize < Extents[2]);
+
 		int32 NumberOfCellsOnPrincipalAxis = FMath::CeilToInt(PrincipalAxisLength / MCellSize);
 		MCellSize = PrincipalAxisLength / (T)NumberOfCellsOnPrincipalAxis;
 		T CellSizeInv = 1.0 / MCellSize;
@@ -237,49 +229,40 @@ namespace Chaos
 		double Time = 0.0;
 		FDurationTimer Timer(Time);
 
-		int32 ClosestPointIdx = INDEX_NONE;
+		TVector<T, 3> Extents = MBoundingBox.Extents();
+		T PrincipalAxisLength = Extents[MBoundingBox.LargestAxis()];
+		const T MaxRadius = PrincipalAxisLength / 2.0;
 
-		if (MBoundingBox.Contains(Particle))
+		TSet<int32> ClosestPoints;
+		int32 MaxN = 2;
+
+		for (int32 IdxRing = 0; IdxRing < MaxN; ++IdxRing)
 		{
-			TSet<int32> ClosestPoints;
-
-			int32 IdxRing = 0;
-			while (ClosestPoints.Num() < 1)
+			TSet<int32> CellIndices = GetNRing(Particle, IdxRing);
+			for (auto& CellIdx : CellIndices)
 			{
-				TSet<int32> CellIndices = GetNRing(Particle, IdxRing);
-				for (auto& CellIdx : CellIndices)
+				if (MHashTable.Contains(CellIdx))
 				{
-					if (MHashTable.Contains(CellIdx))
-					{
-						ClosestPoints.Append(MHashTable[CellIdx]);
-					}
-				}
-
-				IdxRing++;
-			}
-
-			ClosestPointIdx = ClosestPoints.Array()[0];
-
-			// If ClosestPoints have more than one point find the closest one
-			if (ClosestPoints.Num() > 1)
-			{
-				float DistanceSquared = FLT_MAX;
-				for (auto& PointIdx : ClosestPoints)
-				{
-					FVector Diff = Particle - MParticles[PointIdx];
-					T DiffSquared = Diff.SizeSquared();
-					if (DiffSquared < DistanceSquared)
-					{
-						DistanceSquared = DiffSquared;
-						ClosestPointIdx = PointIdx;
-					}
+					ClosestPoints.Append(MHashTable[CellIdx]);
 				}
 			}
 		}
-		else
+
+		// Find closest point
+		int32 ClosestPointIdx = ClosestPoints.Array()[0];
+		if (ClosestPoints.Num() > 1)
 		{
-			TVector<T, 3> ClosestPointOnBox = MBoundingBox.FindClosestPoint(Particle);
-			ClosestPointIdx = GetClosestPoint(ClosestPointOnBox);
+			float DistanceSquared = FLT_MAX;
+			for (auto& Elem : ClosestPoints)
+			{
+				FVector Diff = Particle - MParticles[Elem];
+				T DiffSquared = Diff.SizeSquared();
+				if (DiffSquared < DistanceSquared)
+				{
+					DistanceSquared = DiffSquared;
+					ClosestPointIdx = Elem;
+				}
+			}
 		}
 
 		Timer.Stop();
@@ -291,7 +274,7 @@ namespace Chaos
 	template<class T>
 	int32 TSpatialHash<T>::ComputeMaxN(const TVector<T, 3>& Particle, const T Radius)
 	{
-		int32 MaxN = -INT_MAX;
+		int32 MaxN = INT_MIN;
 		TArray<int32> IndexParticleArray; IndexParticleArray.SetNum(3);
 		ComputeGridXYZ(Particle, IndexParticleArray[0], IndexParticleArray[1], IndexParticleArray[2]);
 
@@ -378,17 +361,19 @@ namespace Chaos
 	}
 
 	template<class T>
-	int32 TSpatialHash<T>::HashFunction(const TVector<T, 3>& Particle)
+	int32 TSpatialHash<T>::HashFunction(int32& XIndex, int32& YIndex, int32& ZIndex)
 	{
-		int32 XIndex, YIndex, ZIndex;
-		ComputeGridXYZ(Particle, XIndex, YIndex, ZIndex);
-
 		return XIndex + YIndex * MNumberOfCellsX + ZIndex * MNumberOfCellsX * MNumberOfCellsY;
 	}
 
 	template<class T>
-	int32 TSpatialHash<T>::HashFunction(const int32 XIndex, const int32 YIndex, const int32 ZIndex)
+	int32 TSpatialHash<T>::HashFunction(const TVector<T, 3>& Particle)
 	{
+		T CellSizeInv = 1.0 / MCellSize;
+		FVector Location = Particle - MBoundingBox.Min() + TVector<T, 3>(0.5 * MCellSize);
+		int32 XIndex, YIndex, ZIndex;
+		ComputeGridXYZ(Particle, XIndex, YIndex, ZIndex);
+
 		return XIndex + YIndex * MNumberOfCellsX + ZIndex * MNumberOfCellsX * MNumberOfCellsY;
 	}
 

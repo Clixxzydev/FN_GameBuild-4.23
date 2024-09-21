@@ -449,10 +449,6 @@ public:
 		);
 
 		TSharedPtr<SNotificationItem> NotificationItem = FSlateNotificationManager::Get().AddNotification(Info);
-		if(NotificationItemPtr.IsValid())
-		{
-			NotificationItemPtr.Pin().Get()->Fadeout();
-		}
 
 		if (!NotificationItem.IsValid())
 		{
@@ -465,7 +461,7 @@ public:
 		NotificationItem->SetCompletionState(SNotificationItem::CS_Pending);
 
 		// launch the packager
-		NotificationItemPtr = NotificationItem;
+		TWeakPtr<SNotificationItem> NotificationItemPtr(NotificationItem);
 
 		EventData Data;
 		Data.StartTime = FPlatformTime::Seconds();
@@ -651,10 +647,6 @@ public:
 
 		}
 	}
-
-private:
-	TWeakPtr<SNotificationItem> NotificationItemPtr;
-
 };
 
 IMPLEMENT_MODULE(FUATHelperModule, UATHelper)

@@ -349,7 +349,7 @@ public:
 					ExtraFunctionFlags |= FUNC_Static;
 				}
 				// We need to mark the function entry as editable so that we can
-				// set metadata on it if it is an editor utility blueprint/widget:
+				// set metadata on it if it is a blutility:
 				K2Schema->MarkFunctionEntryAsEditable(Graph, true);
 				if( IsEditorUtilityBlueprint( Blueprint ))
 				{
@@ -524,7 +524,7 @@ public:
 	/** Returns whether or not the blueprint is const during execution */
 	static bool IsBlueprintConst(const UBlueprint* Blueprint);
 
-	/** Returns whether or not the blueprint is an editor utility blueprint or widget */
+	/** Returns whether or not the blueprint is a blutility */
 	static bool IsEditorUtilityBlueprint(const UBlueprint* Blueprint);
 
 	/**
@@ -1019,14 +1019,6 @@ public:
 	 */
 	static void SetVariableAdvancedDisplayFlag(UBlueprint* InBlueprint, const FName& InVarName, const bool bInIsAdvancedDisplay);
 
-	/**
-	 * Sets the Deprecated flag on the variable with the specified name
-	 *
-	 * @param	InVarName				Name of the var to set the flag on
-	 * @param	bInIsDeprecated			The new value to set the bitflag to
-	 */
-	static void SetVariableDeprecatedFlag(UBlueprint* InBlueprint, const FName& InVarName, const bool bInIsDeprecated);
-
 	/** Sets a metadata key/value on the specified variable
 	 *
 	 * @param Blueprint				The Blueprint to find the variable in
@@ -1174,16 +1166,16 @@ public:
 	static bool IsVariableUsed(const UBlueprint* Blueprint, const FName& Name, UEdGraph* LocalGraphScope = nullptr);
 
 	/** Copies the value from the passed in string into a property. ContainerMem points to the Struct or Class containing Property */
-	static bool PropertyValueFromString(const UProperty* Property, const FString& StrValue, uint8* Container, UObject* OwningObject = nullptr);
+	static bool PropertyValueFromString(const UProperty* Property, const FString& StrValue, uint8* Container);
 
 	/** Copies the value from the passed in string into a property. DirectValue is the raw memory address of the property value */
-	static bool PropertyValueFromString_Direct(const UProperty* Property, const FString& StrValue, uint8* DirectValue, UObject* OwningObject = nullptr);
+	static bool PropertyValueFromString_Direct(const UProperty* Property, const FString& StrValue, uint8* DirectValue);
 
 	/** Copies the value from a property into the string OutForm. ContainerMem points to the Struct or Class containing Property */
-	static bool PropertyValueToString(const UProperty* Property, const uint8* Container, FString& OutForm, UObject* OwningObject = nullptr);
+	static bool PropertyValueToString(const UProperty* Property, const uint8* Container, FString& OutForm);
 
 	/** Copies the value from a property into the string OutForm. DirectValue is the raw memory address of the property value */
-	static bool PropertyValueToString_Direct(const UProperty* Property, const uint8* DirectValue, FString& OutForm, UObject* OwningObject = nullptr);
+	static bool PropertyValueToString_Direct(const UProperty* Property, const uint8* DirectValue, FString& OutForm);
 
 	/** Call PostEditChange() on all Actors based on the given Blueprint */
 	static void PostEditChangeBlueprintActors(UBlueprint* Blueprint, bool bComponentEditChange = false);
@@ -1625,21 +1617,6 @@ public:
 	 * Returns a class name for the specified class that has no automatic suffixes, but is otherwise unmodified.  Class can be nullptr.
 	 */
 	static FString GetClassNameWithoutSuffix(const UClass* Class);
-
-	/**
-	 * Returns a formatted menu item label for a deprecated variable or function member with the given name.
-	 *
-	 * @param MemberName		(Required) User-facing name of the deprecated variable or function.
-	 */
-	static FText GetDeprecatedMemberMenuItemName(const FText& MemberName);
-
-	/**
-	 * Returns a formatted warning message regarding usage of a deprecated variable or function member with the given name.
-	 *
-	 * @param MemberName		(Required) User-facing name of the deprecated variable or function.
-	 * @param DetailedMessage	(Optional) Instructional text or other details from the owner. If empty, a default message will be used.
-	 */
-	static FText GetDeprecatedMemberUsageNodeWarning(const FText& MemberName, const FText& DetailedMessage);
 
 	/**
 	 * Remove overridden component templates from instance component handlers when a parent class disables editable when inherited boolean.

@@ -246,7 +246,7 @@ bool FTargetDeviceService::Start()
 		ClaimUser = FPlatformProcess::UserName(false);
 
 		// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceClaimed), alignof(FTargetDeviceClaimed));
+		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceClaimed));
 		MessageEndpoint->Publish(new(Memory) FTargetDeviceClaimed(DeviceName, ClaimHost, ClaimUser));
 
 		Running = true;
@@ -261,7 +261,7 @@ void FTargetDeviceService::Stop()
 	if (Running)
 	{
 		// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceUnclaimed), alignof(FTargetDeviceUnclaimed));
+		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceUnclaimed));
 		MessageEndpoint->Publish(new(Memory) FTargetDeviceUnclaimed(DeviceName, FPlatformProcess::ComputerName(), FPlatformProcess::UserName(false)));
 		FPlatformProcess::SleepNoStats(0.01);
 
@@ -360,7 +360,7 @@ void FTargetDeviceService::HandleClaimedMessage(const FTargetDeviceClaimed& Mess
 		if (Context->GetSender() != MessageEndpoint->GetAddress())
 		{
 			// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-			void* Memory = FMemory::Malloc(sizeof(FTargetDeviceClaimDenied), alignof(FTargetDeviceClaimDenied));
+			void* Memory = FMemory::Malloc(sizeof(FTargetDeviceClaimDenied));
 			MessageEndpoint->Send(new(Memory) FTargetDeviceClaimDenied(DeviceName, FPlatformProcess::ComputerName(), FPlatformProcess::UserName(false)), Context->GetSender());
 		}
 	}
@@ -431,7 +431,7 @@ void FTargetDeviceService::HandleDeployCommitMessage(const FTargetDeviceServiceD
 
 		IFileManager::Get().DeleteDirectory(*SourceFolder, false, true);
 		// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServiceDeployFinished), alignof(FTargetDeviceServiceDeployFinished));
+		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServiceDeployFinished));
 		MessageEndpoint->Send(new(Memory) FTargetDeviceServiceDeployFinished(Message.Variant, OutAppId, Succeeded, Message.TransactionId), Context->GetSender());
 	}
 }
@@ -468,7 +468,7 @@ void FTargetDeviceService::HandleLaunchAppMessage(const FTargetDeviceServiceLaun
 		if (MessageEndpoint.IsValid())
 		{
 			// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-			void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServiceLaunchFinished), alignof(FTargetDeviceServiceLaunchFinished));
+			void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServiceLaunchFinished));
 			MessageEndpoint->Send(new(Memory) FTargetDeviceServiceLaunchFinished(Message.AppID, ProcessId, Succeeded), Context->GetSender());
 		}
 	}
@@ -495,7 +495,7 @@ void FTargetDeviceService::HandlePingMessage(const FTargetDeviceServicePing& InM
 		const PlatformInfo::FPlatformInfo* VanillaInfo = PlatformInfo::FindVanillaPlatformInfo(FName(*PlatformName));
 
 		// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServicePong), alignof(FTargetDeviceServicePong));
+		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServicePong));
 		FTargetDeviceServicePong* Message = new(Memory) FTargetDeviceServicePong();
 
 		Message->Name = DefaultDevice->GetName();
@@ -607,7 +607,7 @@ void FTargetDeviceService::HandleRunExecutableMessage(const FTargetDeviceService
 		bool Succeeded = TargetDevice->Run(Message.ExecutablePath, Message.Params, &OutProcessId);
 
 		// message is going to be deleted by FMemory::Free() (see FMessageContext destructor), so allocate it with Malloc
-		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServiceRunFinished), alignof(FTargetDeviceServiceRunFinished));
+		void* Memory = FMemory::Malloc(sizeof(FTargetDeviceServiceRunFinished));
 		MessageEndpoint->Send(new(Memory) FTargetDeviceServiceRunFinished(Message.Variant, Message.ExecutablePath, OutProcessId, Succeeded), Context->GetSender());
 	}
 }

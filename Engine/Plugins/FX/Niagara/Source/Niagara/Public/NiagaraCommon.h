@@ -21,7 +21,7 @@ struct FNiagaraParameterStore;
 #define NIAGARA_NAN_CHECKING 0
 
 const uint32 NIAGARA_COMPUTE_THREADGROUP_SIZE = 64;
-const uint32 NIAGARA_MAX_COMPUTE_THREADGROUPS = 65535;
+const uint32 NIAGARA_MAX_COMPUTE_THREADGROUPS = 65536;
 
 const FString INTERPOLATED_PARAMETER_PREFIX = TEXT("PREV_");
 
@@ -37,7 +37,8 @@ UENUM()
 enum class ENiagaraSimTarget : uint8
 {
 	CPUSim,
-	GPUComputeSim
+	GPUComputeSim,
+	DynamicLoadBalancedSim UMETA(Hidden)
 };
 
 

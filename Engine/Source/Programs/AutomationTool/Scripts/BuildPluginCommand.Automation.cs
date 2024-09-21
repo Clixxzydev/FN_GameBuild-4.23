@@ -258,10 +258,7 @@ class BuildPlugin : BuildCommand
 		}
 
 		// Apply the standard exclusion rules
-		foreach (string RestrictedFolderName in RestrictedFolder.GetNames())
-		{
-			Filter.AddRule(String.Format(".../{0}/...", RestrictedFolderName), FileFilterType.Exclude);
-		}
+		Filter.ExcludeRestrictedFolders();
 
 		// Apply the filter to the plugin directory
 		return Filter.ApplyToDirectory(PluginFile.Directory, true);
@@ -300,11 +297,11 @@ class BuildPlugin : BuildCommand
 				foreach (string TargetPlatformName in TargetPlatformFilter.Split(new char[]{ '+' }, StringSplitOptions.RemoveEmptyEntries))
 				{
 					UnrealTargetPlatform TargetPlatform;
-					if (!UnrealTargetPlatform.TryParse(TargetPlatformName, out TargetPlatform))
+					if(!Enum.TryParse(TargetPlatformName, out TargetPlatform))
 					{
 						throw new AutomationException("Unknown target platform '{0}' specified on command line");
 					}
-					if(TargetPlatforms.Contains(TargetPlatform))
+					else if(TargetPlatforms.Contains(TargetPlatform))
 					{
 						NewTargetPlatforms.Add(TargetPlatform);
 					}

@@ -110,32 +110,32 @@ struct COREUOBJECT_API FSoftObjectPath
 	/** Resets reference to point to null */
 	void Reset()
 	{		
-		AssetPathName = FName();
+		AssetPathName = NAME_None;
 		SubPathString.Reset();
 	}
 	
 	/** Check if this could possibly refer to a real object, or was initialized to null */
 	FORCEINLINE bool IsValid() const
 	{
-		return !AssetPathName.IsNone();
+		return AssetPathName != NAME_None;
 	}
 
 	/** Checks to see if this is initialized to null */
 	FORCEINLINE bool IsNull() const
 	{
-		return AssetPathName.IsNone();
+		return AssetPathName == NAME_None;
 	}
 
 	/** Check if this represents an asset, meaning it is not null but does not have a sub path */
 	FORCEINLINE bool IsAsset() const
 	{
-		return !AssetPathName.IsNone() && SubPathString.IsEmpty();
+		return AssetPathName != NAME_None && SubPathString.IsEmpty();
 	}
 
 	/** Check if this represents a sub object, meaning it has a sub path */
 	FORCEINLINE bool IsSubobject() const
 	{
-		return !AssetPathName.IsNone() && !SubPathString.IsEmpty();
+		return AssetPathName != NAME_None && !SubPathString.IsEmpty();
 	}
 
 	/** Struct overrides */
@@ -210,9 +210,6 @@ private:
 
 	/** Package names currently being duplicated, needed by FixupForPIE */
 	static TSet<FName> PIEPackageNames;
-
-	UObject* ResolveObjectInternal() const;
-	UObject* ResolveObjectInternal(const TCHAR* PathString) const;
 
 	friend struct Z_Construct_UScriptStruct_FSoftObjectPath_Statics;
 };

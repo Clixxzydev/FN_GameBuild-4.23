@@ -63,8 +63,8 @@ private:
 	/** Fill out the level menu with entries for level operations */
 	void BuildLevelMenu(FMenuBuilder& MenuBuilder);
 
-	bool IsCurrentSublevel(TSharedPtr<class FLevelModel> InLevelModel);
-	void SetCurrentSublevel(TSharedPtr<class FLevelModel> InLevelModel);
+	bool IsCurrentSublevel(ULevel* InLevel);
+	void SetCurrentSublevel(ULevel* InLevel);
 				
 private:
 	TWeakPtr<class FLevelCollectionModel>	WorldModel;

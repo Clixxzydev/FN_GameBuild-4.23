@@ -91,23 +91,17 @@ FString FAppleHttpRequest::GetURLParameter(const FString& ParameterName) const
 	SCOPED_AUTORELEASE_POOL;
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::GetURLParameter() - %s"), *ParameterName);
 
-	NSRange ParametersStart = [Request.URL.query rangeOfString:@"?"];
-	if (ParametersStart.location != NSNotFound && ParametersStart.length > 0)
+	NSString* ParameterNameStr = ParameterName.GetNSString();
+	NSArray* Parameters = [Request.URL.query componentsSeparatedByString:@"&"];
+	for (NSString* Parameter in Parameters)
 	{
-		NSString* ParametersStr = [Request.URL.query substringFromIndex:ParametersStart.location + 1];
-		NSString* ParameterNameStr = ParameterName.GetNSString();
-		NSArray* Parameters = [ParametersStr componentsSeparatedByString:@"&"];
-		for (NSString* Parameter in Parameters)
+		NSArray* KeyValue = [Parameter componentsSeparatedByString:@"="];
+		NSString* Key = KeyValue[0];
+		if ([Key compare:ParameterNameStr] == NSOrderedSame)
 		{
-			NSArray* KeyValue = [Parameter componentsSeparatedByString:@"="];
-			NSString* Key = KeyValue[0];
-			if ([Key compare:ParameterNameStr] == NSOrderedSame)
-			{
-				return FString(KeyValue[1]);
-			}
+			return FString(KeyValue[1]);
 		}
 	}
-
 	return FString();
 }
 

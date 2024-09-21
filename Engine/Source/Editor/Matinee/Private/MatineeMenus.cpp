@@ -245,10 +245,10 @@ void FMatinee::OnMenuAddKey()
 
 void FMatinee::OnContextNewGroup( FMatineeCommands::EGroupAction::Type InActionId)
 {
-	const bool bIsNewFolder = (InActionId == FMatineeCommands::EGroupAction::Type::NewFolder);
-	const bool bDirGroup = (InActionId == FMatineeCommands::EGroupAction::Type::NewDirectorGroup);
-	const bool bDuplicateGroup = (InActionId == FMatineeCommands::EGroupAction::Type::DuplicateGroup);
-	const bool bLightingGroup = (InActionId == FMatineeCommands::EGroupAction::Type::NewLightingGroup);
+	const bool bIsNewFolder = (InActionId == FMatineeCommands::EGroupAction::NewFolder); 
+	const bool bDirGroup = (InActionId == FMatineeCommands::EGroupAction::NewDirectorGroup); 
+	const bool bDuplicateGroup = (InActionId == FMatineeCommands::EGroupAction::DuplicateGroup); 
+	const bool bLightingGroup = (InActionId == FMatineeCommands::EGroupAction::NewLightingGroup); 
 
 	// Only one director group is allowed
 	if (bDirGroup && IData->FindDirectorGroup())
@@ -333,9 +333,9 @@ bool FMatinee::CanCreateNewGroup( FMatineeCommands::EGroupAction::Type InActionI
 void FMatinee::NewGroupPopup( FMatineeCommands::EGroupAction::Type InActionId, AActor* GroupActor, TArray<AActor *> OtherActorsToAddToGroup )
 {
 	// Find out if we want to make a 'Director' group.
-	const bool bIsNewFolder = (InActionId == FMatineeCommands::EGroupAction::Type::NewFolder);
-	const bool bDirGroup = (InActionId == FMatineeCommands::EGroupAction::Type::NewDirectorGroup);
-	const bool bDuplicateGroup = (InActionId == FMatineeCommands::EGroupAction::Type::DuplicateGroup);
+	const bool bIsNewFolder = (InActionId == FMatineeCommands::EGroupAction::NewFolder); 
+	const bool bDirGroup = (InActionId == FMatineeCommands::EGroupAction::NewDirectorGroup); 
+	const bool bDuplicateGroup = (InActionId == FMatineeCommands::EGroupAction::DuplicateGroup); 
 
 	// If not a director group - ask for a name.
 	if(!bDirGroup)
@@ -344,32 +344,32 @@ void FMatinee::NewGroupPopup( FMatineeCommands::EGroupAction::Type InActionId, A
 		FText DefaultNewGroupName;
 		switch( InActionId )
 		{
-		case FMatineeCommands::EGroupAction::Type::NewCameraGroup:
+		case FMatineeCommands::EGroupAction::NewCameraGroup: 
 			DialogName = LOCTEXT( "NewGroupName", "New Group Name" );
 			DefaultNewGroupName = LOCTEXT( "NewCameraGroup", "NewCameraGroup" );
 			break;
 
-		case FMatineeCommands::EGroupAction::Type::NewParticleGroup:
+		case FMatineeCommands::EGroupAction::NewParticleGroup: 
 			DialogName = LOCTEXT( "NewGroupName", "New Group Name" );
 			DefaultNewGroupName = LOCTEXT( "NewParticleGroup", "NewParticleGroup" );
 			break;
 
-		case FMatineeCommands::EGroupAction::Type::NewSkeletalMeshGroup:
+		case FMatineeCommands::EGroupAction::NewSkeletalMeshGroup: 
 			DialogName = LOCTEXT( "NewGroupName", "New Group Name" );
 			DefaultNewGroupName = LOCTEXT( "NewSkeletalMeshGroup", "NewSkeletalMeshGroup" );
 			break;
 
-		case FMatineeCommands::EGroupAction::Type::NewLightingGroup:
+		case FMatineeCommands::EGroupAction::NewLightingGroup: 
 			DialogName = LOCTEXT( "NewGroupName", "New Group Name" );
 			DefaultNewGroupName = LOCTEXT( "NewLightingGroup", "NewLightingGroup" );
 			break;
 
-		case FMatineeCommands::EGroupAction::Type::NewFolder:
+		case FMatineeCommands::EGroupAction::NewFolder: 
 			DialogName = LOCTEXT( "NewFolderName", "New Folder Name" );
 			DefaultNewGroupName = LOCTEXT( "NewFolder", "NewFolder" );
 			break;
 
-		case FMatineeCommands::EGroupAction::Type::DuplicateGroup:
+		case FMatineeCommands::EGroupAction::DuplicateGroup: 
 			// When duplicating, we use unlocalized text 
 			// at the moment. So, the spaces are needed.
 			DialogName = LOCTEXT( "NewGroupName", "New Group Name" );
@@ -421,9 +421,9 @@ void FMatinee::NewGroupPopupTextCommitted(
 	//note: we don't need to check commit type... handled by GetNewNamePopup
 
 	FName NewGroupName = FName(*InText.ToString().Left(NAME_SIZE));
-	const bool bIsNewFolder = (InActionId == FMatineeCommands::EGroupAction::Type::NewFolder);
-	const bool bDirGroup = (InActionId == FMatineeCommands::EGroupAction::Type::NewDirectorGroup);
-	const bool bDuplicateGroup = (InActionId == FMatineeCommands::EGroupAction::Type::DuplicateGroup);
+	const bool bIsNewFolder = (InActionId == FMatineeCommands::EGroupAction::NewFolder); 
+	const bool bDirGroup = (InActionId == FMatineeCommands::EGroupAction::NewDirectorGroup); 
+	const bool bDuplicateGroup = (InActionId == FMatineeCommands::EGroupAction::DuplicateGroup); 
 
 	TMap<UInterpGroup*, FName> DuplicateGroupToNameMap;
 	if (bDuplicateGroup && GroupToDuplicate != NULL)
@@ -485,7 +485,7 @@ void FMatinee::NewGroupPopupTextCommitted(
 	// if there's no group actor
 	if ( !GroupActor )
 	{
-		if( InActionId == FMatineeCommands::EGroupAction::Type::NewCameraGroup )
+		if( InActionId == FMatineeCommands::EGroupAction::NewCameraGroup )
 		{
 			// find the first perspective viewport - if one exists
 			FLevelEditorViewportClient* ViewportClient = NULL;
@@ -581,15 +581,15 @@ void FMatinee::NewGroupPopupTextCommitted(
 			// For Camera or Skeletal Mesh groups, add a Movement track
 			// FIXME: this doesn't work like this anymore
 			// if you'd like to create multiple groups at once
-			if( InActionId == FMatineeCommands::EGroupAction::Type::NewCameraGroup ||
-				InActionId == FMatineeCommands::EGroupAction::Type::NewSkeletalMeshGroup )
+			if( InActionId == FMatineeCommands::EGroupAction::NewCameraGroup || 
+				InActionId == FMatineeCommands::EGroupAction::NewSkeletalMeshGroup )
 			{
 				int32 NewTrackIndex = INDEX_NONE;
 				AddTrackToGroup( NewGroup, UInterpTrackMove::StaticClass(), NULL, false, NewTrackIndex );
 			}
 
 			// For Camera groups, add a Float Property track for FOV
-			if (InActionId == FMatineeCommands::EGroupAction::Type::NewCameraGroup)
+			if (InActionId == FMatineeCommands::EGroupAction::NewCameraGroup)
 			{
 				// Set the property name for the new track.  This is a global that will be used when setting everything up.
 				SetTrackAddPropName( FName( TEXT( "FOVAngle" ) ) );
@@ -599,7 +599,7 @@ void FMatinee::NewGroupPopupTextCommitted(
 			}
 
 			// For Lighting groups, add a Movement, Brightness, Light Color, and Radius Property track
-			if ( InActionId == FMatineeCommands::EGroupAction::Type::NewLightingGroup )
+			if ( InActionId == FMatineeCommands::EGroupAction::NewLightingGroup )
 			{
 				UInterpTrack* NewMovTrack = NewObject<UInterpTrackMove>(NewGroup, NAME_None, RF_Transactional);
 				const int32 TrackIndex = NewGroup->InterpTracks.Add(NewMovTrack);
@@ -629,14 +629,14 @@ void FMatinee::NewGroupPopupTextCommitted(
 			}
 
 			// For Skeletal Mesh groups, add an Anim track
-			if( InActionId == FMatineeCommands::EGroupAction::Type::NewSkeletalMeshGroup)
+			if( InActionId == FMatineeCommands::EGroupAction::NewSkeletalMeshGroup)
 			{
 				int32 NewTrackIndex = INDEX_NONE;
 				AddTrackToGroup( NewGroup, UInterpTrackAnimControl::StaticClass(), NULL, false, NewTrackIndex );
 			}
 
 			// For Particle groups, add a Toggle track
-			if( InActionId == FMatineeCommands::EGroupAction::Type::NewParticleGroup )
+			if( InActionId == FMatineeCommands::EGroupAction::NewParticleGroup )
 			{
 				int32 NewTrackIndex = INDEX_NONE;
 				AddTrackToGroup( NewGroup, UInterpTrackToggle::StaticClass(), NULL, false, NewTrackIndex );
@@ -1188,7 +1188,7 @@ void FMatinee::OnCreateCameraActorAtCurrentCameraLocation()
 {	
 	// no actor to add
 	TArray<AActor *> OtherActorsToAddToGroup;
-	NewGroupPopup( FMatineeCommands::EGroupAction::Type::NewCameraGroup, NULL, OtherActorsToAddToGroup );
+	NewGroupPopup( FMatineeCommands::EGroupAction::NewCameraGroup, NULL, OtherActorsToAddToGroup );
 }
 
 /** Called when the "Launch Custom Preview Viewport" is pressed */
@@ -2097,7 +2097,7 @@ void FMatinee::OnContextGroupChangeGroupFolder( FMatineeCommands::EGroupAction::
 	check( HasAGroupSelected() );
 
 	// Figure out if we're moving the active group to a new group, or if we simply want to unparent it
-	const bool bIsParenting =  ( InActionId != FMatineeCommands::EGroupAction::Type::RemoveFromGroupFolder );
+	const bool bIsParenting =  ( InActionId != FMatineeCommands::EGroupAction::RemoveFromGroupFolder ); 
 
 	// Figure out which direction we're moving things: A group to the selected folder?  Or, the selected group
 	// to a folder?
@@ -2107,7 +2107,7 @@ void FMatinee::OnContextGroupChangeGroupFolder( FMatineeCommands::EGroupAction::
 	if( bIsParenting )
 	{
 		bIsMovingSelectedGroupToFolder =
-			(InActionId == FMatineeCommands::EGroupAction::Type::MoveActiveGroupToFolder);
+			(InActionId == FMatineeCommands::EGroupAction::MoveActiveGroupToFolder);
 		bIsMovingGroupToSelectedFolder = !bIsMovingSelectedGroupToFolder;
 	}
 
@@ -2233,23 +2233,23 @@ void FMatinee::OnContextKeyInterpMode( FMatineeCommands::EKeyAction::Type InActi
 		FInterpEdSelKey& SelKey = Opt->SelectedKeys[i];
 		UInterpTrack* Track = SelKey.Track;
 
-		if (InActionId == FMatineeCommands::EKeyAction::Type::KeyModeLinear)
+		if (InActionId == FMatineeCommands::EKeyAction::KeyModeLinear) 
 		{
 			Track->SetKeyInterpMode( SelKey.KeyIndex, CIM_Linear );
 		}
-		else if (InActionId == FMatineeCommands::EKeyAction::Type::KeyModeCurveAuto)
+		else if (InActionId == FMatineeCommands::EKeyAction::KeyModeCurveAuto) 
 		{
 			Track->SetKeyInterpMode( SelKey.KeyIndex, CIM_CurveAuto );
 		}
-		else if (InActionId == FMatineeCommands::EKeyAction::Type::KeyModeCurveAutoClamped)
+		else if (InActionId == FMatineeCommands::EKeyAction::KeyModeCurveAutoClamped) 
 		{
 			Track->SetKeyInterpMode( SelKey.KeyIndex, CIM_CurveAutoClamped );
 		}
-		else if(InActionId == FMatineeCommands::EKeyAction::Type::KeyModeCurveBreak)
+		else if(InActionId == FMatineeCommands::EKeyAction::KeyModeCurveBreak) 
 		{
 			Track->SetKeyInterpMode( SelKey.KeyIndex, CIM_CurveBreak );
 		}
-		else if(InActionId == FMatineeCommands::EKeyAction::Type::KeyModeConstant)
+		else if(InActionId == FMatineeCommands::EKeyAction::KeyModeConstant) 
 		{
 			Track->SetKeyInterpMode( SelKey.KeyIndex, CIM_Constant );
 		}
@@ -3713,15 +3713,15 @@ void FMatinee::OnKeyContext_SetCondition( FMatineeCommands::EKeyAction::Type InC
 
 			switch( InCondition )
 			{
-			case FMatineeCommands::EKeyAction::Type::ConditionAlways:
+			case FMatineeCommands::EKeyAction::ConditionAlways: 
 					VisibilityKey.ActiveCondition = EVTC_Always;
 					break;
 
-			case FMatineeCommands::EKeyAction::Type::ConditionGoreEnabled:
+			case FMatineeCommands::EKeyAction::ConditionGoreEnabled: 
 					VisibilityKey.ActiveCondition = EVTC_GoreEnabled;
 					break;
 
-			case FMatineeCommands::EKeyAction::Type::ConditionGoreDisabled:
+			case FMatineeCommands::EKeyAction::ConditionGoreDisabled: 
 					VisibilityKey.ActiveCondition = EVTC_GoreDisabled;
 					break;
 			}
@@ -3745,21 +3745,21 @@ bool FMatinee::KeyContext_IsSetConditionToggled( FMatineeCommands::EKeyAction::T
 
 			switch( InCondition )
 			{
-			case FMatineeCommands::EKeyAction::Type::ConditionAlways:
+			case FMatineeCommands::EKeyAction::ConditionAlways: 
 				if (VisibilityKey.ActiveCondition != EVTC_Always)
 				{
 					return false;
 				}
 				break;
 
-			case FMatineeCommands::EKeyAction::Type::ConditionGoreEnabled:
+			case FMatineeCommands::EKeyAction::ConditionGoreEnabled: 
 				if (VisibilityKey.ActiveCondition != EVTC_GoreEnabled)
 				{
 					return false;
 				}
 				break;
 
-			case FMatineeCommands::EKeyAction::Type::ConditionGoreDisabled:
+			case FMatineeCommands::EKeyAction::ConditionGoreDisabled: 
 				if (VisibilityKey.ActiveCondition != EVTC_GoreDisabled)
 				{
 					return false;
@@ -5643,7 +5643,7 @@ TSharedPtr<SWidget> FMatinee::CreateGroupMenu()
 					FText::FromString( CurrentParent.Group->GroupName.ToString() ),
 					FText::GetEmpty(),
 					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateSP( InMatinee, &FMatinee::OnContextGroupChangeGroupFolder, FMatineeCommands::EGroupAction::Type::MoveActiveGroupToFolder, CurrentParent.GroupIndex))
+					FUIAction(FExecuteAction::CreateSP( InMatinee, &FMatinee::OnContextGroupChangeGroupFolder, FMatineeCommands::EGroupAction::MoveActiveGroupToFolder, CurrentParent.GroupIndex))
 					);
 			}
 		}
@@ -5679,7 +5679,7 @@ TSharedPtr<SWidget> FMatinee::CreateGroupMenu()
 						FText::GetEmpty(),
 						FSlateIcon(),
 						FUIAction(
-							FExecuteAction::CreateSP(InMatinee, &FMatinee::OnContextGroupChangeGroupFolder, FMatineeCommands::EGroupAction::Type::MoveGroupToActiveFolder, CurrentGroupInfo.GroupIndex)
+							FExecuteAction::CreateSP(InMatinee, &FMatinee::OnContextGroupChangeGroupFolder, FMatineeCommands::EGroupAction::MoveGroupToActiveFolder, CurrentGroupInfo.GroupIndex)
 							)
 						);
 

@@ -6,9 +6,6 @@
 #include "PropertyHandle.h"
 #include "Editor/SceneOutliner/Public/SceneOutlinerFwd.h"
 
-class FEditConditionExpression;
-class FEditConditionContext;
-
 class FPropertyEditor : public TSharedFromThis< FPropertyEditor >	
 {
 public:
@@ -41,13 +38,15 @@ public:
 	void RequestRefresh();
 
 	bool SupportsEditConditionToggle() const;
-	void ToggleEditConditionState();
 
 	/**	@return Whether the property is editconst */
 	bool IsEditConst() const;
 
 	/**	@return Whether the property has a condition which must be met before allowing editing of it's value */
 	bool HasEditCondition() const;
+
+	/**	Sets the state of the property's edit condition to the specified value */
+	void SetEditConditionState( bool bShouldEnable );
 
 	/**	@return Whether the condition has been met to allow editing of this property's value */
 	bool IsEditConditionMet() const;
@@ -73,7 +72,6 @@ public:
 
 	void UseSelected();
 	void AddItem();
-	void AddGivenItem(const FString& InGivenItem);
 	void ClearItem();
 	void InsertItem();
 	void DeleteItem();
@@ -98,9 +96,19 @@ public:
 private:
 	FPropertyEditor( const TSharedRef< class FPropertyNode >& InPropertyNode, const TSharedRef<class IPropertyUtilities >& InPropertyUtilities );
 
+	/** Stores information about property condition metadata. */
+	struct FPropertyConditionInfo
+	{
+	public:
+		TWeakObjectPtr<UObject> Object;
+
+		uint8* BaseAddress;
+		/** Whether the condition should be negated. */
+		bool bNegateValue;
+	};
+
 	void OnUseSelected();
 	void OnAddItem();
-	void OnAddGivenItem(const FString InGivenItem);
 	void OnClearItem();
 	void OnInsertItem();
 	void OnDeleteItem();
@@ -108,7 +116,28 @@ private:
 	void OnBrowseTo();
 	void OnEmptyArray();
 
+	/**
+	 * Returns true if the value of the conditional property matches the value required.  Indicates whether editing or otherwise interacting with this item's
+	 * associated property should be allowed.
+	 */
+	bool IsEditConditionMet( UBoolProperty* ConditionProperty, const TArray<FPropertyConditionInfo>& ConditionValues ) const;
+
+	/**
+	 * Finds the property being used to determine whether this item's associated property should be editable/expandable.
+	 * If the property is successfully found, ConditionPropertyAddresses will be filled with the addresses of the conditional properties' values.
+	 *
+	 * @param	ConditionProperty	receives the value of the property being used to control this item's ability to be edited.
+	 * @param	ConditionPropertyAddresses	receives the addresses of the actual property values for the conditional property
+	 *
+	 * @return	true if both the conditional property and property value addresses were successfully determined.
+	 */
+	static bool GetEditConditionPropertyAddress( UBoolProperty*& ConditionProperty, FPropertyNode& InPropertyNode, TArray<FPropertyConditionInfo>& ConditionPropertyAddresses );
+
+	static bool SupportsEditConditionToggle( UProperty* InProperty );
+
 private:
+
+	TArray< FPropertyConditionInfo > PropertyEditConditions;
 
 	TArray< TSharedRef< FPropertyEditor > >	ChildPropertyEditors;
 
@@ -121,7 +150,6 @@ private:
 	/** The property view where this widget resides */
 	TSharedRef< class IPropertyUtilities > PropertyUtilities;
 
-	/** Edit condition expression used to determine if this property editor can modify its property */
-	TSharedPtr<FEditConditionExpression> EditConditionExpression;
-	TSharedPtr<FEditConditionContext> EditConditionContext;
+	/** Edit condition property used to determine if this property editor can modify its property */
+	class UBoolProperty* EditConditionProperty;
 };

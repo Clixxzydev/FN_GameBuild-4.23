@@ -220,7 +220,7 @@ public:
 	 *
 	 * @return	true if InterfacePointer is non-NULL.
 	 */
-	FORCEINLINE explicit operator bool() const
+	FORCEINLINE operator bool() const
 	{
 		return GetInterface() != NULL;
 	}

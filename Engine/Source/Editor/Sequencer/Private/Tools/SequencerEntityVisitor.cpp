@@ -19,10 +19,28 @@ FSequencerEntityRange::FSequencerEntityRange(FVector2D TopLeft, FVector2D Bottom
 {
 }
 
-bool FSequencerEntityRange::IntersectSection(const UMovieSceneSection* InSection) const
+bool FSequencerEntityRange::IntersectSection(const UMovieSceneSection* InSection, const TSharedRef<FSequencerTrackNode>& InTrackNode, int32 MaxRowIndex) const
 {
 	// Test horizontal bounds
-	return (InSection->GetRange() / TickResolution).Overlaps(Range);
+	if (!(InSection->GetRange() / TickResolution).Overlaps(Range))
+	{
+		return false;
+	}
+	// Test vertical bounds
+	else if (MaxRowIndex > 0 && VerticalTop.IsSet())
+	{
+		const float NodeTop = InTrackNode->GetVirtualTop();
+		const float NodeBottom = InTrackNode->GetVirtualBottom();
+
+		const float RowHeight = (NodeBottom - NodeTop) / (MaxRowIndex + 1);
+		const float RowTop = NodeTop + InSection->GetRowIndex() * RowHeight;
+
+		return RowTop <= VerticalBottom.GetValue() && RowTop + RowHeight >= VerticalTop.GetValue();
+	}
+	else
+	{
+		return true;
+	}
 }
 
 bool FSequencerEntityRange::IntersectNode(TSharedRef<FSequencerDisplayNode> InNode) const
@@ -51,94 +69,164 @@ FSequencerEntityWalker::FSequencerEntityWalker(const FSequencerEntityRange& InRa
 /* @todo: Could probably optimize this by not walking every single node, and binary searching the begin<->end ranges instead */
 void FSequencerEntityWalker::Traverse(const ISequencerEntityVisitor& Visitor, const TArray< TSharedRef<FSequencerDisplayNode> >& Nodes)
 {
-	for (const TSharedRef<FSequencerDisplayNode>& Child : Nodes)
+	for (auto& Child : Nodes)
 	{
 		if (!Child->IsHidden())
 		{
-			ConditionallyIntersectNode(Visitor, Child);
+			HandleNode(Visitor, Child);
 		}
 	}
 }
 
-void FSequencerEntityWalker::ConditionallyIntersectNode(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerDisplayNode>& InNode)
+void FSequencerEntityWalker::HandleNode(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerDisplayNode>& InNode)
+{
+	if (InNode->GetType() == ESequencerNode::Track)
+	{
+		HandleTrackNode(Visitor, StaticCastSharedRef<FSequencerTrackNode>(InNode));
+	}
+
+	if (InNode->IsExpanded())
+	{
+		for (auto& Child : InNode->GetChildNodes())
+		{
+			if (!Child->IsHidden())
+			{
+				HandleNode(Visitor, Child);
+			}
+		}
+	}
+}
+
+void FSequencerEntityWalker::HandleTrackNode(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerTrackNode>& InTrackNode)
+{
+	TArray<TSharedRef<ISequencerSection>> Sections = InTrackNode->GetSections();
+
+	if (Range.IntersectNode(InTrackNode))
+	{
+
+		int32 MaxRowIndex;
+		if (InTrackNode->GetSubTrackMode() == FSequencerTrackNode::ESubTrackMode::None)
+		{
+			MaxRowIndex = InTrackNode->GetTrack()->GetMaxRowIndex();
+		}
+		else
+		{
+			// When using sub-tracks each section index gets it's own track so the effective max index
+			// within the track will always be 0.
+			MaxRowIndex = 0;
+		}
+
+		// Prune the selections to anything that is in the range, visiting if necessary
+		for (int32 SectionIndex = 0; SectionIndex < Sections.Num();)
+		{
+			UMovieSceneSection* Section = Sections[SectionIndex]->GetSectionObject();
+			if (!Range.IntersectSection(Section, InTrackNode, MaxRowIndex))
+			{
+				Sections.RemoveAtSwap(SectionIndex, 1, false);
+				continue;
+			}
+
+			if (Visitor.CheckEntityMask(ESequencerEntity::Section))
+			{
+				Visitor.VisitSection(Section, InTrackNode);
+			}
+
+			++SectionIndex;
+		}
+
+		HandleSingleNode(Visitor, InTrackNode, Sections);
+	}
+
+	if (InTrackNode->IsExpanded())
+	{
+		// Handle Children
+		for (auto& Child : InTrackNode->GetChildNodes())
+		{
+			if (!Child->IsHidden())
+			{
+				HandleChildNode(Visitor, Child, Sections);
+			}
+		}
+	}
+}
+
+void FSequencerEntityWalker::HandleChildNode(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerDisplayNode>& InNode, const TArray<TSharedRef<ISequencerSection>>& InSections)
 {
 	if (Range.IntersectNode(InNode))
 	{
-		// Visit sections within this track
-		if (InNode->GetType() == ESequencerNode::Track && Visitor.CheckEntityMask(ESequencerEntity::Section))
-		{
-			TSharedRef<FSequencerTrackNode> TrackNode = StaticCastSharedRef<FSequencerTrackNode>(InNode);
-
-			for (TSharedRef<ISequencerSection> SectionInterface : TrackNode->GetSections())
-			{
-				UMovieSceneSection* Section = SectionInterface->GetSectionObject();
-				if (Range.IntersectSection(Section))
-				{
-					Visitor.VisitSection(Section, InNode);
-				}
-			}
-		}
-
-		if (Range.IntersectKeyArea(InNode, VirtualKeySize.Y))
-		{
-			VisitKeyAnyAreas(Visitor, InNode, !InNode->IsExpanded());
-		}
+		HandleSingleNode(Visitor, InNode, InSections);
 	}
 
-	// Iterate into expanded nodes
 	if (InNode->IsExpanded())
 	{
-		for (const TSharedRef<FSequencerDisplayNode>& Child : InNode->GetChildNodes())
+		// Handle Children
+		for (auto& Child : InNode->GetChildNodes())
 		{
-			// Do not visit nodes that are currently filtered out
 			if (!Child->IsHidden())
 			{
-				ConditionallyIntersectNode(Visitor, Child);
+				HandleChildNode(Visitor, Child, InSections);
 			}
 		}
 	}
 }
 
-void FSequencerEntityWalker::VisitKeyAnyAreas(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerDisplayNode>& InNode, bool bAnyParentCollapsed )
+void FSequencerEntityWalker::HandleSingleNode(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerDisplayNode>& InNode, const TArray<TSharedRef<ISequencerSection>>& InSections)
 {
-	if (!Visitor.CheckEntityMask(ESequencerEntity::Key))
-	{
-		return;
-	}
-
-	TSharedPtr<FSequencerSectionKeyAreaNode> KeyAreaNode;
+	bool bNodeHasKeyArea = false;
 	if (InNode->GetType() == ESequencerNode::KeyArea)
 	{
-		KeyAreaNode = StaticCastSharedRef<FSequencerSectionKeyAreaNode>(InNode);
+		HandleKeyAreaNode(Visitor, StaticCastSharedRef<FSequencerSectionKeyAreaNode>(InNode), InNode, InSections);
+		bNodeHasKeyArea = true;
 	}
 	else if (InNode->GetType() == ESequencerNode::Track)
 	{
-		KeyAreaNode = StaticCastSharedRef<FSequencerTrackNode>(InNode)->GetTopLevelKeyNode();
-	}
-
-	// If this node has or is a key area, visit all the keys on the track
-	if (KeyAreaNode)
-	{
-		for (TSharedRef<IKeyArea> KeyArea : KeyAreaNode->GetAllKeyAreas())
+		TSharedPtr<FSequencerSectionKeyAreaNode> SectionKeyNode = StaticCastSharedRef<FSequencerTrackNode>(InNode)->GetTopLevelKeyNode();
+		if (SectionKeyNode.IsValid())
 		{
-			UMovieSceneSection* Section = KeyArea->GetOwningSection();
-			if (Section)
-			{
-				VisitKeyArea(Visitor, KeyArea, Section, InNode);
-			}
+			HandleKeyAreaNode(Visitor, SectionKeyNode.ToSharedRef(), InNode, InSections);
+			bNodeHasKeyArea = true;
 		}
 	}
-	// Otherwise it might be a collapsed node that contains key areas as children. If so we visit them as if they were a part of this track so that key groupings are visited properly.
-	else if (bAnyParentCollapsed)
+
+	// As a fallback, we need to handle:
+	//  - Key groupings on collapsed parents
+	//  - Sections that have no key areas
+	const bool bIterateKeyGroupings = Visitor.CheckEntityMask(ESequencerEntity::Key) &&
+		!bNodeHasKeyArea &&
+		(!InNode->IsExpanded() || InNode->GetChildNodes().Num() != 0);
+
+	if (bIterateKeyGroupings)
 	{
-		for (TSharedRef<FSequencerDisplayNode> ChildNode : InNode->GetChildNodes())
+		if (InNode->GetChildNodes().Num() != 0 && Range.IntersectKeyArea(InNode, VirtualKeySize.X))
 		{
-			VisitKeyAnyAreas(Visitor, ChildNode, bAnyParentCollapsed || !InNode->IsExpanded());
+			for (TSharedRef<FSequencerDisplayNode> ChildNode : InNode->GetChildNodes())
+			{
+				HandleSingleNode(Visitor, ChildNode, InSections);
+			}
 		}
 	}
 }
 
-void FSequencerEntityWalker::VisitKeyArea(const ISequencerEntityVisitor& Visitor, const TSharedRef<IKeyArea>& KeyArea, UMovieSceneSection* Section, const TSharedRef<FSequencerDisplayNode>& InNode)
+void FSequencerEntityWalker::HandleKeyAreaNode(const ISequencerEntityVisitor& Visitor, const TSharedRef<FSequencerSectionKeyAreaNode>& InKeyAreaNode, const TSharedRef<FSequencerDisplayNode>& InOwnerNode, const TArray<TSharedRef<ISequencerSection>>& InSections)
+{
+	for (TSharedRef<ISequencerSection> SectionInterface : InSections)
+	{
+		UMovieSceneSection* Section = SectionInterface->GetSectionObject();
+		if (Visitor.CheckEntityMask(ESequencerEntity::Key))
+		{
+			if (Range.IntersectKeyArea(InOwnerNode, VirtualKeySize.X))
+			{
+				TSharedPtr<IKeyArea> KeyArea = InKeyAreaNode->GetKeyArea(Section);
+				if (KeyArea.IsValid())
+				{
+					HandleKeyArea(Visitor, KeyArea.ToSharedRef(), Section, InOwnerNode);
+				}
+			}
+		}
+	}
+}
+
+void FSequencerEntityWalker::HandleKeyArea(const ISequencerEntityVisitor& Visitor, const TSharedRef<IKeyArea>& KeyArea, UMovieSceneSection* Section, const TSharedRef<FSequencerDisplayNode>& InNode)
 {
 	TArray<FKeyHandle> Handles;
 	TArray<FFrameNumber> Times;

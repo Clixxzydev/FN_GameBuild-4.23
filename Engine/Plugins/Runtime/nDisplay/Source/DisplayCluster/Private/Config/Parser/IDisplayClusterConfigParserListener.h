@@ -19,7 +19,6 @@ public:
 	virtual void AddWindow(const FDisplayClusterConfigWindow& InCfgWindow) = 0;
 	virtual void AddScreen(const FDisplayClusterConfigScreen& InCfgScreen) = 0;
 	virtual void AddViewport(const FDisplayClusterConfigViewport& InCfgViewport) = 0;
-	virtual void AddPostprocess(const FDisplayClusterConfigPostprocess& InCfgPostprocess) = 0;
 	virtual void AddCamera(const FDisplayClusterConfigCamera& InCfgCamera) = 0;
 	virtual void AddSceneNode(const FDisplayClusterConfigSceneNode& InCfgSNode) = 0;
 	virtual void AddGeneral(const FDisplayClusterConfigGeneral& InCfgGeneral) = 0;
@@ -30,5 +29,4 @@ public:
 	virtual void AddInput(const FDisplayClusterConfigInput& InCfgInput) = 0;
 	virtual void AddInputSetup(const FDisplayClusterConfigInputSetup& input) = 0;
 	virtual void AddCustom(const FDisplayClusterConfigCustom& InCfgCustom) = 0;
-	virtual void AddProjection(const FDisplayClusterConfigProjection& InCfgProjection) = 0;
 };

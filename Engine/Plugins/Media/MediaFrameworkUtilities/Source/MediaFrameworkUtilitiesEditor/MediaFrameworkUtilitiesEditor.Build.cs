@@ -18,7 +18,6 @@ namespace UnrealBuildTool.Rules
 					"Engine",
 					"InputCore",
 					"LevelEditor",
-					"MainFrame",
 					"MaterialEditor",
 					"MediaAssets",
 					"MediaFrameworkUtilities",

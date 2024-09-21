@@ -54,8 +54,7 @@ void IMeshPaintGeometryAdapter::DefaultQueryPaintableTextures(int32 MaterialInde
 			UMaterialExpressionTextureBase* TextureBase = Cast<UMaterialExpressionTextureBase>(*ItExpressions);
 			if (TextureBase != NULL &&
 				TextureBase->Texture != NULL &&
-				!TextureBase->Texture->IsNormalMap() && 
-				!TextureBase->Texture->VirtualTextureStreaming )
+				!TextureBase->Texture->IsNormalMap())
 			{
 				// Default UV channel to index 0. 
 				PaintableTexture = FPaintableTexture(TextureBase->Texture, 0);

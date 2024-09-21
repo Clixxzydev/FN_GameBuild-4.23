@@ -432,7 +432,7 @@ bool FUntypedBulkData::IsBulkDataLoaded() const
 	return !!BulkData;
 }
 
-bool FUntypedBulkData::IsAsyncLoadingComplete() const 
+bool FUntypedBulkData::IsAsyncLoadingComplete()
 {
 	return SerializeFuture.IsValid() == false || SerializeFuture.WaitFor(FTimespan::Zero());
 }
@@ -804,7 +804,7 @@ void FUntypedBulkData::StartSerializingBulkData(FArchive& Ar, UObject* Owner, in
 	DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FUntypedBulkData::StartSerializingBulkData"), STAT_UBD_StartSerializingBulkData, STATGROUP_Memory);
 	check(SerializeFuture.IsValid() == false);	
 
-	SerializeFuture = Async(EAsyncExecution::ThreadPool, [=]() 
+	SerializeFuture = Async<bool>(EAsyncExecution::ThreadPool, [=]() 
 	{ 
 		AsyncLoadBulkData(); 
 		return true;
@@ -1538,7 +1538,7 @@ void FUntypedBulkData::LoadDataIntoMemory( void* Dest )
 	checkf( AttachedAr, TEXT( "Attempted to load bulk data without an attached archive. Most likely the bulk data was loaded twice on console, which is not supported" ) );
 
 	FArchive* BulkDataArchive = nullptr;
-	if (Linker && Linker->GetAsyncLoader() && Linker->GetAsyncLoader()->IsCookedForEDLInEditor() &&
+	if (Linker && Linker->GetFArchiveAsync2Loader() && Linker->GetFArchiveAsync2Loader()->IsCookedForEDLInEditor() &&
 		(BulkDataFlags & BULKDATA_PayloadInSeperateFile))
 	{
 		// The attached archive is a package cooked for EDL loaded in the editor so the actual bulk data sits in a separate ubulk file.

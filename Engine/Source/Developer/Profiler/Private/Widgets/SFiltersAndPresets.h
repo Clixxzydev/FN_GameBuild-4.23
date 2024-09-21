@@ -241,7 +241,7 @@ struct FGroupAndStatSorting
 	{
 		FORCEINLINE_DEBUGGABLE bool operator()( const FGroupOrStatNodePtr& A, const FGroupOrStatNodePtr& B ) const 
 		{
-			return A->GetName().LexicalLess(B->GetName());
+			return A->GetName() < B->GetName();
 		}
 	};
 
@@ -250,7 +250,7 @@ struct FGroupAndStatSorting
 	{
 		FORCEINLINE_DEBUGGABLE bool operator()( const FGroupOrStatNodePtr& A, const FGroupOrStatNodePtr& B ) const 
 		{
-			return A->GetGroupName().LexicalLess(B->GetGroupName());
+			return A->GetGroupName() < B->GetGroupName();
 		}
 	};
 
@@ -265,7 +265,7 @@ struct FGroupAndStatSorting
 			if( TypeA == TypeB )
 			{
 				// Sort by stat name.
-				return A->GetName().LexicalLess(B->GetName());
+				return A->GetName() < B->GetName();
 			}
 			else
 			{

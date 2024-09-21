@@ -5,9 +5,7 @@
 #include "LiveLinkTypes.h"
 #include "ILiveLinkClient.h"
 #include "LiveLinkProvider.h"
-#include "Skeleton/BodyStateBone.h"
 #include "Skeleton/BodyStateSkeleton.h"
-#include "UObject/WeakObjectPtrTemplates.h"
 
 class FLeapLiveLinkProducer
 {
@@ -28,7 +26,10 @@ public:
 protected:
 	FDelegateHandle ConnectionStatusChangedHandle;
 	TSharedPtr<ILiveLinkProvider> LiveLinkProvider;
-
 	FName SubjectName;
-	TArray<TWeakObjectPtr<UBodyStateBone>> TrackedBones;
+	TArray<FName> SubjectBoneNames;
+	TArray<int32> SubjectBoneParents;
+	TArray<FTransform> SubjectBoneTransforms;
+	TArray<FLiveLinkCurveElement> SubjectCurves;
+	TArray<UBodyStateBone*> TrackedBones;
 };

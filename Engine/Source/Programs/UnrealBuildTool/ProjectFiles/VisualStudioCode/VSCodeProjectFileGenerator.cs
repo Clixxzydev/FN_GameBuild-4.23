@@ -410,7 +410,7 @@ namespace UnrealBuildTool
 
 					if (HostPlatform == UnrealTargetPlatform.Win64)
 					{
-						RawIncludes.AddRange(VCToolChain.GetVCIncludePaths(UnrealTargetPlatform.Win64, WindowsPlatform.GetDefaultCompiler(null), null).Trim(';').Split(';'));
+						RawIncludes.AddRange(VCToolChain.GetVCIncludePaths(CppPlatform.Win64, WindowsPlatform.GetDefaultCompiler(null), null).Trim(';').Split(';'));
 					}
 					else
 					{
@@ -436,12 +436,10 @@ namespace UnrealBuildTool
 							
 						}
 					}
-
+					
 					foreach (string Definition in Project.IntelliSensePreprocessorDefinitions)
 					{
 						string Processed = Definition.Replace("\"", "\\\"");
-						// removing trailing spaces on preprocessor definitions as these can be added as empty defines confusing vscode
-						Processed = Processed.TrimEnd(' ');
 						if (!ProjectData.CombinedPreprocessorDefinitions.Contains(Processed))
 						{
 							ProjectData.CombinedPreprocessorDefinitions.Add(Processed);
@@ -918,19 +916,26 @@ namespace UnrealBuildTool
 			DirectoryReference OutputDirectory = DirectoryReference.Combine(RootDirectory, "Binaries", UBTPlatformName);
 
 			// Get the executable name (minus any platform or config suffixes)
-			string BinaryName;
-			if(Target.TargetRules.BuildEnvironment == TargetBuildEnvironment.Shared && TargetRulesType != TargetType.Program)
+			string BaseExeName = TargetName;
+			if (!bShouldCompileMonolithic && TargetRulesType != TargetType.Program)
 			{
-				BinaryName = UEBuildTarget.GetAppNameForTargetType(TargetRulesType);
-			}
-			else
-			{
-				BinaryName = TargetName;
+				// Figure out what the compiled binary will be called so that we can point the IDE to the correct file
+				string TargetConfigurationName = TargetRulesType.ToString();
+				if (TargetConfigurationName != TargetType.Game.ToString() && TargetConfigurationName != TargetType.Program.ToString())
+				{
+					BaseExeName = "UE4" + TargetConfigurationName;
+				}
 			}
 
 			// Make the output file path
-			string BinaryFileName = UEBuildTarget.MakeBinaryFileName(BinaryName, Platform, Configuration, TargetRulesObject.Architecture, TargetRulesObject.UndecoratedConfiguration, UEBuildBinaryType.Executable);
-			string ExecutableFilename = FileReference.Combine(OutputDirectory, BinaryFileName).FullName;
+			string ExecutableFilename = FileReference.Combine(OutputDirectory, BaseExeName).ToString();
+
+			if ((Configuration != UnrealTargetConfiguration.Development) && ((Configuration !=  UnrealTargetConfiguration.DebugGame) || bShouldCompileMonolithic))
+			{
+				ExecutableFilename += "-" + UBTPlatformName + "-" + UBTConfigurationName;
+			}
+			ExecutableFilename += TargetRulesObject.Architecture;
+			ExecutableFilename += BuildPlatform.GetBinaryExtension(UEBuildBinaryType.Executable);
 
 			// Include the path to the actual executable for a Mac app bundle
 			if (Platform == UnrealTargetPlatform.Mac && !Target.TargetRules.bIsBuildingConsoleApplication)
@@ -995,13 +1000,22 @@ namespace UnrealBuildTool
 							{
 								OutFile.AddField("stopAtEntry", false);
 								OutFile.AddField("externalConsole", true);
-
-								OutFile.AddField("type", "cppvsdbg");
-								OutFile.AddField("visualizerFile", MakeUnquotedPathString(FileReference.Combine(UE4ProjectRoot, "Engine", "Extras", "VisualStudioDebugging", "UE4.natvis"), EPathType.Absolute));
 							}
-							else
+
+							switch (HostPlatform)
 							{
-								OutFile.AddField("type", "lldb");
+								case UnrealTargetPlatform.Win64:
+									{
+										OutFile.AddField("type", "cppvsdbg");
+										OutFile.AddField("visualizerFile", MakeUnquotedPathString(FileReference.Combine(UE4ProjectRoot, "Engine", "Extras", "VisualStudioDebugging", "UE4.natvis"), EPathType.Absolute));
+										break;
+									}
+
+								default:
+									{
+										OutFile.AddField("type", "lldb");
+										break;
+									}
 							}
 						}
 						OutFile.EndObject();
@@ -1243,26 +1257,20 @@ namespace UnrealBuildTool
 			{
 				WorkspaceFile.BeginArray("folders");
 				{
-					// Add the directory in which which the code-workspace file exists.
-					// This is also known as ${workspaceRoot}
-					WorkspaceFile.BeginObject();
-					{
-						string ProjectName = bForeignProject ? GameProjectName : "UE4";
-						WorkspaceFile.AddField("name", ProjectName);
-						WorkspaceFile.AddField("path", ".");
-					}
-					WorkspaceFile.EndObject();
-
-					// If this project is outside the engine folder, add the root engine directory
-					if (bIncludeEngineSource && bForeignProject)
+					if (bForeignProject)
 					{
 						WorkspaceFile.BeginObject();
 						{
-							WorkspaceFile.AddField("name", "UE4");
-							WorkspaceFile.AddField("path", MakeUnquotedPathString(UnrealBuildTool.RootDirectory, EPathType.Absolute));
+							WorkspaceFile.AddField("path", ".");
 						}
 						WorkspaceFile.EndObject();
 					}
+
+					WorkspaceFile.BeginObject();
+					{
+						WorkspaceFile.AddField("path", MakeUnquotedPathString(UnrealBuildTool.RootDirectory, EPathType.Absolute));
+					}
+					WorkspaceFile.EndObject();
 				}
 				WorkspaceFile.EndArray();
 			}
@@ -1270,26 +1278,6 @@ namespace UnrealBuildTool
 			WorkspaceFile.BeginObject("settings");
 			{
 				WorkspaceFile.AddField("typescript.tsc.autoDetect", "off");
-			}
-			WorkspaceFile.EndObject();
-			
-			WorkspaceFile.BeginObject("extensions");
-			{
-				// extensions is a set of recommended extensions that a user should install.
-				// Adding this section aids discovery of extensions which are helpful to have installed for Unreal development.
-				WorkspaceFile.BeginArray("recommendations");
-				{
-					WorkspaceFile.AddUnnamedField("ms-vscode.cpptools");
-					WorkspaceFile.AddUnnamedField("ms-vscode.csharp");
-
-					// If the platform we run the generator on uses mono, there are additional debugging extensions to add.
-					if (Utils.IsRunningOnMono)
-					{
-						WorkspaceFile.AddUnnamedField("vadimcn.vscode-lldb");
-						WorkspaceFile.AddUnnamedField("ms-vscode.mono-debug");
-					}
-				}
-				WorkspaceFile.EndArray();
 			}
 			WorkspaceFile.EndObject();
 

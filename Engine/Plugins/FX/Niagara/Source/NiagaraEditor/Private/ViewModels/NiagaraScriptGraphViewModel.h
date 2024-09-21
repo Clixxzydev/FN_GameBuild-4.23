@@ -23,7 +23,7 @@ public:
 
 public:
 	/** Create a new view model with the supplied script. */
-	FNiagaraScriptGraphViewModel(FText InDisplayName);
+	FNiagaraScriptGraphViewModel(UNiagaraScriptSource* InScriptSource, FText InDisplayName);
 
 	~FNiagaraScriptGraphViewModel();
 
@@ -43,7 +43,7 @@ public:
 	TSharedRef<FUICommandList> GetCommands();
 
 	/** Gets the currently selected graph nodes. */
-	TSharedRef<FNiagaraObjectSelection> GetNodeSelection();
+	TSharedRef<FNiagaraObjectSelection> GetSelection();
 
 	/** Sets the currently selected graph nodes. */
 	void SetSelectedNodes(const TSet<UObject*>& InSelectedNodes);
@@ -94,8 +94,8 @@ private:
 	/** Commands for editing the graph. */
 	TSharedRef<FUICommandList> Commands;
 
-	/** The set of nodes objects currently selected in the graph. */
-	TSharedRef<FNiagaraObjectSelection> NodeSelection;
+	/** The set of objects currently selected in the graph. */
+	TSharedRef<FNiagaraObjectSelection> Selection;
 
 	/** A multicast delegate which is called whenever nodes are pasted into the graph. */
 	FOnNodesPasted OnNodesPastedDelegate;

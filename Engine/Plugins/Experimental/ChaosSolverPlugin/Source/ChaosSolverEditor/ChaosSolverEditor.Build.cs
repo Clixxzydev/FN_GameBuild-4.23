@@ -19,7 +19,6 @@ namespace UnrealBuildTool.Rules
                     "Engine",
                     "UnrealEd",
                     "PropertyEditor",
-                    "EditorStyle",
                     "RenderCore",
                     "RHI",
                     "ChaosSolverEngine",

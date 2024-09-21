@@ -54,7 +54,6 @@ void FPhysCommandHandler::ExecuteCommands()
 		}
 		case PhysCommand::DeleteSimEventCallback:
 		{
-#if !WITH_CHAOS // Chaos doesn't implement these callbacks
 			physx::PxSimulationEventCallback * SimEventCallback = Command.Pointer.SimEventCallback;
 			if (FPhysScene::SimEventCallbackFactory.IsValid())
 			{
@@ -64,12 +63,10 @@ void FPhysCommandHandler::ExecuteCommands()
 			{
 				delete SimEventCallback;
 			}
-#endif
 			break;
 		}
 		case PhysCommand::DeleteContactModifyCallback:
 		{
-#if !WITH_CHAOS // Chaos doesn't implement these callbacks
 			FContactModifyCallback* ContactModifyCallback = Command.Pointer.ContactModifyCallback;
 			if (FPhysScene::ContactModifyCallbackFactory.IsValid())
 			{
@@ -79,15 +76,12 @@ void FPhysCommandHandler::ExecuteCommands()
 			{
 				delete ContactModifyCallback;
 			}
-#endif
 			break;
 		}
 
 		case PhysCommand::DeleteCCDContactModifyCallback:
 		{
-#if !WITH_CHAOS // Chaos doesn't implement these callbacks
 			FCCDContactModifyCallback* CCDContactModifyCallback = Command.Pointer.CCDContactModifyCallback;
-
 			if (FPhysScene::CCDContactModifyCallbackFactory.IsValid())
 			{
 				FPhysScene::CCDContactModifyCallbackFactory->Destroy(CCDContactModifyCallback);
@@ -96,7 +90,6 @@ void FPhysCommandHandler::ExecuteCommands()
 			{
 				delete CCDContactModifyCallback;
 			}
-#endif
 			break;
 		}
 

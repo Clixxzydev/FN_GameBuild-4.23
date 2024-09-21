@@ -120,7 +120,6 @@ bool FPackageItem::GetTypeNameAndColor(FString& OutName, FColor& OutColor) const
  */
 void SPackagesDialog::Construct(const FArguments& InArgs)
 {
-	bSortDirty = false;
 	bReadOnly = InArgs._ReadOnly.Get();
 	bAllowSourceControlConnection = InArgs._AllowSourceControlConnection.Get();
 	Message = InArgs._Message;
@@ -630,22 +629,6 @@ void SPackagesDialog::OnToggleSelectedCheckBox(ECheckBoxState InNewState)
 	ItemListView->RequestListRefresh();
 }
 
-void SPackagesDialog::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-
-	if(bSortDirty)
-	{
-		bSortDirty = false;
-
-		// Sort the list of root items
-		SortTree();
-
-		ItemListView->RequestListRefresh();
-	}
-}
-
-
 FReply SPackagesDialog::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent )
 {
 	if( InKeyEvent.GetKey() == EKeys::Escape )
@@ -756,7 +739,10 @@ void SPackagesDialog::OnColumnSortModeChanged( const EColumnSortPriority::Type S
 
 void SPackagesDialog::RequestSort()
 {
-	bSortDirty = true;
+	// Sort the list of root items
+	SortTree();
+
+	ItemListView->RequestListRefresh();
 }
 
 void SPackagesDialog::SortTree()

@@ -40,10 +40,6 @@ void FAnimSequencerInstanceProxy::ConstructNodes()
 	FullBodyBlendNode.ResetPoses();
 	AdditiveBlendNode.ResetPoses();
 
-
-	SnapshotNode.SnapshotName = UAnimSequencerInstance::SequencerPoseName;
-
-
 	ClearSequencePlayerMap();
 }
 
@@ -57,11 +53,6 @@ void FAnimSequencerInstanceProxy::ClearSequencePlayerMap()
 	SequencerToPlayerMap.Empty();
 }
 
-void FAnimSequencerInstanceProxy::ResetPose()
-{
-	SequencerRootNode.Base.SetLinkNode(&SnapshotNode);
-	//force evaluation?
-}	
 void FAnimSequencerInstanceProxy::ResetNodes()
 {
 	FMemory::Memzero(FullBodyBlendNode.DesiredAlphas.GetData(), FullBodyBlendNode.DesiredAlphas.GetAllocatedSize());
@@ -153,13 +144,6 @@ void FAnimSequencerInstanceProxy::UpdateAnimTrack(UAnimSequenceBase* InAnimSeque
 	// if moving to 0.f, we mark this to teleport. Otherwise, do not use explicit time
 	FAnimNode_MultiWayBlend& BlendNode = (PlayerState->bAdditive) ? AdditiveBlendNode : FullBodyBlendNode;
 	BlendNode.DesiredAlphas[PlayerState->PoseIndex] = Weight;
-
-	// if additive, apply alpha value correctly
-	// this will be used when apply additive is blending correct total alpha to additive
-	if (PlayerState->bAdditive)
-	{
-		SequencerRootNode.Alpha = BlendNode.GetTotalAlpha();
-	}
 }
 
 void FAnimSequencerInstanceProxy::EnsureAnimTrack(UAnimSequenceBase* InAnimSequence, uint32 SequenceId)
@@ -174,4 +158,3 @@ void FAnimSequencerInstanceProxy::EnsureAnimTrack(UAnimSequenceBase* InAnimSeque
 		PlayerState->PlayerNode.OverrideAsset(InAnimSequence);
 	}
 }
-

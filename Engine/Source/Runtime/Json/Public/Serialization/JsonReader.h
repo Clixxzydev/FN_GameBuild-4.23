@@ -563,7 +563,7 @@ private:
 							HexNum += HexDigit * FMath::Pow(16, Radix);
 						}
 
-						String += (FString::ElementType)HexNum;
+						String += (CharType)HexNum;
 					}
 					break;
 

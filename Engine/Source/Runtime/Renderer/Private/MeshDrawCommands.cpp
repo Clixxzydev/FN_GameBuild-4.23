@@ -35,7 +35,7 @@ FPrimitiveIdVertexBufferPool::~FPrimitiveIdVertexBufferPool()
 	check(!Entries.Num());
 }
 
-FRHIVertexBuffer* FPrimitiveIdVertexBufferPool::Allocate(int32 BufferSize)
+FVertexBufferRHIParamRef FPrimitiveIdVertexBufferPool::Allocate(int32 BufferSize)
 {
 	BufferSize = Align(BufferSize, 1024);
 
@@ -148,8 +148,11 @@ void UpdateTranslucentMeshSortKeys(
 	{
 		FVisibleMeshDrawCommand& VisibleCommand = VisibleMeshCommands[CommandIndex];
 
-		const int32 PrimitiveIndex = VisibleCommand.ScenePrimitiveId;
-		const FVector BoundsOrigin = PrimitiveIndex >= 0 ? PrimitiveBounds[PrimitiveIndex].BoxSphereBounds.Origin : FVector::ZeroVector;
+		FVector BoundsOrigin = FVector::ZeroVector;
+		if (VisibleCommand.DrawPrimitiveId < PrimitiveBounds.Num())
+		{
+			BoundsOrigin = PrimitiveBounds[VisibleCommand.DrawPrimitiveId].BoxSphereBounds.Origin;
+		}
 
 		float Distance = 0.0f;
 		if (TranslucentSortPolicy == ETranslucentSortPolicy::SortByDistance)
@@ -259,9 +262,9 @@ void MergeMobileBasePassMeshDrawCommands(
 			FVisibleMeshDrawCommand& MeshCommandCSM = MeshCommandsCSM[i];
 
 			if (MobileCSMVisibilityInfo.bAlwaysUseCSM 
-				|| (MeshCommand.ScenePrimitiveId < ScenePrimitiveNum && MobileCSMVisibilityInfo.MobilePrimitiveCSMReceiverVisibilityMap[MeshCommand.ScenePrimitiveId]))
+				|| (MeshCommand.DrawPrimitiveId < ScenePrimitiveNum && MobileCSMVisibilityInfo.MobilePrimitiveCSMReceiverVisibilityMap[MeshCommand.DrawPrimitiveId]))
 			{
-				checkf(MeshCommand.ScenePrimitiveId == MeshCommandCSM.ScenePrimitiveId, TEXT("VisibleMeshDrawCommands of BasePass and MobileBasePassCSM are expected to match."));
+				checkf(MeshCommand.DrawPrimitiveId == MeshCommandCSM.DrawPrimitiveId, TEXT("VisibleMeshDrawCommands of BasePass and MobileBasePassCSM are expected to match."));
 				// Use CSM's VisibleMeshDrawCommand.
 				MeshCommand = MeshCommandCSM;
 			}
@@ -294,16 +297,15 @@ void UpdateMobileBasePassMeshSortKeys(
 			bool bMasked = Cmd.SortKey.PackedData & 0x1 ? true : false; 
 			bool bBackground = Cmd.SortKey.PackedData & 0x2 ? true : false;
 			float PrimitiveDistance = 0;
-			if (Cmd.ScenePrimitiveId < ScenePrimitiveBounds.Num())
+			if (Cmd.DrawPrimitiveId < ScenePrimitiveBounds.Num())
 			{
-				const FPrimitiveBounds& PrimitiveBounds = ScenePrimitiveBounds[Cmd.ScenePrimitiveId];
+				const FPrimitiveBounds& PrimitiveBounds = ScenePrimitiveBounds[Cmd.DrawPrimitiveId];
 				PrimitiveDistance = (PrimitiveBounds.BoxSphereBounds.Origin - ViewOrigin).Size();
 				bBackground|= (PrimitiveBounds.BoxSphereBounds.SphereRadius > HALF_WORLD_MAX / 4.0f);
 			}
 
 			uint32 PipelineId = Cmd.MeshDrawCommand->CachedPipelineId.GetId();
-			// use state bucket if dynamic instancing is enabled, otherwise identify same meshes by index buffer resource
-			int32 StateBucketId = Cmd.StateBucketId >=0 ? Cmd.StateBucketId : PointerHash(Cmd.MeshDrawCommand->IndexBuffer);
+			int32 StateBucketId = PointerHash(Cmd.MeshDrawCommand->IndexBuffer);
 			Cmd.SortKey.PackedData = GetMobileBasePassSortKey_FrontToBack(bMasked, bBackground, PipelineId, StateBucketId, PrimitiveDistance);
 		}
 	}
@@ -317,9 +319,9 @@ void UpdateMobileBasePassMeshSortKeys(
 		{
 			FVisibleMeshDrawCommand& Cmd = VisibleMeshCommands[CmdIdx];
 			float PrimitiveDistance = 0;
-			if (Cmd.ScenePrimitiveId < ScenePrimitiveBounds.Num())
+			if (Cmd.DrawPrimitiveId < ScenePrimitiveBounds.Num())
 			{
-				const FPrimitiveBounds& PrimitiveBounds = ScenePrimitiveBounds[Cmd.ScenePrimitiveId];
+				const FPrimitiveBounds& PrimitiveBounds = ScenePrimitiveBounds[Cmd.DrawPrimitiveId];
 				PrimitiveDistance = (PrimitiveBounds.BoxSphereBounds.Origin - ViewOrigin).Size();
 			}
 
@@ -336,17 +338,17 @@ void UpdateMobileBasePassMeshSortKeys(
 			bool bMasked = Cmd.SortKey.PackedData & 0x1 ? true : false; 
 			bool bBackground = Cmd.SortKey.PackedData & 0x2 ? true : false;
 			float PrimitiveDistance = 0;
-			if (Cmd.ScenePrimitiveId < ScenePrimitiveBounds.Num())
+			if (Cmd.DrawPrimitiveId < ScenePrimitiveBounds.Num())
 			{
-				const FPrimitiveBounds& PrimitiveBounds = ScenePrimitiveBounds[Cmd.ScenePrimitiveId];
+				const FPrimitiveBounds& PrimitiveBounds = ScenePrimitiveBounds[Cmd.DrawPrimitiveId];
 				PrimitiveDistance = (PrimitiveBounds.BoxSphereBounds.Origin - ViewOrigin).Size();
 				bBackground|= (PrimitiveBounds.BoxSphereBounds.SphereRadius > HALF_WORLD_MAX / 4.0f);
 			}
 			
 			int32 PipelineId = Cmd.MeshDrawCommand->CachedPipelineId.GetId();
 			float PipelineDistance = PipelineDistances.FindRef(PipelineId);
-			// use state bucket if dynamic instancing is enabled, otherwise identify same meshes by index buffer resource
-			int32 StateBucketId = Cmd.StateBucketId >=0 ? Cmd.StateBucketId : PointerHash(Cmd.MeshDrawCommand->IndexBuffer);
+			// poor man StateID, can't use Cmd.StateBucketId as it is unique for each primitive if platform does not support auto-instancing
+			int32 StateBucketId = PointerHash(Cmd.MeshDrawCommand->IndexBuffer);
 			Cmd.SortKey.PackedData = GetMobileBasePassSortKey_ByState(bMasked, bBackground, PipelineId, StateBucketId, PipelineDistance, PrimitiveDistance);
 		}
 	}
@@ -426,7 +428,6 @@ void BuildMeshDrawCommandPrimitiveIdBuffer(
 					NewVisibleMeshDrawCommand.Setup(
 						&NewCommand,
 						VisibleMeshDrawCommand.DrawPrimitiveId,
-						VisibleMeshDrawCommand.ScenePrimitiveId,
 						VisibleMeshDrawCommand.StateBucketId,
 						VisibleMeshDrawCommand.MeshFillMode,
 						VisibleMeshDrawCommand.MeshCullMode,
@@ -691,7 +692,6 @@ void ApplyViewOverridesToMeshDrawCommands(
 				NewVisibleMeshDrawCommand.Setup(
 					&NewMeshCommand,
 					VisibleMeshDrawCommand.DrawPrimitiveId,
-					VisibleMeshDrawCommand.ScenePrimitiveId,
 					VisibleMeshDrawCommand.StateBucketId,
 					VisibleMeshDrawCommand.MeshFillMode,
 					VisibleMeshDrawCommand.MeshCullMode,
@@ -868,7 +868,7 @@ void SortAndMergeDynamicPassMeshDrawCommands(
 	ERHIFeatureLevel::Type FeatureLevel,
 	FMeshCommandOneFrameArray& VisibleMeshDrawCommands,
 	FDynamicMeshDrawCommandStorage& MeshDrawCommandStorage,
-	FRHIVertexBuffer*& OutPrimitiveIdVertexBuffer,
+	FVertexBufferRHIParamRef& OutPrimitiveIdVertexBuffer,
 	uint32 InstanceFactor)
 {
 	const bool bUseGPUScene = UseGPUScene(GMaxRHIShaderPlatform, FeatureLevel);
@@ -1073,7 +1073,7 @@ class FDrawVisibleMeshCommandsAnyThreadTask : public FRenderTask
 	FRHICommandList& RHICmdList;
 	const FMeshCommandOneFrameArray& VisibleMeshDrawCommands;
 	const FGraphicsMinimalPipelineStateSet& GraphicsMinimalPipelineStateSet;
-	FRHIVertexBuffer* PrimitiveIdsBuffer;
+	FVertexBufferRHIParamRef PrimitiveIdsBuffer;
 	int32 BasePrimitiveIdsOffset;
 	bool bDynamicInstancing;
 	uint32 InstanceFactor;
@@ -1086,7 +1086,7 @@ public:
 		FRHICommandList& InRHICmdList,
 		const FMeshCommandOneFrameArray& InVisibleMeshDrawCommands,
 		const FGraphicsMinimalPipelineStateSet& InGraphicsMinimalPipelineStateSet,
-		FRHIVertexBuffer* InPrimitiveIdsBuffer,
+		FVertexBufferRHIParamRef InPrimitiveIdsBuffer,
 		int32 InBasePrimitiveIdsOffset,
 		bool bInDynamicInstancing,
 		uint32 InInstanceFactor,
@@ -1133,14 +1133,14 @@ public:
  */
 struct FRHICommandUpdatePrimitiveIdBuffer : public FRHICommand<FRHICommandUpdatePrimitiveIdBuffer>
 {
-	FRHIVertexBuffer* VertexBuffer;
+	FVertexBufferRHIParamRef VertexBuffer;
 	void* VertexBufferData;
 	int32 VertexBufferDataSize;
 
 	virtual ~FRHICommandUpdatePrimitiveIdBuffer() {}
 
 	FORCEINLINE_DEBUGGABLE FRHICommandUpdatePrimitiveIdBuffer(
-		FRHIVertexBuffer* InVertexBuffer,
+		FVertexBufferRHIParamRef InVertexBuffer,
 		void* InVertexBufferData,
 		int32 InVertexBufferDataSize)
 		: VertexBuffer(InVertexBuffer)
@@ -1167,7 +1167,7 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 		return;
 	}
 
-	FRHIVertexBuffer* PrimitiveIdsBuffer = PrimitiveIdVertexBufferRHI;
+	FVertexBufferRHIParamRef PrimitiveIdsBuffer = PrimitiveIdVertexBufferRHI;
 	const int32 BasePrimitiveIdsOffset = 0;
 
 	if (ParallelCommandListSet)

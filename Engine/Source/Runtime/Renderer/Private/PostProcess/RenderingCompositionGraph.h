@@ -175,7 +175,23 @@ struct FRenderingCompositePassContext
 	}
 
 	/** Returns the LoadAction that should be use for a given render target. */
-	ERenderTargetLoadAction GetLoadActionForRenderTarget(const FSceneRenderTargetItem& DestRenderTarget) const;
+	ERenderTargetLoadAction GetLoadActionForRenderTarget(const FSceneRenderTargetItem& DestRenderTarget) const
+	{
+		ERenderTargetLoadAction LoadAction = ERenderTargetLoadAction::ENoAction;
+		
+		if (IsViewFamilyRenderTarget(DestRenderTarget))
+		{
+			// If rendering the final view family's render target, must clear first view, and load subsequent views.
+			LoadAction = (&View != View.Family->Views[0]) ? ERenderTargetLoadAction::ELoad : ERenderTargetLoadAction::EClear;
+		}
+		else if (HasHmdMesh())
+		{
+			// Clears render target because going to have unrendered pixels inside view rect.
+			LoadAction = ERenderTargetLoadAction::EClear;
+		}
+
+		return LoadAction;
+	}
 
 	ERHIFeatureLevel::Type GetFeatureLevel() const { return FeatureLevel; }
 	EShaderPlatform GetShaderPlatform() const { return GShaderPlatformForFeatureLevel[FeatureLevel]; }
@@ -322,49 +338,6 @@ struct FRenderingCompositePass
 	FString ConstructDebugName();
 
 	/**
-	 * Registers a RDG texture for the provided input. Returns a fallback color if the requested
-	 * input is null. Used for compatibility when porting to RDG.
-	 */
-	FRDGTextureRef CreateRDGTextureForOptionalInput(
-		FRDGBuilder& GraphBuilder,
-		EPassInputId InputId,
-		const TCHAR* InputName);
-
-	FRDGTextureRef CreateRDGTextureForRequiredInput(
-		FRDGBuilder& GraphBuilder,
-		EPassInputId InputId,
-		const TCHAR* InputName)
-	{
-		FRDGTextureRef Texture = CreateRDGTextureForOptionalInput(GraphBuilder, InputId, InputName);
-		checkf(Texture, TEXT("Required texture parameter %s was not set on the post process input %d"), InputName, int32(InputId));
-		return Texture;
-	}
-
-	FRDGTextureRef CreateRDGTextureForInputWithFallback(
-		FRDGBuilder& GraphBuilder,
-		EPassInputId InputId,
-		const TCHAR* InputName,
-		EFallbackColor FallbackColor);
-
-	/**
-	 * Attempts to find an persistent render target allocated for the output, or creates
-	 * a new one with the provided descriptor.
-	 */
-	FRDGTextureRef FindOrCreateRDGTextureForOutput(
-		FRDGBuilder& GraphBuilder,
-		EPassOutputId OutputId,
-		const FRDGTextureDesc& TextureDesc,
-		const TCHAR* TextureName);
-
-	/**
-	 * Registers a RDG texture to be extracted to the assigned output during graph execution.
-	 */
-	void ExtractRDGTextureForOutput(
-		FRDGBuilder& GraphBuilder,
-		EPassOutputId OutputId,
-		FRDGTextureRef Texture);
-
-	/**
 	 * Convenience method, is using other virtual methods.
 	 * @return 0 if there is an error
 	 */
@@ -386,7 +359,7 @@ struct FRenderingCompositePass
 		return bIsComputePass && bPreferAsyncCompute && GSupportsEfficientAsyncCompute;
 #endif
 	};
-	virtual FRHIComputeFence* GetComputePassEndFence() const { return nullptr; }
+	virtual FComputeFenceRHIParamRef GetComputePassEndFence() const { return nullptr; }
 
 protected:
 	/** to avoid wasteful recomputation and to support graph/DAG traversal, if ComputeOutputDesc() was called */
@@ -432,7 +405,7 @@ struct FRenderingCompositeOutputRef
 		return IsValid() && Source->IsAsyncComputePass();
 	}
 
-	FRHIComputeFence* GetComputePassEndFence() const
+	FComputeFenceRHIParamRef GetComputePassEndFence() const
 	{
 		return IsValid() ? Source->GetComputePassEndFence() : nullptr;
 	}
@@ -506,7 +479,6 @@ private:
 
 	uint32 Dependencies;
 };
-
 
 //
 template <uint32 InputCount, uint32 OutputCount>
@@ -672,7 +644,7 @@ protected:
 		{
 			if (IsAsyncComputePass() != Input.IsAsyncComputePass())
 			{
-				FRHIComputeFence* InputComputePassEndFence = Input.GetComputePassEndFence();
+				FComputeFenceRHIParamRef InputComputePassEndFence = Input.GetComputePassEndFence();
 				if (InputComputePassEndFence)
 				{
 					RHICmdList.WaitComputeFence(InputComputePassEndFence);
@@ -681,58 +653,5 @@ protected:
 		}
 	}
 };
-
-
-/** Utility to conveniently create a RDG graph within a post process graph.
- *
- * Example:
- *	FRenderingCompositePass* DiaphragmDOFPass = Context.Graph.RegisterPass(
- *		new(FMemStack::Get()) TRCPassForRDG<2, 1>([](FRenderingCompositePass* Pass, FRenderingCompositePassContext& Context)
- *	{
- *		FRDGBuilder GraphBuilder(Context.RHICmdList);
- *
- *		FRDGTextureRef SceneColor = Pass->CreateRDGTextureForInput(GraphBuilder, ePId_Input0, TEXT("SceneColor"));
- *		FRDGTextureRef SeparateTranslucency = Pass->CreateRDGTextureForInputWithFallback(GraphBuilder, ePId_Input1, TEXT("SeparateTranslucency"), eFC_0000);
- *
- *		// ...
- *
- *		Pass->ExtractRDGTextureForOutput(GraphBuilder, ePId_Output0, NewSceneColor);
- *		GraphBuilder.Execute();
- *	}));
- *	DiaphragmDOFPass->SetInput(ePId_Input0, Context.FinalOutput);
- *	DiaphragmDOFPass->SetInput(ePId_Input1, SeparateTranslucency);
- *	Context.FinalOutput = FRenderingCompositeOutputRef(DiaphragmDOFPass, ePId_Output0);
- */
-template<uint32 InputCount, uint32 OutputCount>
-class TRCPassForRDG : public TRenderingCompositePassBase<InputCount, OutputCount>
-{
-public:
-	TRCPassForRDG(TFunction<void (FRenderingCompositePass*, FRenderingCompositePassContext&)>&& InProcessLambda)
-		: ProcessLambda(InProcessLambda)
-	{ }
-
-	// interface FRenderingCompositePass ---------
-	virtual void Process(FRenderingCompositePassContext& Context) override
-	{
-		this->TRenderingCompositePassBase<InputCount, OutputCount>::WaitForInputPassComputeFences(Context.RHICmdList);
-
-		ProcessLambda(this, Context);
-	}
-
-	virtual void Release() override
-	{
-		delete this;
-	}
-
-	virtual FPooledRenderTargetDesc ComputeOutputDesc(EPassOutputId InPassOutputId) const
-	{
-		// ExtractRDGTextureForOutput() is doing this work for us already.
-		return FPooledRenderTargetDesc();
-	}
-
-private:
-	TFunction<void (FRenderingCompositePass*, FRenderingCompositePassContext&)> ProcessLambda;
-};
-
 
 void CompositionGraph_OnStartFrame();

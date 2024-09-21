@@ -108,26 +108,10 @@ void SGraphNodeK2Base::UpdateCompactNode()
 			]
 		];
 	
-	// Default to "pure" styling, where we can just center the pins vertically
-	// since don't need to worry about alignment with other nodes
-	float PinPaddingTop = 0.f;
-	EVerticalAlignment PinVerticalAlignment = VAlign_Center;
-
-	// But if this is an impure node, we'll align the pins to the top, 
-	// and add some padding so that the exec pins line up with the exec pins of other nodes
-	if (UK2Node* K2Node = Cast<UK2Node>(GraphNode))
-	{
-		if (!K2Node->IsNodePure())
-		{
-			PinPaddingTop += 8.0f;
-			PinVerticalAlignment = VAlign_Top;
-		}
-	}
-	
 	NodeOverlay->AddSlot()
 		.HAlign(HAlign_Left)
-		.VAlign(PinVerticalAlignment)
-		.Padding(0.f, PinPaddingTop, 55.f, 0.f)
+		.VAlign(VAlign_Center)
+		.Padding(0.f, 0.f, 55.f, 0.f)
 		[
 			// LEFT
 			SAssignNew(LeftNodeBox, SVerticalBox)
@@ -135,8 +119,8 @@ void SGraphNodeK2Base::UpdateCompactNode()
 
 	NodeOverlay->AddSlot()
 		.HAlign(HAlign_Right)
-		.VAlign(PinVerticalAlignment)
-		.Padding(55.f, PinPaddingTop, 0.f, 0.f)
+		.VAlign(VAlign_Center)
+		.Padding(55.f, 0.f, 0.f, 0.f)
 		[
 			// RIGHT
 			SAssignNew(RightNodeBox, SVerticalBox)
@@ -152,8 +136,10 @@ void SGraphNodeK2Base::UpdateCompactNode()
 	//            |_______|______|_______|
 	//
 	this->ContentScale.Bind( this, &SGraphNode::GetContentScale );
-	
-	TSharedRef<SVerticalBox> InnerVerticalBox =
+	this->GetOrAddSlot( ENodeZone::Center )
+	.HAlign(HAlign_Center)
+	.VAlign(VAlign_Center)
+	[
 		SNew(SVerticalBox)
 		+SVerticalBox::Slot()
 		[
@@ -174,33 +160,13 @@ void SGraphNodeK2Base::UpdateCompactNode()
 			[
 				NodeOverlay
 			]
-		];
-	
-	TSharedPtr<SWidget> EnabledStateWidget = GetEnabledStateWidget();
-	if (EnabledStateWidget.IsValid())
-	{
-		InnerVerticalBox->AddSlot()
-			.AutoHeight()
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Top)
-			.Padding(FMargin(2, 0))
-			[
-				EnabledStateWidget.ToSharedRef()
-			];
-	}
-
-	InnerVerticalBox->AddSlot()
+		]
+		+SVerticalBox::Slot()
 		.AutoHeight()
 		.Padding( FMargin(5.0f, 1.0f) )
 		[
 			ErrorReporting->AsWidget()
-		];
-
-	this->GetOrAddSlot( ENodeZone::Center )
-	.HAlign(HAlign_Center)
-	.VAlign(VAlign_Center)
-	[
-		InnerVerticalBox
+		]
 	];
 
 	CreatePinWidgets();

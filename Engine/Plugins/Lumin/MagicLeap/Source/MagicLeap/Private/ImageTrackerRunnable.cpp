@@ -40,7 +40,7 @@
 #include "Misc/Paths.h"
 #include "Engine/Texture2D.h"
 #if PLATFORM_LUMIN
-#include "Lumin/LuminPlatformAffinity.h"
+#include "Lumin/LuminAffinity.h"
 #endif // PLATFORM_LUMIN
 
 #if WITH_MLSDK

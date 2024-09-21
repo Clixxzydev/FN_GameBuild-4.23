@@ -95,22 +95,16 @@ void FFilePathStructCustomization::HandleFilePathPickerPathPicked( const FString
 	}
 	else if (bRelativeToGameDir)
 	{
-		//If path is already relative to Content dir, nothing to do.
-		const FString ContentDir = TEXT("Content/");
-		if (!PickedPath.IsEmpty() && !PickedPath.StartsWith(ContentDir))
+		//If the path is part of the project directory, make it relative to it or keep the absolute path.
+		const FString AbsolutePickedPath = FPaths::ConvertRelativePathToFull(PickedPath);
+		const FString AbsoluteProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+		if (AbsolutePickedPath.StartsWith(AbsoluteProjectDir))
 		{
-			//If the path is part of the project directory, make it relative to it or keep the absolute path.
-			const FString AbsolutePickedPath = FPaths::ConvertRelativePathToFull(PickedPath);
-			const FString AbsoluteProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-			const FString AbsoluteProjectWithContentDir = AbsoluteProjectDir + ContentDir;
-			if (AbsolutePickedPath.StartsWith(AbsoluteProjectWithContentDir))
-			{
-				FinalPath = AbsolutePickedPath.RightChop(AbsoluteProjectDir.Len());
-			}
-			else
-			{
-				FinalPath = AbsolutePickedPath;
-			}
+			FinalPath = AbsolutePickedPath.RightChop(AbsoluteProjectDir.Len());
+		}
+		else
+		{
+			FinalPath = AbsolutePickedPath;
 		}
 	}
 

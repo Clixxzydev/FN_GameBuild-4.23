@@ -113,10 +113,6 @@ public:
 
 	/** Update Simulated Positions & Normals from APEX Clothing actor */
 	bool UpdateClothSimulationData(USkinnedMeshComponent* InMeshComponent);
-
-#if RHI_RAYTRACING
-	bool bAnySegmentUsesWorldPositionOffset;
-#endif
 };
 
 /** morph target mesh data for a single vertex delta */
@@ -226,7 +222,7 @@ public:
 	bool bNeedsInitialClear;
 
 	// @param guaranteed only to be valid if the vertex buffer is valid
-	FRHIShaderResourceView* GetSRV() const
+	FShaderResourceViewRHIParamRef GetSRV() const
 	{
 		return SRVValue;
 	}
@@ -282,11 +278,8 @@ public:
 #if RHI_RAYTRACING
 	/** Geometry for ray tracing. */
 	FRayTracingGeometry RayTracingGeometry;
-	FRWBuffer RayTracingDynamicVertexBuffer;
 
-	virtual FRayTracingGeometry* GetRayTracingGeometry() { return &RayTracingGeometry; }
 	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { return &RayTracingGeometry; }
-	virtual FRWBuffer* GetRayTracingDynamicVertexBuffer() { return &RayTracingDynamicVertexBuffer; }
 #endif // RHI_RAYTRACING
 
 	virtual int32 GetLOD() const override

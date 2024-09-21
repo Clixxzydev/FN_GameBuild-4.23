@@ -8,9 +8,6 @@
 #include "Misc/FrameRate.h"
 #include "FrameNumberTimeEvaluator.h"
 #include "Misc/Timecode.h"
-#include "Misc/ExpressionParserTypes.h"
-#include "Math/BasicMathExpressionEvaluator.h"
-#include "Internationalization/FastDecimalFormat.h"
 
 /**
 * A large portion of the Sequencer UI is built around using SpinBox and NumericBox because the framerate
@@ -81,12 +78,7 @@ struct FFrameNumberInterface : public INumericTypeInterface<double>
 		case EFrameNumberDisplayFormats::Seconds:
 		{
 			double TimeInSeconds = SourceFrameRate.AsSeconds(FFrameTime::FromDecimal(Value));
-
-			static const FNumberFormattingOptions NumberFormattingOptions = FNumberFormattingOptions()
-				.SetUseGrouping(false)
-				.SetMinimumFractionalDigits(2)
-				.SetMaximumFractionalDigits(ZeroPadFramesAttr.Get());
-			return FastDecimalFormat::NumberToString(TimeInSeconds, ExpressionParser::GetLocalizedNumberFormattingRules(), NumberFormattingOptions);
+			return FString::Printf(TEXT("%.2f s"), TimeInSeconds);
 		}
 		case EFrameNumberDisplayFormats::NonDropFrameTimecode:
 		case EFrameNumberDisplayFormats::DropFrameTimecode:
@@ -143,34 +135,6 @@ struct FFrameNumberInterface : public INumericTypeInterface<double>
 			else if (FrameResult.IsValid() && FallbackFormat == EFrameNumberDisplayFormats::Frames)
 			{
 				return TOptional<double>(FrameResult.GetValue().GetFrame().Value);
-			}
-
-			static FBasicMathExpressionEvaluator Parser;
-
-			// If not parsed, try the math expression evaluator
-			if (FallbackFormat == EFrameNumberDisplayFormats::Seconds)
-			{
-				double TimeInSeconds = DestinationFrameRate.AsSeconds(FFrameTime::FromDecimal(InExistingValue));
-
-				TValueOrError<double, FExpressionError> Result = Parser.Evaluate(*InString, TimeInSeconds);
-				if (Result.IsValid())
-				{
-					FFrameTime ResultTime = DestinationFrameRate.AsFrameTime(Result.GetValue());
-
-					return TOptional<double>(ResultTime.GetFrame().Value);
-				}
-			}
-			else if (FallbackFormat == EFrameNumberDisplayFormats::Frames)
-			{
-				FFrameTime ExistingTime = FFrameRate::TransformTime(FFrameTime::FromDecimal(InExistingValue), DestinationFrameRate, SourceFrameRate);
-
-				TValueOrError<double, FExpressionError> Result = Parser.Evaluate(*InString, (double)(ExistingTime.GetFrame().Value));
-				if (Result.IsValid())
-				{
-					FFrameTime ResultTime = FFrameRate::TransformTime(FFrameTime::FromDecimal(Result.GetValue()), SourceFrameRate, DestinationFrameRate);
-
-					return TOptional<double>(ResultTime.GetFrame().Value);
-				}
 			}
 
 			// Whatever they entered wasn't understood by any of our parsers, so it was probably malformed or had letters, etc.

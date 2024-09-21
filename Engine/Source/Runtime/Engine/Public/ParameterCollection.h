@@ -45,7 +45,7 @@ public:
 		return OwnerName;
 	}
 
-	FRHIUniformBuffer* GetUniformBuffer() const
+	FUniformBufferRHIParamRef GetUniformBuffer() const
 	{
 		return UniformBuffer;
 	}

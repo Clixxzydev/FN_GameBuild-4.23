@@ -37,11 +37,14 @@ FStreamingLevelCollectionModel::FStreamingLevelCollectionModel()
 	{
 		AddedLevelStreamingClass = DefaultLevelStreamingClass;
 	}
+
+	FEditorDelegates::RefreshLevelBrowser.AddRaw(this, &FStreamingLevelCollectionModel::PopulateLevelsList);
 }
 
 FStreamingLevelCollectionModel::~FStreamingLevelCollectionModel()
 {
 	GEditor->UnregisterForUndo( this );
+	FEditorDelegates::RefreshLevelBrowser.RemoveAll(this);
 }
 
 void FStreamingLevelCollectionModel::Initialize(UWorld* InWorld)
@@ -285,13 +288,13 @@ void FStreamingLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuil
 		InMenuBuilder.AddSubMenu( 
 			LOCTEXT("VisibilityHeader", "Visibility"),
 			LOCTEXT("VisibilitySubMenu_ToolTip", "Selected Level(s) visibility commands"),
-			FNewMenuDelegate::CreateSP(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillVisibilitySubMenu ) );
+			FNewMenuDelegate::CreateSP(this, &FStreamingLevelCollectionModel::FillVisibilitySubMenu ) );
 
 		// Lock commands
 		InMenuBuilder.AddSubMenu( 
 			LOCTEXT("LockHeader", "Lock"),
 			LOCTEXT("LockSubMenu_ToolTip", "Selected Level(s) lock commands"),
-			FNewMenuDelegate::CreateSP(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillLockSubMenu ) );
+			FNewMenuDelegate::CreateSP(this, &FStreamingLevelCollectionModel::FillLockSubMenu ) );
 		
 		// Level streaming specific commands
 		if (AreAnyLevelsSelected() && !(IsOneLevelSelected() && GetSelectedLevels()[0]->IsPersistent()))
@@ -301,7 +304,7 @@ void FStreamingLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuil
 			InMenuBuilder.AddSubMenu( 
 				LOCTEXT("LevelsChangeStreamingMethod", "Change Streaming Method"),
 				LOCTEXT("LevelsChangeStreamingMethod_Tooltip", "Changes the streaming method for the selected levels"),
-				FNewMenuDelegate::CreateRaw(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillSetStreamingMethodSubMenu ));
+				FNewMenuDelegate::CreateRaw(this, &FStreamingLevelCollectionModel::FillSetStreamingMethodSubMenu ));
 		}
 
 		if (IsOneLevelSelected() && !GetSelectedLevels()[0]->IsPersistent())
@@ -309,7 +312,7 @@ void FStreamingLevelCollectionModel::BuildHierarchyMenu(FMenuBuilder& InMenuBuil
 			InMenuBuilder.AddSubMenu( 
 				LOCTEXT("LevelsChangeLightingScenario", "Lighting Scenario"),
 				LOCTEXT("LevelsChangeLightingScenario_Tooltip", "Changes Lighting Scenario Status for the selected level"),
-				FNewMenuDelegate::CreateRaw(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillChangeLightingScenarioSubMenu ));
+				FNewMenuDelegate::CreateRaw(this, &FStreamingLevelCollectionModel::FillChangeLightingScenarioSubMenu ));
 		}
 
 		InMenuBuilder.AddMenuEntry(Commands.World_FindInContentBrowser);
@@ -372,7 +375,7 @@ void FStreamingLevelCollectionModel::CustomizeFileMainMenu(FMenuBuilder& InMenuB
 		InMenuBuilder.AddSubMenu( 
 			LOCTEXT("LevelsStreamingMethod", "Default Streaming Method"),
 			LOCTEXT("LevelsStreamingMethod_Tooltip", "Changes the default streaming method for a new levels"),
-			FNewMenuDelegate::CreateRaw(const_cast<FStreamingLevelCollectionModel*>(this), &FStreamingLevelCollectionModel::FillDefaultStreamingMethodSubMenu ) );
+			FNewMenuDelegate::CreateRaw(this, &FStreamingLevelCollectionModel::FillDefaultStreamingMethodSubMenu ) );
 		
 		InMenuBuilder.AddMenuEntry( Commands.World_CreateNewLevel );
 		InMenuBuilder.AddMenuEntry( Commands.World_AddExistingLevel );
@@ -418,7 +421,7 @@ void FStreamingLevelCollectionModel::CreateNewLevel_Executed()
 	IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
 	if (NewLevelDialogModule.CreateAndShowNewLevelDialog(MainFrameModule.GetParentWindow(), TemplateMapPackageName))
 	{
-		UPackage* TemplatePackage = TemplateMapPackageName.Len() ? LoadPackage(nullptr, *TemplateMapPackageName, LOAD_None) : nullptr;
+		UPackage* TemplatePackage = LoadPackage(nullptr, *TemplateMapPackageName, LOAD_None);
 		UWorld* TemplateWorld = TemplatePackage ? UWorld::FindWorldInPackage(TemplatePackage) : nullptr;
 
 		// Create the new level
@@ -493,10 +496,9 @@ void FStreamingLevelCollectionModel::FixupInvalidReference_Executed()
 
 void FStreamingLevelCollectionModel::RemoveInvalidSelectedLevels_Executed()
 {
-	// needs to be an index-based iterator b/c we are removing elements based on it
-	for (int32 LevelIdx = InvalidSelectedLevels.Num() - 1; LevelIdx >= 0; LevelIdx--)
+	for (TSharedPtr<FLevelModel> LevelModel : InvalidSelectedLevels)
 	{
-		TSharedPtr<FStreamingLevelModel> TargetModel = StaticCastSharedPtr<FStreamingLevelModel>(InvalidSelectedLevels[LevelIdx]);
+		TSharedPtr<FStreamingLevelModel> TargetModel = StaticCastSharedPtr<FStreamingLevelModel>(LevelModel);
 		ULevelStreaming* LevelStreaming = TargetModel->GetLevelStreaming().Get();
 
 		if (LevelStreaming)

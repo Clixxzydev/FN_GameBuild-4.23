@@ -58,8 +58,6 @@
 #include "DynamicResolutionProxy.h"
 #include "DynamicResolutionState.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "RenderTargetPool.h"
-#include "RenderGraphBuilder.h"
 
 #if WITH_EDITOR
 #include "PIEPreviewDeviceProfileSelectorModule.h"
@@ -776,17 +774,6 @@ public:
 				FEmbeddedCommunication::AllowSleep(Requester);
 				Message.OnCompleteDelegate({}, TEXT(""));
 			}
-			else if (Message.Command == TEXT("devicesleep"))
-			{
-				bool bEnabled = Message.Parameters.FindRef(TEXT("enabled")).ToBool();
-				FPlatformApplicationMisc::ControlScreensaver(bEnabled ? FGenericPlatformApplicationMisc::Enable : FGenericPlatformApplicationMisc::Disable);
-				Message.OnCompleteDelegate({}, TEXT(""));
-			}
-			else if (Message.Command == TEXT("getmemorybucket"))
-			{
-				Message.OnCompleteDelegate({ { TEXT("bucket"), LexToString((int)FPlatformMemory::GetMemorySizeBucket()) } }, TEXT(""));
-			}
-
 // disable things that are too scary to expose to a shipping external app/webview
 #if !UE_BUILD_SHIPPING
 			// execute any console commands
@@ -875,26 +862,6 @@ public:
 					Message.OnCompleteDelegate({ }, FString::Printf(TEXT("CVar %s not found"), *Name));
 				}
 			}
-            else if (Message.Command == TEXT("shareurl"))
-            {
-                FString URL = Message.Parameters.FindRef(TEXT("url"));
-                FString Description = Message.Parameters.FindRef(TEXT("description"));
-                FString Subject = Message.Parameters.FindRef(TEXT("title"));
-                
-                FString ParsedX = Message.Parameters.FindRef(TEXT("x"));
-                FString ParsedY = Message.Parameters.FindRef(TEXT("y"));
-                
-                int ConvertedX = 0;
-                int ConvertedY = 0;
-                if ((!ParsedX.IsEmpty()
-                     && !ParsedY.IsEmpty()))
-                {
-                    LexFromString(ConvertedX, *ParsedX);
-                    LexFromString(ConvertedY, *ParsedY);
-                }
-                
-                FPlatformMisc::ShareURL(URL, FText::FromString(Description), ConvertedX, ConvertedY);
-            }
 			else
 			{
 				Message.OnCompleteDelegate({}, TEXT("Unknown command"));
@@ -1802,9 +1769,8 @@ void UGameEngine::Tick( float DeltaSeconds, bool bIdleMode )
 				// Tick the GRenderingRealtimeClock, unless it's paused
 				GRenderingRealtimeClock.Tick(DeltaSeconds);
 			}
-			
-			GRenderTargetPool.TickPoolElements();
-			FRDGBuilder::TickPoolElements();
+
+			GetRendererModule().TickRenderTargetPool();
 		});
 	}
 

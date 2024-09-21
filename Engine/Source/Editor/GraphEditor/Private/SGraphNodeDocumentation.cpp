@@ -215,8 +215,8 @@ TSharedPtr<SWidget> SGraphNodeDocumentation::CreateDocumentationPage()
 							+SOverlay::Slot()
 							[
 								SNew(SSimpleGradient)
-								.StartColor(this, &SGraphNodeDocumentation::GetPageGradientStartColor)
-								.EndColor(this, &SGraphNodeDocumentation::GetPageGradientEndColor)
+								.StartColor(GraphNodeDocumentationDefs::PageGradientStartColor) 
+								.EndColor(GraphNodeDocumentationDefs::PageGradientEndColor) 
 							]
 							+SOverlay::Slot()
 							[
@@ -353,18 +353,6 @@ void SGraphNodeDocumentation::Tick( const FGeometry& AllottedGeometry, const dou
 		GraphNode->NodeHeight = 0.f;
 		UpdateGraphNode();
 	}
-}
-
-FLinearColor SGraphNodeDocumentation::GetPageGradientStartColor() const
-{
-	FLinearColor Color = GraphNodeDocumentationDefs::PageGradientStartColor;
-	return Color;
-}
-
-FLinearColor SGraphNodeDocumentation::GetPageGradientEndColor() const
-{
-	FLinearColor Color = GraphNodeDocumentationDefs::PageGradientEndColor;
-	return Color;
 }
 
 /////////////////////////////////////////////////////

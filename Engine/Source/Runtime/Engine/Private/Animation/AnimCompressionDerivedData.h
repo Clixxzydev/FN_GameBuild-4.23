@@ -49,7 +49,7 @@ public:
 		DataToCompressPtr = InCompressibleAnimData;
 		check(DataToCompressPtr->Skeleton != nullptr);
 	}
-
+	
 	virtual const TCHAR* GetPluginName() const override
 	{
 		return TypeName;

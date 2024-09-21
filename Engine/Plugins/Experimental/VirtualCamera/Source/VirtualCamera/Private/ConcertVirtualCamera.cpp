@@ -3,14 +3,9 @@
 #include "ConcertVirtualCamera.h"
 
 #if VIRTUALCAMERA_WITH_CONCERT
-#include "CineCameraComponent.h"
-#include "GameFramework/Actor.h"
-#include "IConcertModule.h"
 #include "IConcertClient.h"
+#include "IConcertModule.h"
 #include "IConcertSession.h"
-#include "IConcertSyncClient.h"
-#include "IMultiUserClientModule.h"
-#include "VirtualCameraCineCameraComponent.h"
 #endif
 
 
@@ -46,8 +41,9 @@ FCameraFocusSettings FConcertVirtualCameraCameraFocusData::ToCameraFocusSettings
 /**
  *
  */
-FConcertVirtualCameraCameraData::FConcertVirtualCameraCameraData()
-	: CameraActorLocation(FVector::ZeroVector)
+FConcertVirtualCameraCameraEvent::FConcertVirtualCameraCameraEvent()
+	: InputSource(ETrackerInputSource::ARKit)
+	, CameraActorLocation(FVector::ZeroVector)
 	, CameraActorRotation(FRotator::ZeroRotator)
 	, CameraComponentLocation(FVector::ZeroVector)
 	, CameraComponentRotation(FRotator::ZeroRotator)
@@ -56,77 +52,17 @@ FConcertVirtualCameraCameraData::FConcertVirtualCameraCameraData()
 {}
 
 
-FConcertVirtualCameraCameraData::FConcertVirtualCameraCameraData(const AActor* InOwner, const UCineCameraComponent* InCineCameraComponent)
-{
-	CameraActorLocation = InOwner->GetActorLocation();
-	CameraActorRotation = InOwner->GetActorRotation();
-	CameraComponentLocation = InCineCameraComponent->RelativeLocation;
-	CameraComponentRotation = InCineCameraComponent->RelativeRotation;
-
-	CurrentAperture = InCineCameraComponent->CurrentAperture;
-	CurrentFocalLength = InCineCameraComponent->CurrentFocalLength;
-	FocusSettings = FConcertVirtualCameraCameraFocusData(InCineCameraComponent);
-	LensSettings = InCineCameraComponent->LensSettings;
-
-	if (const UVirtualCameraCineCameraComponent* VCCineCamCmp = Cast<UVirtualCameraCineCameraComponent>(InCineCameraComponent))
-	{
-		FilmbackSettings = VCCineCamCmp->DesiredFilmbackSettings;
-	}
-	else
-	{
-		FilmbackSettings = InCineCameraComponent->FilmbackSettings;
-	}
-}
-
-
-void FConcertVirtualCameraCameraData::ApplyTo(AActor* InOwner, UCineCameraComponent* InCineCameraComponent, bool bUpdateCameraComponentTransform)
-{
-	InOwner->SetActorLocationAndRotation(CameraActorLocation, CameraActorRotation);
-	if (bUpdateCameraComponentTransform)
-	{
-		InCineCameraComponent->SetRelativeLocationAndRotation(CameraComponentLocation, CameraComponentRotation);
-	}
-	InCineCameraComponent->CurrentAperture = CurrentAperture;
-	InCineCameraComponent->CurrentFocalLength = CurrentFocalLength;
-	InCineCameraComponent->FocusSettings = FocusSettings.ToCameraFocusSettings();
-	InCineCameraComponent->LensSettings = LensSettings;
-	InCineCameraComponent->FilmbackSettings = FilmbackSettings;
-
-	if (UVirtualCameraCineCameraComponent* VCCineCamCmp = Cast<UVirtualCameraCineCameraComponent>(InCineCameraComponent))
-	{
-		VCCineCamCmp->DesiredFilmbackSettings = FilmbackSettings;
-	}
-}
-
-
-/**
- *
- */
-FConcertVirtualCameraCameraComponentEvent::FConcertVirtualCameraCameraComponentEvent()
-{}
-
-
-/**
- *
- */
-FConcertVirtualCameraControllerEvent::FConcertVirtualCameraControllerEvent()
-	: InputSource(ETrackerInputSource::ARKit)
-{}
-
-
-
 #if VIRTUALCAMERA_WITH_CONCERT
 
 /**
  *
  */
 FConcertVirtualCameraManager::FConcertVirtualCameraManager()
-	: bIsLatestControllerCameraEventDataValid(false)
+	: bIsLatestCameraEventDataValid(false)
 {
-	if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = IMultiUserClientModule::Get().GetClient())
+	IConcertClientPtr ConcertClient = IConcertModule::Get().GetClientInstance();
+	if (ConcertClient.IsValid())
 	{
-		IConcertClientRef ConcertClient = ConcertSyncClient->GetConcertClient();
-
 		OnSessionStartupHandle = ConcertClient->OnSessionStartup().AddRaw(this, &FConcertVirtualCameraManager::RegisterConcertSyncHandlers);
 		OnSessionShutdownHandle = ConcertClient->OnSessionShutdown().AddRaw(this, &FConcertVirtualCameraManager::UnregisterConcertSyncHandlers);
 
@@ -141,65 +77,32 @@ FConcertVirtualCameraManager::FConcertVirtualCameraManager()
 
 FConcertVirtualCameraManager::~FConcertVirtualCameraManager()
 {
-	if (IMultiUserClientModule::IsAvailable())
+	IConcertClientPtr ConcertClient = IConcertModule::Get().GetClientInstance();
+	if (ConcertClient.IsValid())
 	{
-		if (TSharedPtr<IConcertSyncClient> ConcertSyncClient = IMultiUserClientModule::Get().GetClient())
+		TSharedPtr<IConcertClientSession> ConcertClientSession = ConcertClient->GetCurrentSession();
+		if (ConcertClientSession.IsValid())
 		{
-			IConcertClientRef ConcertClient = ConcertSyncClient->GetConcertClient();
-
-			TSharedPtr<IConcertClientSession> ConcertClientSession = ConcertClient->GetCurrentSession();
-			if (ConcertClientSession.IsValid())
-			{
-				UnregisterConcertSyncHandlers(ConcertClientSession.ToSharedRef());
-			}
-
-			ConcertClient->OnSessionStartup().Remove(OnSessionStartupHandle);
-			OnSessionStartupHandle.Reset();
-
-			ConcertClient->OnSessionShutdown().Remove(OnSessionShutdownHandle);
-			OnSessionShutdownHandle.Reset();
+			UnregisterConcertSyncHandlers(ConcertClientSession.ToSharedRef());
 		}
+
+		ConcertClient->OnSessionStartup().Remove(OnSessionStartupHandle);
+		OnSessionStartupHandle.Reset();
+
+		ConcertClient->OnSessionShutdown().Remove(OnSessionShutdownHandle);
+		OnSessionShutdownHandle.Reset();
 	}
 }
 
 
-bool FConcertVirtualCameraManager::GetLatestCameraComponentEvent(FName InTrackingName, FConcertVirtualCameraCameraData& OutCameraEvent) const
+bool FConcertVirtualCameraManager::GetLatestCameraEventData(FConcertVirtualCameraCameraEvent& OutCameraEvent) const
 {
-	for (const FConcertVirtualCameraCameraComponentEvent& CameraEvent : LatestCameraEventDatas)
-	{
-		if (CameraEvent.TrackingName == InTrackingName)
-		{
-			OutCameraEvent = CameraEvent.CameraData;
-			return true;
-		}
-	}
-
-	return false;
+	OutCameraEvent = LatestCameraEventData;
+	return bIsLatestCameraEventDataValid;
 }
 
 
-void FConcertVirtualCameraManager::SendCameraCompoentEvent(FName InTrackingName, const FConcertVirtualCameraCameraData& InCameraEvent)
-{
-	TSharedPtr<IConcertClientSession> Session = WeakSession.Pin();
-	if (Session.IsValid() && InTrackingName!= NAME_None)
-	{
-		FConcertVirtualCameraCameraComponentEvent CameraEvent;
-		CameraEvent.TrackingName = InTrackingName;
-		CameraEvent.CameraData = InCameraEvent;
-		TArray<FGuid> ClientIds = Session->GetSessionClientEndpointIds();
-		Session->SendCustomEvent(CameraEvent, ClientIds, EConcertMessageFlags::None);
-	}
-}
-
-
-bool FConcertVirtualCameraManager::GetLatestControllerCameraEvent(FConcertVirtualCameraControllerEvent& OutCameraEvent) const
-{
-	OutCameraEvent = LatestControllerCameraEventData;
-	return bIsLatestControllerCameraEventDataValid;
-}
-
-
-void FConcertVirtualCameraManager::SendControllerCameraEvent(const FConcertVirtualCameraControllerEvent& InCameraEvent)
+void FConcertVirtualCameraManager::SendCameraEventData(const FConcertVirtualCameraCameraEvent& InCameraEvent)
 {
 	TSharedPtr<IConcertClientSession> Session = WeakSession.Pin();
 	if (Session.IsValid())
@@ -216,8 +119,7 @@ void FConcertVirtualCameraManager::RegisterConcertSyncHandlers(TSharedRef<IConce
 	WeakSession = InSession;
 
 	// Register our events
-	InSession->RegisterCustomEventHandler<FConcertVirtualCameraCameraComponentEvent>(this, &FConcertVirtualCameraManager::HandleCameraComponentEventData);
-	InSession->RegisterCustomEventHandler<FConcertVirtualCameraControllerEvent>(this, &FConcertVirtualCameraManager::HandleControllerCameraEventData);
+	InSession->RegisterCustomEventHandler<FConcertVirtualCameraCameraEvent>(this, &FConcertVirtualCameraManager::HandleCameraEventData);
 }
 
 
@@ -227,63 +129,32 @@ void FConcertVirtualCameraManager::UnregisterConcertSyncHandlers(TSharedRef<ICon
 	TSharedPtr<IConcertClientSession> Session = WeakSession.Pin();
 	if (Session.IsValid())
 	{
-		Session->UnregisterCustomEventHandler<FConcertVirtualCameraControllerEvent>(this);
-		Session->UnregisterCustomEventHandler<FConcertVirtualCameraCameraComponentEvent>(this);
+		Session->UnregisterCustomEventHandler<FConcertVirtualCameraCameraEvent>();
 	}
 
 	WeakSession.Reset();
 }
 
 
-void FConcertVirtualCameraManager::HandleCameraComponentEventData(const FConcertSessionContext& InEventContext, const FConcertVirtualCameraCameraComponentEvent& InEvent)
+void FConcertVirtualCameraManager::HandleCameraEventData(const FConcertSessionContext& InEventContext, const FConcertVirtualCameraCameraEvent& InEvent)
 {
-	if (InEvent.TrackingName == NAME_None)
-	{
-		return;
-	}
-
-	for (FConcertVirtualCameraCameraComponentEvent& CameraEvent : LatestCameraEventDatas)
-	{
-		if (CameraEvent.TrackingName == InEvent.TrackingName)
-		{
-			CameraEvent.CameraData = InEvent.CameraData;
-			return;
-		}
-	}
-
-	LatestCameraEventDatas.Add(InEvent);
-}
-
-
-void FConcertVirtualCameraManager::HandleControllerCameraEventData(const FConcertSessionContext& InEventContext, const FConcertVirtualCameraControllerEvent& InEvent)
-{
-	LatestControllerCameraEventData = InEvent;
-	bIsLatestControllerCameraEventDataValid = true;
+	LatestCameraEventData = InEvent;
+	bIsLatestCameraEventDataValid = true;
 }
 
 
 #else //#if VIRTUALCAMERA_WITH_CONCERT
 
 
-bool FConcertVirtualCameraManager::GetLatestCameraComponentEvent(FName TrackingName, FConcertVirtualCameraCameraData& OutCameraEvent) const
+bool FConcertVirtualCameraManager::GetLatestCameraEventData(FConcertVirtualCameraCameraEvent& OutCameraEvent) const
 {
 	return false;
 }
 
 
-void FConcertVirtualCameraManager::SendCameraCompoentEvent(FName InTrackingName, const FConcertVirtualCameraCameraData& InCameraEvent)
+void FConcertVirtualCameraManager::SendCameraEventData(const FConcertVirtualCameraCameraEvent& InCameraEvent)
 {
-}
 
-
-bool FConcertVirtualCameraManager::GetLatestControllerCameraEvent(FConcertVirtualCameraControllerEvent& OutCameraEvent) const
-{
-	return false;
-}
-
-
-void FConcertVirtualCameraManager::SendControllerCameraEvent(const FConcertVirtualCameraControllerEvent& InCameraEvent)
-{
 }
 
 

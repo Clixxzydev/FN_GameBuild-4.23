@@ -15,9 +15,7 @@ class DISPLAYCLUSTEREDITOR_API UDisplayClusterEditorSettings : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
-	UPROPERTY(config, EditAnywhere, Category = Main, meta = (
-		ToolTip = "When enabled changes GameEngine to DisplayClusterGameEngine",
-		ConfigRestartRequired = true))
+	UPROPERTY(config, EditAnywhere, Category = Main)
 	bool bEnabled;
 
 public:

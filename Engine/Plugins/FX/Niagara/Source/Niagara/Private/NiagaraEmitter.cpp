@@ -10,13 +10,9 @@
 #include "UObject/Linker.h"
 #include "NiagaraModule.h"
 #include "NiagaraSystem.h"
-#include "NiagaraStats.h"
-#include "Modules/ModuleManager.h"
 
 #if WITH_EDITOR
 const FName UNiagaraEmitter::PrivateMemberNames::EventHandlerScriptProps = GET_MEMBER_NAME_CHECKED(UNiagaraEmitter, EventHandlerScriptProps);
-
-const FString InitialNotSynchronizedReason("Emitter created");
 #endif
 
 static int32 GbForceNiagaraCompileOnLoad = 0;
@@ -27,27 +23,11 @@ static FAutoConsoleVariableRef CVarForceNiagaraCompileOnLoad(
 	ECVF_Default
 	);
 
-static int32 GbForceNiagaraMergeOnLoad = 0;
-static FAutoConsoleVariableRef CVarForceNiagaraMergeOnLoad(
-	TEXT("fx.ForceMergeOnLoad"),
-	GbForceNiagaraMergeOnLoad,
-	TEXT("If > 0 emitters will be forced to merge on load. \n"),
-	ECVF_Default
-);
-
 static int32 GbForceNiagaraFailToCompile = 0;
 static FAutoConsoleVariableRef CVarForceNiagaraCompileToFail(
 	TEXT("fx.ForceNiagaraCompileToFail"),
 	GbForceNiagaraFailToCompile,
 	TEXT("If > 0 emitters will go through the motions of a compile, but will never set valid bytecode. \n"),
-	ECVF_Default
-);
-
-static int32 GbEnableEmitterChangeIdMergeLogging = 0;
-static FAutoConsoleVariableRef CVarEnableEmitterChangeIdMergeLogging(
-	TEXT("fx.EnableEmitterMergeChangeIdLogging"),
-	GbEnableEmitterChangeIdMergeLogging,
-	TEXT("If > 0 verbose change id information will be logged to help with debuggin merge issues. \n"),
 	ECVF_Default
 );
 
@@ -136,8 +116,6 @@ void UNiagaraEmitter::PostInitProperties()
 
 	}
 	UniqueEmitterName = TEXT("Emitter");
-
-	GenerateStatID();
 }
 
 #if WITH_EDITORONLY_DATA
@@ -145,106 +123,6 @@ bool UNiagaraEmitter::GetForceCompileOnLoad()
 {
 	return GbForceNiagaraCompileOnLoad > 0;
 }
-
-bool UNiagaraEmitter::IsSynchronizedWithParent() const
-{
-	if (Parent == nullptr)
-	{
-		// If the emitter has no parent than it is synchronized by default.
-		return true;
-	}
-
-	if (ParentAtLastMerge == nullptr)
-	{
-		// If the parent was valid but the parent at last merge isn't, they we don't know if it's up to date so we say it's not, and let 
-		// the actual merge code print an appropriate message to the log.
-		return false;
-	}
-
-	if (Parent->GetChangeId().IsValid() == false ||
-		ParentAtLastMerge->GetChangeId().IsValid() == false)
-	{
-		// If any of the change Ids aren't valid then we assume we're out of sync.
-		return false;
-	}
-
-	// Otherwise check the change ids, and the force flag.
-	return Parent->GetChangeId() == ParentAtLastMerge->GetChangeId() && GbForceNiagaraMergeOnLoad <= 0;
-}
-
-INiagaraMergeManager::FMergeEmitterResults UNiagaraEmitter::MergeChangesFromParent()
-{
-	if (GbEnableEmitterChangeIdMergeLogging)
-	{
-		UE_LOG(LogNiagara, Log, TEXT("Emitter %s is merging changes from parent %s because its Change ID was updated."), *GetPathName(),
-			Parent != nullptr ? *Parent->GetPathName() : TEXT("(null)"));
-
-		UE_LOG(LogNiagara, Log, TEXT("\nEmitter %s Id=%s \nParentAtLastMerge %s id=%s \nParent %s Id=%s."), 
-			*GetPathName(), *ChangeId.ToString(),
-			ParentAtLastMerge != nullptr ? *ParentAtLastMerge->GetPathName() : TEXT("(null)"), ParentAtLastMerge != nullptr ? *ParentAtLastMerge->GetChangeId().ToString() : TEXT("(null)"),
-			Parent != nullptr ? *Parent->GetPathName() : TEXT("(null)"), Parent != nullptr ? *Parent->GetChangeId().ToString() : TEXT("(null)"));
-	}
-
-	if (Parent == nullptr)
-	{
-		// If we don't have a copy of the parent emitter, this emitter can't safely be merged.
-		INiagaraMergeManager::FMergeEmitterResults MergeResults;
-		MergeResults.MergeResult = INiagaraMergeManager::EMergeEmitterResult::FailedToDiff;
-		MergeResults.bModifiedGraph = false;
-		MergeResults.ErrorMessages.Add(NSLOCTEXT("NiagaraEmitter", "NoParentErrorMessage", "This emitter has no 'Parent' so changes can't be merged in."));
-		return MergeResults;
-	}
-
-	if (ParentAtLastMerge == nullptr)
-	{
-		// If we don't have a copy of the last merged parent emitter, this emitter can't safely be
-		// merged.
-		INiagaraMergeManager::FMergeEmitterResults MergeResults;
-		MergeResults.MergeResult = INiagaraMergeManager::EMergeEmitterResult::FailedToDiff;
-		MergeResults.bModifiedGraph = false;
-		MergeResults.ErrorMessages.Add(NSLOCTEXT("NiagaraEmitter", "NoLastMergedParentErrorMessage", "This emitter has no 'ParentAtLastMerge' so changes can't be merged in."));
-		return MergeResults;
-	}
-
-	INiagaraModule& NiagaraModule = FModuleManager::Get().GetModuleChecked<INiagaraModule>("Niagara");
-	const INiagaraMergeManager& MergeManager = NiagaraModule.GetMergeManager();
-	INiagaraMergeManager::FMergeEmitterResults MergeResults = MergeManager.MergeEmitter(*Parent, *ParentAtLastMerge, *this);
-	if (MergeResults.MergeResult == INiagaraMergeManager::EMergeEmitterResult::SucceededDifferencesApplied || MergeResults.MergeResult == INiagaraMergeManager::EMergeEmitterResult::SucceededNoDifferences)
-	{
-		if (MergeResults.MergeResult == INiagaraMergeManager::EMergeEmitterResult::SucceededDifferencesApplied)
-		{
-			UpdateFromMergedCopy(MergeManager, MergeResults.MergedInstance);
-		}
-
-		// Update the last merged source and clear it's stand alone and public flags since it's not an asset.
-		ParentAtLastMerge = Parent->DuplicateWithoutMerging(this);
-		ParentAtLastMerge->ClearFlags(RF_Standalone | RF_Public);
-	}
-	else
-	{
-		UE_LOG(LogNiagara, Warning, TEXT("Failed to merge changes for parent emitter.  Emitter: %s  Parent Emitter: %s  Error Message: %s"),
-			*GetPathName(), Parent != nullptr ? *Parent->GetPathName() : TEXT("(null)"), *MergeResults.GetErrorMessagesString());
-	}
-
-	return MergeResults;
-}
-
-bool UNiagaraEmitter::UsesEmitter(const UNiagaraEmitter& InEmitter) const
-{
-	return Parent == &InEmitter || (Parent != nullptr && Parent->UsesEmitter(InEmitter));
-}
-
-UNiagaraEmitter* UNiagaraEmitter::DuplicateWithoutMerging(UObject* InOuter)
-{
-	UNiagaraEmitter* Duplicate;
-	{
-		TGuardValue<UNiagaraEmitter*> ParentGuard(Parent, nullptr);
-		TGuardValue<UNiagaraEmitter*> ParentAtLastMergeGuard(ParentAtLastMerge, nullptr);
-		Duplicate = Cast<UNiagaraEmitter>(StaticDuplicateObject(this, InOuter));
-	}
-	return Duplicate;
-}
-
 #endif
 
 void UNiagaraEmitter::Serialize(FArchive& Ar)
@@ -309,19 +187,12 @@ void UNiagaraEmitter::PostLoad()
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (GetOuter()->IsA<UNiagaraEmitter>())
-	{
-		// If this emitter is owned by another emitter, remove it's inheritance information so that it doesn't try to merge changes.
-		Parent = nullptr;
-		ParentAtLastMerge = nullptr;
-	}
-
 	GraphSource->ConditionalPostLoad();
 	GraphSource->PostLoadFromEmitter(*this);
 #endif
 
 	TArray<UNiagaraScript*> AllScripts;
-	GetScripts(AllScripts, false);
+	GetScripts(AllScripts, true);
 
 	// Post load scripts for use below.
 	for (UNiagaraScript* Script : AllScripts)
@@ -329,25 +200,9 @@ void UNiagaraEmitter::PostLoad()
 		Script->ConditionalPostLoad();
 	}
 
-#if WITH_EDITORONLY_DATA
-
-	// Handle emitter inheritance.
-	if (Parent != nullptr)
-	{
-		Parent->ConditionalPostLoad();
-	}
-	if (ParentAtLastMerge != nullptr)
-	{
-		ParentAtLastMerge->ConditionalPostLoad();
-	}
-	if (IsSynchronizedWithParent() == false)
-	{
-		MergeChangesFromParent();
-	}
-
 	// Reset scripts if recompile is forced.
+#if WITH_EDITORONLY_DATA
 	bool bGenerateNewChangeId = false;
-	FString GenerateNewChangeIdReason;
 	if (GetForceCompileOnLoad())
 	{
 		// If we are a standalone emitter, then we invalidate id's, which should cause systems dependent on us to regenerate.
@@ -356,11 +211,7 @@ void UNiagaraEmitter::PostLoad()
 		{
 			GraphSource->InvalidateCachedCompileIds();
 			bGenerateNewChangeId = true;
-			GenerateNewChangeIdReason = TEXT("PostLoad - Force compile on load");
-			if (GEnableVerboseNiagaraChangeIdLogging)
-			{
-				UE_LOG(LogNiagara, Log, TEXT("InvalidateCachedCompileIds for %s because GbForceNiagaraCompileOnLoad = %d"), *GetPathName(), GbForceNiagaraCompileOnLoad);
-			}
+			UE_LOG(LogNiagara, Log, TEXT("InvalidateCachedCompileIds for %s because GbForceNiagaraCompileOnLoad = %d"), *GetPathName(), GbForceNiagaraCompileOnLoad);
 		}
 	}
 	
@@ -368,11 +219,7 @@ void UNiagaraEmitter::PostLoad()
 	{
 		// If the change id is already invalid we need to generate a new one, and can skip checking the owned scripts.
 		bGenerateNewChangeId = true;
-		GenerateNewChangeIdReason = TEXT("PostLoad - Change id was invalid.");
-		if (GEnableVerboseNiagaraChangeIdLogging)
-		{
-			UE_LOG(LogNiagara, Log, TEXT("Change ID updated for emitter %s because the ID was invalid."), *GetPathName());
-		}
+		UE_LOG(LogNiagara, Log, TEXT("Change ID updated for emitter %s because the ID was invalid."), *GetPathName());
 	}
 	else
 	{
@@ -381,18 +228,14 @@ void UNiagaraEmitter::PostLoad()
 			if (Script->AreScriptAndSourceSynchronized() == false)
 			{
 				bGenerateNewChangeId = true;
-				GenerateNewChangeIdReason = TEXT("PostLoad - Script out of sync");
-				if (GEnableVerboseNiagaraChangeIdLogging)
-				{
-					UE_LOG(LogNiagara, Log, TEXT("Change ID updated for emitter %s because of a change to its script %s"), *GetPathName(), *Script->GetPathName());
-				}
+				//UE_LOG(LogNiagara, Log, TEXT("Change ID updated for emitter %s because of a change to its script %s"), *GetPathName(), *Script->GetPathName());
 			}
 		}
 	}
 
 	if (bGenerateNewChangeId)
 	{
-		UpdateChangeId(GenerateNewChangeIdReason);
+		UpdateChangeId();
 	}
 
 	GraphSource->OnChanged().AddUObject(this, &UNiagaraEmitter::GraphSourceChanged);
@@ -428,35 +271,6 @@ void UNiagaraEmitter::PostLoad()
 }
 
 #if WITH_EDITOR
-/** Creates a new emitter with the supplied emitter as a parent emitter and the supplied system as it's owner. */
-UNiagaraEmitter* UNiagaraEmitter::CreateWithParentAndOwner(UNiagaraEmitter& InParentEmitter, UObject* InOwner, FName InName, EObjectFlags FlagMask)
-{
-	UNiagaraEmitter* NewEmitter = Cast<UNiagaraEmitter>(StaticDuplicateObject(&InParentEmitter, InOwner, InName, FlagMask));
-	NewEmitter->Parent = &InParentEmitter;
-	NewEmitter->ParentAtLastMerge = Cast<UNiagaraEmitter>(StaticDuplicateObject(&InParentEmitter, NewEmitter));
-	NewEmitter->ParentAtLastMerge->ClearFlags(RF_Standalone | RF_Public);
-	NewEmitter->SetUniqueEmitterName(InName.ToString());
-	NewEmitter->GraphSource->MarkNotSynchronized(InitialNotSynchronizedReason);
-	return NewEmitter;
-}
-
-/** Creates a new emitter by duplicating an existing emitter.  The new emitter  will reference the same parent emitter if one is available. */
-UNiagaraEmitter* UNiagaraEmitter::CreateAsDuplicate(const UNiagaraEmitter& InEmitterToDuplicate, FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem)
-{
-	UNiagaraEmitter* NewEmitter = Cast<UNiagaraEmitter>(StaticDuplicateObject(&InEmitterToDuplicate, &InDuplicateOwnerSystem));
-	NewEmitter->ClearFlags(RF_Standalone | RF_Public);
-	NewEmitter->Parent = InEmitterToDuplicate.Parent;
-	if (InEmitterToDuplicate.ParentAtLastMerge != nullptr)
-	{
-		NewEmitter->ParentAtLastMerge = Cast<UNiagaraEmitter>(StaticDuplicateObject(InEmitterToDuplicate.ParentAtLastMerge, NewEmitter));
-		NewEmitter->ParentAtLastMerge->ClearFlags(RF_Standalone | RF_Public);
-	}
-	NewEmitter->SetUniqueEmitterName(InDuplicateName.ToString());
-	NewEmitter->GraphSource->MarkNotSynchronized(InitialNotSynchronizedReason);
-
-	return NewEmitter;
-}
-
 void UNiagaraEmitter::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -530,7 +344,7 @@ void UNiagaraEmitter::PostEditChangeProperty(struct FPropertyChangedEvent& Prope
 	}
 
 	ThumbnailImageOutOfDate = true;
-	UpdateChangeId(TEXT("PostEditChangeProperty"));
+	ChangeId = FGuid::NewGuid();
 	OnPropertiesChangedDelegate.Broadcast();
 }
 
@@ -549,7 +363,7 @@ bool UNiagaraEmitter::IsValid()const
 		return false;
 	}
 
-	if (SimTarget == ENiagaraSimTarget::CPUSim)
+	if (SimTarget == ENiagaraSimTarget::CPUSim || SimTarget == ENiagaraSimTarget::DynamicLoadBalancedSim)
 	{
 		if (!SpawnScriptProps.Script->IsScriptCompilationPending(false) && !SpawnScriptProps.Script->DidScriptCompilationSucceed(false))
 		{
@@ -572,7 +386,7 @@ bool UNiagaraEmitter::IsValid()const
 		}
 	}
 
-	if (SimTarget == ENiagaraSimTarget::GPUComputeSim)
+	if (SimTarget == ENiagaraSimTarget::GPUComputeSim || SimTarget == ENiagaraSimTarget::DynamicLoadBalancedSim)
 	{
 		if (!GPUComputeScript->IsScriptCompilationPending(true) && 
 			!GPUComputeScript->DidScriptCompilationSucceed(true))
@@ -591,7 +405,7 @@ bool UNiagaraEmitter::IsReadyToRun() const
 		return false;
 	}
 
-	if (SimTarget == ENiagaraSimTarget::CPUSim)
+	if (SimTarget == ENiagaraSimTarget::CPUSim || SimTarget == ENiagaraSimTarget::DynamicLoadBalancedSim)
 	{
 		if (SpawnScriptProps.Script->IsScriptCompilationPending(false))
 		{
@@ -613,7 +427,7 @@ bool UNiagaraEmitter::IsReadyToRun() const
 		}
 	}
 
-	if (SimTarget == ENiagaraSimTarget::GPUComputeSim)
+	if (SimTarget == ENiagaraSimTarget::GPUComputeSim || SimTarget == ENiagaraSimTarget::DynamicLoadBalancedSim)
 	{
 		if (GPUComputeScript->IsScriptCompilationPending(true))
 		{
@@ -642,7 +456,7 @@ void UNiagaraEmitter::GetScripts(TArray<UNiagaraScript*>& OutScripts, bool bComp
 		}
 	}
 
-	if (SimTarget == ENiagaraSimTarget::GPUComputeSim)
+	if (SimTarget == ENiagaraSimTarget::DynamicLoadBalancedSim || SimTarget == ENiagaraSimTarget::GPUComputeSim)
 	{
 		OutScripts.Add(GPUComputeScript);
 	}
@@ -712,11 +526,6 @@ bool UNiagaraEmitter::AreAllScriptAndSourcesSynchronized() const
 		{
 			return false;
 		}
-	}
-
-	if (GPUComputeScript->IsCompilable() && !GPUComputeScript->AreScriptAndSourceSynchronized())
-	{
-		return false;
 	}
 
 	return true;
@@ -847,6 +656,11 @@ bool UNiagaraEmitter::UsesScript(const UNiagaraScript* Script)const
 	return false;
 }
 
+//TODO
+// bool UNiagaraEmitter::UsesDataInterface(UNiagaraDataInterface* Interface)
+//{
+//}
+
 bool UNiagaraEmitter::UsesCollection(const class UNiagaraParameterCollection* Collection)const
 {
 	if (SpawnScriptProps.Script && SpawnScriptProps.Script->UsesCollection(Collection))
@@ -873,96 +687,6 @@ FString UNiagaraEmitter::GetUniqueEmitterName()const
 }
 
 #if WITH_EDITORONLY_DATA
-
-void UNiagaraEmitter::UpdateFromMergedCopy(const INiagaraMergeManager& MergeManager, UNiagaraEmitter* MergedEmitter)
-{
-	auto ReouterMergedObject = [](UObject* NewOuter, UObject* TargetObject)
-	{
-		FName MergedObjectUniqueName = MakeUniqueObjectName(NewOuter, TargetObject->GetClass(), TargetObject->GetFName());
-		TargetObject->Rename(*MergedObjectUniqueName.ToString(), NewOuter, REN_ForceNoResetLoaders);
-	};
-
-	// The merged copy was based on the parent emitter so its name might be wrong, check and fix that first,
-	// otherwise the rapid iteration parameter names will be wrong from the copied scripts.
-	if (MergedEmitter->GetUniqueEmitterName() != UniqueEmitterName)
-	{
-		MergedEmitter->SetUniqueEmitterName(UniqueEmitterName);
-	}
-
-	// Copy base editable emitter properties.
-	TArray<UProperty*> DifferentProperties;
-	MergeManager.DiffEditableProperties(this, MergedEmitter, *UNiagaraEmitter::StaticClass(), DifferentProperties);
-	MergeManager.CopyPropertiesToBase(this, MergedEmitter, DifferentProperties);
-
-	// Copy source and scripts
-	ReouterMergedObject(this, MergedEmitter->GraphSource);
-	GraphSource->OnChanged().RemoveAll(this);
-	GraphSource = MergedEmitter->GraphSource;
-	GraphSource->OnChanged().AddUObject(this, &UNiagaraEmitter::GraphSourceChanged);
-
-	ReouterMergedObject(this, MergedEmitter->SpawnScriptProps.Script);
-	SpawnScriptProps.Script->RapidIterationParameters.RemoveAllOnChangedHandlers(this);
-	SpawnScriptProps.Script = MergedEmitter->SpawnScriptProps.Script;
-	SpawnScriptProps.Script->RapidIterationParameters.AddOnChangedHandler(
-		FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-
-	ReouterMergedObject(this, MergedEmitter->UpdateScriptProps.Script);
-	UpdateScriptProps.Script->RapidIterationParameters.RemoveAllOnChangedHandlers(this);
-	UpdateScriptProps.Script = MergedEmitter->UpdateScriptProps.Script;
-	UpdateScriptProps.Script->RapidIterationParameters.AddOnChangedHandler(
-		FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-
-	ReouterMergedObject(this, MergedEmitter->EmitterSpawnScriptProps.Script);
-	EmitterSpawnScriptProps.Script->RapidIterationParameters.RemoveAllOnChangedHandlers(this);
-	EmitterSpawnScriptProps.Script = MergedEmitter->EmitterSpawnScriptProps.Script;
-	EmitterSpawnScriptProps.Script->RapidIterationParameters.AddOnChangedHandler(
-		FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-
-	ReouterMergedObject(this, MergedEmitter->EmitterUpdateScriptProps.Script);
-	EmitterUpdateScriptProps.Script->RapidIterationParameters.RemoveAllOnChangedHandlers(this);
-	EmitterUpdateScriptProps.Script = MergedEmitter->EmitterUpdateScriptProps.Script;
-	EmitterUpdateScriptProps.Script->RapidIterationParameters.AddOnChangedHandler(
-		FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-
-	ReouterMergedObject(this, MergedEmitter->GPUComputeScript);
-	GPUComputeScript->RapidIterationParameters.RemoveAllOnChangedHandlers(this);
-	GPUComputeScript = MergedEmitter->GPUComputeScript;
-	GPUComputeScript->RapidIterationParameters.AddOnChangedHandler(
-		FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-
-	// Copy event handlers
-	for (FNiagaraEventScriptProperties& EventScriptProperties : EventHandlerScriptProps)
-	{
-		EventScriptProperties.Script->RapidIterationParameters.RemoveAllOnChangedHandlers(this);
-	}
-	EventHandlerScriptProps.Empty();
-
-	for (FNiagaraEventScriptProperties& MergedEventScriptProperties : MergedEmitter->EventHandlerScriptProps)
-	{
-		EventHandlerScriptProps.Add(MergedEventScriptProperties);
-		ReouterMergedObject(this, MergedEventScriptProperties.Script);
-		MergedEventScriptProperties.Script->RapidIterationParameters.AddOnChangedHandler(
-			FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-	}
-
-	// Copy renderers
-	for (UNiagaraRendererProperties* Renderer : RendererProperties)
-	{
-		Renderer->OnChanged().RemoveAll(this);
-	}
-	RendererProperties.Empty();
-
-	for (UNiagaraRendererProperties* MergedRenderer : MergedEmitter->RendererProperties)
-	{
-		ReouterMergedObject(this, MergedRenderer);
-		RendererProperties.Add(MergedRenderer);
-		MergedRenderer->OnChanged().AddUObject(this, &UNiagaraEmitter::RendererChanged);
-	}
-
-	// Update the change id since we don't know what's changed.
-	UpdateChangeId(TEXT("Updated from merged copy"));
-}
-
 void UNiagaraEmitter::SyncEmitterAlias(const FString& InOldName, const FString& InNewName)
 {
 	TMap<FString, FString> RenameMap;
@@ -988,13 +712,6 @@ bool UNiagaraEmitter::SetUniqueEmitterName(const FString& InName)
 		FString OldName = UniqueEmitterName;
 		UniqueEmitterName = InName;
 
-		if (GetName() != InName)
-		{
-			// Also rename the underlying uobject to keep things consistent.
-			FName UniqueObjectName = MakeUniqueObjectName(GetOuter(), UNiagaraEmitter::StaticClass(), *InName);
-			Rename(*UniqueObjectName.ToString(), GetOuter(), REN_ForceNoResetLoaders);
-		}
-
 #if WITH_EDITORONLY_DATA
 		SyncEmitterAlias(OldName, UniqueEmitterName);
 #endif
@@ -1018,7 +735,7 @@ void UNiagaraEmitter::AddRenderer(UNiagaraRendererProperties* Renderer)
 	RendererProperties.Add(Renderer);
 #if WITH_EDITOR
 	Renderer->OnChanged().AddUObject(this, &UNiagaraEmitter::RendererChanged);
-	UpdateChangeId(TEXT("Renderer added"));
+	UpdateChangeId();
 #endif
 }
 
@@ -1028,7 +745,7 @@ void UNiagaraEmitter::RemoveRenderer(UNiagaraRendererProperties* Renderer)
 	RendererProperties.Remove(Renderer);
 #if WITH_EDITOR
 	Renderer->OnChanged().RemoveAll(this);
-	UpdateChangeId(TEXT("Renderer removed"));
+	UpdateChangeId();
 #endif
 }
 
@@ -1051,7 +768,7 @@ void UNiagaraEmitter::AddEventHandler(FNiagaraEventScriptProperties EventHandler
 #if WITH_EDITOR
 	EventHandler.Script->RapidIterationParameters.AddOnChangedHandler(
 		FNiagaraParameterStore::FOnChanged::FDelegate::CreateUObject(this, &UNiagaraEmitter::ScriptRapidIterationParameterChanged));
-	UpdateChangeId(TEXT("Event handler added"));
+	UpdateChangeId();
 #endif
 }
 
@@ -1068,7 +785,7 @@ void UNiagaraEmitter::RemoveEventHandlerByUsageId(FGuid EventHandlerUsageId)
 #endif
 	EventHandlerScriptProps.RemoveAll(FindEventHandlerById);
 #if WITH_EDITOR
-	UpdateChangeId(TEXT("Event handler removed"));
+	UpdateChangeId();
 #endif
 }
 
@@ -1090,81 +807,26 @@ void UNiagaraEmitter::BeginDestroy()
 
 #if WITH_EDITORONLY_DATA
 
-void UNiagaraEmitter::UpdateChangeId(const FString& Reason)
+void UNiagaraEmitter::UpdateChangeId()
 {
 	// We don't mark the package dirty here because this can happen as a result of a compile and we don't want to dirty files
 	// due to compilation, in cases where the package should be marked dirty an previous modify would have already done this.
 	Modify(false);
-	FGuid OldId = ChangeId;
 	ChangeId = FGuid::NewGuid();
-	if (GbEnableEmitterChangeIdMergeLogging)
-	{
-		UE_LOG(LogNiagara, Log, TEXT("Emitter %s change id updated. Reason: %s OldId: %s NewId: %s"),
-			*GetPathName(), *Reason, *OldId.ToString(), *ChangeId.ToString());
-	}
 }
 
 void UNiagaraEmitter::ScriptRapidIterationParameterChanged()
 {
-	UpdateChangeId(TEXT("Script rapid iteration parameter changed."));
+	UpdateChangeId();
 }
 
 void UNiagaraEmitter::RendererChanged()
 {
-	UpdateChangeId(TEXT("Renderer changed."));
+	UpdateChangeId();
 }
 
 void UNiagaraEmitter::GraphSourceChanged()
 {
-	UpdateChangeId(TEXT("Graph source changed."));
+	UpdateChangeId();
 }
 #endif
-
-TStatId UNiagaraEmitter::GetStatID(bool bGameThread, bool bConcurrent)const
-{
-#if STATS
-	if (bGameThread)
-	{
-		if (bConcurrent)
-		{
-			return StatID_GT;
-		}
-		else
-		{
-			return StatID_GT_CNC;
-		}
-	}
-	else
-	{
-		if (bConcurrent)
-		{
-			return StatID_RT;
-		}
-		else
-		{
-			return StatID_RT_CNC;
-		}
-	}
-#endif
-	return TStatId();
-}
-void UNiagaraEmitter::GenerateStatID()
-{
-#if STATS
-	StatID_GT = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_NiagaraEmitters>(GetName() + TEXT("[GT]"));
-	StatID_GT_CNC = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_NiagaraEmitters>(GetName() + TEXT("[GT_CNC]"));
-	StatID_RT = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_NiagaraEmitters>(GetName() + TEXT("[RT]"));
-	StatID_RT_CNC = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_NiagaraEmitters>(GetName() + TEXT("[RT_CNC]"));
-#endif
-}
-
-UNiagaraEmitter* UNiagaraEmitter::GetParent() const
-{
-	return Parent;
-}
-
-void UNiagaraEmitter::RemoveParent()
-{
-	Parent = nullptr;
-	ParentAtLastMerge = nullptr;
-}

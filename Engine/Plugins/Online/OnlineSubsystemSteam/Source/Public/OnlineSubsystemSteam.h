@@ -306,10 +306,5 @@ public:
 	}
 };
 
-namespace FNetworkProtocolTypes
-{
-	ONLINESUBSYSTEMSTEAM_API extern const FName Steam;
-}
-
 typedef TSharedPtr<FOnlineSubsystemSteam, ESPMode::ThreadSafe> FOnlineSubsystemSteamPtr;
 

@@ -843,18 +843,18 @@ namespace ObjectTools
 			}
 		}
 		else
-		{			
-			// Iterate over the map of referencing objects/changed properties, forcefully replacing the references and
-			int32 NumObjsReplaced = 0;
-			for (int32 Index = 0; Index < ReferencingPropertiesMapKeys.Num(); Index++)
-			{
-				++NumObjsReplaced;
-				GWarn->StatusUpdate( NumObjsReplaced, ReferencingPropertiesMapKeys.Num(), NSLOCTEXT("UnrealEd", "ConsolidateAssetsUpdate_ReplacingReferences", "Replacing Asset References...") );
+		{
+		// Iterate over the map of referencing objects/changed properties, forcefully replacing the references and
+		int32 NumObjsReplaced = 0;
+		for (int32 Index = 0; Index < ReferencingPropertiesMapKeys.Num(); Index++)
+		{
+			++NumObjsReplaced;
+			GWarn->StatusUpdate( NumObjsReplaced, ReferencingPropertiesMapKeys.Num(), NSLOCTEXT("UnrealEd", "ConsolidateAssetsUpdate_ReplacingReferences", "Replacing Asset References...") );
 
-				UObject* CurReplaceObj = ReferencingPropertiesMapKeys[Index];
+			UObject* CurReplaceObj = ReferencingPropertiesMapKeys[Index];
 
-				FArchiveReplaceObjectRef<UObject> ReplaceAr( CurReplaceObj, ReplacementMap, false, true, false );
-			}
+			FArchiveReplaceObjectRef<UObject> ReplaceAr( CurReplaceObj, ReplacementMap, false, true, false );
+		}
 		}
 		// Now alter the referencing objects the change has completed via PostEditChange, 
 		// this is done in a separate loop to prevent reading of data that we want to overwrite
@@ -907,14 +907,7 @@ namespace ObjectTools
 		ForceReplaceReferences(ObjectToReplaceWith, ObjectsToReplace, InObjectsToReplaceWithin, OutInfo, bWarnAboutRootSet);
 	}
 
-	// ForceReplaceReferences version exposed to the public API
-	void ForceReplaceReferences(UObject* ObjectToReplaceWith, TArray<UObject*>& ObjectsToReplace)
-	{
-		FForceReplaceInfo ReplaceInfo;
-		ForceReplaceReferences(ObjectToReplaceWith, ObjectsToReplace, ReplaceInfo, false);
-	}
-
-	FConsolidationResults ConsolidateObjects(UObject* ObjectToConsolidateTo, TArray<UObject*>& ObjectsToConsolidate, TSet<UObject*>& ObjectsToConsolidateWithin, TSet<UObject*>& ObjectsToNotConsolidateWithin, bool bShouldDeleteAfterConsolidate)
+	FConsolidationResults ConsolidateObjects( UObject* ObjectToConsolidateTo, TArray<UObject*>& ObjectsToConsolidate, TSet<UObject*>& ObjectsToConsolidateWithin, TSet<UObject*>& ObjectsToNotConsolidateWithin, bool bShouldDeleteAfterConsolidate)
 	{
 		FConsolidationResults ConsolidationResults;
 
@@ -922,7 +915,7 @@ namespace ObjectTools
 		if ( ObjectToConsolidateTo )
 		{
 			// Close all editors to avoid changing references to temporary objects used by the editor
-			if (!FAssetEditorManager::Get().CloseAllAssetEditors())
+			if ( !FAssetEditorManager::Get().CloseAllAssetEditors() )
 			{
 				// Failed to close at least one editor. It is possible that this editor has in-memory object references
 				// which are not prepared to be changed dynamically so it is not safe to continue
@@ -1944,9 +1937,6 @@ namespace ObjectTools
 				}
 			}
 		}
-
-		// Let the level browser that we deleted a level (must happen after physically deleting the package file as it will rescan the folders)
-		FEditorDelegates::RefreshLevelBrowser.Broadcast();
 	}
 
 	int32 DeleteAssets( const TArray<FAssetData>& AssetsToDelete, bool bShowConfirmation )
@@ -2029,37 +2019,10 @@ namespace ObjectTools
 
 	bool ContainsWorldInUse(const TArray< UObject* >& ObjectsToDelete)
 	{
-		TArray<const UWorld*> WorldsToDelete;
-
-		for (const UObject* ObjectToDelete : ObjectsToDelete)
-		{
-			if (const UWorld* World = Cast<UWorld>(ObjectToDelete))
-			{
-				WorldsToDelete.AddUnique(World);
-			}
-		}
-
-		if (WorldsToDelete.Num() == 0)
-		{
-			return false;
-		}
-
-		auto GetCombinedWorldNames = [](const TArray<const UWorld*>& Worlds) -> FString
-		{ 
-			return FString::JoinBy(Worlds, TEXT(", "), 
-				[](const UWorld* World) -> FString
-				{
-					return World->GetPathName();
-				});
-		};
-
-		UE_LOG(LogObjectTools, Log, TEXT("Deleting %d worlds: %s"), WorldsToDelete.Num(), *GetCombinedWorldNames(WorldsToDelete));
-
-		TArray<const UWorld*> ActiveWorlds;
-
+		TArray<const UObject*> ActiveWorlds;
 		for (const FWorldContext& WorldContext : GEditor->GetWorldContexts())
 		{
-			if (const UWorld* World = WorldContext.World())
+			if (UWorld* World = WorldContext.World())
 			{
 				ActiveWorlds.AddUnique(World);
 
@@ -2067,22 +2030,20 @@ namespace ObjectTools
 				{
 					if (StreamingLevel && StreamingLevel->GetLoadedLevel() && StreamingLevel->GetLoadedLevel()->GetOuter())
 					{
-						if (const UWorld* StreamingWorld = Cast<UWorld>(StreamingLevel->GetLoadedLevel()->GetOuter()))
-						{
-							ActiveWorlds.AddUnique(StreamingWorld);
-						}
+						ActiveWorlds.AddUnique(StreamingLevel->GetLoadedLevel()->GetOuter());
 					}
 				}
 			}
 		}
 
-		UE_LOG(LogObjectTools, Log, TEXT("Currently %d active worlds: %s"), ActiveWorlds.Num(), *GetCombinedWorldNames(ActiveWorlds));
-
-		for (const UWorld* World : WorldsToDelete)
+		for (const UObject* ObjectToDelete : ObjectsToDelete)
 		{
-			if (ActiveWorlds.Contains(World))
+			if (const UWorld* World = Cast<UWorld>(ObjectToDelete))
 			{
-				return true;
+				if (ActiveWorlds.Contains(World))
+				{
+					return true;
+				}
 			}
 		}
 
@@ -2091,11 +2052,6 @@ namespace ObjectTools
 
 	int32 DeleteObjects( const TArray< UObject* >& InObjectsToDelete, bool bShowConfirmation )
 	{
-		const FScopedBusyCursor BusyCursor;
-
-		TArray<UObject*> ObjectsToDelete = InObjectsToDelete;
-		AddExtraObjectsToDelete(ObjectsToDelete);
-
 		// Allows deleting of sounds after they have been previewed
 		GEditor->ClearPreviewComponents();
 
@@ -2116,14 +2072,10 @@ namespace ObjectTools
 			}
 		}
 
-		// Query delegate hook to validate if the delete operation is available
-		FCanDeleteAssetResult CanDeleteResult;
-		FEditorDelegates::OnAssetsCanDelete.Broadcast(ObjectsToDelete, CanDeleteResult);
-		if (!CanDeleteResult.Get())
-		{
-			FMessageDialog::Open(EAppMsgType::Ok, NSLOCTEXT("UnrealEd", "CannotDelete", "Cannot currently delete selected objects. See log for details."));
-			return 0;
-		}
+		const FScopedBusyCursor BusyCursor;
+
+		TArray<UObject*> ObjectsToDelete = InObjectsToDelete;
+		AddExtraObjectsToDelete(ObjectsToDelete);
 
 		// Make sure packages being saved are fully loaded.
 		if( !HandleFullyLoadingPackages( ObjectsToDelete, NSLOCTEXT("UnrealEd", "Delete", "Delete") ) )
@@ -2158,7 +2110,7 @@ namespace ObjectTools
 		// (so that they're not flagged in the dialog)
 		FEditorDelegates::OnAssetsPreDelete.Broadcast(ObjectsToDelete);
 
-		TSharedRef<FAssetDeleteModel> DeleteModel = MakeShared<FAssetDeleteModel>(ObjectsToDelete);
+		TSharedRef<FAssetDeleteModel> DeleteModel = MakeShareable(new FAssetDeleteModel(ObjectsToDelete));
 
 		if ( bShowConfirmation )
 		{
@@ -2314,15 +2266,6 @@ namespace ObjectTools
 
 	bool DeleteSingleObject( UObject* ObjectToDelete, bool bPerformReferenceCheck )
 	{
-		// Query delegate hook to validate if the delete operation is available
-		FCanDeleteAssetResult CanDeleteResult;
-		FEditorDelegates::OnAssetsCanDelete.Broadcast(TArray<UObject*>{ ObjectToDelete }, CanDeleteResult);
-		if (!CanDeleteResult.Get())
-		{
-			FMessageDialog::Open(EAppMsgType::Ok, NSLOCTEXT("UnrealEd", "CannotDelete", "Cannot currently delete selected objects. See log for details."));
-			return false;
-		}
-
 		GEditor->GetSelectedObjects()->Deselect( ObjectToDelete );
 
 		{
@@ -2332,13 +2275,6 @@ namespace ObjectTools
 			if (MorphTarget && MorphTarget->BaseSkelMesh)
 			{
 				MorphTarget->BaseSkelMesh->UnregisterMorphTarget(MorphTarget);
-			}
-
-			// @todo Hack for 4.23.2 since public headers can't be touched.
-			// Worlds get hooked on by a lot of external non-uobject system through GCObject, call World cleanup to fire delegates to tell them to unhook and release reference
-			if (UWorld* World = Cast<UWorld>(ObjectToDelete))
-			{
-				World->CleanupWorld();
 			}
 		}
 
@@ -2392,78 +2328,24 @@ namespace ObjectTools
 		return true;
 	}
 
-	static void RecursiveRetrieveReferencers(UObject* Object, TSet<FWeakObjectPtr>& ReferencingObjects)
-	{
-		TArray<FReferencerInformation> ExternalReferencers;
-		Object->RetrieveReferencers(nullptr /* internal refs */, &ExternalReferencers);
-
-		for (const FReferencerInformation& RefInfo : ExternalReferencers)
-		{
-			if (RefInfo.Referencer != nullptr)
-			{
-				bool bAlreadyIn = false;
-				ReferencingObjects.Add(RefInfo.Referencer, &bAlreadyIn);
-				if (!bAlreadyIn)
-				{
-					RecursiveRetrieveReferencers(RefInfo.Referencer, ReferencingObjects);
-				}
-			}
-		}
-	}
-
-	int32 ForceDeleteObjects(const TArray< UObject* >& InObjectsToDelete, bool ShowConfirmation)
+	int32 ForceDeleteObjects( const TArray< UObject* >& InObjectsToDelete, bool ShowConfirmation )
 	{
 		int32 NumDeletedObjects = 0;
 
 		TArray<UObject*> ShownObjectsToDelete = InObjectsToDelete;
 		AddExtraObjectsToDelete(ShownObjectsToDelete);
 
-		// Query delegate hook to validate if the delete operation is available
-		FCanDeleteAssetResult CanDeleteResult;
-		FEditorDelegates::OnAssetsCanDelete.Broadcast(ShownObjectsToDelete, CanDeleteResult);
-		if (!CanDeleteResult.Get())
-		{
-			FMessageDialog::Open(EAppMsgType::Ok, NSLOCTEXT("UnrealEd", "CannotDelete", "Cannot currently delete selected objects. See log for details."));
-			return 0;
-		}
-
 		// Confirm that the delete was intentional
-		if (ShowConfirmation && !ShowDeleteConfirmationDialog(ShownObjectsToDelete))
+		if ( ShowConfirmation && !ShowDeleteConfirmationDialog(ShownObjectsToDelete) )
 		{
 			return 0;
 		}
 
-		// Recursively find all references to objects being deleted
-		TSet<FWeakObjectPtr> ReferencingObjects;
-		for (UObject* ToDelete : InObjectsToDelete)
+		// Close all editors to avoid changing references to temporary objects used by the editor
+		if ( !FAssetEditorManager::Get().CloseAllAssetEditors() )
 		{
-			ReferencingObjects.Add(ToDelete);
-
-			RecursiveRetrieveReferencers(ToDelete, ReferencingObjects);
-		}
-
-		// Attempt to close all editors referencing any of the deleted objects
-		bool bClosedAllEditors = true;
-		for (const FWeakObjectPtr& ObjectPtr : ReferencingObjects)
-		{
-			UObject* Object = ObjectPtr.Get();
-			if (Object != nullptr && Object->IsAsset())
-			{
-				const TArray<IAssetEditorInstance*> ObjectEditors = FAssetEditorManager::Get().FindEditorsForAsset(Object);
-				for (IAssetEditorInstance* ObjectEditorInstance : ObjectEditors)
-				{
-					if (!ObjectEditorInstance->CloseWindow())
-					{
-						bClosedAllEditors = false;
-					}
-				}
-			}
-		}
-
-		// Failed to close at least one editor. It is possible that this editor has in-memory object references
-		// which are not prepared to be changed dynamically so it is not safe to continue
-		if (!bClosedAllEditors)
-		{
+			// Failed to close at least one editor. It is possible that this editor has in-memory object references
+			// which are not prepared to be changed dynamically so it is not safe to continue
 			return 0;
 		}
 
@@ -2700,7 +2582,6 @@ namespace ObjectTools
 								}
 							}
 
-							BlueprintObject->RemoveChildRedirectors();
 							BlueprintObject->RemoveGeneratedClasses();
 						}
 					}
@@ -2802,6 +2683,7 @@ namespace ObjectTools
 		return NumDeletedObjects;
 	}	
 
+	
 	/**
 	 * Utility function to compose a string list of referencing objects
 	 *

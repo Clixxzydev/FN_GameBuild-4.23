@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "SlateGlobals.h"
+#include "Framework/Text/TextRange.h"
 #include "Framework/Text/IRun.h"
 #include "Framework/Text/ISlateRun.h"
 

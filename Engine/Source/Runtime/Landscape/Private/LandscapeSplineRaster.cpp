@@ -36,7 +36,7 @@ public:
 	typedef FVector InterpolantType;
 
 	/** Initialization constructor. */
-	FLandscapeSplineHeightsRasterPolicy(TArray<uint16>& InHeightData, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, bool InbRaiseTerrain, bool InbLowerTerrain, TArray<uint16>* InHeightAlphaBlendData = nullptr, TArray<uint8>* InHeightFlagsData = nullptr) :
+	FLandscapeSplineHeightsRasterPolicy(TArray<uint16>& InHeightData, int32 InMinX, int32 InMinY, int32 InMaxX, int32 InMaxY, bool InbRaiseTerrain, bool InbLowerTerrain, TArray<uint8>* InHeightAlphaBlendData = nullptr, TArray<uint8>* InHeightFlagsData = nullptr) :
 		HeightData(InHeightData),
 		HeightAlphaBlendData(InHeightAlphaBlendData),
 		HeightFlagsData(InHeightFlagsData),
@@ -77,9 +77,9 @@ protected:
 			float InterpValue = (NewHeight * Alpha) + (Dest * (1.f - Alpha));
 			Dest = (uint16)FMath::Clamp<float>(InterpValue, 0, (float)LandscapeDataAccess::MaxValue);
 
-			uint16& DestAlphaValue = (*HeightAlphaBlendData)[DataIndex];
+			uint8& DestAlphaValue = (*HeightAlphaBlendData)[DataIndex];
 			float InterpAlphaValue = DestAlphaValue * (1.f - Alpha);
-			DestAlphaValue = (uint16)FMath::Clamp<float>(InterpAlphaValue, 0.f, 65535.f);
+			DestAlphaValue = (uint8)FMath::Clamp<float>(InterpAlphaValue, 0.f, 255.f);
 
 			if (HeightFlagsData)
 			{
@@ -106,7 +106,7 @@ protected:
 
 private:
 	TArray<uint16>& HeightData;
-	TArray<uint16>* HeightAlphaBlendData;
+	TArray<uint8>* HeightAlphaBlendData;
 	TArray<uint8>* HeightFlagsData;
 	int32 MinX, MinY, MaxX, MaxY;
 	uint32 bRaiseTerrain : 1, bLowerTerrain : 1;
@@ -190,9 +190,9 @@ void RasterizeHeight(int32& MinX, int32& MinY, int32& MaxX, int32& MaxY, FLandsc
 	bool bIsEditingLayerReservedForSplines = Landscape && Landscape->IsEditingLayerReservedForSplines();
 	check(!bIsEditingLayerReservedForSplines || (Landscape->GetLandscapeSplinesReservedLayer()->BlendMode == LSBM_AlphaBlend));
 
-	TArray<uint16> HeightAlphaBlendData;
+	TArray<uint8> HeightAlphaBlendData;
 	TArray<uint8> HeightFlagsData;
-	TArray<uint16>* HeightAlphaBlendDataPtr = nullptr;
+	TArray<uint8>* HeightAlphaBlendDataPtr = nullptr;
 	TArray<uint8>* HeightFlagsDataPtr = nullptr;
 
 	bool bCalculateNormals = true;
@@ -457,26 +457,29 @@ void RasterizeSegmentAlpha(int32& MinX, int32& MinY, int32& MaxX, int32& MaxY, F
 	LandscapeEdit.GetComponentsInRegion(MinX, MinY, MaxX, MaxY, &ModifiedComponents);
 }
 
-bool ULandscapeInfo::ApplySplines(bool bOnlySelected, TSet<ULandscapeComponent*>* OutModifiedComponents)
+bool ULandscapeInfo::ApplySplines(bool bOnlySelected)
 {
 	bool bResult = false;
 
 	ALandscape* Landscape = LandscapeActor.Get();
 	const FLandscapeLayer* Layer = Landscape ? Landscape->GetLandscapeSplinesReservedLayer() : nullptr;
 	FGuid SplinesTargetLayerGuid = Layer ? Layer->Guid : Landscape ? Landscape->GetEditingLayer() : FGuid();
-	FScopedSetLandscapeEditingLayer Scope(Landscape, SplinesTargetLayerGuid, [=] { Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_All); });
+	FScopedSetLandscapeEditingLayer Scope(Landscape, SplinesTargetLayerGuid, [=] 
+	{ 
+		Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_All);
+	});
 
-	ForAllLandscapeProxies([&](ALandscapeProxy* Proxy)
+	ForAllLandscapeProxies([&bResult, bOnlySelected, this](ALandscapeProxy* Proxy)
 	{
-		bResult |= ApplySplinesInternal(bOnlySelected, Proxy, OutModifiedComponents);
+		bResult |= ApplySplinesInternal(bOnlySelected, Proxy);
 	});
 
 	return bResult;
 }
 
-bool ULandscapeInfo::ApplySplinesInternal(bool bOnlySelected, ALandscapeProxy* Proxy, TSet<ULandscapeComponent*>* OutModifiedComponents)
+bool ULandscapeInfo::ApplySplinesInternal(bool bOnlySelected, ALandscapeProxy* Proxy)
 {
-	if (!Proxy || !Proxy->SplineComponent || !Proxy->SplineComponent->IsRegistered() || Proxy->SplineComponent->ControlPoints.Num() == 0 || Proxy->SplineComponent->Segments.Num() == 0)
+	if (!Proxy || !Proxy->SplineComponent || Proxy->SplineComponent->ControlPoints.Num() == 0 || Proxy->SplineComponent->Segments.Num() == 0)
 	{
 		return false;
 	}
@@ -632,10 +635,6 @@ bool ULandscapeInfo::ApplySplinesInternal(bool bOnlySelected, ALandscapeProxy* P
 		{
 			Component->RequestHeightmapUpdate();
 			Component->RequestWeightmapUpdate();
-			if (OutModifiedComponents)
-			{
-				OutModifiedComponents->Add(Component);
-			}
 		}
 		else
 		{

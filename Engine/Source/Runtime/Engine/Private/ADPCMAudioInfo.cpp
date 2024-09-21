@@ -11,7 +11,6 @@
 #define WAVE_FORMAT_LPCM  1
 #define WAVE_FORMAT_ADPCM 2
 
-
 namespace ADPCM
 {
 	const uint32 MaxChunkSize = 256 * 1024;
@@ -21,14 +20,7 @@ namespace ADPCM
 }
 
 FADPCMAudioInfo::FADPCMAudioInfo(void)
-	: UncompressedBlockSize(0)
-	, CompressedBlockSize(0)
-	, BlockSize(0)
-	, StreamBufferSize(0)
-	, TotalDecodedSize(0)
-	, NumChannels(0)
-	, Format(0)
-	, UncompressedBlockData(nullptr)
+	: UncompressedBlockData(nullptr)
 	, SamplesPerBlock(0)
 	, bSeekPending(false)
 {
@@ -190,13 +182,6 @@ bool FADPCMAudioInfo::ReadCompressedInfo(const uint8* InSrcBufferData, uint32 In
 
 bool FADPCMAudioInfo::ReadCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize)
 {
-	// If we've already read through this asset and we are not looping, memzero and early out.
-	if (TotalSamplesStreamed >= TotalSamplesPerChannel && !bLooping)
-	{
-		FMemory::Memzero(Destination, BufferSize);
-		return true;
-	}
-
 	const uint32 ChannelSampleSize = sizeof(uint16) * NumChannels;
 
 	// This correctly handles any BufferSize as long as its a multiple of sample size * number of channels
@@ -259,51 +244,37 @@ bool FADPCMAudioInfo::ReadCompressedData(uint8* Destination, bool bLooping, uint
 			if(TotalSamplesStreamed >= TotalSamplesPerChannel)
 			{
 				ReachedEndOfSamples = true;
-				if(!bLooping)
-				{
-					// Zero remaining buffer
-					FMemory::Memzero(OutData, BufferSize);
-					return true;
-				}
-				else
-				{
-					// This is set to the max value to trigger the decompression of the first audio block
-					CurrentUncompressedBlockSampleIndex = UncompressedBlockSize / sizeof(uint16);
-					CurrentCompressedBlockIndex = 0;
-					TotalSamplesStreamed = 0;
-				}
+				// This is set to the max value to trigger the decompression of the first audio block
+				CurrentUncompressedBlockSampleIndex = UncompressedBlockSize / sizeof(uint16);
+				CurrentCompressedBlockIndex = 0;
+				TotalSamplesStreamed = 0;
 			}
 		}
 	}
 	else
 	{
-		uint32 OutDataOffset = 0;
-		while (BufferSize > 0)
+		uint32 DecompressedSamplesToCopy = BufferSize / ChannelSampleSize;
+
+		// Ensure we don't go over the number of samples left in the audio data
+		if(DecompressedSamplesToCopy > TotalSamplesPerChannel - TotalSamplesStreamed)
 		{
-			uint32 DecompressedSamplesToCopy = BufferSize / ChannelSampleSize;
+			DecompressedSamplesToCopy = TotalSamplesPerChannel - TotalSamplesStreamed;
+		}
 
-			// Ensure we don't go over the number of samples left in the audio data
-			if (DecompressedSamplesToCopy > TotalSamplesPerChannel - TotalSamplesStreamed)
+		FMemory::Memcpy(OutData, WaveInfo.SampleDataStart + (TotalSamplesStreamed * ChannelSampleSize), DecompressedSamplesToCopy * ChannelSampleSize);
+		TotalSamplesStreamed += DecompressedSamplesToCopy;
+		BufferSize -= DecompressedSamplesToCopy * ChannelSampleSize;
+
+		// Check for the end of the audio samples and loop if needed
+		if(TotalSamplesStreamed >= TotalSamplesPerChannel)
+		{
+			ReachedEndOfSamples = true;
+			TotalSamplesStreamed = 0;
+			if(!bLooping)
 			{
-				DecompressedSamplesToCopy = TotalSamplesPerChannel - TotalSamplesStreamed;
-			}
-
-			FMemory::Memcpy(OutData + OutDataOffset, WaveInfo.SampleDataStart + (TotalSamplesStreamed * ChannelSampleSize), DecompressedSamplesToCopy * ChannelSampleSize);
-			TotalSamplesStreamed += DecompressedSamplesToCopy;
-			BufferSize -= DecompressedSamplesToCopy * ChannelSampleSize;
-			OutDataOffset += DecompressedSamplesToCopy * NumChannels;
-
-			// Check for the end of the audio samples and loop if needed
-			if (TotalSamplesStreamed >= TotalSamplesPerChannel)
-			{
-				ReachedEndOfSamples = true;
-				TotalSamplesStreamed = 0;
-				if (!bLooping)
-				{
-					// Zero remaining buffer
-					FMemory::Memzero(OutData, BufferSize);
-					return true;
-				}
+				// Set the remaining buffer to 0
+				FMemory::Memset(OutData, 0, BufferSize);
+				return true;
 			}
 		}
 	}
@@ -410,30 +381,11 @@ bool FADPCMAudioInfo::StreamCompressedInfoInternal(USoundWave* Wave, struct FSou
 
 bool FADPCMAudioInfo::StreamCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize)
 {
-	// Initial sanity checks:
-	if (Destination == nullptr || BufferSize == 0)
-	{
-		UE_LOG(LogAudio, Error, TEXT("Stream Compressed Info not called!"));
-		return false;
-	}
-
-	if (NumChannels == 0)
-	{
-		UE_LOG(LogAudio, Error, TEXT("Stream Compressed Info not called!"));
-		FMemory::Memzero(Destination, BufferSize);
-		return true;
-	}
-
 	// Destination samples are interlaced by channel, BufferSize is in bytes
 	const int32 ChannelSampleSize = sizeof(uint16) * NumChannels;
 
 	// Ensure that BuffserSize is a multiple of the sample size times the number of channels
-	if (BufferSize % ChannelSampleSize != 0)
-	{
-		UE_LOG(LogAudio, Error, TEXT("Invalid buffer size %d requested for %d channels."), BufferSize, NumChannels);
-		FMemory::Memzero(Destination, BufferSize);
-		return true;
-	}
+	checkf(BufferSize % ChannelSampleSize == 0, TEXT("Invalid buffer size %d requested for %d channels"), BufferSize, NumChannels);
 
 	int16* OutData = (int16*)Destination;
 

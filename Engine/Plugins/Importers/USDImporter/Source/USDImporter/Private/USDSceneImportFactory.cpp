@@ -21,6 +21,7 @@
 
 #define LOCTEXT_NAMESPACE "USDImportPlugin"
 
+#if 0
 UUSDSceneImportFactory::UUSDSceneImportFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -48,13 +49,14 @@ UObject* UUSDSceneImportFactory::FactoryCreateFile(UClass* InClass, UObject* InP
 
 	if(IsAutomatedImport() || USDImporter->ShowImportOptions(*ImportOptions))
 	{
-#if USE_USD_SDK
 		// @todo: Disabled.  This messes with the ability to replace existing actors since actors with this name could still be in the transaction buffer
 		//FScopedTransaction ImportUSDScene(LOCTEXT("ImportUSDSceneTransaction", "Import USD Scene"));
 
-		TUsdStore< pxr::UsdStageRefPtr > Stage = USDImporter->ReadUSDFile(ImportContext, Filename);
-		if (*Stage)
+		IUsdStage* Stage = USDImporter->ReadUSDFile(ImportContext, Filename);
+		if (Stage)
 		{
+			IUsdPrim* RootPrim = Stage->GetRootPrim();
+
 			ImportContext.Init(InParent, InName.ToString(), Stage);
 			ImportContext.ImportOptions = ImportOptions;
 
@@ -99,7 +101,6 @@ UObject* UUSDSceneImportFactory::FactoryCreateFile(UClass* InClass, UObject* InP
 		GEditor->BroadcastLevelActorListChanged();
 
 		ImportContext.DisplayErrorMessages(IsAutomatedImport());
-#endif // #if USE_USD_SDK
 
 		return ImportContext.World;
 	}
@@ -125,6 +126,7 @@ bool UUSDSceneImportFactory::FactoryCanImport(const FString& Filename)
 void UUSDSceneImportFactory::CleanUp()
 {
 	ImportContext = FUSDSceneImportContext();
+	UnrealUSDWrapper::CleanUp();
 }
 
 void UUSDSceneImportFactory::ParseFromJson(TSharedRef<class FJsonObject> ImportSettingsJson)
@@ -132,7 +134,6 @@ void UUSDSceneImportFactory::ParseFromJson(TSharedRef<class FJsonObject> ImportS
 	FJsonObjectConverter::JsonObjectToUStruct(ImportSettingsJson, ImportOptions->GetClass(), ImportOptions, 0, CPF_InstancedReference);
 }
 
-#if USE_USD_SDK
 void UUSDSceneImportFactory::SpawnActors(const TArray<FActorSpawnData>& SpawnDatas, FScopedSlowTask& SlowTask)
 {
 	if(SpawnDatas.Num() > 0)
@@ -216,11 +217,12 @@ void UUSDSceneImportFactory::OnActorSpawned(AActor* SpawnedActor, const FActorSp
 	{
 		FUSDPropertySetter PropertySetter(ImportContext);
 
-		PropertySetter.ApplyPropertiesToActor(SpawnedActor, SpawnData.ActorPrim.Get(), TEXT(""));
+		PropertySetter.ApplyPropertiesToActor(SpawnedActor, SpawnData.ActorPrim, TEXT(""));
 	}
 }
+#endif
 
-void FUSDSceneImportContext::Init(UObject* InParent, const FString& InName, const TUsdStore< pxr::UsdStageRefPtr >& InStage)
+void FUSDSceneImportContext::Init(UObject* InParent, const FString& InName, IUsdStage* InStage)
 {
 	FUsdImportContext::Init(InParent, InName, InStage);
 
@@ -246,6 +248,6 @@ void FUSDSceneImportContext::Init(UObject* InParent, const FString& InName, cons
 
 	bFindUnrealAssetReferences = true;
 }
-#endif // #if USE_USD_SDK
+
 
 #undef LOCTEXT_NAMESPACE

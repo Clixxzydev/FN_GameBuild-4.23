@@ -4,8 +4,6 @@
 #include "NiagaraRenderer.h"
 #include "Internationalization/Internationalization.h"
 #include "NiagaraConstants.h"
-#include "NiagaraRendererSprites.h"
-#include "NiagaraBoundsCalculatorHelper.h"
 #if WITH_EDITOR
 #include "DerivedDataCacheInterface.h"
 #endif
@@ -39,6 +37,7 @@ UNiagaraSpriteRendererProperties::UNiagaraSpriteRendererProperties()
 	, bSortOnlyWhenTranslucent(true)
 	, MinFacingCameraBlendDistance(0.0f)
 	, MaxFacingCameraBlendDistance(0.0f)
+	, SyncId(0)
 #if WITH_EDITORONLY_DATA
 	, BoundingMode(BVC_EightVertices)
 	, AlphaThreshold(0.1f)
@@ -46,16 +45,9 @@ UNiagaraSpriteRendererProperties::UNiagaraSpriteRendererProperties()
 {
 }
 
-FNiagaraRenderer* UNiagaraSpriteRendererProperties::CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel, const FNiagaraEmitterInstance* Emitter)
+NiagaraRenderer* UNiagaraSpriteRendererProperties::CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel)
 {
-	FNiagaraRenderer* NewRenderer = new FNiagaraRendererSprites(FeatureLevel, this, Emitter);	
-	NewRenderer->Initialize(FeatureLevel, this, Emitter);
-	return NewRenderer;
-}
-
-FNiagaraBoundsCalculator* UNiagaraSpriteRendererProperties::CreateBoundsCalculator()
-{
-	return new FNiagaraBoundsCalculatorHelper<true, false, false>();
+	return new NiagaraRendererSprites(FeatureLevel, this);
 }
 
 void UNiagaraSpriteRendererProperties::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials) const
@@ -82,6 +74,7 @@ void UNiagaraSpriteRendererProperties::PostLoad()
 void UNiagaraSpriteRendererProperties::PostInitProperties()
 {
 	Super::PostInitProperties();
+	SyncId = 0;
 	if (HasAnyFlags(RF_ClassDefaultObject) == false)
 	{
 		InitBindings();
@@ -156,7 +149,12 @@ void UNiagaraSpriteRendererProperties::PostEditChangeProperty(struct FPropertyCh
 			CacheDerivedData();
 		}
 	}
-	
+
+	if (PropertyChangedEvent.GetPropertyName() != TEXT("SyncId"))
+	{
+		SyncId++;
+	}
+
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
@@ -295,7 +293,7 @@ int32 UNiagaraSpriteRendererProperties::GetNumCutoutVertexPerSubimage() const
 	}
 }
 
-uint32 UNiagaraSpriteRendererProperties::GetNumIndicesPerInstance() const
+uint32 UNiagaraSpriteRendererProperties::GetNumIndicesPerInstance()
 {
 	// This is a based on cutout vertices making a triangle strip.
 	if (GetNumCutoutVertexPerSubimage() == 8)

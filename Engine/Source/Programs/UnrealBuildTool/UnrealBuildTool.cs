@@ -85,11 +85,6 @@ namespace UnrealBuildTool
 		public static readonly DirectoryReference EngineSourceThirdPartyDirectory = DirectoryReference.Combine(EngineSourceDirectory, "ThirdParty");
 
 		/// <summary>
-		/// The full name of the Engine directory
-		/// </summary>
-		public static readonly DirectoryReference PlatformExtensionsDirectory = DirectoryReference.Combine(RootDirectory, "Platforms");
-
-		/// <summary>
 		/// The full name of the Enterprise directory
 		/// </summary>
 		public static readonly DirectoryReference EnterpriseDirectory = DirectoryReference.Combine(RootDirectory, "Enterprise");
@@ -108,49 +103,6 @@ namespace UnrealBuildTool
 		/// The full name of the Enterprise/Intermediate directory
 		/// </summary>
 		public static readonly DirectoryReference EnterpriseIntermediateDirectory = DirectoryReference.Combine(EnterpriseDirectory, "Intermediate");
-
-		/// <summary>
-		/// The main engine directory and all found platform extension engine directories
-		/// </summary>
-		public static DirectoryReference[] GetAllEngineDirectories(string Suffix="")
-		{
-			List<DirectoryReference> EngineDirectories = new List<DirectoryReference>() { DirectoryReference.Combine(EngineDirectory, Suffix) };
-			if (DirectoryReference.Exists(PlatformExtensionsDirectory))
-			{
-				foreach (DirectoryReference PlatformDirectory in DirectoryReference.EnumerateDirectories(PlatformExtensionsDirectory))
-				{
-					DirectoryReference PlatformEngineDirectory = DirectoryReference.Combine(PlatformDirectory, "Engine", Suffix);
-					if (DirectoryReference.Exists(PlatformEngineDirectory))
-					{
-						EngineDirectories.Add(PlatformEngineDirectory);
-					}
-				}
-			}
-			return EngineDirectories.ToArray();
-		}
-
-		/// <summary>
-		/// The main project directory and all found platform extension project directories
-		/// </summary>
-		public static DirectoryReference[] GetAllProjectDirectories(FileReference ProjectFile, string Suffix = "")
-		{
-			// project name may not match the directory name, so use the ProjectFile's name as ProjectName
-			string ProjectName = ProjectFile.GetFileNameWithoutAnyExtensions();
-
-			List<DirectoryReference> ProjectDirectories = new List<DirectoryReference>() { DirectoryReference.Combine(ProjectFile.Directory, Suffix) };
-			if (DirectoryReference.Exists(PlatformExtensionsDirectory))
-			{
-				foreach (DirectoryReference PlatformDirectory in DirectoryReference.EnumerateDirectories(PlatformExtensionsDirectory))
-				{
-					DirectoryReference PlatformEngineDirectory = DirectoryReference.Combine(PlatformDirectory, ProjectName, Suffix);
-					if (DirectoryReference.Exists(PlatformEngineDirectory))
-					{
-						ProjectDirectories.Add(PlatformEngineDirectory);
-					}
-				}
-			}
-			return ProjectDirectories.ToArray();
-		}
 
 		/// <summary>
 		/// The Remote Ini directory.  This should always be valid when compiling using a remote server.
@@ -265,6 +217,20 @@ namespace UnrealBuildTool
 		static public void SetRemoteIniPath(string Path)
 		{
 			RemoteIniPath = Path;
+		}
+
+		/// <summary>
+		/// Determines whether a directory is part of the engine
+		/// </summary>
+		/// <param name="InDirectory"></param>
+		/// <returns>true if the directory is under of the engine directories, false if not</returns>
+		static public bool IsUnderAnEngineDirectory(DirectoryReference InDirectory)
+		{
+			// Enterprise modules are considered as engine modules
+			return InDirectory.IsUnderDirectory(UnrealBuildTool.EngineDirectory) 
+				|| InDirectory.IsUnderDirectory(UnrealBuildTool.EnterpriseSourceDirectory) 
+				|| InDirectory.IsUnderDirectory(UnrealBuildTool.EnterprisePluginsDirectory) 
+				|| InDirectory.IsUnderDirectory(UnrealBuildTool.EnterpriseIntermediateDirectory);
 		}
 
 		/// <summary>
@@ -493,14 +459,14 @@ namespace UnrealBuildTool
 			catch (BuildException Ex)
 			{
 				// BuildExceptions should have nicely formatted messages. We can log these directly.
-				Log.TraceError(ExceptionUtils.FormatException(Ex));
+				Log.TraceError(Ex.Message.ToString());
 				Log.TraceLog(ExceptionUtils.FormatExceptionDetails(Ex));
 				return (int)CompilationResult.OtherCompilationError;
 			}
 			catch (Exception Ex)
 			{
 				// Unhandled exception. 
-				Log.TraceError("Unhandled exception: {0}", ExceptionUtils.FormatException(Ex));
+				Log.TraceError("Unhandled exception: {0}", Ex);
 				Log.TraceLog(ExceptionUtils.FormatExceptionDetails(Ex));
 				return (int)CompilationResult.OtherCompilationError;
 			}
@@ -514,7 +480,7 @@ namespace UnrealBuildTool
 
 				// Print out all the performance info
 				Timeline.Print(TimeSpan.FromMilliseconds(20.0), LogEventType.Log);
-
+			
 				// Make sure we flush the logs however we exit
 				Trace.Close();
 

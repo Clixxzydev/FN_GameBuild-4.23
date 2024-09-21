@@ -17,7 +17,7 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogCSVImportFactory, Log, All);
 
 /** Enum to indicate what to import CSV as */
-UENUM(BlueprintType)
+UENUM()
 enum class ECSVImportType : uint8
 {
 	/** Import as UDataTable */
@@ -32,20 +32,20 @@ enum class ECSVImportType : uint8
 	ECSV_CurveLinearColor,
 };
 
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FCSVImportSettings
 {
 	GENERATED_BODY()
 
 	FCSVImportSettings();
 
-	UPROPERTY(BlueprintReadWrite, Category="Misc")
+	UPROPERTY()
 	UScriptStruct* ImportRowStruct;
 
-	UPROPERTY(BlueprintReadWrite, Category="Misc")
+	UPROPERTY()
 	ECSVImportType ImportType;
 
-	UPROPERTY(BlueprintReadWrite, Category="Misc")
+	UPROPERTY()
 	TEnumAsByte<ERichCurveInterpMode> ImportCurveInterpMode;
 };
 
@@ -79,12 +79,7 @@ private:
 	/* Reimport object from the given path*/
 	EReimportResult::Type Reimport(UObject* Obj, const FString& Path);
 
-public:
-	UPROPERTY(BlueprintReadWrite, Category="Automation")
-	FCSVImportSettings AutomatedImportSettings;
-
-	/** Temporary data table to use to display import options */
 	UPROPERTY()
-	UDataTable* TempImportDataTable;
+	FCSVImportSettings AutomatedImportSettings;
 };
 

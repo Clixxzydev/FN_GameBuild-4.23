@@ -45,14 +45,6 @@ struct MOVIESCENETRACKS_API FMovieSceneStringChannel : public FMovieSceneChannel
 	}
 
 	/**
-     * Const access to this channel's times
-     */
-	FORCEINLINE TArrayView<const FFrameNumber> GetTimes() const
-	{
-		return Times;
-	}
-
-	/**
 	 * Evaluate this channel
 	 *
 	 * @param InTime     The time to evaluate at

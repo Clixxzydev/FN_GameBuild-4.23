@@ -226,12 +226,6 @@ public:
 	/** Toggle the visibility of the transform box. */
 	TSharedPtr< FUICommandInfo > ToggleShowTransformBox;
 
-	/** Sets the tree search widget as the focused widget in Slate for easy typing. */
-	TSharedPtr< FUICommandInfo > QuickTreeSearch;
-
-	/** Toggle the visibility of the stretch box. */
-	TSharedPtr< FUICommandInfo > ToggleShowStretchBox;
-
 	/** Bake transform. */
 	TSharedPtr< FUICommandInfo > BakeTransform;
 
@@ -255,9 +249,6 @@ public:
 
 	/** Toggles whether or not sections should snap to other sections. */
 	TSharedPtr< FUICommandInfo > ToggleSnapSectionTimesToSections;
-
-	/** Toggle constraining keys and sections in the play range */
-	TSharedPtr< FUICommandInfo > ToggleSnapKeysAndSectionsToPlayRange;
 
 	/** Toggles whether or not snap to key times while scrubbing. */
 	TSharedPtr< FUICommandInfo > ToggleSnapPlayTimeToKeys;
@@ -351,6 +342,10 @@ public:
 
 	/** Toggle whether we should evaluate sub sequences in isolation */
 	TSharedPtr< FUICommandInfo > ToggleEvaluateSubSequencesInIsolation;
+
+	TSharedPtr<FUICommandInfo> SetAllCurveVisibility;
+	TSharedPtr<FUICommandInfo> SetSelectedCurveVisibility;
+	TSharedPtr<FUICommandInfo> SetAnimatedCurveVisibility;
 
 	/**
 	 * Initialize commands

@@ -247,7 +247,7 @@ void USocialToolkit::TrySendFriendInvite(const FString& DisplayNameOrEmail) cons
 	IOnlineUserPtr UserInterface = PrimaryOSS ? PrimaryOSS->GetUserInterface() : nullptr;
 	if (UserInterface.IsValid())
 	{
-		IOnlineUser::FOnQueryUserMappingComplete QueryCompleteDelegate = IOnlineUser::FOnQueryUserMappingComplete::CreateUObject(const_cast<USocialToolkit*>(this), &USocialToolkit::HandleQueryPrimaryUserIdMappingComplete);
+		IOnlineUser::FOnQueryUserMappingComplete QueryCompleteDelegate = IOnlineUser::FOnQueryUserMappingComplete::CreateUObject(this, &USocialToolkit::HandleQueryPrimaryUserIdMappingComplete);
 		UserInterface->QueryUserIdMapping(*GetLocalUserNetId(ESocialSubsystem::Primary), DisplayNameOrEmail, QueryCompleteDelegate);
 	}
 }
@@ -307,8 +307,7 @@ void USocialToolkit::QueueUserDependentActionInternal(const FUniqueNetIdRepl& Su
 	}
 	
 	USocialUser* User = FindUser(SubsystemId);
-
-	if (!User && ensureMsgf(USocialToolkit::IsOwnerLoggedIn(), TEXT("Cannot QueueUserDependentAction while local user is logged out! Toolkit [%d], ID [%s], Subsystem [%s]"), GetLocalUserNum(), *SubsystemId.ToDebugString(), ToString(SubsystemType)))
+	if (!User)
 	{
 		if (SubsystemType == ESocialSubsystem::Primary)
 		{
@@ -415,7 +414,7 @@ bool USocialToolkit::TrySendFriendInvite(USocialUser& SocialUser, ESocialSubsyst
 
 		if (FriendsInterface && SubsystemId.IsValid() && !bIsFriendshipRestricted)
 		{
-			return FriendsInterface->SendInvite(GetLocalUserNum(), *SubsystemId, FriendListToQuery, FOnSendInviteComplete::CreateUObject(const_cast<USocialToolkit*>(this), &USocialToolkit::HandleFriendInviteSent, SubsystemType, SocialUser.GetDisplayName()));
+			return FriendsInterface->SendInvite(GetLocalUserNum(), *SubsystemId, FriendListToQuery, FOnSendInviteComplete::CreateUObject(this, &USocialToolkit::HandleFriendInviteSent, SubsystemType, SocialUser.GetDisplayName()));
 		}
 	}
 	return false;

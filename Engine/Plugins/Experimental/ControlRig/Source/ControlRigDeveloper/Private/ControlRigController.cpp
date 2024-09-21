@@ -291,7 +291,6 @@ bool UControlRigController::ConstructPreviewParameter(const FName& InDataType, E
 	FControlRigModelNode Node;
 	Node.Index = 0;
 	Node.Name = TEXT("Parameter");
-	Node.NodeType = EControlRigModelNodeType::Parameter;
 	Node.FunctionName = NAME_None;
 	Node.ParameterType = InParameterType;
 	Node.Position = FVector2D::ZeroVector;
@@ -315,7 +314,6 @@ bool UControlRigController::ConstructPreviewNode(const FName& InFunctionName, FC
 	Node.Index = 0;
 	Node.Name = InFunctionName;
 	Node.FunctionName = InFunctionName;
-	Node.NodeType = EControlRigModelNodeType::Function;
 	Node.ParameterType = EControlRigModelParameterType::None;
 	Node.Position = FVector2D::ZeroVector;
 	UControlRigModel::AddNodePinsForFunction(Node);
@@ -358,21 +356,6 @@ bool UControlRigController::AddParameter(const FName& InName, const FName& InDat
 	return false;
 }
 
-bool UControlRigController::AddComment(const FName& InName, const FString& InText, const FVector2D& InPosition, const FVector2D& InSize, const FLinearColor& InColor, bool bUndo)
-{
-	if (!EnsureModel())
-	{
-		return false;
-	}
-
-	if (Model->AddComment(InName, InText, InPosition, InSize, InColor, bUndo))
-	{
-		return true;
-	}
-
-	return false;
-}
-
 bool UControlRigController::AddNode(const FName& InFunctionName, const FVector2D& InPosition, const FName& InName, bool bUndo)
 {
 	if (!EnsureModel())
@@ -382,7 +365,6 @@ bool UControlRigController::AddNode(const FName& InFunctionName, const FVector2D
 	
 	FControlRigModelNode Node;
 	Node.Name = InName;
-	Node.NodeType = EControlRigModelNodeType::Function;
 	Node.FunctionName = InFunctionName;
 	Node.ParameterType = EControlRigModelParameterType::None;
 	Node.Position = InPosition;
@@ -409,26 +391,6 @@ bool UControlRigController::SetNodePosition(const FName& InName, const FVector2D
 	return Model->SetNodePosition(InName, InPosition, bUndo);
 }
 
-bool UControlRigController::SetNodeSize(const FName& InName, const FVector2D& InSize, bool bUndo)
-{
-	if (!EnsureModel())
-	{
-		return false;
-	}
-
-	return Model->SetNodeSize(InName, InSize, bUndo);
-}
-
-bool UControlRigController::SetNodeColor(const FName& InName, const FLinearColor& InColor, bool bUndo)
-{
-	if (!EnsureModel())
-	{
-		return false;
-	}
-
-	return Model->SetNodeColor(InName, InColor, bUndo);
-}
-
 bool UControlRigController::SetParameterType(const FName& InName, EControlRigModelParameterType InParameterType, bool bUndo)
 {
 	if (!EnsureModel())
@@ -437,16 +399,6 @@ bool UControlRigController::SetParameterType(const FName& InName, EControlRigMod
 	}
 
 	return Model->SetParameterType(InName, InParameterType, bUndo);
-}
-
-bool UControlRigController::SetCommentText(const FName& InName, const FString& InText, bool bUndo)
-{
-	if (!EnsureModel())
-	{
-		return false;
-	}
-
-	return Model->SetCommentText(InName, InText, bUndo);
 }
 
 bool UControlRigController::RenameNode(const FName& InOldNodeName, const FName& InNewNodeName, bool bUndo)

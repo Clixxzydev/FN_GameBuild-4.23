@@ -39,7 +39,6 @@ FCustomDepthPassMeshProcessor::FCustomDepthPassMeshProcessor(const FScene* Scene
 	: FMeshPassProcessor(Scene, Scene->GetFeatureLevel(), InViewIfDynamicMeshCommand, InDrawListContext)
 {
 	PassDrawRenderState.SetViewUniformBuffer(Scene->UniformBuffers.CustomDepthViewUniformBuffer);
-	PassDrawRenderState.SetInstancedViewUniformBuffer(Scene->UniformBuffers.InstancedCustomDepthViewUniformBuffer);
 
 	if (FSceneInterface::GetShadingPath(FeatureLevel) == EShadingPath::Mobile)
 	{
@@ -75,7 +74,7 @@ void FCustomDepthPassMeshProcessor::AddMeshBatch(const FMeshBatch& RESTRICT Mesh
 		if (bWriteCustomStencilValues)
 		{
 			const uint32 CustomDepthStencilValue = PrimitiveSceneProxy->GetCustomDepthStencilValue();
-			static FRHIDepthStencilState* StencilStates[EStencilMask::SM_Count] =
+			const static FDepthStencilStateRHIParamRef StencilStates[EStencilMask::SM_Count] =
 			{
 				TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Keep, SO_Replace, false, CF_Always, SO_Keep, SO_Keep, SO_Keep, 255, 255>::GetRHI(),
 				TStaticDepthStencilState<true, CF_DepthNearOrEqual, true, CF_Always, SO_Keep, SO_Replace, SO_Replace, false, CF_Always, SO_Keep, SO_Keep, SO_Keep, 255, 255>::GetRHI(),

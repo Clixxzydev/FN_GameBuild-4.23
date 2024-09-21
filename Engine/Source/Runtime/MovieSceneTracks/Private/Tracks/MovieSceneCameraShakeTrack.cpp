@@ -90,12 +90,6 @@ void UMovieSceneCameraShakeTrack::RemoveSection(UMovieSceneSection& Section)
 }
 
 
-void UMovieSceneCameraShakeTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	CameraShakeSections.RemoveAt(SectionIndex);
-}
-
-
 bool UMovieSceneCameraShakeTrack::IsEmpty() const
 {
 	return CameraShakeSections.Num() == 0;

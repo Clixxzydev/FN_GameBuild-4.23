@@ -276,11 +276,6 @@ namespace UnrealBuildTool
 		public UnrealTargetPlatform Platform;
 
 		/// <summary>
-		/// Which platform the target is compiled for
-		/// </summary>
-		public string Architecture;
-
-		/// <summary>
 		/// Which configuration this target is compiled in
 		/// </summary>
 		public UnrealTargetConfiguration Configuration;
@@ -331,8 +326,7 @@ namespace UnrealBuildTool
 		/// <param name="InPlatform">Platform for the target being compiled</param>
 		/// <param name="InConfiguration">Configuration of the target being compiled</param>
 		/// <param name="InVersion">Version information for the target</param>
-		/// <param name="InArchitecture">Architecture information for the target</param>
-		public TargetReceipt(FileReference InProjectFile, string InTargetName, TargetType InTargetType, UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, BuildVersion InVersion, string InArchitecture)
+		public TargetReceipt(FileReference InProjectFile, string InTargetName, TargetType InTargetType, UnrealTargetPlatform InPlatform, UnrealTargetConfiguration InConfiguration, BuildVersion InVersion)
 		{
 			ProjectFile = InProjectFile;
 			ProjectDir = DirectoryReference.FromFile(InProjectFile);
@@ -341,7 +335,6 @@ namespace UnrealBuildTool
 			Configuration = InConfiguration;
 			TargetType = InTargetType;
 			Version = InVersion;
-			Architecture = InArchitecture;
 		}
 
 		/// <summary>
@@ -526,7 +519,7 @@ namespace UnrealBuildTool
 			// Read the initial fields
 			string TargetName = RawObject.GetStringField("TargetName");
 			TargetType TargetType = RawObject.GetEnumField<TargetType>("TargetType");
-			UnrealTargetPlatform Platform = UnrealTargetPlatform.Parse(RawObject.GetStringField("Platform"));
+			UnrealTargetPlatform Platform = RawObject.GetEnumField<UnrealTargetPlatform>("Platform");
 			UnrealTargetConfiguration Configuration = RawObject.GetEnumField<UnrealTargetConfiguration>("Configuration");
 
 			// Try to read the build version
@@ -549,16 +542,8 @@ namespace UnrealBuildTool
 				ProjectFile = null;
 			}
 
-			// Read the launch executable
-			string Architecture;
-			if (!RawObject.TryGetStringField("Architecture", out Architecture))
-			{
-				Architecture = "";
-			}
-
-
 			// Create the receipt
-			TargetReceipt Receipt = new TargetReceipt(ProjectFile, TargetName, TargetType, Platform, Configuration, Version, Architecture);
+			TargetReceipt Receipt = new TargetReceipt(ProjectFile, TargetName, TargetType, Platform, Configuration, Version);
 
 			// Get the project directory
 			DirectoryReference ProjectDir = Receipt.ProjectDir;
@@ -700,7 +685,6 @@ namespace UnrealBuildTool
 				Writer.WriteValue("Platform", Platform.ToString());
 				Writer.WriteValue("Configuration", Configuration.ToString());
 				Writer.WriteValue("TargetType", TargetType.ToString());
-				Writer.WriteValue("Architecture", Architecture);
 
 				if(ProjectFile != null)
 				{

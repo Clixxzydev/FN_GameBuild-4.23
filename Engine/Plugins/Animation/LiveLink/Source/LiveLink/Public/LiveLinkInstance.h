@@ -32,7 +32,6 @@ public:
 	virtual bool Evaluate(FPoseContext& Output) override;
 	virtual void UpdateAnimationNode(float DeltaSeconds) override;
 
-	UPROPERTY(EditAnywhere, Category = Settings)
 	FAnimNode_LiveLinkPose PoseNode;
 };
 
@@ -41,9 +40,9 @@ class LIVELINK_API ULiveLinkInstance : public UAnimInstance
 {
 	GENERATED_UCLASS_BODY()
 
-	void SetSubject(FLiveLinkSubjectName SubjectName)
+	void SetSubject(FName SubjectName)
 	{
-		GetProxyOnGameThread<FLiveLinkInstanceProxy>().PoseNode.LiveLinkSubjectName = SubjectName;
+		GetProxyOnGameThread<FLiveLinkInstanceProxy>().PoseNode.SubjectName = SubjectName;
 	}
 
 	void SetRetargetAsset(TSubclassOf<ULiveLinkRetargetAsset> RetargetAsset)

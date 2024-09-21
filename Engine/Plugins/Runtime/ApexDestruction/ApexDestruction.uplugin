@@ -16,14 +16,11 @@
 	"Installed" : false,
 	"Modules" :
 	[
-		{
-			"Name": "ApexDestruction",
-			"Type": "Runtime",
-			"LoadingPhase": "PreDefault",
-			"BlacklistPlatforms": [
-				"HoloLens"
-			]
-		},
+    {
+      "Name": "ApexDestruction",
+      "Type": "Runtime",
+      "LoadingPhase": "PreDefault"
+    },
     {
 			"Name" : "ApexDestructionEditor",
 			"Type" : "Developer",

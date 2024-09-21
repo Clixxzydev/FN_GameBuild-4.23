@@ -8,7 +8,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Tools.DotNETCommon;
 using UnrealBuildTool;
 
 namespace Gauntlet.SelfTest
@@ -21,17 +20,7 @@ namespace Gauntlet.SelfTest
 		/// <summary>
 		/// Name of the project we're testing
 		/// </summary>
-		public string ProjectName { get; protected set; }
-
-		/// <summary>
-		/// Name of the project we're testing
-		/// </summary>
-		public FileReference ProjectFile { get; protected set; }
-
-		/// <summary>
-		/// Path to Unreal
-		/// </summary>
-		public DirectoryReference UnrealPath { get; protected set; }
+		public string GameName { get; protected set; }
 
 		/// <summary>
 		/// True if this project uses the Game/NoEditor shared build type instead of separate client/server ones
@@ -65,8 +54,7 @@ namespace Gauntlet.SelfTest
 
 		public TestUnrealBase()
 		{
-			ProjectName = "Fortnite";
-			ProjectFile = new FileReference("FortniteGame/FortniteGame.uproject");
+			GameName = "Fortnite";
 			UsesSharedBuildType = false;
 			DevkitName = "Default";
 

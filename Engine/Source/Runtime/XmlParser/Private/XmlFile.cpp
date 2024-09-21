@@ -322,8 +322,10 @@ static bool IsQuote(TCHAR Char)
 	return Char == TCHAR('\"');
 }
 
-void FXmlFile::Tokenize(FString Input, TArray<FString>& Tokens)
+TArray<FString> FXmlFile::Tokenize(FString Input)
 {
+	TArray<FString> Tokens;
+
 	FString WorkingToken;
 	enum TOKENTYPE { OPERATOR, STRING, NONE } Type = NONE;
 	bool bInToken = false;
@@ -432,15 +434,17 @@ void FXmlFile::Tokenize(FString Input, TArray<FString>& Tokens)
 	{
 		Tokens.Add(WorkingToken);
 	}
+
+	// Return result
+	return Tokens;
 }
 
 TArray<FString> FXmlFile::Tokenize(TArray<FString>& Input)
 {
 	TArray<FString> Tokens;
-	Tokens.Reserve(Input.Num());
 	for(int32 i = 0; i < Input.Num(); ++i)
 	{
-		Tokenize(Input[i], Tokens);
+		Tokens.Append(Tokenize(Input[i]));
 	}
 	return Tokens;
 }
@@ -492,7 +496,6 @@ FXmlNode* FXmlFile::CreateNodeRecursive(const TArray<FString>& Tokens, int32 Sta
 	//  - Continue parsing until </tag> for self is found
 	//  - Return own constructed node (and index of next starting point
 
-	const int32 RecursiveStartIndex = StartIndex;
 	int32 SavedIndex = StartIndex;
 
 	// Get the tag & any attributes
@@ -605,11 +608,7 @@ FXmlNode* FXmlFile::CreateNodeRecursive(const TArray<FString>& Tokens, int32 Sta
 			if(Tokens[i] == TEXT("<"))
 			{
 				// Recursively enter function creating a child at the new tag
-				FXmlNode* Child = nullptr;
-				if (i > RecursiveStartIndex)
-				{
-					Child = CreateNodeRecursive(Tokens, i, &SavedIndex);
-				}
+				FXmlNode* Child = CreateNodeRecursive(Tokens, i, &SavedIndex);
 
 				// Save child to parent
 				if(Child != nullptr)

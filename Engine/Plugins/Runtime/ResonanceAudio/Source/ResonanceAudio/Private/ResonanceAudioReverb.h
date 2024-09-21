@@ -7,7 +7,6 @@
 #include "IAudioExtensionPlugin.h"
 #include "Sound/SoundEffectSubmix.h"
 #include "Sound/SoundEffectPreset.h"
-#include "ResonanceAudioEnums.h"
 #include "ResonanceAudioCommon.h"
 #include "ResonanceAudioReverb.generated.h"
 
@@ -96,6 +95,7 @@ struct FResonanceAudioReverbPluginSettings
 		, ReverbBrightness(0.0f)
 	{
 	}
+
 };
 
 namespace ResonanceAudio
@@ -113,9 +113,8 @@ namespace ResonanceAudio
 		virtual void OnReleaseSource(const uint32 SourceId) override;
 		virtual class FSoundEffectSubmix* GetEffectSubmix(class USoundSubmix* Submix) override;
 		virtual void ProcessSourceAudio(const FAudioPluginSourceInputData& InputData, FAudioPluginSourceOutputData& OutputData) override;
-		virtual bool DoesReverbOverrideMasterReverb() const override { return false; }
 
-		void SetResonanceAudioApi(vraudio::ResonanceAudioApi* InResonanceAudioApi) { ResonanceAudioApi = InResonanceAudioApi; };
+		void SetResonanceAudioApi(vraudio::VrAudioApi* InResonanceAudioApi) { ResonanceAudioApi = InResonanceAudioApi; };
 		void SetPreset(UResonanceAudioReverbPluginPreset* InPreset);
 		void ProcessMixedAudio(const FSoundEffectSubmixInputData& InData, FSoundEffectSubmixOutputData& OutData);
 		
@@ -136,11 +135,8 @@ namespace ResonanceAudio
 	private:
 		FResonanceAudioReverbPluginSettings ReverbSettings;
 		RaRoomProperties RoomProperties;
-		RaReverbProperties ReverbProperties;
-		RaReflectionProperties ReflectionProperties;
 
-
-		vraudio::ResonanceAudioApi* ResonanceAudioApi;
+		vraudio::VrAudioApi* ResonanceAudioApi;
 		FResonanceAudioModule* ResonanceAudioModule;
 		UResonanceAudioReverbPluginPreset* ReverbPluginPreset;
 		UResonanceAudioReverbPluginPreset* GlobalReverbPluginPreset;

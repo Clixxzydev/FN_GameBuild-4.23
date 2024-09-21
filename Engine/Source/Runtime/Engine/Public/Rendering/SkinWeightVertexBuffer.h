@@ -139,7 +139,7 @@ public:
 	}
 
 	// @param guaranteed only to be valid if the vertex buffer is valid
-	FRHIShaderResourceView* GetSRV() const
+	FShaderResourceViewRHIParamRef GetSRV() const
 	{
 		return SRVValue;
 	}

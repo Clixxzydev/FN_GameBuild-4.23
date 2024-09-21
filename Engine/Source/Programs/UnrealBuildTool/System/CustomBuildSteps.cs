@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ namespace UnrealBuildTool
 	/// </summary>
 	public class CustomBuildSteps
 	{
-		Dictionary<UnrealTargetPlatform, string[]> HostPlatformToCommands = new Dictionary<UnrealTargetPlatform,string[]>();
+		SortedDictionary<UnrealTargetPlatform, string[]> HostPlatformToCommands = new SortedDictionary<UnrealTargetPlatform,string[]>();
 
 		/// <summary>
 		/// Construct a custom build steps object from a Json object.
@@ -23,10 +23,10 @@ namespace UnrealBuildTool
 		{
 			foreach(string HostPlatformName in RawObject.KeyNames)
 			{
-				UnrealTargetPlatform Platform;
-				if (UnrealTargetPlatform.TryParse(HostPlatformName, out Platform))
+				UnrealTargetPlatform HostPlatform;
+				if(Enum.TryParse(HostPlatformName, true, out HostPlatform))
 				{
-					HostPlatformToCommands.Add(Platform, RawObject.GetStringArrayField(HostPlatformName));
+					HostPlatformToCommands.Add(HostPlatform, RawObject.GetStringArrayField(HostPlatformName));
 				}
 			}
 		}
@@ -62,7 +62,7 @@ namespace UnrealBuildTool
 		public void Write(JsonWriter Writer, string FieldName)
 		{
 			Writer.WriteObjectStart(FieldName);
-			foreach(KeyValuePair<UnrealTargetPlatform, string[]> Pair in HostPlatformToCommands.OrderBy(x => x.Key.ToString()))
+			foreach(KeyValuePair<UnrealTargetPlatform, string[]> Pair in HostPlatformToCommands)
 			{
 				Writer.WriteArrayStart(Pair.Key.ToString());
 				foreach(string Line in Pair.Value)

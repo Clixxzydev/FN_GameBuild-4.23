@@ -3,7 +3,6 @@
 #pragma once
 
 #include "AudioMixer.h"
-#include "DSP/Dsp.h"
 #include <SLES/OpenSLES.h>
 #include "SLES/OpenSLES_Android.h"
 
@@ -47,8 +46,6 @@ namespace Audio
 	private:
 		const TCHAR* GetErrorString(SLresult Result);
 
-		int32 GetDeviceBufferSize(int32 RenderCallbackSize) const;
-
 		SLObjectItf	SL_EngineObject;
 		SLEngineItf	SL_EngineEngine;
 		SLObjectItf	SL_OutputMixObject;
@@ -62,16 +59,6 @@ namespace Audio
 		bool bInitialized;
 		bool bInCallback;
 		
-		// This buffer is pushed to and popped from in the SubmitBuffer callback. 
-		// This is required for devices that require frame counts per callback that are not powers of two.
-		Audio::TCircularAudioBuffer<int16> CircularOutputBuffer;
-
-		// This is the buffer we pop CircularOutputBuffer into in SubmitBuffer.
-		TArray<int16> DeviceBuffer;
-
-		int32 NumSamplesPerRenderCallback;
-		int32 NumSamplesPerDeviceCallback;
-
 		static void OpenSLBufferQueueCallback( SLAndroidSimpleBufferQueueItf InQueueInterface, void* pContext );		
 	};
 

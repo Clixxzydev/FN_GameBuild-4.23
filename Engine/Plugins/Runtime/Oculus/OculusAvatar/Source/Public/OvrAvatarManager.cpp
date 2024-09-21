@@ -14,29 +14,16 @@
 
 DEFINE_LOG_CATEGORY(LogAvatars);
 
-UOvrAvatarManager* UOvrAvatarManager::sAvatarManager = nullptr;
+FOvrAvatarManager* FOvrAvatarManager::sAvatarManager = nullptr;
 
-FSoftObjectPath UOvrAvatarManager::AssetList[] =
+FSoftObjectPath FOvrAvatarManager::AssetList[] =
 {
+	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Combined")),
 	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Mobile")),
 	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Mobile_Combined")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Opaque_Body_Mobile")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Opaque_Simple_Mobile")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Combined_Exp_Opaque_Mobile")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2.OculusAvatars_PBRV2")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Combined")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Masked_Body")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Alpha_Body")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Opaque_Body")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Alpha_Simple")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Masked_Simple")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Exp_Opaque_Simple")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Combined_Exp_Masked")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Combined_Exp_Opaque")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_Combined_Exp_Alpha")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_EyeShell")),
-	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_ExpressiveController")),
-	FString(TEXT("/OculusAvatar/Materials/OculusAvatarsPBR")),
+	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2_2_Depth")),
+	FString(TEXT("/OculusAvatar/Materials/AvatarsPBR_2/OculusAvatars_PBRV2")),
+	FString(TEXT("/OculusAvatar/Materials/OculusAvatarsPBR.OculusAvatarsPBR")),
 	FString(TEXT("/OculusAvatar/Materials/v1/Inst/Off/N_OFF_P_OFF/OculusAvatar8Layers_Inst_0Layers.OculusAvatar8Layers_Inst_0Layers")),
 	FString(TEXT("/OculusAvatar/Materials/v1/Inst/Off/N_OFF_P_OFF/OculusAvatar8Layers_Inst_1Layers.OculusAvatar8Layers_Inst_1Layers")),
 	FString(TEXT("/OculusAvatar/Materials/v1/Inst/Off/N_OFF_P_OFF/OculusAvatar8Layers_Inst_2Layers.OculusAvatar8Layers_Inst_2Layers")),
@@ -112,29 +99,23 @@ FSoftObjectPath UOvrAvatarManager::AssetList[] =
 	FString(TEXT("/OculusAvatar/Materials/v1/Inst/Projector.Projector"))
 };
 
-TArray<UObject*> UOvrAvatarManager::AssetObjects;
+TArray<UObject*> FOvrAvatarManager::AssetObjects;
 
-UOvrAvatarManager& UOvrAvatarManager::Get()
+FOvrAvatarManager& FOvrAvatarManager::Get()
 {
-	if (!sAvatarManager)
-	{
-		sAvatarManager = NewObject<UOvrAvatarManager>();
-		sAvatarManager->AddToRoot();
-	}
-
-	return *sAvatarManager;
+	return sAvatarManager != nullptr ? *sAvatarManager : *(sAvatarManager = new FOvrAvatarManager());
 }
 
-void UOvrAvatarManager::Destroy()
+void FOvrAvatarManager::Destroy()
 {
 	if (sAvatarManager)
 	{
-		sAvatarManager->RemoveFromRoot();
+		delete sAvatarManager;
 		sAvatarManager = nullptr;
 	}
 }
 
-UOvrAvatarManager::~UOvrAvatarManager()
+FOvrAvatarManager::~FOvrAvatarManager()
 {
 	if (OVRPluginHandle)
 	{
@@ -165,12 +146,10 @@ static const FString TextureFormatToString(ovrAvatarTextureFormat format)
 	return format < ovrAvatarTextureFormat_Count ? sTextureFormatStrings[format] : sOvrEmptyString;
 }
 
-void UOvrAvatarManager::Tick(float DeltaTime)
+bool FOvrAvatarManager::Tick(float DeltaTime)
 {
-	if (!bIsInitialized)
-	{
-		return;
-	}
+	if (!IsInitialized)
+		return false;
 
 	while (ovrAvatarMessage* message = ovrAvatarMessage_Pop())
 	{
@@ -188,19 +167,20 @@ void UOvrAvatarManager::Tick(float DeltaTime)
 
 		ovrAvatarMessage_Free(message);
 	}
+
+	return true;
 }
 
-void UOvrAvatarManager::SDKLogger(const char * str)
-{
+void FOvrAvatarManager::SDKLogger(const char * str)
+{	
 	UE_LOG(LogAvatars, Display, TEXT("[AVATAR SDK]: %s"), *FString(str));
 }
 
-
-void UOvrAvatarManager::InitializeSDK()
+void FOvrAvatarManager::InitializeSDK()
 {
-	UE_LOG(LogAvatars, Display, TEXT("UOvrAvatarManager::InitializeSDK()"));
+	UE_LOG(LogAvatars, Display, TEXT("FOvrAvatarManager::InitializeSDK()"));
 
-	if (!bIsInitialized)
+	if (!IsInitialized)
 	{
 #if WITH_EDITORONLY_DATA
 		for (int32 AssetIndex = 0; AssetIndex < ARRAY_COUNT(AssetList); ++AssetIndex)
@@ -217,21 +197,11 @@ void UOvrAvatarManager::InitializeSDK()
 			OVRPluginHandle = FOculusHMDModule::GetOVRPluginHandle();
 		}
 
-#if PLATFORM_WINDOWS
-		AVATAR_APP_ID = GConfig->GetStr(TEXT("OnlineSubsystemOculus"), TEXT("RiftAppId"), GEngineIni);
-#elif PLATFORM_ANDROID
-		AVATAR_APP_ID = GConfig->GetStr(TEXT("OnlineSubsystemOculus"), TEXT("GearVRAppId"), GEngineIni);
-#endif
-
-		if (AVATAR_APP_ID.IsEmpty())
-		{
-			UE_LOG(LogAvatars, Display, TEXT("Oculus Avatars No App Id Found: SHUTTING DOWN %s"));
-			return;
-		}
 
 #if PLATFORM_ANDROID
-		UE_LOG(LogAvatars, Display, TEXT("ovrAvatar_InitializeAndroid %s"), *AVATAR_APP_ID);
-		ovrAvatar_InitializeAndroid(TCHAR_TO_ANSI(*AVATAR_APP_ID), FAndroidApplication::GetGameActivityThis(), FAndroidApplication::GetJavaEnv());
+		AVATAR_APP_ID = TCHAR_TO_ANSI(*GConfig->GetStr(TEXT("OnlineSubsystemOculus"), TEXT("GearVRAppId"), GEngineIni));
+		UE_LOG(LogAvatars, Display, TEXT("ovrAvatar_InitializeAndroid"));
+		ovrAvatar_InitializeAndroid(AVATAR_APP_ID, FAndroidApplication::GetGameActivityThis(), FAndroidApplication::GetJavaEnv());
 #else
 		OVRAvatarHandle = FPlatformProcess::GetDllHandle(TEXT("libovravatar.dll"));
 		if (OVRAvatarHandle == nullptr)
@@ -240,11 +210,12 @@ void UOvrAvatarManager::InitializeSDK()
 			return;
 		}
 
-		UE_LOG(LogAvatars, Display, TEXT("ovrAvatar_Initialize %s"), *AVATAR_APP_ID);
-		ovrAvatar_Initialize(TCHAR_TO_ANSI(*AVATAR_APP_ID));
+		AVATAR_APP_ID = TCHAR_TO_ANSI(*GConfig->GetStr(TEXT("OnlineSubsystemOculus"), TEXT("RiftAppId"), GEngineIni));
+		UE_LOG(LogAvatars, Display, TEXT("ovrAvatar_Initialize"));
+		ovrAvatar_Initialize(AVATAR_APP_ID);
 #endif
 
-		bIsInitialized = true;
+		IsInitialized = true;
 
 		ovrAvatar_SetLoggingLevel(LogLevel);
 
@@ -253,31 +224,26 @@ void UOvrAvatarManager::InitializeSDK()
 		{
 			ovrAvatarMessage_Free(Message);
 		}
-
-		ovrAvatar_RegisterLoggingCallback(&UOvrAvatarManager::SDKLogger);
+		
+		ovrAvatar_RegisterLoggingCallback(&FOvrAvatarManager::SDKLogger);
 	}
 }
 
-void UOvrAvatarManager::ShutdownSDK()
+void FOvrAvatarManager::ShutdownSDK()
 {
-	if (bIsInitialized)
+	if (IsInitialized)
 	{
 #if WITH_EDITORONLY_DATA
 		AssetObjects.Empty();
 #endif
-		ShutdownEvent.Broadcast();
-
-		// This is crashing when cooking content, and not sure why...
-#if !WITH_EDITORONLY_DATA
 		ovrAvatar_RegisterLoggingCallback(nullptr);
-#endif
 
-		bIsInitialized = false;
+		IsInitialized = false;
 		ovrAvatar_Shutdown();
 	}
 }
 
-void UOvrAvatarManager::HandleAvatarSpecification(const ovrAvatarMessage_AvatarSpecification* message)
+void FOvrAvatarManager::HandleAvatarSpecification(const ovrAvatarMessage_AvatarSpecification* message)
 {
 	UE_LOG(LogAvatars, Display, TEXT("[Avatars] Request Spec Arrived [%llu]"), message->oculusUserID);
 
@@ -287,7 +253,7 @@ void UOvrAvatarManager::HandleAvatarSpecification(const ovrAvatarMessage_AvatarS
 	}
 }
 
-void UOvrAvatarManager::HandleAssetLoaded(const ovrAvatarMessage_AssetLoaded* message)
+void FOvrAvatarManager::HandleAssetLoaded(const ovrAvatarMessage_AssetLoaded* message)
 {
 	for (TObjectIterator<UOvrAvatar> Itr; Itr; ++Itr)
 	{
@@ -295,22 +261,20 @@ void UOvrAvatarManager::HandleAssetLoaded(const ovrAvatarMessage_AssetLoaded* me
 	}
 }
 
-void UOvrAvatarManager::LoadTexture(const uint64_t id, const ovrAvatarTextureAssetData* data)
-{
+void FOvrAvatarManager::LoadTexture(const uint64_t id, const ovrAvatarTextureAssetData* data)
+{ 
 	const bool isNormalMap = NormalMapIDs.Find(id) != nullptr;
-	const bool isRoughnessMap = RoughnessMapIDs.Find(id) != nullptr;
-	Textures.Add(id, LoadTexture(id, data, isNormalMap || isRoughnessMap));
+	Textures.Add(id, LoadTexture(data, isNormalMap));
 
-	UE_LOG(LogAvatars, Display, TEXT("[Avatars] Loaded Texture:    [%llu] - [%s]"), id, *TextureFormatToString(data->format));
-	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Res:        [%d]x[%d]"), data->sizeX, data->sizeY);
-	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Size:       [%llu]"), data->textureDataSize);
-	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Mips:       [%d]"), data->mipCount);
-	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Normal:     [%d]"), isNormalMap ? 1u : 0u);
-	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Roughness:  [%d]"), isRoughnessMap ? 1u : 0u);
+	UE_LOG(LogAvatars, Display, TEXT("[Avatars] Loaded Texture: [%llu] - [%s]"), id, *TextureFormatToString(data->format));
+	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Res:     [%d]x[%d]"), data->sizeX, data->sizeY);
+	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Size:    [%llu]"), data->textureDataSize);
+	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Mips:    [%d]"), data->mipCount);
+	UE_LOG(LogAvatars, Display, TEXT("[Avatars]        Normal:  [%d]"), isNormalMap ? 1u : 0u);
 }
 
 
-UTexture2D* UOvrAvatarManager::LoadTexture(const uint64_t id, const ovrAvatarTextureAssetData* data, bool isLinearColor)
+UTexture2D* FOvrAvatarManager::LoadTexture(const ovrAvatarTextureAssetData* data, bool isNormalMap)
 {
 	const uint8_t* TextureData = data->textureData;
 	uint8_t* NewTextureData = nullptr;
@@ -375,17 +339,13 @@ UTexture2D* UOvrAvatarManager::LoadTexture(const uint64_t id, const ovrAvatarTex
 
 	if (Width > 0 && Height > 0)
 	{
-		static FString Name = "AvatarTexture";
-		FString MeshNameString = Name + FString::Printf(TEXT("_%llu"), id);
-
-		UnrealTexture = NewObject<UTexture2D>(GetTransientPackage(), *MeshNameString, RF_Transient);
-		UnrealTexture->AddToRoot();
+		UnrealTexture = NewObject<UTexture2D>(GetTransientPackage(), NAME_None, RF_Transient);
 
 		UnrealTexture->PlatformData = new FTexturePlatformData();
 		UnrealTexture->PlatformData->SizeX = Width;
 		UnrealTexture->PlatformData->SizeY = Height;
 		UnrealTexture->PlatformData->PixelFormat = PixelFormat;
-		UnrealTexture->SRGB = !isLinearColor;
+		UnrealTexture->SRGB = !isNormalMap;
 
 		uint32_t DataOffset = 0;
 
@@ -403,7 +363,7 @@ UTexture2D* UOvrAvatarManager::LoadTexture(const uint64_t id, const ovrAvatarTex
 
 			check(DataOffset + MipSize <= TextureSize)
 
-				FTexture2DMipMap* MipMap = new FTexture2DMipMap();
+			FTexture2DMipMap* MipMap = new FTexture2DMipMap();
 
 			UnrealTexture->PlatformData->Mips.Add(MipMap);
 			MipMap->SizeX = Width;
@@ -435,17 +395,17 @@ UTexture2D* UOvrAvatarManager::LoadTexture(const uint64_t id, const ovrAvatarTex
 	return UnrealTexture;
 }
 
-UTexture* UOvrAvatarManager::FindTexture(uint64_t id)
+UTexture* FOvrAvatarManager::FindTexture(uint64_t id) const
 {
 	if (auto Tex = Textures.Find(id))
 	{
-		return *Tex;
+		return Tex->IsValid() ? Tex->Get() : nullptr;
 	}
 
 	return nullptr;
 }
 
-void UOvrAvatarManager::CacheNormalMapID(uint64_t id)
+void FOvrAvatarManager::CacheNormalMapID(uint64_t id)
 {
 	if (!NormalMapIDs.Contains(id))
 	{
@@ -453,17 +413,9 @@ void UOvrAvatarManager::CacheNormalMapID(uint64_t id)
 	}
 }
 
-void UOvrAvatarManager::CacheRoughnessMapID(uint64_t id)
-{
-	if (!RoughnessMapIDs.Contains(id))
-	{
-		RoughnessMapIDs.Emplace(id);
-	}
-}
-
 // Setting a max in case there is no consumer and recording turned on.
-static const uint32_t SANITY_SIZE = 500;
-void UOvrAvatarManager::QueueAvatarPacket(ovrAvatarPacket* packet)
+static const uint32_t SANITY_SIZE = 500; 
+void FOvrAvatarManager::QueueAvatarPacket(ovrAvatarPacket* packet)
 {
 	if (packet == nullptr)
 	{
@@ -495,63 +447,7 @@ void UOvrAvatarManager::QueueAvatarPacket(ovrAvatarPacket* packet)
 	ovrAvatarPacket_Free(packet);
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-UFUNCTION(Server, Reliable)
-//	void QueueAvatarPacketServer(uint8_t* inBuffer, uint32_t inBufferSize, const FString& key, uint32 packetSequenceNumber);
-//
-//This is a server side call used in Multiplayer to Queue Avatar packet data.  The data has to be sent to the server to then be replicated out to all the clients
-//The packet data has been extracted out of the ovrAvatarPacket type so it can be sent over the wire.
-//The key param is the unique identifier for the avatar that is sending the data so the server can keep a queue for each avatar in the session
-//The packetSequenceNumber param is just a way to keep track of the order of packets arriving on the server to make sure nothing out of order is used
-//void QueueAvatarPacketServer(uint8_t* inBuffer, uint32_t inBufferSize, const FString& key, uint32 packetSequenceNumber);
-//{
-//	const auto inBufferSize = inBuffer.Num();
-//
-//	if (inBufferSize < 1)//(packet == nullptr)
-//	{
-//		UE_LOG(LogAvatars, Warning, TEXT("UOvrAvatarManager::QueueAvatarPacket() packet is empty"));
-//		return;
-//	}
-//
-//	SerializedPacketBuffer Buffer;
-//
-//	//find the PacketQueue that belongs to the key
-//	if (auto Queue = AvatarPacketQueues.Find(key))
-//	{
-//		UE_LOG(LogAvatars, Warning, TEXT("[Avatars] UOvrAvatarManager::QueueAvatarPacket Found a queue with Key: %s "), *key);//pw
-//		if ((*Queue)->PacketQueueSize >= SANITY_SIZE)
-//		{
-//			UE_LOG(LogAvatars, Warning, TEXT("[Avatars] Unexpectedly large amount of packets recorded, losing data.  Queue Size: %d, Key: %s "), (*Queue)->PacketQueueSize, *key);
-//			(*Queue)->PacketQueue.Dequeue(Buffer);
-//			(*Queue)->PacketQueueSize--;
-//			delete[] Buffer.Buffer;
-//		}
-//		(*Queue)->PacketQueueSize++;
-//		UE_LOG(LogAvatars, Warning, TEXT("[Avatars] UOvrAvatarManager::QueueAvatarPacket PacketQueueSize: %d "), (*Queue)->PacketQueueSize);//pw
-//
-//		Buffer.Buffer = new uint8_t[inBufferSize];
-//		for (int32 elementIdx = 0; elementIdx < inBufferSize; elementIdx++)
-//		{
-//			Buffer.Buffer[elementIdx] = inBuffer[elementIdx];
-//		}
-//		Buffer.Size = inBufferSize;
-//
-//		if (!(*Queue)->PacketQueue.Enqueue(Buffer))
-//		{
-//			UE_LOG(LogAvatars, Warning, TEXT("[Avatars] UOvrAvatarManager::QueueAvatarPacket() - (*Queue)->PacketQueue.Enqueue(Buffer) FAILED.  Key: %s  Buffer: %llu"), *key, Buffer.Buffer);
-//		}
-//		else
-//		{
-//			UE_LOG(LogAvatars, Warning, TEXT("[Avatars] UOvrAvatarManager::QueueAvatarPacket() - (*Queue)->PacketQueue.Enqueue(Buffer).  Key: %s  SequenceNum: %d"), *key, packetSequenceNumber);
-//		}
-//	}
-//	else
-//	{
-//		UE_LOG(LogAvatars, Warning, TEXT("[Avatars] UOvrAvatarManager::QueueAvatarPacket() AvatarPacketQueues.Find(%s) failed to find a queue"), *key);
-//	}
-//}
-
-ovrAvatarPacket* UOvrAvatarManager::RequestAvatarPacket(const FString& key)
+ovrAvatarPacket* FOvrAvatarManager::RequestAvatarPacket(const FString& key)
 {
 	ovrAvatarPacket* ReturnPacket = nullptr;
 
@@ -571,7 +467,7 @@ ovrAvatarPacket* UOvrAvatarManager::RequestAvatarPacket(const FString& key)
 	return ReturnPacket;
 }
 
-void UOvrAvatarManager::RegisterRemoteAvatar(const FString& key)
+void FOvrAvatarManager::RegisterRemoteAvatar(const FString& key)
 {
 	check(!AvatarPacketQueues.Find(key));
 
@@ -579,7 +475,7 @@ void UOvrAvatarManager::RegisterRemoteAvatar(const FString& key)
 	AvatarPacketQueues.Add(key, NewQueue);
 }
 
-void UOvrAvatarManager::UnregisterRemoteAvatar(const FString& key)
+void FOvrAvatarManager::UnregisterRemoteAvatar(const FString& key)
 {
 	if (auto Queue = AvatarPacketQueues.Find(key))
 	{
@@ -596,12 +492,12 @@ void UOvrAvatarManager::UnregisterRemoteAvatar(const FString& key)
 	}
 }
 
-float UOvrAvatarManager::GetSDKPacketDuration(ovrAvatarPacket* packet)
+float FOvrAvatarManager::GetSDKPacketDuration(ovrAvatarPacket* packet)
 {
 	return packet != nullptr ? ovrAvatarPacket_GetDurationSeconds(packet) : 0.f;
 }
 
-void UOvrAvatarManager::FreeSDKPacket(ovrAvatarPacket* packet)
+void FOvrAvatarManager::FreeSDKPacket(ovrAvatarPacket* packet)
 {
 	if (packet != nullptr)
 	{
@@ -609,7 +505,7 @@ void UOvrAvatarManager::FreeSDKPacket(ovrAvatarPacket* packet)
 	}
 }
 
-bool UOvrAvatarManager::IsOVRPluginValid() const
+bool FOvrAvatarManager::IsOVRPluginValid() const
 {
 #if PLATFORM_ANDROID
 	return true;
@@ -617,4 +513,4 @@ bool UOvrAvatarManager::IsOVRPluginValid() const
 	return OVRPluginHandle != nullptr;
 #endif
 }
-	
+

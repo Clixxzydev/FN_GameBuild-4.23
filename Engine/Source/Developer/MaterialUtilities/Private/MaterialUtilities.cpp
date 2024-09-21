@@ -282,9 +282,9 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 		return Compiler->ObjectBounds();
 	}
 
-	virtual int32 PreSkinnedLocalBounds(int32 OutputIndex) override
+	virtual int32 PreSkinnedLocalBounds() override
 	{
-		return Compiler->PreSkinnedLocalBounds(OutputIndex);
+		return Compiler->PreSkinnedLocalBounds();
 	}
 
 	virtual int32 CameraVector() override
@@ -450,7 +450,7 @@ public:
 			break;
 		};
 		
-		CacheShaders(ResourceId, GMaxRHIShaderPlatform);
+		CacheShaders(ResourceId, GMaxRHIShaderPlatform, true);
 	}
 
 	virtual bool IsUsedWithStaticLighting() const { return true; }
@@ -474,7 +474,7 @@ public:
 		return true;
 	}
 
-	virtual const TArray<UObject*>& GetReferencedTextures() const override
+	virtual const TArray<UTexture*>& GetReferencedTextures() const override
 	{
 		return ReferencedTextures;
 	}
@@ -651,7 +651,6 @@ public:
 	virtual bool IsMasked() const override									{ return false; }
 	virtual enum EBlendMode GetBlendMode() const override					{ return BLEND_Opaque; }
 	virtual FMaterialShadingModelField GetShadingModels() const override	{ return MSM_Unlit; }
-	virtual bool IsShadingModelFromMaterialExpression() const override		{ return false; }
 	virtual float GetOpacityMaskClipValue() const override					{ return 0.5f; }
 	virtual bool GetCastDynamicShadowAsMasked() const override				{ return false; }
 	virtual FString GetFriendlyName() const override { return FString::Printf(TEXT("FExportMaterialRenderer %s"), MaterialInterface ? *MaterialInterface->GetName() : TEXT("NULL")); }
@@ -758,7 +757,7 @@ private:
 	/** The material interface for this proxy */
 	UMaterialInterface* MaterialInterface;
 	UMaterial* Material;	
-	TArray<UObject*> ReferencedTextures;
+	TArray<UTexture*> ReferencedTextures;
 	/** The property to compile for rendering the sample */
 	EMaterialProperty PropertyToCompile;
 	FGuid Id;
@@ -2817,7 +2816,7 @@ void FMaterialUtilities::DetermineMaterialImportance(const TArray<UMaterialInter
 	int32 SummedSize = 0;
 	for (UMaterialInterface* Material : InMaterials)
 	{
-		TArray<UObject*> UsedTextures;
+		TArray<UTexture*> UsedTextures;
 		Material->AppendReferencedTextures(UsedTextures);
 		if (UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Material))
 		{
@@ -2830,7 +2829,7 @@ void FMaterialUtilities::DetermineMaterialImportance(const TArray<UMaterialInter
 			}
 		}
 		int32 MaxSize = 64 * 64;
-		for (UObject* Texture : UsedTextures)
+		for (UTexture* Texture : UsedTextures)
 		{
 			if (UTexture2D* Texture2D = Cast<UTexture2D>(Texture))
 			{

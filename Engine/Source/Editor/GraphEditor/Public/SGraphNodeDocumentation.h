@@ -52,10 +52,6 @@ protected:
 	float GetDocumentationWrapWidth() const;
 	/** Returns the current child widgets visibility for hit testing */
 	EVisibility GetWidgetVisibility() const;
-	/** Color of the page gradient start */
-	FLinearColor GetPageGradientStartColor() const;
-	/** Color of the page gradient end */
-	FLinearColor GetPageGradientEndColor() const;
 
 private:
 

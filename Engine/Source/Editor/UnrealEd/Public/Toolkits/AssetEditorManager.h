@@ -117,7 +117,6 @@ public:
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
 
 	/** Close all open asset editors */
 	bool CloseAllAssetEditors();

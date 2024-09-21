@@ -64,9 +64,6 @@ public:
 	// delegate type for prompting the pak system to mount a new pak
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FOnUnmountPak, const FString&);
 
-	// delegate type for prompting the pak system to optimize memory for mounted paks
-	DECLARE_DELEGATE(FOnOptimizeMemoryUsageForMountedPaks);
-
 	// delegate for handling when a new pak file is successfully mounted passes in the name of the mounted pak file
 	DECLARE_MULTICAST_DELEGATE_OneParam(FPakFileMountedDelegate, const TCHAR*);
 
@@ -155,15 +152,8 @@ public:
 	// Callback for unmounting a pak file.
 	static FOnUnmountPak OnUnmountPak;
 
-	// Callback to optimize memeory for currently mounted paks
-	static FOnOptimizeMemoryUsageForMountedPaks OnOptimizeMemoryUsageForMountedPaks;
-
 	// After a pakfile is mounted this callback is called for each new file
 	static FPakFileMountedDelegate PakFileMountedCallback;
-
-	// After a file is added this is called
-	DECLARE_MULTICAST_DELEGATE_OneParam(FNewFileAddedDelegate, const FString&);
-	static FNewFileAddedDelegate NewFileAddedDelegate;
 
 	// After an attempt to mount all pak files, but none wre found, this is called
 	static FNoPakFilesMountedDelegate NoPakFilesMountedDelegate;
@@ -181,7 +171,6 @@ public:
 
 	// Callback when an ensure has occurred
 	static FOnHandleSystemEnsure OnHandleSystemEnsure;
-
 	// Callback when an error (crash) has occurred
 	static FOnHandleSystemError OnHandleSystemError;
 

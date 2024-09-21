@@ -14,7 +14,6 @@ class UNiagaraEmitterFactoryNew : public UFactory
 	GENERATED_UCLASS_BODY()
 
 	UNiagaraEmitter* EmitterToCopy;
-	bool bUseInheritance;
 	bool bAddDefaultModulesAndRenderersToEmptyEmitter;
 
 	//~ Begin UFactory Interface

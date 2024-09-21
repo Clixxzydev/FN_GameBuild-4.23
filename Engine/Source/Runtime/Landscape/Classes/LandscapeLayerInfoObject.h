@@ -10,7 +10,7 @@
 class UPhysicalMaterial;
 struct FPropertyChangedEvent;
 
-UCLASS(MinimalAPI, BlueprintType)
+UCLASS(MinimalAPI)
 class ULandscapeLayerInfoObject : public UObject
 {
 	GENERATED_UCLASS_BODY()

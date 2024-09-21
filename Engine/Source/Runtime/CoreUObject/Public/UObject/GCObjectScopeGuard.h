@@ -30,11 +30,6 @@ public:
 		Collector.AddReferencedObject(Object);
 	}
 
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("FGCObjectScopeGuard");
-	}
-
 private:
 	const UObject* Object;
 };
@@ -65,11 +60,6 @@ public:
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override
 	{
 		Collector.AddReferencedObjects(Objects);
-	}
-
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("TGCObjectsScopeGuard");
 	}
 
 private:

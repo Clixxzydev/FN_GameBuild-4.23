@@ -13,11 +13,10 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"Core",
-					"CoreUObject",
-                    "Chaos",
-                    "Voronoi"
+					"CoreUObject"
                 }
             );
+            SetupModulePhysicsSupport(Target);
         }
     }
 }

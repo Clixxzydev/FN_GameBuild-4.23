@@ -375,7 +375,7 @@ namespace UnrealBuildTool
 					case "IOS_12":
 						return "12.0";
 					default:
-						return "11.0";
+						return "10.0";
 				}
 			}
 		}
@@ -680,12 +680,12 @@ namespace UnrealBuildTool
 		public static string IOSArchitecture = "";
 
 		public IOSPlatform(IOSPlatformSDK InSDK)
-			: this(InSDK, UnrealTargetPlatform.IOS)
+			: this(InSDK, UnrealTargetPlatform.IOS, CppPlatform.IOS)
 		{
 		}
 
-		protected IOSPlatform(IOSPlatformSDK InSDK, UnrealTargetPlatform TargetPlatform)
-			: base(TargetPlatform)
+		protected IOSPlatform(IOSPlatformSDK InSDK, UnrealTargetPlatform TargetPlatform, CppPlatform CPPPlatform)
+			: base(TargetPlatform, CPPPlatform)
 		{
 			SDK = InSDK;
 		}
@@ -1012,6 +1012,7 @@ namespace UnrealBuildTool
 
 			CompileEnvironment.Definitions.Add("PLATFORM_IOS=1");
 			CompileEnvironment.Definitions.Add("PLATFORM_APPLE=1");
+			CompileEnvironment.Definitions.Add("GLES_SILENCE_DEPRECATION=1");  // suppress GLES "deprecated" warnings until a proper solution is implemented (see UE-65643)
 
 			CompileEnvironment.Definitions.Add("WITH_TTS=0");
 			CompileEnvironment.Definitions.Add("WITH_SPEECH_RECOGNITION=0");
@@ -1059,11 +1060,7 @@ namespace UnrealBuildTool
 				CompileEnvironment.Definitions.Add("ENABLE_ADVERTISING_IDENTIFIER=1");
 			}
 
-			// For 4.23 the version check fails for binary builds, re-enabling along with deprecation warning suppression for all builds UE-77520
-			// ES support will be fully removed in 4.24
-			CompileEnvironment.Definitions.Add("HAS_OPENGL_ES=1");
-			CompileEnvironment.Definitions.Add("GLES_SILENCE_DEPRECATION=1"); 
-			//CompileEnvironment.Definitions.Add("HAS_OPENGL_ES=" + ((Target.IOSPlatform.RuntimeVersion < 12.0) ? "1" : "0"));
+			CompileEnvironment.Definitions.Add("HAS_OPENGL_ES=" + ((Target.IOSPlatform.RuntimeVersion < 12.0) ? "1" : "0"));
 
 			// if the project has an Oodle compression Dll, enable the decompressor on IOS
 			if (Target.ProjectFile != null)
@@ -1103,9 +1100,10 @@ namespace UnrealBuildTool
 		/// <summary>
 		/// Creates a toolchain instance for the given platform.
 		/// </summary>
+		/// <param name="CppPlatform">The platform to create a toolchain for</param>
 		/// <param name="Target">The target being built</param>
 		/// <returns>New toolchain instance.</returns>
-		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
+		public override UEToolChain CreateToolChain(CppPlatform CppPlatform, ReadOnlyTargetRules Target)
 		{
 			IOSProjectSettings ProjectSettings = ReadProjectSettings(Target.ProjectFile);
 			return new IOSToolChain(Target, ProjectSettings);

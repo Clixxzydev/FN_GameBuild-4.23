@@ -2,7 +2,7 @@
 // Copyright 2016 Magic Leap, Inc. All Rights Reserved.
 
 #pragma once
-#include "Android/AndroidPlatformProcess.h"
+#include "Android/AndroidProcess.h"
 
 /**
 * Android implementation of the Process OS functions

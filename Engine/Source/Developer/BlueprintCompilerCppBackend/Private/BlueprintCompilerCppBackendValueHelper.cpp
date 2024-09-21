@@ -38,17 +38,11 @@ void FEmitDefaultValueHelper::OuterGenerate(FEmitterLocalContext& Context
 	, const uint8* DataContainer
 	, const uint8* OptionalDefaultDataContainer
 	, EPropertyAccessOperator AccessOperator
-	, EPropertyGenerationControlFlags ControlFlags)
+	, bool bAllowProtected)
 {
 	check(Property);
 
-	const bool bAllowTransient = !!(ControlFlags & EPropertyGenerationControlFlags::AllowTransient);
-	const bool bAllowProtected = !!(ControlFlags & EPropertyGenerationControlFlags::AllowProtected);
-
-	// Don't allow these flags to propagate through to nested calls.
-	ControlFlags &= ~EPropertyGenerationControlFlags::AllowProtected;
-
-	if (Property->HasAnyPropertyFlags(CPF_EditorOnly) || (!bAllowTransient && Property->HasAnyPropertyFlags(CPF_Transient)) )
+	if (Property->HasAnyPropertyFlags(CPF_EditorOnly | CPF_Transient))
 	{
 		UE_LOG(LogK2Compiler, Verbose, TEXT("FEmitDefaultValueHelper Skip EditorOnly or Transient property: %s"), *Property->GetPathName());
 		return;
@@ -134,7 +128,7 @@ void FEmitDefaultValueHelper::OuterGenerate(FEmitterLocalContext& Context
 
 			const uint8* ValuePtr = Property->ContainerPtrToValuePtr<uint8>(DataContainer, ArrayIndex);
 			const uint8* DefaultValuePtr = OptionalDefaultDataContainer ? Property->ContainerPtrToValuePtr<uint8>(OptionalDefaultDataContainer, ArrayIndex) : nullptr;
-			InnerGenerate(Context, Property, PathToMember, ValuePtr, DefaultValuePtr, ControlFlags | EPropertyGenerationControlFlags::IncludeFirstConstructionLine);
+			InnerGenerate(Context, Property, PathToMember, ValuePtr, DefaultValuePtr);
 		}
 	}
 }
@@ -168,13 +162,8 @@ void FEmitDefaultValueHelper::GenerateUserStructConstructor(const UUserDefinedSt
 	Context.Body.AddLine(TEXT("}"));
 }
 
-void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const UProperty* Property, const FString& PathToMember, const uint8* ValuePtr, const uint8* DefaultValuePtr, EPropertyGenerationControlFlags ControlFlags)
+void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const UProperty* Property, const FString& PathToMember, const uint8* ValuePtr, const uint8* DefaultValuePtr, bool bWithoutFirstConstructionLine)
 {
-	const bool bWithoutFirstConstructionLine = !(ControlFlags & EPropertyGenerationControlFlags::IncludeFirstConstructionLine);
-
-	// Don't propagate this flag through to nested calls.
-	ControlFlags &= ~EPropertyGenerationControlFlags::IncludeFirstConstructionLine;
-
 	auto InlineValueStruct = [&](UScriptStruct* OuterStruct, const uint8* LocalValuePtr) -> UScriptStruct*
 	{ 
 		UScriptStruct* InnerStruct = FBackendHelperUMG::InlineValueStruct(OuterStruct, LocalValuePtr);
@@ -257,8 +246,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 		{
 			OuterGenerate(Context, LocalProperty, ActualPathToMember, ActualValuePtr
 				, (ActualDefaultValuePtr ? ActualDefaultValuePtr : DefaultStructOnScope.GetStructMemory())
-				, InnerInlineStruct ? EPropertyAccessOperator::Pointer : EPropertyAccessOperator::Dot
-				, ControlFlags);
+				, InnerInlineStruct ? EPropertyAccessOperator::Pointer : EPropertyAccessOperator::Dot);
 		}
 	}
 
@@ -287,7 +275,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 		return bInitializeWithoutScriptStruct ? EStructConstructionType::EmptyConstructor : EStructConstructionType::Custom;
 	};
 
-	auto CreateElementSimple = [OneLineConstruction, ControlFlags](FEmitterLocalContext& LocalContext, const UProperty* LocalProperty, const uint8* LocalValuePtr) -> FString
+	auto CreateElementSimple = [OneLineConstruction](FEmitterLocalContext& LocalContext, const UProperty* LocalProperty, const uint8* LocalValuePtr) -> FString
 	{
 		FString ValueStr;
 		const bool bComplete = OneLineConstruction(LocalContext, LocalProperty, LocalValuePtr, ValueStr, true);
@@ -296,7 +284,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 		{
 			const FString ElemLocName = LocalContext.GenerateUniqueLocalName();
 			LocalContext.AddLine(FString::Printf(TEXT("auto %s = %s;"), *ElemLocName, *ValueStr));
-			InnerGenerate(LocalContext, LocalProperty, ElemLocName, LocalValuePtr, nullptr, ControlFlags);
+			InnerGenerate(LocalContext, LocalProperty, ElemLocName, LocalValuePtr, nullptr, /*bWithoutFirstConstructionLine=*/true);
 			ValueStr = ElemLocName;
 		}
 		return ValueStr;
@@ -326,7 +314,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 					const FString ArrayElementRefName = Context.GenerateUniqueLocalName();
 					Context.AddLine(FString::Printf(TEXT("auto& %s = %s[%d];"), *ArrayElementRefName, *PathToMember, Index));
 					// This is a Regular Struct (no special constructor), so we don't need to call constructor
-					InnerGenerate(Context, ArrayProperty->Inner, ArrayElementRefName, ScriptArrayHelper.GetRawPtr(Index), nullptr, ControlFlags);
+					InnerGenerate(Context, ArrayProperty->Inner, ArrayElementRefName, ScriptArrayHelper.GetRawPtr(Index), nullptr, /*bWithoutFirstConstructionLine=*/ true);
 				}
 			}
 			else
@@ -343,7 +331,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 					if (!bComplete)
 					{
 						// The constructor was already called
-						InnerGenerate(Context, ArrayProperty->Inner, FString::Printf(TEXT("%s[%d]"), *PathToMember, Index), LocalValuePtr, nullptr, ControlFlags);
+						InnerGenerate(Context, ArrayProperty->Inner, FString::Printf(TEXT("%s[%d]"), *PathToMember, Index), LocalValuePtr, nullptr, /*bWithoutFirstConstructionLine=*/ true);
 					}
 				}
 			}
@@ -385,7 +373,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 					const FString ElementName = Context.GenerateUniqueLocalName();
 					Context.AddLine(FString::Printf(TEXT("%s& %s = *(%s*)%s.GetElementPtr(%s.AddDefaultValue_Invalid_NeedsRehash());")
 						, *StructCppName, *ElementName, *StructCppName, *SetHelperName, *SetHelperName));
-					InnerGenerate(Context, StructProperty, ElementName, ScriptSetHelper.GetElementPtr(Index), nullptr, ControlFlags);
+					InnerGenerate(Context, StructProperty, ElementName, ScriptSetHelper.GetElementPtr(Index), nullptr, /*bWithoutFirstConstructionLine=*/true);
 				});
 				Context.AddLine(FString::Printf(TEXT("%s.Rehash();"), *SetHelperName));
 			}
@@ -453,7 +441,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 						}
 						if (!bKeyComplete)
 						{
-							InnerGenerate(Context, MapProperty->KeyProp, KeyPath, ScriptMapHelper.GetKeyPtr(Index), nullptr, ControlFlags);
+							InnerGenerate(Context, MapProperty->KeyProp, KeyPath, ScriptMapHelper.GetKeyPtr(Index), nullptr, /*bWithoutFirstConstructionLine=*/true);
 						}
 					}
 
@@ -471,7 +459,7 @@ void FEmitDefaultValueHelper::InnerGenerate(FEmitterLocalContext& Context, const
 						}
 						if (!bValueComplete)
 						{
-							InnerGenerate(Context, MapProperty->ValueProp, ValuePath, ScriptMapHelper.GetValuePtr(Index), nullptr, ControlFlags);
+							InnerGenerate(Context, MapProperty->ValueProp, ValuePath, ScriptMapHelper.GetValuePtr(Index), nullptr, /*bWithoutFirstConstructionLine=*/true);
 						}
 					}
 
@@ -975,7 +963,7 @@ protected:
 
 			// Emit the C++ code needed to initialize the remainder of the struct's value within the component that's now being instanced as a default subobject within the converted context.
 			const FString PathToMember = FString::Printf(TEXT("%s->BodyInstance"), *VariableName);
-			FEmitDefaultValueHelper::InnerGenerate(Context, BodyInstanceProperty, PathToMember, (const uint8*)&Component->BodyInstance, BodyInstanceToCompare.GetStructMemory(), FEmitDefaultValueHelper::EPropertyGenerationControlFlags::IncludeFirstConstructionLine);
+			FEmitDefaultValueHelper::InnerGenerate(Context, BodyInstanceProperty, PathToMember, (const uint8*)&Component->BodyInstance, BodyInstanceToCompare.GetStructMemory());
 		}
 		else
 		{
@@ -1968,7 +1956,7 @@ void FEmitDefaultValueHelper::GenerateConstructor(FEmitterLocalContext& Context)
 					if(!FBackendHelperAnim::ShouldAddAnimNodeInitializationFunctionCall(Context, Property))
 					{
 						const bool bNewProperty = Property->GetOwnerStruct() == BPGC;
-						OuterGenerate(Context, Property, TEXT(""), reinterpret_cast<const uint8*>(CDO), bNewProperty ? nullptr : reinterpret_cast<const uint8*>(ParentCDO), EPropertyAccessOperator::None, EPropertyGenerationControlFlags::AllowProtected);
+						OuterGenerate(Context, Property, TEXT(""), reinterpret_cast<const uint8*>(CDO), bNewProperty ? nullptr : reinterpret_cast<const uint8*>(ParentCDO), EPropertyAccessOperator::None, true);
 					}
 				}
 			}

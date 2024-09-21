@@ -3,7 +3,6 @@
 #include "DestructibleFractureSettings.h"
 #include "Materials/Material.h"
 #include "PhysXPublic.h"
-#include "PhysicsPublic.h"
 #include "Serialization/ArchiveUObjectFromStructuredArchive.h"
 
 //////////////////////////////////////////////////////////////////////////

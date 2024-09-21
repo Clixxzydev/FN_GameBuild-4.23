@@ -17,7 +17,6 @@
 #include "Logging/TokenizedMessage.h"
 #include "Logging/MessageLog.h"
 #include "Misc/MapErrors.h"
-#include "EngineModule.h"
 
 #define LOCTEXT_NAMESPACE "LandscapeTools"
 
@@ -161,10 +160,9 @@ public:
 		// Tablet pressure
 		float Pressure = ViewportClient->Viewport->IsPenActive() ? ViewportClient->Viewport->GetTabletPressure() : 1.0f;
 
-		const bool bUseWeightTargetValue = UISettings->bUseWeightTargetValue;
-		const bool bCacheOriginalData = !bUseWeightTargetValue;
+		this->Cache.CacheData(X1, Y1, X2, Y2);
 
-		this->Cache.CacheData(X1, Y1, X2, Y2, bCacheOriginalData);
+		bool bUseWeightTargetValue = UISettings->bUseWeightTargetValue;
 
 		// The data we'll be writing to
 		TArray<ToolTarget::CacheClass::DataType> Data;
@@ -258,16 +256,6 @@ public:
 
 		this->Cache.SetCachedData(X1, Y1, X2, Y2, Data, UISettings->PaintingRestriction);
 		this->Cache.Flush();
-		
-		ALandscape* Landscape = LandscapeInfo->LandscapeActor.Get();
-
-		// If we render to a runtime virtual texture then we need to flush here
-		if (Landscape != nullptr && Landscape->RuntimeVirtualTextures.Num() > 0)
-		{
-			//todo[vt]: Only flush Bounds 
-			//todo[vt]: Only flush specific virtual textures
-			GetRendererModule().FlushVirtualTextureCache();
-		}
 	}
 };
 
@@ -612,22 +600,15 @@ public:
 template<class ToolTarget>
 class FLandscapeToolStrokeSmooth : public FLandscapeToolStrokePaintBase<ToolTarget>
 {
-	bool bTargetIsHeightmap;
-	FLandscapeLayerDataCache<ToolTarget> LayerDataCache;
 public:
 	FLandscapeToolStrokeSmooth(FEdModeLandscape* InEdMode, FEditorViewportClient* InViewportClient, const FLandscapeToolTarget& InTarget)
 		: FLandscapeToolStrokePaintBase<ToolTarget>(InEdMode, InViewportClient, InTarget)
-		, bTargetIsHeightmap(InTarget.TargetType == ELandscapeToolTargetType::Heightmap)
-		, LayerDataCache(InTarget, this->Cache)
 	{
 	}
 
 	void Apply(FEditorViewportClient* ViewportClient, FLandscapeBrush* Brush, const ULandscapeEditorObject* UISettings, const TArray<FLandscapeToolInteractorPosition>& InteractorPositions)
 	{
 		if (!this->LandscapeInfo) return;
-
-		ALandscape* Landscape = this->LandscapeInfo->LandscapeActor.Get();
-		const bool bCombinedLayerOperation = bTargetIsHeightmap && UISettings->bCombinedLayersOperation && Landscape && Landscape->HasLayersContent();
 
 		// Get list of verts to update
 		FLandscapeBrushData BrushInfo = Brush->ApplyBrush(InteractorPositions);
@@ -652,9 +633,11 @@ public:
 			Y2 += 1;
 		}
 
+		this->Cache.CacheData(X1, Y1, X2, Y2);
+
 		TArray<typename ToolTarget::CacheClass::DataType> Data;
-		LayerDataCache.Initialize(this->LandscapeInfo, bCombinedLayerOperation);
-		LayerDataCache.Read(X1, Y1, X2, Y2, Data);
+		this->Cache.GetCachedData(X1, Y1, X2, Y2, Data);
+
 		const float ToolStrength = FMath::Clamp<float>(UISettings->ToolStrength * Pressure, 0.0f, 1.0f);
 
 		// Apply the brush
@@ -687,8 +670,8 @@ public:
 
 						const int32 SampleX1 = X - XRadius; checkSlow(SampleX1 >= BrushInfo.GetBounds().Min.X);
 						const int32 SampleY1 = Y - YRadius; checkSlow(SampleY1 >= BrushInfo.GetBounds().Min.Y);
-						const int32 SampleX2 = X + XRadius; checkSlow(SampleX2 < BrushInfo.GetBounds().Max.X);
-						const int32 SampleY2 = Y + YRadius; checkSlow(SampleY2 < BrushInfo.GetBounds().Max.Y);
+						const int32 SampleX2 = X + XRadius; checkSlow(SampleX2 <  BrushInfo.GetBounds().Max.X);
+						const int32 SampleY2 = Y + YRadius; checkSlow(SampleY2 <  BrushInfo.GetBounds().Max.Y);
 						for (int32 SampleY = SampleY1; SampleY <= SampleY2; SampleY++)
 						{
 							const float* SampleBrushScanline = BrushInfo.GetDataPtr(FIntPoint(0, SampleY));
@@ -700,9 +683,9 @@ public:
 								// constrain sample to within the brush, symmetrically to prevent flattening bug
 								const float SampleBrushValue =
 									FMath::Min(
-										FMath::Min<float>(SampleBrushScanline[SampleX], SampleBrushScanline[X + (X - SampleX)]),
+										FMath::Min<float>(SampleBrushScanline [SampleX], SampleBrushScanline [X + (X - SampleX)]),
 										FMath::Min<float>(SampleBrushScanline2[SampleX], SampleBrushScanline2[X + (X - SampleX)])
-									);
+										);
 								if (SampleBrushValue > 0.0f)
 								{
 									FilterValue += SampleDataScanline[SampleX];
@@ -719,7 +702,8 @@ public:
 			}
 		}
 
-		LayerDataCache.Write(X1, Y1, X2, Y2, Data, UISettings->PaintingRestriction);
+		this->Cache.SetCachedData(X1, Y1, X2, Y2, Data, UISettings->PaintingRestriction);
+		this->Cache.Flush();
 	}
 };
 
@@ -743,98 +727,51 @@ public:
 template<class ToolTarget>
 class FLandscapeToolStrokeFlatten : public FLandscapeToolStrokePaintBase<ToolTarget>
 {
-	typename ToolTarget::CacheClass::DataType FlattenValue;
+	typename ToolTarget::CacheClass::DataType FlattenHeight;
 
 	FVector FlattenNormal;
 	float FlattenPlaneDist;
-	bool bInitializedFlattenValue;
+	bool bInitializedFlattenHeight;
 	bool bTargetIsHeightmap;
-	FLandscapeLayerDataCache<ToolTarget> LayerDataCache;
 
 public:
 	FLandscapeToolStrokeFlatten(FEdModeLandscape* InEdMode, FEditorViewportClient* InViewportClient, const FLandscapeToolTarget& InTarget)
 		: FLandscapeToolStrokePaintBase<ToolTarget>(InEdMode, InViewportClient, InTarget)
-		, bInitializedFlattenValue(false)
+		, bInitializedFlattenHeight(false)
 		, bTargetIsHeightmap(InTarget.TargetType == ELandscapeToolTargetType::Heightmap)
-		, LayerDataCache(InTarget, this->Cache)
 	{
 		if (InEdMode->UISettings->bUseFlattenTarget && bTargetIsHeightmap)
 		{
 			FTransform LocalToWorld = InTarget.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
 			float Height = (InEdMode->UISettings->FlattenTarget - LocalToWorld.GetTranslation().Z) / LocalToWorld.GetScale3D().Z;
-			FlattenValue = LandscapeDataAccess::GetTexHeight(Height);
-			bInitializedFlattenValue = true;
+			FlattenHeight = LandscapeDataAccess::GetTexHeight(Height);
+			bInitializedFlattenHeight = true;
 		}
 	}
 
 	void Apply(FEditorViewportClient* ViewportClient, FLandscapeBrush* Brush, const ULandscapeEditorObject* UISettings, const TArray<FLandscapeToolInteractorPosition>& InteractorPositions)
- 	{
+	{
 		if (!this->LandscapeInfo) return;
 
-		ALandscape* Landscape = this->LandscapeInfo->LandscapeActor.Get();
-		const bool bCombinedLayerOperation = bTargetIsHeightmap && UISettings->bCombinedLayersOperation && Landscape && Landscape->HasLayersContent();
-
-		// Can't use slope if use Flatten Target because no normal is provided
-		bool bUseSlopeFlatten = UISettings->bUseSlopeFlatten && !UISettings->bUseFlattenTarget;
-
-		if (!bInitializedFlattenValue || (UISettings->bPickValuePerApply && bTargetIsHeightmap))
+		if (!bInitializedFlattenHeight || (UISettings->bPickValuePerApply && bTargetIsHeightmap))
 		{
-			bInitializedFlattenValue = false;
+			bInitializedFlattenHeight = false;
 			float FlattenX = InteractorPositions[0].Position.X;
 			float FlattenY = InteractorPositions[0].Position.Y;
 			int32 FlattenHeightX = FMath::FloorToInt(FlattenX);
 			int32 FlattenHeightY = FMath::FloorToInt(FlattenY);
 
-			float InterpolatedValue = 0.f;
-			float V00 = 0.f;
-			float V10 = 0.f;
-			float V01 = 0.f;
-			float V11 = 0.f;
-			if (bCombinedLayerOperation)
-			{
-				// Can't rely on cache in this mode
-				FScopedSetLandscapeEditingLayer Scope(Landscape, FGuid());
-				typename ToolTarget::CacheClass::DataType P00, P10, P01, P11;
-				this->Cache.DataAccess.GetDataFast(FlattenHeightX,     FlattenHeightY,     FlattenHeightX,     FlattenHeightY,     &P00);
-				this->Cache.DataAccess.GetDataFast(FlattenHeightX + 1, FlattenHeightY,     FlattenHeightX + 1, FlattenHeightY,     &P10);
-				this->Cache.DataAccess.GetDataFast(FlattenHeightX,     FlattenHeightY + 1, FlattenHeightX,     FlattenHeightY + 1, &P01);
-				this->Cache.DataAccess.GetDataFast(FlattenHeightX + 1, FlattenHeightY + 1, FlattenHeightX + 1, FlattenHeightY + 1, &P11);
-                // Release Texture Mips that will be Locked by the next SynchronousUpdateComponentVisibilityForHeight (inside the LayerDataCache.Read call)
-				this->Cache.DataAccess.Flush();
-				V00 = P00;
-				V10 = P10;
-				V01 = P01;
-				V11 = P11;
-				InterpolatedValue = FMath::Lerp(FMath::Lerp(V00, V10, FlattenX - FlattenHeightX), FMath::Lerp(V01, V11, FlattenX - FlattenHeightX), FlattenY - FlattenHeightY);
-			}
-			else
-			{
-				this->Cache.CacheData(FlattenHeightX, FlattenHeightY, FlattenHeightX + 1, FlattenHeightY + 1);
-				InterpolatedValue = this->Cache.GetValue(FlattenX, FlattenY);
-			}
-			FlattenValue = InterpolatedValue;
+			this->Cache.CacheData(FlattenHeightX, FlattenHeightY, FlattenHeightX + 1, FlattenHeightY + 1);
+			float HeightValue = this->Cache.GetValue(FlattenX, FlattenY);
+			FlattenHeight = HeightValue;
 
-			if (bUseSlopeFlatten && bTargetIsHeightmap)
+			if (UISettings->bUseSlopeFlatten && bTargetIsHeightmap)
 			{
-				if (bCombinedLayerOperation)
-				{
-					// Can't rely on cache in this mode
-					FVector Vert00 = FVector(0.0f, 0.0f, V00);
-					FVector Vert01 = FVector(0.0f, 1.0f, V01);
-					FVector Vert10 = FVector(1.0f, 0.0f, V10);
-					FVector Vert11 = FVector(1.0f, 1.0f, V11);
-					FVector FaceNormal1 = ((Vert00 - Vert10) ^ (Vert10 - Vert11)).GetSafeNormal();
-					FVector FaceNormal2 = ((Vert11 - Vert01) ^ (Vert01 - Vert00)).GetSafeNormal();
-					FlattenNormal = (FaceNormal1 + FaceNormal2).GetSafeNormal();
-				}
-				else
-				{
-					FlattenNormal = this->Cache.GetNormal(FlattenHeightX, FlattenHeightY);
-				}
-				FlattenPlaneDist = -(FlattenNormal | FVector(FlattenX, FlattenY, InterpolatedValue));
+				FlattenNormal = this->Cache.GetNormal(FlattenHeightX, FlattenHeightY);
+				FlattenPlaneDist = -(FlattenNormal | FVector(FlattenX, FlattenY, HeightValue));
 			}
 
-			bInitializedFlattenValue = true;
+			bInitializedFlattenHeight = true;
 		}
 
 
@@ -861,9 +798,10 @@ public:
 			Y2 += 1;
 		}
 
+		this->Cache.CacheData(X1, Y1, X2, Y2);
+
 		TArray<typename ToolTarget::CacheClass::DataType> Data;
-		LayerDataCache.Initialize(this->LandscapeInfo, bCombinedLayerOperation);
-		LayerDataCache.Read(X1, Y1, X2, Y2, Data);
+		this->Cache.GetCachedData(X1, Y1, X2, Y2, Data);
 
 		// Apply the brush
 		for (int32 Y = BrushInfo.GetBounds().Min.Y; Y < BrushInfo.GetBounds().Max.Y; Y++)
@@ -879,18 +817,17 @@ public:
 				{
 					float Strength = FMath::Clamp<float>(BrushValue * UISettings->ToolStrength * Pressure, 0.0f, 1.0f);
 
-					if (!(bUseSlopeFlatten && bTargetIsHeightmap))
+					if (!(UISettings->bUseSlopeFlatten && bTargetIsHeightmap))
 					{
-						int32 Delta = DataScanline[X] - FlattenValue;
+						int32 Delta = DataScanline[X] - FlattenHeight;
 						switch (UISettings->FlattenMode)
 						{
 						case ELandscapeToolFlattenMode::Terrace:
-							if (bTargetIsHeightmap)
 							{
 								const FTransform& LocalToWorld = this->Target.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
 								float ScaleZ = LocalToWorld.GetScale3D().Z;
 								float TranslateZ = LocalToWorld.GetTranslation().Z;
-								float TerraceInterval = FMath::Clamp(UISettings->TerraceInterval, 1.0f, 32768.f);
+								float TerraceInterval = UISettings->TerraceInterval;
 								float Smoothness = UISettings->TerraceSmooth;
 								float WorldHeight = LandscapeDataAccess::GetLocalHeight(DataScanline[X]);
 
@@ -916,13 +853,12 @@ public:
 							}
 							break;
 						case ELandscapeToolFlattenMode::Interval:
-							if (bTargetIsHeightmap)
 							{
 								const FTransform& LocalToWorld = this->Target.LandscapeInfo->GetLandscapeProxy()->ActorToWorld();
 								float ScaleZ = LocalToWorld.GetScale3D().Z;
 								float TranslateZ = LocalToWorld.GetTranslation().Z;
 								float TerraceInterval = UISettings->TerraceInterval;
-								float TargetHeight = LandscapeDataAccess::GetLocalHeight(FlattenValue);
+								float TargetHeight = LandscapeDataAccess::GetLocalHeight(FlattenHeight);
 								float CurrentHeight = LandscapeDataAccess::GetLocalHeight(DataScanline[X]);
 														
 								//move into world space
@@ -941,24 +877,24 @@ public:
 						case ELandscapeToolFlattenMode::Raise:
 							if (Delta < 0)
 							{
-								DataScanline[X] = FMath::CeilToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenValue, Strength));
+								DataScanline[X] = FMath::CeilToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenHeight, Strength));
 							}
 							break;
 						case ELandscapeToolFlattenMode::Lower:
 							if (Delta > 0)
 							{
-								DataScanline[X] = FMath::FloorToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenValue, Strength));
+								DataScanline[X] = FMath::FloorToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenHeight, Strength));
 							}
 							break;
 						default:
 						case ELandscapeToolFlattenMode::Both:
 							if (Delta > 0)
 							{
-								DataScanline[X] = FMath::FloorToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenValue, Strength));
+								DataScanline[X] = FMath::FloorToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenHeight, Strength));
 							}
 							else
 							{
-								DataScanline[X] = FMath::CeilToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenValue, Strength));
+								DataScanline[X] = FMath::CeilToInt(FMath::Lerp((float)DataScanline[X], (float)FlattenHeight, Strength));
 							}
 							break;
 						}
@@ -1000,7 +936,8 @@ public:
 			}
 		}
 
-		LayerDataCache.Write(X1, Y1, X2, Y2, Data, UISettings->PaintingRestriction);
+		this->Cache.SetCachedData(X1, Y1, X2, Y2, Data, UISettings->PaintingRestriction);
+		this->Cache.Flush();
 	}
 };
 
@@ -1096,10 +1033,6 @@ public:
 	virtual void EnterTool() override
 	{
 		FLandscapeToolPaintBase<ToolTarget, FLandscapeToolStrokeFlatten<ToolTarget>>::EnterTool();
-		if (!this->EdMode->CurrentToolTarget.LandscapeInfo.Get())
-		{
-			return;
-		}
 
 		ALandscapeProxy* LandscapeProxy = this->EdMode->CurrentToolTarget.LandscapeInfo->GetLandscapeProxy();
 		MeshComponent = NewObject<UStaticMeshComponent>(LandscapeProxy, NAME_None, RF_Transient);
@@ -1121,11 +1054,8 @@ public:
 	{
 		FLandscapeToolPaintBase<ToolTarget, FLandscapeToolStrokeFlatten<ToolTarget>>::ExitTool();
 
-		if (MeshComponent)
-		{
-			MeshComponent->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
-			MeshComponent->DestroyComponent();
-		}
+		MeshComponent->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
+		MeshComponent->DestroyComponent();
 	}
 };
 

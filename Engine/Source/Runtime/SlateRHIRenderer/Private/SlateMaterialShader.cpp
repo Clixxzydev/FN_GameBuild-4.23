@@ -13,19 +13,19 @@ FSlateMaterialShaderVS::FSlateMaterialShaderVS(const FMaterialShaderType::Compil
 }
 
 
-void FSlateMaterialShaderVS::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+void FSlateMaterialShaderVS::ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 {
 	// Set defines based on what this shader will be used for
 	OutEnvironment.SetDefine( TEXT("USE_MATERIALS"), 1 );
-	OutEnvironment.SetDefine( TEXT("NUM_CUSTOMIZED_UVS"), Parameters.Material->GetNumCustomizedUVs() );
-	OutEnvironment.SetDefine( TEXT("HAS_SCREEN_POSITION"), Parameters.Material->HasVertexPositionOffsetConnected() );
+	OutEnvironment.SetDefine( TEXT("NUM_CUSTOMIZED_UVS"), Material->GetNumCustomizedUVs() );
+	OutEnvironment.SetDefine( TEXT("HAS_SCREEN_POSITION"), Material->HasVertexPositionOffsetConnected() );
 
-	FMaterialShader::ModifyCompilationEnvironment( Parameters, OutEnvironment );
+	FMaterialShader::ModifyCompilationEnvironment( Platform, Material, OutEnvironment );
 }
 
-bool FSlateMaterialShaderVS::ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+bool FSlateMaterialShaderVS::ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material)
 {
-	return Parameters.Material->GetMaterialDomain() == MD_UI;
+	return Material->GetMaterialDomain() == MD_UI;
 }
 
 void FSlateMaterialShaderVS::SetViewProjection(FRHICommandList& RHICmdList, const FMatrix& InViewProjection )
@@ -35,9 +35,9 @@ void FSlateMaterialShaderVS::SetViewProjection(FRHICommandList& RHICmdList, cons
 
 void FSlateMaterialShaderVS::SetMaterialShaderParameters(FRHICommandList& RHICmdList, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material)
 {
-	FRHIVertexShader* ShaderRHI = GetVertexShader();
+	const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 
-	FMaterialShader::SetParameters<FRHIVertexShader>(RHICmdList, ShaderRHI, MaterialRenderProxy, *Material, View, View.ViewUniformBuffer, ESceneTextureSetupMode::None);
+	FMaterialShader::SetParameters<FVertexShaderRHIParamRef>(RHICmdList, ShaderRHI, MaterialRenderProxy, *Material, View, View.ViewUniformBuffer, ESceneTextureSetupMode::None);
 }
 
 void FSlateMaterialShaderVS::SetVerticalAxisMultiplier(FRHICommandList& RHICmdList, float InMultiplier )
@@ -57,19 +57,19 @@ bool FSlateMaterialShaderVS::Serialize(FArchive& Ar)
 }
 
 
-bool FSlateMaterialShaderPS::ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
+bool FSlateMaterialShaderPS::ShouldCompilePermutation(EShaderPlatform Platform, const FMaterial* Material)
 {
-	return Parameters.Material->GetMaterialDomain() == MD_UI;
+	return Material->GetMaterialDomain() == MD_UI;
 }
 
 
-void FSlateMaterialShaderPS::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+void FSlateMaterialShaderPS::ModifyCompilationEnvironment(EShaderPlatform Platform, const FMaterial* Material, FShaderCompilerEnvironment& OutEnvironment)
 {
 	// Set defines based on what this shader will be used for
 	OutEnvironment.SetDefine( TEXT("USE_MATERIALS"), 1 );
-	OutEnvironment.SetDefine( TEXT("NUM_CUSTOMIZED_UVS"), Parameters.Material->GetNumCustomizedUVs() );
+	OutEnvironment.SetDefine( TEXT("NUM_CUSTOMIZED_UVS"), Material->GetNumCustomizedUVs() );
 
-	FMaterialShader::ModifyCompilationEnvironment( Parameters, OutEnvironment );
+	FMaterialShader::ModifyCompilationEnvironment( Platform, Material, OutEnvironment );
 }
 
 FSlateMaterialShaderPS::FSlateMaterialShaderPS(const FMaterialShaderType::CompiledShaderInitializerType& Initializer)
@@ -109,32 +109,27 @@ void FSlateMaterialShaderPS::SetBlendState(FGraphicsPipelineStateInitializer& Gr
 		// Blend with existing scene color. New color is already pre-multiplied by alpha.
 		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
 		break;
-	case BLEND_AlphaHoldout:
-		// Blend by holding out the matte shape of the source alpha
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
-		break;
-
 	};
 }
 
 void FSlateMaterialShaderPS::SetParameters(FRHICommandList& RHICmdList, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material, const FVector4& InShaderParams)
 {
-	FRHIPixelShader* ShaderRHI = GetPixelShader();
+	const FPixelShaderRHIParamRef ShaderRHI = GetPixelShader();
 
 	SetShaderValue( RHICmdList, ShaderRHI, ShaderParams, InShaderParams );
 
 	const ESceneTextureSetupMode SceneTextures = ESceneTextureSetupMode::SceneDepth | ESceneTextureSetupMode::SSAO | ESceneTextureSetupMode::CustomDepth; // TODO - SSAO valid here?
-	FMaterialShader::SetParameters<FRHIPixelShader>(RHICmdList, ShaderRHI, MaterialRenderProxy, *Material, View, View.ViewUniformBuffer, SceneTextures);
+	FMaterialShader::SetParameters<FPixelShaderRHIParamRef>(RHICmdList, ShaderRHI, MaterialRenderProxy, *Material, View, View.ViewUniformBuffer, SceneTextures);
 }
 
-void FSlateMaterialShaderPS::SetAdditionalTexture( FRHICommandList& RHICmdList, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState )
+void FSlateMaterialShaderPS::SetAdditionalTexture( FRHICommandList& RHICmdList, const FTextureRHIParamRef InTexture, const FSamplerStateRHIRef SamplerState )
 {
 	SetTextureParameter(RHICmdList, GetPixelShader(), AdditionalTextureParameter, TextureParameterSampler, SamplerState, InTexture );
 }
 
-void FSlateMaterialShaderPS::SetDisplayGammaAndContrast(FRHICommandList& RHICmdList, float InDisplayGamma, float InContrast)
+void FSlateMaterialShaderPS::SetDisplayGamma(FRHICommandList& RHICmdList, float InDisplayGamma)
 {
-	FVector4 InGammaValues(2.2f / InDisplayGamma, 1.0f / InDisplayGamma, 0.0f, InContrast);
+	FVector4 InGammaValues(2.2f / InDisplayGamma, 1.0f/InDisplayGamma, 0.0f, 0.0f);
 
 	SetShaderValue(RHICmdList, GetPixelShader(), GammaAndAlphaValues, InGammaValues);
 }

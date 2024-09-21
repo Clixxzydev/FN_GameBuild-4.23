@@ -114,9 +114,6 @@ protected:
 	/** Returns visibility of Expression Preview viewport */
 	EVisibility ExpressionPreviewVisibility() const;
 
-	/** Returns text to over lay over the expression preview viewport */
-	FText ExpressionPreviewOverlayText() const;
-
 	/** Show/hide Expression Preview */
 	void OnExpressionPreviewChanged( const ECheckBoxState NewCheckedState );
 

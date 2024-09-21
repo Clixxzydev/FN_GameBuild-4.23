@@ -33,7 +33,7 @@ namespace SceneOutliner
 			else if (Operation->IsOfType<FDecoratedDragDropOp>())
 			{
 				auto* DecoratedOp = static_cast<FDecoratedDragDropOp*>(Operation);
-				DecoratedOp->SetToolTip(LOCTEXT("SceneOutlinerInvalidDragDropOp", "Invalid drag and drop operation, Drag into the Viewport."), Icon);
+				DecoratedOp->SetToolTip(ValidationInfo.ValidationText, Icon);
 			}
 		}
 	}
@@ -134,9 +134,14 @@ namespace SceneOutliner
 		FFolderDropTarget DropTarget(NAME_None);
 
 		auto Reply = HandleDrop(SceneOutlinerWeak, DragDropEvent, DropTarget, ValidationInfo);
-		UpdateOperationDecorator(DragDropEvent, ValidationInfo);
-		
-		return Reply;
+
+		if (Reply.IsEventHandled())
+		{
+			UpdateOperationDecorator(DragDropEvent, ValidationInfo);
+			return FReply::Handled();
+		}
+
+		return FReply::Unhandled();
 	}
 	
 	void SOutlinerTreeView::OnDragLeave(const FDragDropEvent& DragDropEvent)

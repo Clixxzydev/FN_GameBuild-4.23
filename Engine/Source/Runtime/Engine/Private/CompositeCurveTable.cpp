@@ -64,7 +64,7 @@ void UCompositeCurveTable::Serialize(FArchive& Ar)
 	}
 }
 
-void UCompositeCurveTable::UpdateCachedRowMap(bool bWarnOnInvalidChildren)
+void UCompositeCurveTable::UpdateCachedRowMap()
 {
 #if WITH_EDITOR
 	FCurveTableEditorUtils::BroadcastPreChange(this, FCurveTableEditorUtils::ECurveTableChangeInfo::RowList);
@@ -75,19 +75,16 @@ void UCompositeCurveTable::UpdateCachedRowMap(bool bWarnOnInvalidChildren)
 	// Throw up an error message and stop if any loops are found
 	if (const UCompositeCurveTable* LoopTable = FindLoops(TArray<const UCompositeCurveTable*>()))
 	{
-		if (bWarnOnInvalidChildren)
-		{
-			const FText ErrorMsg = FText::Format(LOCTEXT("FoundLoopError", "Cyclic dependency found. Table {0} depends on itself. Please fix your data"), FText::FromString(LoopTable->GetPathName()));
+		const FText ErrorMsg = FText::Format(LOCTEXT("FoundLoopError", "Cyclic dependency found. Table {0} depends on itself. Please fix your data"), FText::FromString(LoopTable->GetPathName()));
 #if WITH_EDITOR
-			if (!bIsLoading)
-			{
-				FMessageDialog::Open(EAppMsgType::Ok, ErrorMsg);
-			}
-			else
+		if (!bIsLoading)
+		{
+			FMessageDialog::Open(EAppMsgType::Ok, ErrorMsg);
+		}
+		else
 #endif
-			{
-				UE_LOG(LogCurveTable, Warning, TEXT("%s"), *ErrorMsg.ToString());
-			}
+		{
+			UE_LOG(LogCurveTable, Warning, TEXT("%s"), *ErrorMsg.ToString());
 		}
 		bLeaveEmpty = true;
 	}
@@ -199,8 +196,10 @@ void UCompositeCurveTable::PostEditUndo()
 }
 #endif // WITH_EDITOR
 
-void UCompositeCurveTable::OnParentTablesUpdated(EPropertyChangeType::Type ChangeType)
+void UCompositeCurveTable::OnParentTablesUpdated()
 {
+	UpdateCachedRowMap();
+
 	for (UCurveTable* Table : OldParentTables)
 	{
 		if (Table && ParentTables.Find(Table) == INDEX_NONE)
@@ -209,13 +208,11 @@ void UCompositeCurveTable::OnParentTablesUpdated(EPropertyChangeType::Type Chang
 		}
 	}
 
-	UpdateCachedRowMap(ChangeType == EPropertyChangeType::ValueSet || ChangeType == EPropertyChangeType::Duplicate);
-
 	for (UCurveTable* Table : ParentTables)
 	{
 		if (Table && OldParentTables.Find(Table) == INDEX_NONE)
 		{
-			Table->OnCurveTableChanged().AddUObject(this, &UCompositeCurveTable::OnParentTablesUpdated, EPropertyChangeType::Unspecified);
+			Table->OnCurveTableChanged().AddUObject(this, &UCompositeCurveTable::UpdateCachedRowMap);
 		}
 	}
 

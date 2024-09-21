@@ -191,6 +191,7 @@ void FAnimNode_SubInstance::SetAnimClass(TSubclassOf<UAnimInstance> InClass, con
 
 FName FAnimNode_SubInstance::GetDynamicLinkFunctionName() const
 {
+	static const FName NAME_AnimGraph("AnimGraph");
 	return NAME_AnimGraph;
 }
 

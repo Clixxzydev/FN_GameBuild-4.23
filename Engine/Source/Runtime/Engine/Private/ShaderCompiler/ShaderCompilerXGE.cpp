@@ -858,8 +858,6 @@ int32 FShaderCompileXGEThreadRunnable_InterceptionInterface::CompilingLoop()
 
 	for (auto Iter = DispatchedTasks.CreateIterator(); Iter; ++Iter)
 	{
-		bool bOutputFileReadFailed = false;
-
 		FXGEShaderCompilerTask* Task = *Iter;
 		if (!Task->Future.IsReady())
 		{
@@ -877,24 +875,9 @@ int32 FShaderCompileXGEThreadRunnable_InterceptionInterface::CompilingLoop()
 		if (Result.bCompleted)
 		{
 			// Open the output file, and serialize in the completed jobs.
-			FArchive* OutputFileAr = IFileManager::Get().CreateFileReader(*Task->OutputFilePath, FILEREAD_Silent);
-			if (OutputFileAr)
-			{
-				FShaderCompileUtilities::DoReadTaskResults(Task->ShaderJobs, *OutputFileAr);
-				delete OutputFileAr;
-			}
-			else
-			{
-				// Reading result from XGE job failed, so recompile shaders in current job batch locally
-				bOutputFileReadFailed = true;
-
-				UE_LOG(LogShaderCompilers, Error, TEXT("Reschedule shader compilation after XGE job failed: %s"), *Task->OutputFilePath);
-
-				for (FShaderCommonCompileJob* Job : Task->ShaderJobs)
-				{
-					FShaderCompileUtilities::ExecuteShaderCompileJob(*Job);
-				}
-			}
+			FArchive* OutputFileAr = IFileManager::Get().CreateFileReader(*Task->OutputFilePath, FILEREAD_NoFail);
+			FShaderCompileUtilities::DoReadTaskResults(Task->ShaderJobs, *OutputFileAr);
+			delete OutputFileAr;
 
 			// Enter the critical section so we can access the input and output queues
 			{
@@ -922,13 +905,9 @@ int32 FShaderCompileXGEThreadRunnable_InterceptionInterface::CompilingLoop()
 		{
 			FPlatformProcess::Sleep(0.01f);
 		}
-
-		if (!bOutputFileReadFailed)
+		while (!IFileManager::Get().Delete(*Task->OutputFilePath, false, true, true))
 		{
-			while (!IFileManager::Get().Delete(*Task->OutputFilePath, false, true, true))
-			{
-				FPlatformProcess::Sleep(0.01f);
-			}
+			FPlatformProcess::Sleep(0.01f);
 		}
 
 		Iter.RemoveCurrent();

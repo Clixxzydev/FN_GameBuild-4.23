@@ -10,7 +10,6 @@ FLogCategoryBase::FLogCategoryBase(const TCHAR *CategoryName, ELogVerbosity::Typ
 	, CompileTimeVerbosity(InCompileTimeVerbosity)
 	, CategoryFName(CategoryName)
 {
-	TRACE_LOG_CATEGORY(this, CategoryName, InDefaultVerbosity);
 	ResetFromDefault();
 	if (CompileTimeVerbosity > ELogVerbosity::NoLogging)
 	{

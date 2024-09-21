@@ -2125,17 +2125,15 @@ void FBlueprintEditorUtils::MarkBlueprintAsModified(UBlueprint* Blueprint, FProp
 	Blueprint->bCachedDependenciesUpToDate = false;
 	if (Blueprint->Status != BS_BeingCreated)
 	{
-		// This clears any cached data, which includes the macro tunnel node data
 		TArray<UEdGraph*> AllGraphs;
 		Blueprint->GetAllGraphs(AllGraphs);
-		for (UEdGraph* GraphToClear : AllGraphs)
+		for (int32 i = 0; i < AllGraphs.Num(); i++)
 		{
-			for (UEdGraphNode* Node : GraphToClear->Nodes)
+			UK2Node_EditablePinBase* EntryNode = GetEntryNode(AllGraphs[i]);
+			if(UK2Node_Tunnel* TunnelNode = ExactCast<UK2Node_Tunnel>(EntryNode))
 			{
-				if (UK2Node* BPNode = Cast<UK2Node>(Node))
-				{
-					BPNode->ClearCachedBlueprintData(Blueprint);
-				}
+				// Remove data marking graphs as latent, this will be re-cache'd as needed
+				TunnelNode->MetaData.HasLatentFunctions = INDEX_NONE;
 			}
 		}
 
@@ -2155,13 +2153,6 @@ void FBlueprintEditorUtils::MarkBlueprintAsModified(UBlueprint* Blueprint, FProp
 
 		// Clear out the cache as the user may have added or removed a latent action to a macro graph
 		FBlueprintEditorUtils::ClearMacroCosmeticInfoCache(Blueprint);
-	}
-	
-	IAssetEditorInstance* AssetEditor = FAssetEditorManager::Get().FindEditorForAsset(Blueprint, false);
-	if (AssetEditor)
-	{
-		FBlueprintEditor* BlueprintEditor = static_cast<FBlueprintEditor*>(AssetEditor);
-		BlueprintEditor->UpdateNodesUnrelatedStatesAfterGraphChange();
 	}
 }
 
@@ -3649,25 +3640,6 @@ void FBlueprintEditorUtils::SetVariableAdvancedDisplayFlag(UBlueprint* InBluepri
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(InBlueprint);
 }
 
-void FBlueprintEditorUtils::SetVariableDeprecatedFlag(UBlueprint* InBlueprint, const FName& InVarName, const bool bInIsDeprecated)
-{
-	const int32 VarIndex = FBlueprintEditorUtils::FindNewVariableIndex(InBlueprint, InVarName);
-
-	if (VarIndex != INDEX_NONE)
-	{
-		if (bInIsDeprecated)
-		{
-			InBlueprint->NewVariables[VarIndex].PropertyFlags |= CPF_Deprecated;
-		}
-		else
-		{
-			InBlueprint->NewVariables[VarIndex].PropertyFlags &= ~CPF_Deprecated;
-		}
-	}
-
-	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(InBlueprint);
-}
-
 struct FMetaDataDependencyHelper
 {
 	static void OnChange(UBlueprint* Blueprint, FName MetaDataKey)
@@ -3962,8 +3934,7 @@ void FBlueprintEditorUtils::SetBlueprintFunctionOrMacroCategory(UEdGraph* Graph,
 	UBlueprint* Blueprint = FBlueprintEditorUtils::FindBlueprintForGraphChecked(Graph);
 	if (FKismetUserDeclaredFunctionMetadata* MetaData = FBlueprintEditorUtils::GetGraphFunctionMetaData(Graph))
 	{
-		const FText& NewCategory = InCategoryName.IsEmpty() ? UEdGraphSchema_K2::VR_DefaultCategory : InCategoryName;
-		if (!MetaData->Category.EqualTo(NewCategory))
+		if(!MetaData->Category.EqualTo(InCategoryName))
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetBlueprintFunctionOrMacroCategory", "Set Category"));
 
@@ -3979,6 +3950,7 @@ void FBlueprintEditorUtils::SetBlueprintFunctionOrMacroCategory(UEdGraph* Graph,
 				}
 			}
 
+			const FText& NewCategory = InCategoryName.IsEmpty() ? UEdGraphSchema_K2::VR_DefaultCategory : InCategoryName;
 			MetaData->Category = NewCategory;
 
 			if (Function)
@@ -4093,16 +4065,9 @@ bool FBlueprintEditorUtils::MoveGraphBeforeOtherGraph(UEdGraph* Graph, int32 New
 			}
 		}
 
-		if (bModified)
+		if (bModified && !bDontRecompile)
 		{
-			if (!bDontRecompile)
-			{
-				FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
-			}
-			else
-			{
-				FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
-			}
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
 		}
 
 		return bModified;
@@ -7816,7 +7781,6 @@ TSharedRef<SWidget> FBlueprintEditorUtils::ConstructBlueprintParentClassPicker( 
 	// Fill in options
 	FClassViewerInitializationOptions Options;
 	Options.Mode = EClassViewerMode::ClassPicker;
-	Options.bShowBackgroundBorder = false;
 
 	TSharedPtr<FBlueprintReparentFilter> Filter = MakeShareable(new FBlueprintReparentFilter);
 	Options.ClassFilter = Filter;
@@ -7977,7 +7941,6 @@ TSharedRef<SWidget> FBlueprintEditorUtils::ConstructBlueprintInterfaceClassPicke
 	// Fill in options
 	FClassViewerInitializationOptions Options;
 	Options.Mode = EClassViewerMode::ClassPicker;
-	Options.bShowBackgroundBorder = false;
 
 	TSharedPtr<FBlueprintInterfaceFilter> Filter = MakeShareable(new FBlueprintInterfaceFilter);
 	Options.ClassFilter = Filter;
@@ -8270,12 +8233,12 @@ bool FBlueprintEditorUtils::IsObjectADebugCandidate( AActor* InActorObject, UBlu
 	return bPassesFlags && bCanDebugThisObject;
 }
 
-bool FBlueprintEditorUtils::PropertyValueFromString(const UProperty* Property, const FString& StrValue, uint8* Container, UObject* OwningObject)
+bool FBlueprintEditorUtils::PropertyValueFromString(const UProperty* Property, const FString& StrValue, uint8* Container)
 {
-	return PropertyValueFromString_Direct(Property, StrValue, Property->ContainerPtrToValuePtr<uint8>(Container), OwningObject);
+	return PropertyValueFromString_Direct(Property, StrValue, Property->ContainerPtrToValuePtr<uint8>(Container));
 }
 
-bool FBlueprintEditorUtils::PropertyValueFromString_Direct(const UProperty* Property, const FString& StrValue, uint8* DirectValue, UObject* OwningObject)
+bool FBlueprintEditorUtils::PropertyValueFromString_Direct(const UProperty* Property, const FString& StrValue, uint8* DirectValue)
 {
 	bool bParseSucceeded = true;
 	if (!Property->IsA(UStructProperty::StaticClass()))
@@ -8341,7 +8304,7 @@ bool FBlueprintEditorUtils::PropertyValueFromString_Direct(const UProperty* Prop
 		else if (Property->IsA(UTextProperty::StaticClass()))
 		{
 			FStringOutputDevice ImportError;
-			const TCHAR* EndOfParsedBuff = Property->ImportText(*StrValue, DirectValue, PPF_SerializedAsImportText, OwningObject, &ImportError);
+			const TCHAR* EndOfParsedBuff = Property->ImportText(*StrValue, DirectValue, PPF_SerializedAsImportText, nullptr, &ImportError);
 			bParseSucceeded = EndOfParsedBuff && ImportError.IsEmpty();
 		}
 		else
@@ -8352,7 +8315,7 @@ bool FBlueprintEditorUtils::PropertyValueFromString_Direct(const UProperty* Prop
 				: *StrValue;
 
 			FStringOutputDevice ImportError;
-			const TCHAR* EndOfParsedBuff = Property->ImportText(*StrValue, DirectValue, PPF_SerializedAsImportText, OwningObject, &ImportError);
+			const TCHAR* EndOfParsedBuff = Property->ImportText(*StrValue, DirectValue, PPF_SerializedAsImportText, nullptr, &ImportError);
 			bParseSucceeded = EndOfParsedBuff && ImportError.IsEmpty();
 		}
 	}
@@ -8399,7 +8362,7 @@ bool FBlueprintEditorUtils::PropertyValueFromString_Direct(const UProperty* Prop
 			ensure(1 == StructProperty->ArrayDim);
 
 			FStringOutputDevice ImportError;
-			const TCHAR* EndOfParsedBuff = StructProperty->ImportText(StrValue.IsEmpty() ? TEXT("()") : *StrValue, DirectValue, PPF_SerializedAsImportText, OwningObject, &ImportError);
+			const TCHAR* EndOfParsedBuff = StructProperty->ImportText(StrValue.IsEmpty() ? TEXT("()") : *StrValue, DirectValue, PPF_SerializedAsImportText, nullptr, &ImportError);
 			bParseSucceeded &= EndOfParsedBuff && ImportError.IsEmpty();
 		}
 	}
@@ -8407,12 +8370,12 @@ bool FBlueprintEditorUtils::PropertyValueFromString_Direct(const UProperty* Prop
 	return bParseSucceeded;
 }
 
-bool FBlueprintEditorUtils::PropertyValueToString(const UProperty* Property, const uint8* Container, FString& OutForm, UObject* OwningObject)
+bool FBlueprintEditorUtils::PropertyValueToString(const UProperty* Property, const uint8* Container, FString& OutForm)
 {
-	return PropertyValueToString_Direct(Property, Property->ContainerPtrToValuePtr<const uint8>(Container), OutForm, OwningObject);
+	return PropertyValueToString_Direct(Property, Property->ContainerPtrToValuePtr<const uint8>(Container), OutForm);
 }
 
-bool FBlueprintEditorUtils::PropertyValueToString_Direct(const UProperty* Property, const uint8* DirectValue, FString& OutForm, UObject* OwningObject)
+bool FBlueprintEditorUtils::PropertyValueToString_Direct(const UProperty* Property, const uint8* DirectValue, FString& OutForm)
 {
 	check(Property && DirectValue);
 	OutForm.Reset();
@@ -8456,7 +8419,7 @@ bool FBlueprintEditorUtils::PropertyValueToString_Direct(const UProperty* Proper
 	if (OutForm.IsEmpty())
 	{
 		const uint8* DefaultValue = DirectValue;	
-		bSucceeded = Property->ExportText_Direct(OutForm, DirectValue, DefaultValue, OwningObject, PPF_SerializedAsImportText);
+		bSucceeded = Property->ExportText_Direct(OutForm, DirectValue, DefaultValue, nullptr, PPF_SerializedAsImportText);
 	}
 	return bSucceeded;
 }
@@ -9156,24 +9119,6 @@ FString FBlueprintEditorUtils::GetClassNameWithoutSuffix(const UClass* Class)
 	{
 		return LOCTEXT("ClassIsNull", "None").ToString();
 	}
-}
-
-FText FBlueprintEditorUtils::GetDeprecatedMemberMenuItemName(const FText& MemberName)
-{
-	FFormatNamedArguments Args;
-	Args.Add(TEXT("MemberName"), MemberName);
-	return FText::Format(LOCTEXT("DeprecatedMemberMenuItemName", "{MemberName} (Deprecated)"), Args);
-}
-
-FText FBlueprintEditorUtils::GetDeprecatedMemberUsageNodeWarning(const FText& MemberName, const FText& DetailedMessage)
-{
-	static FText UnknownName = LOCTEXT("UnknownDeprecatedMemberName", "[unknown]");
-	static FText DefaultMessage = LOCTEXT("DefaultDeprecatedMemberUsageDetails", "Please replace or remove it.");
-
-	FFormatNamedArguments Args;
-	Args.Add("MemberName", ensure(!MemberName.IsEmpty()) ? MemberName : UnknownName);
-	Args.Add("DetailedMessage", DetailedMessage.IsEmpty() ? DefaultMessage : DetailedMessage);
-	return FText::Format(LOCTEXT("DeprecatedMemberUsageNodeWarning", "@@: Usage of '{MemberName}' has been deprecated. {DetailedMessage}"), Args);
 }
 
 UK2Node_FunctionResult* FBlueprintEditorUtils::FindOrCreateFunctionResultNode(UK2Node_EditablePinBase* InFunctionEntryNode)

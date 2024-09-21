@@ -10,19 +10,19 @@
 #include "LC_Logging.h"
 
 
-bool actions::RegisterProcessFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void* context, const void*, size_t)
+bool actions::RegisterProcessFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void* context)
 {
+	pipe->SendAck();
+
 	bool* successfullyRegisteredProcess = static_cast<bool*>(context);
 	*successfullyRegisteredProcess = command->success;
-
-	pipe->SendAck();
 
 	// don't continue execution
 	return false;
 }
 
 
-bool actions::EnableModulesFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::EnableModuleFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
 	Event* event = static_cast<Event*>(command->token);
 	event->Signal();
@@ -32,7 +32,7 @@ bool actions::EnableModulesFinished::Execute(const CommandType* command, const D
 }
 
 
-bool actions::DisableModulesFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::DisableModuleFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
 	Event* event = static_cast<Event*>(command->token);
 	event->Signal();
@@ -42,7 +42,27 @@ bool actions::DisableModulesFinished::Execute(const CommandType* command, const 
 }
 
 
-bool actions::EnterSyncPoint::Execute(const CommandType*, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::EnableAllModulesFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
+{
+	Event* event = static_cast<Event*>(command->token);
+	event->Signal();
+	pipe->SendAck();
+
+	return false;
+}
+
+
+bool actions::DisableAllModulesFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
+{
+	Event* event = static_cast<Event*>(command->token);
+	event->Signal();
+	pipe->SendAck();
+
+	return false;
+}
+
+
+bool actions::EnterSyncPoint::Execute(const CommandType*, const DuplexPipe* pipe, void*)
 {
 	syncPoint::Enter();
 	pipe->SendAck();
@@ -51,7 +71,7 @@ bool actions::EnterSyncPoint::Execute(const CommandType*, const DuplexPipe* pipe
 }
 
 
-bool actions::LeaveSyncPoint::Execute(const CommandType*, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::LeaveSyncPoint::Execute(const CommandType*, const DuplexPipe* pipe, void*)
 {
 	syncPoint::Leave();
 	pipe->SendAck();
@@ -60,33 +80,16 @@ bool actions::LeaveSyncPoint::Execute(const CommandType*, const DuplexPipe* pipe
 }
 
 
-bool actions::CallHooks::Execute(const CommandType* command, const DuplexPipe* pipe, void*, const void* payload, size_t)
+bool actions::CallHooks::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
-	switch (command->type)
+	for (const hook::Function* hook = command->first; hook < command->last; ++hook)
 	{
-		case hook::Type::PREPATCH:
-			hook::CallHooksInRange<hook::PrepatchFunction>(command->rangeBegin, command->rangeEnd);
-			break;
-
-		case hook::Type::POSTPATCH:
-			hook::CallHooksInRange<hook::PostpatchFunction>(command->rangeBegin, command->rangeEnd);
-			break;
-
-		case hook::Type::COMPILE_START:
-			hook::CallHooksInRange<hook::CompileStartFunction>(command->rangeBegin, command->rangeEnd);
-			break;
-
-		case hook::Type::COMPILE_SUCCESS:
-			hook::CallHooksInRange<hook::CompileSuccessFunction>(command->rangeBegin, command->rangeEnd);
-			break;
-
-		case hook::Type::COMPILE_ERROR:
-			hook::CallHooksInRange<hook::CompileErrorFunction>(command->rangeBegin, command->rangeEnd);
-			break;
-
-		case hook::Type::COMPILE_ERROR_MESSAGE:
-			hook::CallHooksInRange<hook::CompileErrorMessageFunction>(command->rangeBegin, command->rangeEnd, static_cast<const wchar_t*>(payload));
-			break;
+		// note that sections are often padded with zeroes, so skip everything that's zero
+		hook::Function function = *hook;
+		if (function)
+		{
+			function();
+		}
 	}
 
 	pipe->SendAck();
@@ -95,15 +98,45 @@ bool actions::CallHooks::Execute(const CommandType* command, const DuplexPipe* p
 }
 
 
+bool actions::GetModule::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
+{
+	HMODULE module = ::GetModuleHandleW(command->path);
+	if (module)
+	{
+		wchar_t fullPath[MAX_PATH];
+		::GetModuleFileNameW(module, fullPath, MAX_PATH);
+
+		// send back command with module info
+		{
+			commands::GetModuleInfo cmd = { module, process::GetId(), command->loadImports, command->taskContext };
+			wcscpy_s(cmd.path, fullPath);
+
+			pipe->SendAck();
+
+			pipe->SendCommandAndWaitForAck(cmd);
+		}
+	}
+	else
+	{
+		pipe->SendAck();
+
+		pipe->SendCommandAndWaitForAck(commands::GetModuleInfo { nullptr, process::GetId(), command->loadImports, command->taskContext });
+	}
+
+	return true;
+}
+
+
 // BEGIN EPIC MOD - Support for UE4 debug visualizers
-extern uint8** GNameBlocksDebug;
+struct FNameEntry;
+extern FNameEntry*** GFNameTableForDebuggerVisualizers_MT;
 
 class FChunkedFixedUObjectArray;
 extern FChunkedFixedUObjectArray*& GObjectArrayForDebugVisualizers;
 // END EPIC MOD
 
 
-bool actions::LoadPatch::Execute(const CommandType* command, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::LoadPatch::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
 	// load library into this process
 	HMODULE module = ::LoadLibraryW(command->path);
@@ -111,12 +144,12 @@ bool actions::LoadPatch::Execute(const CommandType* command, const DuplexPipe* p
 	// BEGIN EPIC MOD - Support for UE4 debug visualizers
 	if (module != nullptr)
 	{
-		typedef void InitNatvisHelpersFunc(uint8** NameTable, FChunkedFixedUObjectArray* ObjectArray);
+		typedef void InitNatvisHelpersFunc(FNameEntry*** NameTable, FChunkedFixedUObjectArray* ObjectArray);
 
 		InitNatvisHelpersFunc* InitNatvisHelpers = (InitNatvisHelpersFunc*)(void*)GetProcAddress(module, "InitNatvisHelpers");
 		if (InitNatvisHelpers != nullptr)
 		{
-			(*InitNatvisHelpers)(GNameBlocksDebug, GObjectArrayForDebugVisualizers);
+			(*InitNatvisHelpers)(GFNameTableForDebuggerVisualizers_MT, GObjectArrayForDebugVisualizers);
 		}
 	}
 	// END EPIC MOD
@@ -124,13 +157,13 @@ bool actions::LoadPatch::Execute(const CommandType* command, const DuplexPipe* p
 	pipe->SendAck();
 
 	// send back command with module info
-	pipe->SendCommandAndWaitForAck(commands::LoadPatchInfo { module }, nullptr, 0u);
+	pipe->SendCommandAndWaitForAck(commands::LoadPatchInfo { module });
 
 	return true;
 }
 
 
-bool actions::UnloadPatch::Execute(const CommandType* command, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::UnloadPatch::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
 	// unload library from this process
 	::FreeLibrary(command->module);
@@ -140,7 +173,7 @@ bool actions::UnloadPatch::Execute(const CommandType* command, const DuplexPipe*
 }
 
 
-bool actions::CallEntryPoint::Execute(const CommandType* command, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::CallEntryPoint::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
 	executable::CallDllEntryPoint(command->moduleBase, command->entryPointRva);
 	pipe->SendAck();
@@ -149,9 +182,9 @@ bool actions::CallEntryPoint::Execute(const CommandType* command, const DuplexPi
 }
 
 
-bool actions::LogOutput::Execute(const CommandType*, const DuplexPipe* pipe, void*, const void* payload, size_t)
+bool actions::LogOutput::Execute(const CommandType* command, const DuplexPipe* pipe, void*)
 {
-	logging::LogNoFormat<logging::Channel::USER>(static_cast<const wchar_t*>(payload));
+	logging::LogNoFormat<logging::Channel::USER>(command->buffer);
 	pipe->SendAck();
 
 	return true;
@@ -161,7 +194,7 @@ bool actions::LogOutput::Execute(const CommandType*, const DuplexPipe* pipe, voi
 extern bool GIsCompileActive;
 // END EPIC MOD
 
-bool actions::CompilationFinished::Execute(const CommandType*, const DuplexPipe* pipe, void*, const void*, size_t)
+bool actions::CompilationFinished::Execute(const CommandType*, const DuplexPipe* pipe, void*)
 {
 	pipe->SendAck();
 
@@ -174,7 +207,7 @@ bool actions::CompilationFinished::Execute(const CommandType*, const DuplexPipe*
 }
 
 
-bool actions::HandleExceptionFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void* context, const void*, size_t)
+bool actions::HandleExceptionFinished::Execute(const CommandType* command, const DuplexPipe* pipe, void* context)
 {
 	ClientUserCommandThread::ExceptionResult* resultContext = static_cast<ClientUserCommandThread::ExceptionResult*>(context);
 	resultContext->returnAddress = command->returnAddress;

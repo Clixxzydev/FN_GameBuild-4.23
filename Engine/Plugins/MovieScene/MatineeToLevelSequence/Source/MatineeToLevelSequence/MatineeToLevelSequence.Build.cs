@@ -26,8 +26,7 @@ public class MatineeToLevelSequence : ModuleRules
                 "Slate",
                 "SlateCore",
                 "UnrealEd",
-				"TimeManagement",
-				"Analytics"
+				"TimeManagement"
             }
         );
 

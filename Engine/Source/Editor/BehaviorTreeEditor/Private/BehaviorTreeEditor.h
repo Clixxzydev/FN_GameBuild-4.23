@@ -85,8 +85,6 @@ public:
 	bool CanAddBreakpoint() const;
 	void OnRemoveBreakpoint();
 	bool CanRemoveBreakpoint() const;
-	void OnCreateComment();
-	bool CanCreateComment() const;
 
 	void SearchTree();
 	bool CanSearchTree() const;
@@ -282,9 +280,6 @@ private:
 
 	/** Refresh the debugger's display */
 	void RefreshDebugger();
-
-	/** Push new associated Blackboard data to Blackboard views */
-	void RefreshBlackboardViewsAssociatedObject();
 
 	TSharedPtr<FDocumentTracker> DocumentManager;
 	TWeakPtr<FDocumentTabFactory> GraphEditorTabFactoryPtr;

@@ -6,8 +6,6 @@
 
 #include "Features/IModularFeatures.h"
 #include "ILiveLinkClient.h"
-#include "Roles/LiveLinkBasicRole.h"
-#include "Roles/LiveLinkBasicTypes.h"
 #include "SLiveLinkCurveDebugUIListItem.h"
 #include "Framework/Application/SlateApplication.h"
 
@@ -125,27 +123,28 @@ void SLiveLinkCurveDebugUI::UpdateCurveData()
 
 	if (ensureMsgf((nullptr!= CachedLiveLinkClient), TEXT("No valid LiveLinkClient! Can not update curve data for LiveLinkCurveDebugUI")))
 	{
-		bool bDataIsValid = false;
-		FLiveLinkSubjectFrameData SubjectData;
-		if (CachedLiveLinkClient->EvaluateFrame_AnyThread(CachedLiveLinkSubjectName, ULiveLinkBasicRole::StaticClass(), SubjectData))
+		const FLiveLinkSubjectFrame* SubjectFrame = CachedLiveLinkClient->GetSubjectData(CachedLiveLinkSubjectName);
+		if (SubjectFrame && (SubjectFrame->Curves.Num() > 0))
 		{
-			FLiveLinkBaseStaticData* StaticData = SubjectData.StaticData.Cast<FLiveLinkBaseStaticData>();
-			FLiveLinkBaseFrameData* FrameData = SubjectData.FrameData.Cast<FLiveLinkBaseFrameData>();
-
-			if (StaticData && FrameData && StaticData->PropertyNames.Num() && FrameData->PropertyValues.Num() == StaticData->PropertyNames.Num())
+			for (int CurveIndex = 0; CurveIndex < SubjectFrame->CurveKeyData.CurveNames.Num(); ++CurveIndex)
 			{
-				bDataIsValid = true;
+				FName CurveName = SubjectFrame->CurveKeyData.CurveNames[CurveIndex];
 
-				int32 PropertyNum = StaticData->PropertyNames.Num();
-				for (int CurveIndex = 0; CurveIndex < PropertyNum; ++CurveIndex)
+				float CurveValueToSet = 0.0f;
+				if (SubjectFrame->Curves.IsValidIndex(CurveIndex))
 				{
-					CurveData.Add(MakeShared<FLiveLinkDebugCurveNodeBase>(StaticData->PropertyNames[CurveIndex], FrameData->PropertyValues[CurveIndex]));
+					const FOptionalCurveElement& CurveElement = SubjectFrame->Curves[CurveIndex];
+					if (CurveElement.bValid)
+					{
+						CurveValueToSet = CurveElement.Value;
+					}
 				}
+
+				CurveData.Add(MakeShareable<FLiveLinkDebugCurveNodeBase>(new FLiveLinkDebugCurveNodeBase(CurveName, CurveValueToSet)));
 			}
 		}
-
 		//Just show an error curve message until we have a frame for the client.
-		if (!bDataIsValid)
+		else
 		{
 			CurveData.Reset();
 
@@ -159,12 +158,60 @@ void SLiveLinkCurveDebugUI::ChangeToNextValidLiveLinkSubjectName()
 {
 	if (nullptr != CachedLiveLinkClient)
 	{
-		TArray<FLiveLinkSubjectKey> ActiveSubjects = CachedLiveLinkClient->GetSubjects(false, true);
-		int32 FoundIndex = ActiveSubjects.IndexOfByPredicate([this](const FLiveLinkSubjectKey& Other) { return Other.SubjectName == CachedLiveLinkSubjectName; });
-		int32 NewIndex = ActiveSubjects.IsValidIndex(FoundIndex + 1) ? FoundIndex + 1 : 0;
-		if (ActiveSubjects.IsValidIndex(NewIndex))
+		TArray<FName> AllSubjectNames;
+		CachedLiveLinkClient->GetSubjectNames(AllSubjectNames);
+
+		if (AllSubjectNames.Num() > 0)
 		{
-			SetLiveLinkSubjectName(ActiveSubjects[NewIndex].SubjectName);
+			bool bFindOldNameFirst = (CachedLiveLinkSubjectName.IsValid() && !CachedLiveLinkSubjectName.IsNone());
+			bool bFoundOldName = false;
+			FName FirstValidResult;
+			FName SubjectNameToActuallySetTo;
+
+			for (FName SubjectName : AllSubjectNames)
+			{
+				const FLiveLinkSubjectFrame* SubjectFrame = CachedLiveLinkClient->GetSubjectData(SubjectName);
+				if (SubjectFrame && (SubjectFrame->Curves.Num() > 0))
+				{
+					//If we aren't looking for our old name first, and we have found a valid name, just use it!
+					if (!bFindOldNameFirst)
+					{
+						SubjectNameToActuallySetTo = SubjectName;
+						break;
+					}
+					//If we have already found our OldName, and this is a new valid name, use it!
+					else if (bFoundOldName)
+					{
+						SubjectNameToActuallySetTo = SubjectName;
+						break;
+					}
+					//We have found our old name, so mark that so we know to use the next valid name
+					else if (SubjectName == CachedLiveLinkSubjectName)
+					{
+						bFoundOldName = true;
+					}
+					//We have found a valid hit, but we are still looking for our OldNameFirst, save this off
+					//in case we don't find any other valid results so we can use this one
+					else if (FirstValidResult.IsNone())
+					{
+						FirstValidResult = SubjectName;
+					}
+				}
+			}
+
+			//If we didn't find a valid result after our OldName, but we did find a valid result, use that.
+			//This is basically looping back to the first valid result in a list when no valid results were between
+			//the old name and the end of the list
+			if (SubjectNameToActuallySetTo.IsNone() && !FirstValidResult.IsNone())
+			{
+				SubjectNameToActuallySetTo = FirstValidResult;
+			}
+
+			//Only call set if we have found a valid subject name, otherwise we will just stay with our current cached name
+			if (SubjectNameToActuallySetTo.IsValid() && !SubjectNameToActuallySetTo.IsNone())
+			{
+				SetLiveLinkSubjectName(SubjectNameToActuallySetTo);
+			}
 		}
 	}
 }
@@ -175,12 +222,7 @@ void SLiveLinkCurveDebugUI::GetAllSubjectNames(TArray<FName>& OutSubjectNames) c
 
 	if (ensureAlwaysMsgf(CachedLiveLinkClient, TEXT("No valid CachedLiveLinkClient when attempting to use SLiveLinkCurveDebugUI::GetAllSubjectNames! The SLiveLinkCurveDebugUI should always have a cached live link client!")))
 	{
-		TArray<FLiveLinkSubjectKey> ActiveSubjects = CachedLiveLinkClient->GetSubjects(false, true);
-		OutSubjectNames.Reset(OutSubjectNames.Num());
-		for (const FLiveLinkSubjectKey& SubjectKey : ActiveSubjects)
-		{
-			OutSubjectNames.Add(SubjectKey.SubjectName);
-		}
+		CachedLiveLinkClient->GetSubjectNames(OutSubjectNames);
 	}
 }
 

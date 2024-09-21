@@ -7,7 +7,6 @@
 #include "Common.ush"
 #include "DeferredShadingCommon.ush"
 #include "PlanarReflectionShared.ush"
-#include "SceneTextureParameters.ush"
 
 Texture2D SceneColorInputTexture;
 SamplerState SceneColorInputSampler;
@@ -124,7 +123,7 @@ void PrefilterPlanarReflectionPS(
 }
 
 void PlanarReflectionPS(
-	float2 BufferUV : TEXCOORD0,
+	float2 InUV : TEXCOORD0,
 	float3 ScreenVector : TEXCOORD1,
 	float4 SVPos : SV_POSITION,
 	out float4 OutColor : SV_Target0
@@ -133,18 +132,15 @@ void PlanarReflectionPS(
 	ResolvedView = ResolveView();
 	OutColor = 0;
 
-	FGBufferData GBuffer = GetGBufferDataFromSceneTextures(BufferUV);
-
-	float3 WorldPosition = ScreenVector * GBuffer.Depth + View.WorldCameraOrigin;
+	float SceneDepth = CalcSceneDepth(InUV);
+	float3 WorldPosition = ScreenVector * SceneDepth + View.WorldCameraOrigin;
+		
+	FScreenSpaceData ScreenSpaceData = GetScreenSpaceData(InUV);
 
 	// Skip unlit pixels (skybox)
 	BRANCH
-	if (GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
+	if (ScreenSpaceData.GBuffer.ShadingModelID > 0)
 	{
-		OutColor = ComputePlanarReflections(WorldPosition, GBuffer.WorldNormal, GBuffer.Roughness, PlanarReflectionStruct.PlanarReflectionSampler);
-
-	#if USE_PREEXPOSURE
-		OutColor.xyz *= View.PreExposure;
-	#endif
+		OutColor = ComputePlanarReflections(WorldPosition, ScreenSpaceData.GBuffer.WorldNormal, ScreenSpaceData.GBuffer.Roughness, PlanarReflectionStruct.PlanarReflectionSampler);
 	}
 }

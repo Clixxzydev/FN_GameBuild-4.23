@@ -627,6 +627,8 @@ private:
 		bool Load(FArchive& Ar);
 	};
 #endif
+
+	static bool BinaryCacheMatches(FVulkanDevice* InDevice, const TArray<uint8>& DeviceCache);
 };
 
 // Common pipeline class
@@ -714,7 +716,7 @@ public:
 #else
 	FVulkanGfxPipeline(FVulkanDevice* InDevice);
 #endif
-	virtual ~FVulkanGfxPipeline();
+
 	inline void Bind(VkCommandBuffer CmdBuffer)
 	{
 #if VULKAN_ENABLE_LRU_CACHE
@@ -758,7 +760,18 @@ private:
 class FVulkanRHIGraphicsPipelineState : public FRHIGraphicsPipelineState
 {
 public:
-	FVulkanRHIGraphicsPipelineState(const FBoundShaderStateInput& InBSI, FVulkanGfxPipeline* InPipeline, EPrimitiveType InPrimitiveType);
+	FVulkanRHIGraphicsPipelineState(const FBoundShaderStateInput& InBSI, FVulkanGfxPipeline* InPipeline, EPrimitiveType InPrimitiveType)
+		: Pipeline(InPipeline)
+		, PrimitiveType(InPrimitiveType)
+	{
+		for (int32 StageIdx = 0; StageIdx < ShaderStage::NumStages; ++StageIdx)
+		{
+			ShaderKeys[StageIdx] = GetShaderKeyForGfxStage(InBSI, (ShaderStage::EStage)StageIdx);
+		}
+		
+		bHasInputAttachments = InPipeline->GetGfxLayout().GetDescriptorSetsLayout().HasInputAttachments();
+	}
+
 	~FVulkanRHIGraphicsPipelineState();
 
 	inline void Bind(VkCommandBuffer CmdBuffer)

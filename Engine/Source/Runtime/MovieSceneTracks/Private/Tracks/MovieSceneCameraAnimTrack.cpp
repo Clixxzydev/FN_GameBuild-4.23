@@ -80,11 +80,6 @@ void UMovieSceneCameraAnimTrack::RemoveSection(UMovieSceneSection& Section)
 	CameraAnimSections.Remove(&Section);
 }
 
-void UMovieSceneCameraAnimTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	CameraAnimSections.RemoveAt(SectionIndex);
-}
-
 
 bool UMovieSceneCameraAnimTrack::IsEmpty() const
 {

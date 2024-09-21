@@ -3,9 +3,9 @@
 //
 
 #pragma once
-#include "ResonanceAudioEnums.h"
-#include "ResonanceAudioSettings.generated.h"
 
+#include "ResonanceAudioCommon.h"
+#include "ResonanceAudioSettings.generated.h"
 
 UCLASS(config = Engine, defaultconfig)
 class RESONANCEAUDIO_API UResonanceAudioSettings : public UObject

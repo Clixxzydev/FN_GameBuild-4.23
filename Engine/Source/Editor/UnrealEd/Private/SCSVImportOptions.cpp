@@ -5,21 +5,16 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
 #include "Widgets/Input/SButton.h"
-#include "Widgets/Layout/SExpandableArea.h"
 #include "EditorStyleSet.h"
 #include "Engine/UserDefinedStruct.h"
-#include "Engine/DataTable.h"
-#include "Modules/ModuleManager.h"
-#include "PropertyEditorModule.h"
-#include "ObjectEditorUtils.h"
-#include "DataTableEditorUtils.h"
+
+
 
 #define LOCTEXT_NAMESPACE "CSVImportFactory"
 
 void SCSVImportOptions::Construct(const FArguments& InArgs)
 {
 	WidgetWindow = InArgs._WidgetWindow;
-	TempImportDataTable = InArgs._TempImportDataTable;
 
 	// Make array of enum pointers
 	TSharedPtr<ECSVImportType> DataTableTypePtr = MakeShareable(new ECSVImportType(ECSVImportType::ECSV_DataTable));
@@ -28,35 +23,34 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 	ImportTypes.Add(MakeShareable(new ECSVImportType(ECSVImportType::ECSV_CurveFloat)));
 	ImportTypes.Add(MakeShareable(new ECSVImportType(ECSVImportType::ECSV_CurveVector)));
 
-	// Create properties view
-	FPropertyEditorModule & EditModule = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	FDetailsViewArgs DetailsViewArgs(/*bUpdateFromSelection=*/ false, /*bLockable=*/ false, /*bAllowSearch=*/ false, /*InNameAreaSettings=*/ FDetailsViewArgs::HideNameArea, /*bHideSelectionTip=*/ true);
-	PropertyView = EditModule.CreateDetailView(DetailsViewArgs);
-
-	PropertyView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda([](const FPropertyAndParent& InPropertyAndParent)
+	// Find table row struct info
+	UScriptStruct* TableRowStruct = FindObjectChecked<UScriptStruct>(ANY_PACKAGE, TEXT("TableRowBase"));
+	if (TableRowStruct != nullptr)
 	{
-		static FName ImportOptions = FName(TEXT("ImportOptions"));
-
-		// Only show import options
-		FName CategoryName = FObjectEditorUtils::GetCategoryFName(&InPropertyAndParent.Property);
-
-		if (CategoryName == ImportOptions)
+		// Make combo of table rowstruct options
+		for (TObjectIterator<UScriptStruct> It; It; ++It)
 		{
-			return true;
+			UScriptStruct* Struct = *It;
+			// If a child of the table row struct base, but not itself
+			const bool bBasedOnTableRowBase = Struct->IsChildOf(TableRowStruct) && (Struct != TableRowStruct);
+			const bool bUDStruct = Struct->IsA<UUserDefinedStruct>();
+			const bool bValidStruct = (Struct->GetOutermost() != GetTransientPackage());
+			if ((bBasedOnTableRowBase || bUDStruct) && bValidStruct)
+			{
+				RowStructs.Add(Struct);
+			}
 		}
 
-		return false;
-	}));
-
-	RowStructCombo = FDataTableEditorUtils::MakeRowStructureComboBox(FDataTableEditorUtils::FOnDataTableStructSelected::CreateSP(this, &SCSVImportOptions::OnStructSelected));
-	RowStructCombo->SetVisibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &SCSVImportOptions::GetTableRowOptionVis)));
+		// Alphabetically sort the row structs by name
+		RowStructs.Sort([](const UScriptStruct& ElementA, const UScriptStruct& ElementB) { return (ElementA.GetName() < ElementB.GetName()); } );
+	}
 
 	// Create widget
 	this->ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FEditorStyle::GetBrush(TEXT("Menu.Background")))
-		.Padding(10)
+		. BorderImage(FEditorStyle::GetBrush(TEXT("Menu.Background")))
+		. Padding(10)
 		[
 			SNew(SVerticalBox)
 			+SVerticalBox::Slot()
@@ -101,7 +95,6 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 				SAssignNew(ImportTypeCombo, SComboBox< TSharedPtr<ECSVImportType> >)
 				.OptionsSource( &ImportTypes )
 				.OnGenerateWidget( this, &SCSVImportOptions::MakeImportTypeItemWidget )
-				.OnSelectionChanged( this, &SCSVImportOptions::OnImportTypeSelected)
 				[
 					SNew(STextBlock)
 					.Text(this, &SCSVImportOptions::GetSelectedItemText)
@@ -110,7 +103,6 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 			// Data row struct
 			+SVerticalBox::Slot()
 			.AutoHeight()
-			.Padding(2)
 			[
 				SNew(STextBlock)
 				.Text( LOCTEXT("ChooseRowType", "Choose DataTable Row Type:") )
@@ -119,12 +111,18 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 			+SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				RowStructCombo.ToSharedRef()
+				SAssignNew(RowStructCombo, SComboBox<UScriptStruct*>)
+				.OptionsSource( &RowStructs )
+				.OnGenerateWidget( this, &SCSVImportOptions::MakeRowStructItemWidget )
+				.Visibility( this, &SCSVImportOptions::GetTableRowOptionVis )
+				[
+					SNew(STextBlock)
+					.Text(this, &SCSVImportOptions::GetSelectedRowOptionText)
+				]
 			]
 			// Curve interpolation
 			+SVerticalBox::Slot()
 			.AutoHeight()
-			.Padding(2)
 			[
 				SNew(STextBlock)
 				.Text( LOCTEXT("ChooseCurveType", "Choose Curve Interpolation Type:") )
@@ -142,18 +140,6 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 					.Text(this, &SCSVImportOptions::GetSelectedCurveTypeText)
 				]
 			]
-			// Details panel
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(2)
-			[
-				SNew(SBox)
-				.WidthOverride(400)
-				.Visibility(this, &SCSVImportOptions::GetDetailsPanelVis)
-				[
-					PropertyView.ToSharedRef()
-				]
-			]
 			// Ok/Cancel
 			+SVerticalBox::Slot()
 			.AutoHeight()
@@ -161,7 +147,6 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 				SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
 				.AutoWidth()
-				.Padding(2)
 				[
 					SNew(SButton)
 					.Text(LOCTEXT("OK", "OK"))
@@ -170,7 +155,6 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
-				.Padding(2)
 				[
 					SNew(SButton)
 					.Text(LOCTEXT("Cancel", "Cancel"))
@@ -182,9 +166,8 @@ void SCSVImportOptions::Construct(const FArguments& InArgs)
 
 	// set-up selection
 	ImportTypeCombo->SetSelectedItem(DataTableTypePtr);
-	PropertyView->SetObject(TempImportDataTable.Get());
 
-	// Populate the valid interpolation modes
+	// Populate the valid interploation modes
 	{
 		CurveInterpModes.Add( MakeShareable( new ERichCurveInterpMode(ERichCurveInterpMode::RCIM_Constant) ) );
 		CurveInterpModes.Add( MakeShareable( new ERichCurveInterpMode(ERichCurveInterpMode::RCIM_Linear) ) );
@@ -230,11 +213,6 @@ EVisibility SCSVImportOptions::GetCurveTypeVis() const
 	return (ImportTypeCombo.IsValid() && *ImportTypeCombo->GetSelectedItem() == ECSVImportType::ECSV_CurveTable) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-EVisibility SCSVImportOptions::GetDetailsPanelVis() const
-{
-	return (ImportTypeCombo.IsValid() && *ImportTypeCombo->GetSelectedItem() == ECSVImportType::ECSV_DataTable) ? EVisibility::Visible : EVisibility::Hidden;
-}
-
 FString SCSVImportOptions::GetImportTypeText(TSharedPtr<ECSVImportType> Type) const
 {
 	FString EnumString;
@@ -264,21 +242,12 @@ TSharedRef<SWidget> SCSVImportOptions::MakeImportTypeItemWidget(TSharedPtr<ECSVI
 			.Text(FText::FromString(GetImportTypeText(Type)));
 }
 
-void SCSVImportOptions::OnImportTypeSelected(TSharedPtr<ECSVImportType> Selection, ESelectInfo::Type SelectionType)
+/** Called to create a widget for each struct */
+TSharedRef<SWidget> SCSVImportOptions::MakeRowStructItemWidget(UScriptStruct* Struct)
 {
-	if (Selection.IsValid() && *Selection == ECSVImportType::ECSV_DataTable)
-	{
-		PropertyView->SetObject(TempImportDataTable.Get());
-	}
-	else
-	{
-		PropertyView->SetObject(nullptr);
-	}
-}
-
-void SCSVImportOptions::OnStructSelected(UScriptStruct* NewStruct)
-{
-	SelectedStruct = NewStruct;
+	check(Struct != nullptr);
+	return	SNew(STextBlock)
+			.Text(FText::FromString(Struct->GetName()));
 }
 
 FString SCSVImportOptions::GetCurveTypeText(CurveInterpModePtr InterpMode) const
@@ -312,6 +281,7 @@ TSharedRef<SWidget> SCSVImportOptions::MakeCurveTypeWidget(CurveInterpModePtr In
 /** Called when 'OK' button is pressed */
 FReply SCSVImportOptions::OnImport()
 {
+	SelectedStruct = RowStructCombo->GetSelectedItem();
 	SelectedImportType = *ImportTypeCombo->GetSelectedItem();
 	if (CurveInterpCombo->GetSelectedItem().IsValid())
 	{
@@ -332,7 +302,7 @@ bool SCSVImportOptions::CanImport() const
 	switch (ImportType)
 	{
 	case ECSVImportType::ECSV_DataTable:
-		return SelectedStruct != nullptr;
+		return RowStructCombo->GetSelectedItem() != nullptr;
 		break;
 	case ECSVImportType::ECSV_CurveTable:
 		return CurveInterpCombo->GetSelectedItem().IsValid();
@@ -363,6 +333,14 @@ FText SCSVImportOptions::GetSelectedItemText() const
 
 	return (SelectedType.IsValid())
 		? FText::FromString(GetImportTypeText(SelectedType))
+		: FText::GetEmpty();
+}
+
+FText SCSVImportOptions::GetSelectedRowOptionText() const
+{
+	UScriptStruct* SelectedScript = RowStructCombo->GetSelectedItem();
+	return (SelectedScript)
+		? FText::FromString(SelectedScript->GetName())
 		: FText::GetEmpty();
 }
 

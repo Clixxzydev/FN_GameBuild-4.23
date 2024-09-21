@@ -20,36 +20,19 @@ public:
 	}
 
 	static UMeshProxySettingsObject* Get()
-	{	
-		// This is a singleton, duplicate default object
+	{
+		static bool bInitialized = false;
+		// This is a singleton, use default object
+		UMeshProxySettingsObject* DefaultSettings = GetMutableDefault<UMeshProxySettingsObject>();
+
 		if (!bInitialized)
 		{
-			DefaultSettings = DuplicateObject(GetMutableDefault<UMeshProxySettingsObject>(), nullptr);
-			DefaultSettings->AddToRoot();
 			bInitialized = true;
 		}
 
 		return DefaultSettings;
 	}
 
-	static void Destroy()
-	{
-		if (bInitialized)
-		{
-			if (UObjectInitialized() && DefaultSettings)
-			{
-				DefaultSettings->RemoveFromRoot();
-				DefaultSettings->MarkPendingKill();
-			}
-
-			DefaultSettings = nullptr;
-			bInitialized = false;
-		}
-	}
-
-protected:
-	static bool bInitialized;
-	static UMeshProxySettingsObject* DefaultSettings;
 public:
 	UPROPERTY(editanywhere, meta = (ShowOnlyInnerProperties), Category = ProxySettings)
 	FMeshProxySettings  Settings;
@@ -64,7 +47,6 @@ class FMeshProxyTool : public IMergeActorsTool
 
 public:
 	FMeshProxyTool();
-	~FMeshProxyTool();
 
 	// IMergeActorsTool interface
 	virtual TSharedRef<SWidget> GetWidget() override;

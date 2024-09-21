@@ -3,63 +3,34 @@
 #include "CurveEditorDragOperation_Pan.h"
 #include "CurveEditorScreenSpace.h"
 #include "CurveEditor.h"
-#include "SCurveEditorView.h"
-#include "SCurveEditorPanel.h"
 
-FCurveEditorDragOperation_PanView::FCurveEditorDragOperation_PanView(FCurveEditor* InCurveEditor, TSharedPtr<SCurveEditorView> InView)
+FCurveEditorDragOperation_Pan::FCurveEditorDragOperation_Pan(FCurveEditor* InCurveEditor)
 	: CurveEditor(InCurveEditor)
-	, View(InView)
-{}
-
-void FCurveEditorDragOperation_PanView::OnBeginDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
 {
-	FCurveEditorScreenSpace ViewSpace = View->GetViewSpace();
-
-	InitialInputMin = ViewSpace.GetInputMin();
-	InitialInputMax = ViewSpace.GetInputMax();
-	InitialOutputMin = ViewSpace.GetOutputMin();
-	InitialOutputMax = ViewSpace.GetOutputMax();
-	SnappingState.Reset();
 }
 
-void FCurveEditorDragOperation_PanView::OnDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
+void FCurveEditorDragOperation_Pan::OnBeginDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
 {
-	FVector2D PixelDelta = CurveEditor->GetAxisSnap().GetSnappedPosition(InitialPosition, CurrentPosition, MouseEvent, SnappingState, true) - InitialPosition;
+	FCurveEditorScreenSpace ScreenSpace = CurveEditor->GetScreenSpace();
 
-	FCurveEditorScreenSpace ViewSpace = View->GetViewSpace();
+	InitialInputMin  = ScreenSpace.GetInputMin();
+	InitialInputMax  = ScreenSpace.GetInputMax();
+	InitialOutputMin = ScreenSpace.GetOutputMin();
+	InitialOutputMax = ScreenSpace.GetOutputMax();
+}
 
-	double InputMin = InitialInputMin - PixelDelta.X / ViewSpace.PixelsPerInput();
-	double InputMax = InitialInputMax - PixelDelta.X / ViewSpace.PixelsPerInput();
+void FCurveEditorDragOperation_Pan::OnDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
+{
+	FVector2D PixelDelta = GetLockedMousePosition(InitialPosition, CurrentPosition, MouseEvent) - InitialPosition;
 
-	double OutputMin = InitialOutputMin + PixelDelta.Y / ViewSpace.PixelsPerOutput();
-	double OutputMax = InitialOutputMax + PixelDelta.Y / ViewSpace.PixelsPerOutput();
+	FCurveEditorScreenSpace ScreenSpace = CurveEditor->GetScreenSpace();
+
+	double InputMin  = InitialInputMin - PixelDelta.X / ScreenSpace.PixelsPerInput();
+	double InputMax  = InitialInputMax - PixelDelta.X / ScreenSpace.PixelsPerInput();
+
+	double OutputMin = InitialOutputMin + PixelDelta.Y / ScreenSpace.PixelsPerOutput();
+	double OutputMax = InitialOutputMax + PixelDelta.Y / ScreenSpace.PixelsPerOutput();
 
 	CurveEditor->GetBounds().SetInputBounds(InputMin, InputMax);
-	View->SetOutputBounds(OutputMin, OutputMax);
-}
-
-FCurveEditorDragOperation_PanInput::FCurveEditorDragOperation_PanInput(FCurveEditor* InCurveEditor)
-	: CurveEditor(InCurveEditor)
-{}
-
-void FCurveEditorDragOperation_PanInput::OnBeginDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
-{
-	FCurveEditorScreenSpaceH InputSpace = CurveEditor->GetPanelInputSpace();
-	InitialInputMin = InputSpace.GetInputMin();
-	InitialInputMax = InputSpace.GetInputMax();
-	SnappingState.Reset();
-}
-
-void FCurveEditorDragOperation_PanInput::OnDrag(FVector2D InitialPosition, FVector2D CurrentPosition, const FPointerEvent& MouseEvent)
-{
-	FVector2D PixelDelta = CurveEditor->GetAxisSnap().GetSnappedPosition(InitialPosition, CurrentPosition, MouseEvent, SnappingState, true) - InitialPosition;
-
-	FCurveEditorScreenSpaceH InputSpace = CurveEditor->GetPanelInputSpace();
-
-	double InputMin = InitialInputMin - PixelDelta.X / InputSpace.PixelsPerInput();
-	double InputMax = InitialInputMax - PixelDelta.X / InputSpace.PixelsPerInput();
-
-	CurveEditor->GetBounds().SetInputBounds(InputMin, InputMax);
-
-	CurveEditor->GetPanel()->ScrollBy(-MouseEvent.GetCursorDelta().Y);
+	CurveEditor->GetBounds().SetOutputBounds(OutputMin, OutputMax);
 }

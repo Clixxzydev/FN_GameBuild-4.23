@@ -43,7 +43,7 @@ namespace SequencerSectionConstants
 /**
  * Interface that should be implemented for the UI portion of a section
  */
-class SEQUENCER_VTABLE ISequencerSection
+class ISequencerSection
 {
 public:
 	virtual ~ISequencerSection(){}
@@ -67,6 +67,12 @@ public:
 	 * @return The generated widget 
 	 */
 	virtual TSharedRef<SWidget> GenerateSectionWidget() { return SNullWidget::NullWidget; }
+
+	UE_DEPRECATED(4.20, "Please override Sequencer::DrawKeys instead")
+	virtual const FSlateBrush* GetKeyBrush(FKeyHandle KeyHandle) const { return nullptr; }
+
+	UE_DEPRECATED(4.20, "Please override Sequencer::DrawKeys instead")
+	virtual FVector2D GetKeyBrushOrigin( FKeyHandle KeyHandle ) const { return FVector2D(0.0f, 0.0f); }
 
 	/**
 	 * Called when the section is double clicked
@@ -181,7 +187,7 @@ public:
 	virtual void SlipSection(FFrameNumber SlipTime) {}
 };
 
-class SEQUENCER_VTABLE FSequencerSection : public ISequencerSection
+class FSequencerSection : public ISequencerSection
 {
 public:
 	FSequencerSection(UMovieSceneSection& InSection)

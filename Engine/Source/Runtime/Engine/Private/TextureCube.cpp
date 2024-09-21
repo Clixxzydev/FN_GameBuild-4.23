@@ -247,7 +247,7 @@ public:
 	{
 		DEC_DWORD_STAT_BY( STAT_TextureMemory, TextureSize );
 		DEC_DWORD_STAT_FNAME_BY( LODGroupStatName, TextureSize );
-		RHIUpdateTextureReference(Owner->TextureReference.TextureReferenceRHI, nullptr);
+		RHIUpdateTextureReference(Owner->TextureReference.TextureReferenceRHI,FTextureRHIParamRef());
 		TextureCubeRHI.SafeRelease();
 		FTextureResource::ReleaseRHI();
 	}

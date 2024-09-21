@@ -1,7 +1,6 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "AppleARKitLiveLinkSource.h"
-
 #include "UObject/Package.h"
 #include "Misc/ConfigCacheIni.h"
 #include "UObject/UObjectGlobals.h"
@@ -20,8 +19,6 @@
 #include "ARTrackable.h"
 
 #include "AppleARKitFaceSupportModule.h"
-
-#include "Roles/LiveLinkBasicRole.h"
 
 DECLARE_CYCLE_STAT(TEXT("Publish Local LiveLink"), STAT_FaceAR_Local_PublishLiveLink, STATGROUP_FaceAR);
 DECLARE_CYCLE_STAT(TEXT("Publish Remote LiveLink"), STAT_FaceAR_Remote_PublishLiveLink, STATGROUP_FaceAR);
@@ -118,7 +115,7 @@ void FAppleARKitLiveLinkSource::ReceiveClient(ILiveLinkClient* InClient, FGuid I
 	SourceGuid = InSourceGuid;
 }
 
-bool FAppleARKitLiveLinkSource::IsSourceStillValid() const
+bool FAppleARKitLiveLinkSource::IsSourceStillValid()
 {
 	return Client != nullptr;
 }
@@ -151,95 +148,64 @@ static FName ParseEnumName(FName EnumName)
 	return FName(*EnumString.Right(EnumString.Len() - BlendShapeEnumNameLength));
 }
 
+// Temporary for 4.20
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 void FAppleARKitLiveLinkSource::PublishBlendShapes(FName SubjectName, const FTimecode& Timecode, uint32 FrameRate, const FARBlendShapeMap& FaceBlendShapes, FName DeviceId)
 {
 	SCOPE_CYCLE_COUNTER(STAT_FaceAR_Local_PublishLiveLink);
 
 	check(Client != nullptr);
-	
 	// This code touches UObjects so needs to be run only in the game thread
 	check(IsInGameThread());
 
-	//If we can't retrieve blend shape enum, nothing we can do
-	const UEnum* EnumPtr = StaticEnum<EARFaceBlendShape>();
-	if (EnumPtr == nullptr)
-	{
-		return;
-	}
-
-	const FLiveLinkSubjectKey SubjectKey(SourceGuid, SubjectName);
-
-
+	FName* LastSubjectNameForDeviceId = DeviceToLastSubjectNameMap.Find(DeviceId);
 	// Is this a new device and subject pair?
-	FBlendShapeStaticData* BlendShapeDataPtr = BlendShapePerDeviceMap.Find(DeviceId);
-	if (BlendShapeDataPtr == nullptr)
+	if (LastSubjectNameForDeviceId == nullptr)
 	{
-		UpdateStaticData(SubjectName, FaceBlendShapes, DeviceId);
+		// First time seen so publish an empty skeleton
+		Client->PushSubjectSkeleton(SourceGuid, SubjectName, FLiveLinkRefSkeleton());
+		DeviceToLastSubjectNameMap.Add(DeviceId, SubjectName);
 	}
 	// Did the subject name change for the device?
-	else if (SubjectKey != BlendShapeDataPtr->SubjectKey)
+	else if (SubjectName != *LastSubjectNameForDeviceId)
 	{
 		// The remote device changed subject names, so remove the old subject
-		Client->RemoveSubject_AnyThread(BlendShapeDataPtr->SubjectKey);
-
-		UpdateStaticData(SubjectName, FaceBlendShapes, DeviceId);
+		Client->ClearSubject(*LastSubjectNameForDeviceId);
+		// Now add a new skeleton with the new subject name
+		Client->PushSubjectSkeleton(SourceGuid, SubjectName, FLiveLinkRefSkeleton());
 	}
 
-	FLiveLinkFrameDataStruct FrameDataStruct(FLiveLinkBaseFrameData::StaticStruct());
-	FLiveLinkBaseFrameData* FrameData = FrameDataStruct.Cast<FLiveLinkBaseFrameData>();
-	FrameData->WorldTime = FPlatformTime::Seconds();
-	FrameData->MetaData.SceneTime = FQualifiedFrameTime(Timecode, FFrameRate(FrameRate, 1));
-	FrameData->PropertyValues.Reserve((int32)EARFaceBlendShape::MAX);
-	
-	// Iterate through all of the blend shapes copying them into the LiveLink data type
-	for (int32 Shape = 0; Shape < (int32)EARFaceBlendShape::MAX; Shape++)
-	{
-		if (FaceBlendShapes.Contains((EARFaceBlendShape)Shape))
-		{	
-			const float CurveValue = FaceBlendShapes.FindChecked((EARFaceBlendShape)Shape);
-			FrameData->PropertyValues.Add(CurveValue);
-		}
-	}
-
-	//Blendshapes don't change over time. If they were to change, we would need to keep track
-	//of previous values to always have frame data matching static data.
-	check(FrameData->PropertyValues.Num() == BlendShapePerDeviceMap.FindChecked(DeviceId).StaticData.PropertyNames.Num());
-	
-	// Share the data locally with the LiveLink client
-	Client->PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(FrameDataStruct));
-}
-
-
-void FAppleARKitLiveLinkSource::UpdateStaticData(FName SubjectName, const FARBlendShapeMap& FaceBlendShapes, FName DeviceId /*= NAME_None*/)
-{
-	//Update the subject key to match latest one
-	FBlendShapeStaticData& BlendShapeData = BlendShapePerDeviceMap.FindOrAdd(DeviceId);
-	BlendShapeData.SubjectKey = FLiveLinkSubjectKey(SourceGuid, SubjectName);
-
-	//Update property names array
-	BlendShapeData.StaticData.PropertyNames.Reset((int32)EARFaceBlendShape::MAX);
-
-	//Iterate through all valid blend shapes to extract names
 	const UEnum* EnumPtr = StaticEnum<EARFaceBlendShape>();
-	for (int32 Shape = 0; Shape < (int32)EARFaceBlendShape::MAX; Shape++)
+	if (EnumPtr != nullptr)
 	{
-		if (FaceBlendShapes.Contains((EARFaceBlendShape)Shape))
+		static FLiveLinkFrameData LiveLinkFrame;
+
+		LiveLinkFrame.WorldTime = FPlatformTime::Seconds();
+		LiveLinkFrame.MetaData.SceneTime = FQualifiedFrameTime(Timecode, FFrameRate(FrameRate, 1));
+		
+		TArray<FLiveLinkCurveElement>& BlendShapes = LiveLinkFrame.CurveElements;
+
+		BlendShapes.Reset((int32)EARFaceBlendShape::MAX);
+
+		// Iterate through all of the blend shapes copying them into the LiveLink data type
+		for (int32 Shape = 0; Shape < (int32)EARFaceBlendShape::MAX; Shape++)
 		{
-			//Blendshapes don't change over time. If they were to change, we would need to keep track
-			//of previous values to always have frame data matching static data
-			const FName ShapeName = ParseEnumName(EnumPtr->GetNameByValue(Shape));
-			BlendShapeData.StaticData.PropertyNames.Add(ShapeName);
+			if (FaceBlendShapes.Contains((EARFaceBlendShape)Shape))
+			{
+				int32 Index = BlendShapes.AddUninitialized(1);
+				BlendShapes[Index].CurveName = ParseEnumName(EnumPtr->GetNameByValue(Shape));
+				const float CurveValue = FaceBlendShapes.FindChecked((EARFaceBlendShape)Shape);
+				BlendShapes[Index].CurveValue = CurveValue;
+			}
 		}
+
+		// Share the data locally with the LiveLink client
+		Client->PushSubjectData(SourceGuid, SubjectName, LiveLinkFrame);
 	}
-
-	//Push the associated static data
-	FLiveLinkStaticDataStruct StaticDataStruct(FLiveLinkBaseStaticData::StaticStruct());
-	FLiveLinkBaseStaticData* BaseStaticData = StaticDataStruct.Cast<FLiveLinkBaseStaticData>();
-	BaseStaticData->PropertyNames = BlendShapeData.StaticData.PropertyNames;
-
-	UE_LOG(LogAppleARKitFace, Verbose, TEXT("Pushing AppleARKit Subject '%s' with %d blend shapes"), *SubjectName.ToString(), BaseStaticData->PropertyNames.Num());
-	Client->PushSubjectStaticData_AnyThread(BlendShapeData.SubjectKey, ULiveLinkBasicRole::StaticClass(), MoveTemp(StaticDataStruct));
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 // 1 = Initial version
 // 2 = ARKit 2.0 extra blendshapes
@@ -282,7 +248,7 @@ bool FAppleARKitLiveLinkRemotePublisher::InitSendSocket()
 	{
 		ISocketSubsystem* SocketSubsystem = ISocketSubsystem::Get();
 		// Allocate our socket for sending
-		SendSocket = SocketSubsystem->CreateSocket(NAME_DGram, TEXT("FAppleARKitLiveLinkRemotePublisher socket"), Addr->GetProtocolType());
+		SendSocket = SocketSubsystem->CreateSocket(NAME_DGram, TEXT("FAppleARKitLiveLinkRemotePublisher socket"), true);
 		SendSocket->SetReuseAddr();
 		SendSocket->SetNonBlocking();
 		UE_LOG(LogAppleARKitFace, Log, TEXT("Sending LiveLink face AR data to address (%s)"), *Addr->ToString(true));
@@ -302,7 +268,7 @@ TSharedRef<FInternetAddr> FAppleARKitLiveLinkRemotePublisher::GetSendAddress()
 	// Don't bother trying to parse the IP if it isn't set
 	if (RemoteIp.Len())
 	{
-		int32 LiveLinkPort = GetMutableDefault<UAppleARKitSettings>()->GetLiveLinkPublishingPort();
+		int32 LiveLinkPort = GetDefault<UAppleARKitSettings>()->LiveLinkPublishingPort;
 		SendAddr->SetPort(LiveLinkPort);
 		bool bIsValid = false;
 		SendAddr->SetIp(*RemoteIp, bIsValid);
@@ -373,7 +339,7 @@ bool FAppleARKitLiveLinkRemoteListener::InitReceiveSocket()
 	GConfig->GetInt(TEXT("/Script/AppleARKit.AppleARKitSettings"), TEXT("LiveLinkPublishingPort"), LiveLinkPort, GEngineIni);
 	Addr->SetPort(LiveLinkPort);
 
-	RecvSocket = SocketSubsystem->CreateSocket(NAME_DGram, TEXT("FAppleARKitLiveLinkRemoteListener socket"), Addr->GetProtocolType());
+	RecvSocket = SocketSubsystem->CreateSocket(NAME_DGram, TEXT("FAppleARKitLiveLinkRemoteListener socket"));
 	if (RecvSocket != nullptr)
 	{
 		RecvSocket->SetReuseAddr();
@@ -471,14 +437,16 @@ void FAppleARKitLiveLinkRemoteListener::Tick(float DeltaTime)
 
 FAppleARKitLiveLinkFileWriter::FAppleARKitLiveLinkFileWriter(const TCHAR* InFileExtension)
 	: FileExtension(InFileExtension)
+	, bSavePerFrameOrOnDemand(false)
 {
-	UAppleARKitSettings::CreateFaceTrackingLogDir();
+	// Read the config values for this
+	GConfig->GetBool(TEXT("/Script/AppleARKit.AppleARKitSettings"), TEXT("bFaceTrackingWriteEachFrame"), bSavePerFrameOrOnDemand, GEngineIni);
 }
 
 FAppleARKitLiveLinkFileWriter::~FAppleARKitLiveLinkFileWriter()
 {
 	// Save on close if desired
-	if (!GetMutableDefault<UAppleARKitSettings>()->ShouldFaceTrackingLogPerFrame())
+	if (!bSavePerFrameOrOnDemand)
 	{
 		SaveFileData();
 	}
@@ -506,9 +474,7 @@ FString FAppleARKitLiveLinkFileWriter::GenerateFilePath()
 	FDateTime DateTime = FDateTime::UtcNow();
 	const FString UserDir = FPlatformProcess::UserDir();
 	const FString DeviceNameString = DeviceName.ToString();
-	const FString& FaceDir = GetMutableDefault<UAppleARKitSettings>()->GetFaceTrackingLogDir();
-	const TCHAR* SubDir = FaceDir.Len() > 0 ? *FaceDir : TEXT("FaceTracking");
-	return FString::Printf(TEXT("%s%s/%s_%d-%d-%d-%d-%d-%d-%d%s"), *UserDir, SubDir, *DeviceNameString,
+	return FString::Printf(TEXT("%sFaceTracking/%s_%d-%d-%d-%d-%d-%d-%d%s"), *UserDir, *DeviceNameString,
 		DateTime.GetYear(), DateTime.GetMonth(), DateTime.GetDay(), Timecode.Hours, Timecode.Minutes, Timecode.Seconds, Timecode.Frames,
 		*FileExtension);
 }
@@ -517,16 +483,11 @@ void FAppleARKitLiveLinkFileWriter::PublishBlendShapes(FName SubjectName, const 
 {
 	FScopeLock ScopeLock(&CriticalSection);
 
-	if (!GetMutableDefault<UAppleARKitSettings>()->IsFaceTrackingLoggingEnabled())
-	{
-		return;
-	}
-
 	DeviceName = DeviceId;
 	// Add to the array for long running save
 	new(FrameHistory) FFaceTrackingFrame(Timecode, FrameRate, FaceBlendShapes);
 
-	if (GetMutableDefault<UAppleARKitSettings>()->ShouldFaceTrackingLogPerFrame())
+	if (bSavePerFrameOrOnDemand)
 	{
 		SaveFileData();
 	}
@@ -534,14 +495,12 @@ void FAppleARKitLiveLinkFileWriter::PublishBlendShapes(FName SubjectName, const 
 
 bool FAppleARKitLiveLinkFileWriter::Exec(UWorld*, const TCHAR* Cmd, FOutputDevice& Ar)
 {
-	if (FParse::Command(&Cmd, TEXT("FaceAR")))
+	if (FParse::Command(&Cmd, TEXT("FaceAR")) &&
+		FParse::Command(&Cmd, TEXT("WriteCurveFile")))
 	{
-		if (FParse::Command(&Cmd, TEXT("WriteCurveFile")))
-		{
-			FScopeLock ScopeLock(&CriticalSection);
-			SaveFileData();
-			return true;
-		}
+		FScopeLock ScopeLock(&CriticalSection);
+		SaveFileData();
+		return true;
 	}
 	return false;
 }
@@ -553,7 +512,7 @@ FAppleARKitLiveLinkFileWriterCsv::FAppleARKitLiveLinkFileWriterCsv()
 	check(IsInGameThread());
 
 	CsvFrameHeader = TEXT("Timecode, FrameRate");
-	const UEnum *EnumPtr = StaticEnum<EARFaceBlendShape>();
+	const UEnum *EnumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("EARFaceBlendShape"), true);
 	if (EnumPtr != nullptr)
 	{
 		// Iterate through all of the enum values generating strings for them for CSV/JSON generation
@@ -570,8 +529,8 @@ FAppleARKitLiveLinkFileWriterCsv::FAppleARKitLiveLinkFileWriterCsv()
 FString FAppleARKitLiveLinkFileWriterCsv::BuildCsvRow(const FFaceTrackingFrame& Frame)
 {
 	FString SaveData = FString::Printf(TEXT("%d:%d:%d:%d, %d"),
-		Frame.Timecode.Hours, Frame.Timecode.Minutes, Frame.Timecode.Seconds, Frame.Timecode.Frames,
-		Frame.FrameRate);
+			Frame.Timecode.Hours, Frame.Timecode.Minutes, Frame.Timecode.Seconds, Frame.Timecode.Frames,
+			Frame.FrameRate);
 	// Add all of the blend shapes on
 	for (int32 Shape = 0; Shape < (int32)EARFaceBlendShape::MAX; Shape++)
 	{
@@ -601,7 +560,7 @@ FAppleARKitLiveLinkFileWriterJson::FAppleARKitLiveLinkFileWriterJson()
 	// Touching UObjects, so needs to be game thread
 	check(IsInGameThread());
 
-	const UEnum *EnumPtr = StaticEnum<EARFaceBlendShape>();
+	const UEnum *EnumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("EARFaceBlendShape"), true);
 	if (EnumPtr != nullptr)
 	{
 		// Iterate through all of the enum values generating strings for them for CSV/JSON generation

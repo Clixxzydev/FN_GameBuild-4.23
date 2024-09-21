@@ -257,11 +257,12 @@ public:
 		return StaticMeshLODSettings;
 	}
 
-	virtual void GetTextureFormats( const UTexture* InTexture, TArray< TArray<FName> >& OutFormats) const override
+	virtual void GetTextureFormats( const UTexture* InTexture, TArray<FName>& OutFormats ) const override
 	{
 		if (!IS_DEDICATED_SERVER)
 		{
-			GetDefaultTextureFormatNamePerLayer(OutFormats.AddDefaulted_GetRef(), this, InTexture, EngineSettings, bSupportDX11TextureFormats, bSupportCompressedVolumeTexture);
+			FName TextureFormatName = GetDefaultTextureFormatName(this, InTexture, EngineSettings, bSupportDX11TextureFormats, bSupportCompressedVolumeTexture);
+			OutFormats.Add(TextureFormatName);
 		}
 	}
 

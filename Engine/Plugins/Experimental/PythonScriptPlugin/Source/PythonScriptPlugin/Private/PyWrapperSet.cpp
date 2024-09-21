@@ -253,15 +253,7 @@ int FPyWrapperSet::Init(FPyWrapperSet* InSelf, const FPyWrapperOwnerContext& InO
 
 			SetInstanceToUse = FMemory::Malloc(PropToUse->GetSize(), PropToUse->GetMinAlignment());
 			PropToUse->InitializeValue(SetInstanceToUse);
-			if (InConversionMethod == EPyConversionMethod::Steal)
-			{
-				FScriptSetHelper SelfScriptSetHelper(PropToUse, SetInstanceToUse);
-				SelfScriptSetHelper.MoveAssign(InValue);
-			}
-			else
-			{
-				PropToUse->CopyCompleteValue(SetInstanceToUse, InValue);
-			}
+			PropToUse->CopyCompleteValue(SetInstanceToUse, InValue);
 		}
 		break;
 

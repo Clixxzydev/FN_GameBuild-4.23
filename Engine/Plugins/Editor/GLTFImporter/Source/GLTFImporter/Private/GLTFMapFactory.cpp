@@ -128,18 +128,40 @@ namespace GLTF
 			ValueExpressions.Add(ValueExpression);
 		}
 
-		FMaterialExpressionTexture* TexExpression = CreateTextureMap(Map, CoordinateIndex, MapName, TextureMode);
-		if (TexExpression)
+		if (!CreateMultiTexture(Map, CoordinateIndex, MapName, MapChannels, MapChannelsCount, TextureMode, ValueExpressions))
 		{
+			// no texture present, make value connections
 			for (uint32 Index = 0; Index < MapChannelsCount; ++Index)
 			{
 				const FMapChannel& MapChannel = MapChannels[Index];
 
-				FMaterialExpressionGeneric* MultiplyExpression = CurrentMaterialElement->AddMaterialExpression<FMaterialExpressionGeneric>();
-				MultiplyExpression->SetExpressionName(TEXT("Multiply"));
-
-				switch (MapChannel.Channel)
+				if (MapChannel.OutputExpression)
 				{
+					ValueExpressions[Index]->ConnectExpression(GetFirstInput(MapChannel.OutputExpression), 0);
+					MapChannel.OutputExpression->ConnectExpression(*MapChannel.MaterialInput, 0);
+				}
+				else
+					ValueExpressions[Index]->ConnectExpression(*MapChannel.MaterialInput, 0);
+			}
+		}
+	}
+
+	bool FPBRMapFactory::CreateMultiTexture(const GLTF::FTexture& Map, int CoordinateIndex, const TCHAR* MapName, const FMapChannel* MapChannels,
+	                                        uint32 MapChannelsCount, ETextureMode TextureMode, const FExpressionList& ValueExpressions)
+	{
+		FMaterialExpressionTexture* TexExpression = CreateTextureMap(Map, CoordinateIndex, MapName, TextureMode);
+		if (!TexExpression)
+			return false;
+
+		for (uint32 Index = 0; Index < MapChannelsCount; ++Index)
+		{
+			const FMapChannel& MapChannel = MapChannels[Index];
+
+			FMaterialExpressionGeneric* MultiplyExpression = CurrentMaterialElement->AddMaterialExpression<FMaterialExpressionGeneric>();
+			MultiplyExpression->SetExpressionName(TEXT("Multiply"));
+
+			switch (MapChannel.Channel)
+			{
 				case EChannel::RG:
 				{
 					FMaterialExpressionFunctionCall* MakeFloat2 = CurrentMaterialElement->AddMaterialExpression<FMaterialExpressionFunctionCall>();
@@ -165,37 +187,19 @@ namespace GLTF
 					// single channel connection
 					TexExpression->ConnectExpression(*MultiplyExpression->GetInput(0), (int32)MapChannel.Channel);
 					break;
-				}
-
-				ValueExpressions[Index]->ConnectExpression(*MultiplyExpression->GetInput(1), 0);
-				if (MapChannel.OutputExpression)
-				{
-					MultiplyExpression->ConnectExpression(GetFirstInput(MapChannel.OutputExpression), 0);
-					MapChannel.OutputExpression->ConnectExpression(*MapChannel.MaterialInput, 0);
-				}
-				else
-					MultiplyExpression->ConnectExpression(*MapChannel.MaterialInput, 0);
 			}
-		}
-		else
-		{
-			// no texture present, make value connections
-			for (uint32 Index = 0; Index < MapChannelsCount; ++Index)
+
+			ValueExpressions[Index]->ConnectExpression(*MultiplyExpression->GetInput(1), 0);
+			if (MapChannel.OutputExpression)
 			{
-				const FMapChannel& MapChannel = MapChannels[Index];
-
-				if (MapChannel.OutputExpression)
-				{
-					ValueExpressions[Index]->ConnectExpression(GetFirstInput(MapChannel.OutputExpression), 0);
-					MapChannel.OutputExpression->ConnectExpression(*MapChannel.MaterialInput, 0);
-				}
-				else
-					ValueExpressions[Index]->ConnectExpression(*MapChannel.MaterialInput, 0);
+				MultiplyExpression->ConnectExpression(GetFirstInput(MapChannel.OutputExpression), 0);
+				MapChannel.OutputExpression->ConnectExpression(*MapChannel.MaterialInput, 0);
 			}
+			else
+				MultiplyExpression->ConnectExpression(*MapChannel.MaterialInput, 0);
 		}
+		return true;
 	}
-
-	
 
 	FMaterialExpressionTexture* FPBRMapFactory::CreateTextureMap(const GLTF::FTexture& Map, int CoordinateIndex, const TCHAR* MapName,
 	                                                             ETextureMode TextureMode)

@@ -34,7 +34,7 @@ public:
 		const class FSceneInterface* Scene,
 		const class FSceneView* View,
 		const class FMeshMaterialShader* Shader,
-		const EVertexInputStreamType InputStreamType,
+		bool bShaderRequiresPositionOnlyStream,
 		ERHIFeatureLevel::Type FeatureLevel,
 		const class FVertexFactory* InVertexFactory,
 		const struct FMeshBatchElement& BatchElement,

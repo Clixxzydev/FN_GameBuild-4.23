@@ -31,8 +31,7 @@ struct FMovieSceneSpawnable
 	GENERATED_BODY()
 
 	FMovieSceneSpawnable()
-		: bContinuouslyRespawn(true)
-		, ObjectTemplate(nullptr)
+		: ObjectTemplate(nullptr)
 		, Ownership(ESpawnOwnership::InnerSequence)
 #if WITH_EDITORONLY_DATA
 		, GeneratedClass_DEPRECATED(nullptr)
@@ -42,8 +41,7 @@ struct FMovieSceneSpawnable
 
 	/** FMovieSceneSpawnable initialization constructor */
 	FMovieSceneSpawnable(const FString& InitName, UObject& InObjectTemplate)
-		: bContinuouslyRespawn(true)
-		, Guid(FGuid::NewGuid())
+		: Guid(FGuid::NewGuid())
 		, Name(InitName)
 		, ObjectTemplate(&InObjectTemplate)
 		, Ownership(ESpawnOwnership::InnerSequence)
@@ -222,10 +220,6 @@ public:
 	/** Array of tags that can be used for grouping and categorizing. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category=Actor)
 	TArray<FName> Tags;
-
-	/** When enabled, this spawnable will always be respawned if it gets destroyed externally. When disabled, this object will only ever be spawned once for each spawn key even if it is destroyed externally. */
-	UPROPERTY(EditAnywhere, Category=Actor)
-	bool bContinuouslyRespawn;
 
 private:
 

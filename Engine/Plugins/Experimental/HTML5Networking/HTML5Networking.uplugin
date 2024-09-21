@@ -2,8 +2,8 @@
 	"FileVersion" : 3,
 	"Version" : 1,
 	"VersionName" : "1.0",
-	"FriendlyName" : "Experimental WebSocket Networking Plugin",
-	"Description" : "WebSocket Networking - NOTE: MUST disable all other existing NetDriverDefinitions in order to use WebSocketNetDriver. ALSO: MUST disable all PackHandlerComponents not supported by HTML5 (e.g. SteamAuthComponentModuleInterface)",
+	"FriendlyName" : "Experimental HTML5 Networking Plugin",
+	"Description" : "HTML5 Networking",
 	"Category" : "Misc",
 	"CreatedBy" : "Epic Games, Inc.",
 	"CreatedByURL" : "http://epicgames.com",
@@ -25,7 +25,6 @@
 				"Mac",
 				"Win32",
 				"Win64",
-				"Linux",
 				"HTML5"
 			]
 		}

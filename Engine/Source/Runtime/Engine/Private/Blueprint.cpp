@@ -24,7 +24,6 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Engine/SCS_Node.h"
 #include "Kismet2/BlueprintEditorUtils.h"
-#include "Kismet2/ComponentEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "Kismet2/CompilerResultsLog.h"
 #include "Kismet2/StructureEditorUtils.h"
@@ -71,21 +70,50 @@ static void ConformNativeComponents(UBlueprint* Blueprint)
 			// native super-class)
 			TInlineComponentArray<UActorComponent*> NewNativeComponents;
 			NativeCDO->GetComponents(NewNativeComponents);
-														   			
+
+			// utility lambda for finding named components in a supplied list
+			auto FindNamedComponentLambda = [](FName const ComponentName, TInlineComponentArray<UActorComponent*> const& ComponentList)->UActorComponent*
+			{
+				UActorComponent* FoundComponent = nullptr;
+				for (UActorComponent* Component : ComponentList)
+				{
+					if (Component->GetFName() == ComponentName)
+					{
+						FoundComponent = Component;
+						break;
+					}
+				}
+				return FoundComponent;
+			};
+
+			// utility lambda for finding matching components in the NewNativeComponents list
+			auto FindNativeComponentLambda = [&NewNativeComponents, &FindNamedComponentLambda](UActorComponent* BlueprintComponent)->UActorComponent*
+			{
+				UActorComponent* MatchingComponent = nullptr;
+				if (BlueprintComponent != nullptr)
+				{
+					FName const ComponentName = BlueprintComponent->GetFName();
+					MatchingComponent = FindNamedComponentLambda(ComponentName, NewNativeComponents);
+				}
+				return MatchingComponent;
+			};
+
 			// loop through all components that this blueprint thinks come from its
 			// native super-class (last time it was saved)
 			for (UActorComponent* Component : OldNativeComponents)
 			{
-				if (UActorComponent* NativeComponent = FComponentEditorUtils::FindMatchingComponent(Component, NewNativeComponents))
+				// if we found this component also listed for the native class
+				if (UActorComponent* NativeComponent = FindNativeComponentLambda(Component))
 				{
-					USceneComponent* SceneComponent = Cast<USceneComponent>(Component);
-					if (SceneComponent == nullptr)
+					USceneComponent* BlueprintSceneComponent = Cast<USceneComponent>(Component);
+					if (BlueprintSceneComponent == nullptr)
 					{
 						// if this isn't a scene-component, then we don't care
 						// (we're looking to fixup scene-component parents)
 						continue;
 					}
-					USceneComponent* OldNativeParent = Cast<USceneComponent>(FComponentEditorUtils::FindMatchingComponent(SceneComponent->GetAttachParent(), NewNativeComponents));
+					UActorComponent* OldNativeParent = FindNativeComponentLambda(BlueprintSceneComponent->GetAttachParent());
+
 					USceneComponent* NativeSceneComponent = CastChecked<USceneComponent>(NativeComponent);
 					// if this native component has since been reparented, we need
 					// to make sure that this blueprint reflects that change
@@ -94,21 +122,20 @@ static void ConformNativeComponents(UBlueprint* Blueprint)
 						USceneComponent* NewParent = nullptr;
 						if (NativeSceneComponent->GetAttachParent() != nullptr)
 						{
-							NewParent = CastChecked<USceneComponent>(FComponentEditorUtils::FindMatchingComponent(NativeSceneComponent->GetAttachParent(), OldNativeComponents));
+							NewParent = CastChecked<USceneComponent>(FindNamedComponentLambda(NativeSceneComponent->GetAttachParent()->GetFName(), OldNativeComponents));
 						}
-						SceneComponent->SetupAttachment(NewParent, SceneComponent->GetAttachSocketName());
+						BlueprintSceneComponent->SetupAttachment(NewParent, BlueprintSceneComponent->GetAttachSocketName());
 					}
 				}
-				else
+				else // the component has been removed from the native class
 				{
-					// the component has been removed from the native class
-						// @TODO: I think we already handle removed native components elsewhere, so maybe we should error here?
-	// 				BlueprintCDO->RemoveOwnedComponent(Component);
-	// 
-	// 				USimpleConstructionScript* BlueprintSCS = Blueprint->SimpleConstructionScript;
-	// 				USCS_Node* ComponentNode = BlueprintSCS->CreateNode(Component, Component->GetFName());
-	// 
-	// 				BlueprintSCS->AddNode(ComponentNode);
+					// @TODO: I think we already handle removed native components elsewhere, so maybe we should error here?
+// 				BlueprintCDO->RemoveOwnedComponent(Component);
+// 
+// 				USimpleConstructionScript* BlueprintSCS = Blueprint->SimpleConstructionScript;
+// 				USCS_Node* ComponentNode = BlueprintSCS->CreateNode(Component, Component->GetFName());
+// 
+// 				BlueprintSCS->AddNode(ComponentNode);
 				}
 			}
 		}
@@ -643,21 +670,6 @@ UClass* UBlueprint::RegenerateClass(UClass* ClassToRegenerate, UObject* Previous
 	}
 }
 
-void UBlueprint::RemoveChildRedirectors()
-{
-	TArray<UObject*> ChildObjects;
-	GetObjectsWithOuter(this, ChildObjects);
-	for (UObject* ChildObject : ChildObjects)
-	{
-		if (ChildObject->IsA<UObjectRedirector>())
-		{
-			ChildObject->ClearFlags(RF_Public|RF_Standalone);
-			ChildObject->SetFlags(RF_Transient);
-			ChildObject->RemoveFromRoot();
-		}
-	}
-}
-
 void UBlueprint::RemoveGeneratedClasses()
 {
 	FBlueprintEditorUtils::RemoveGeneratedClasses(this);
@@ -971,16 +983,9 @@ void UBlueprint::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 			FAssetRegistryTag::TT_Alphabetical ) );
 
 	// Only add the FiB tags in the editor, this now gets run for standalone uncooked games
-	if ( ParentClass && GIsEditor && !GetOutermost()->HasAnyPackageFlags(PKG_ForDiffing))
+	if ( ParentClass && GIsEditor)
 	{
-		FString Value;
-		const bool bRebuildSearchData = false;
-		if (const FSearchData* SearchData = FFindInBlueprintSearchManager::Get().QuerySingleBlueprint((UBlueprint*)this, bRebuildSearchData))
-		{
-			Value = SearchData->Value;
-		}
-		
-		OutTags.Add( FAssetRegistryTag(FBlueprintTags::FindInBlueprintsData, Value, FAssetRegistryTag::TT_Hidden) );
+		OutTags.Add( FAssetRegistryTag(FBlueprintTags::FindInBlueprintsData, FFindInBlueprintSearchManager::Get().QuerySingleBlueprint((UBlueprint*)this, false), FAssetRegistryTag::TT_Hidden) );
 	}
 
 	// Only show for strict blueprints (not animation or widget blueprints)
@@ -1929,39 +1934,7 @@ UInheritableComponentHandler* UBlueprint::GetInheritableComponentHandler(bool bC
 
 EDataValidationResult UBlueprint::IsDataValid(TArray<FText>& ValidationErrors)
 {
-	EDataValidationResult IsValid = GeneratedClass ? GeneratedClass->GetDefaultObject()->IsDataValid(ValidationErrors) : EDataValidationResult::Invalid;
-	IsValid = (IsValid == EDataValidationResult::NotValidated) ? EDataValidationResult::Valid : IsValid;
-
-	if (SimpleConstructionScript)
-	{
-		EDataValidationResult IsSCSValid = SimpleConstructionScript->IsDataValid(ValidationErrors);
-		IsValid = CombineDataValidationResults(IsValid, IsSCSValid);
-	}
-
-	for (UActorComponent* Component : ComponentTemplates)
-	{
-		if (Component)
-		{
-			EDataValidationResult IsComponentValid = Component->IsDataValid(ValidationErrors);
-			IsValid = CombineDataValidationResults(IsValid, IsComponentValid);
-		}
-	}
-
-	for (UTimelineTemplate* Timeline : Timelines)
-	{
-		if (Timeline)
-		{
-			EDataValidationResult IsTimelineValid = Timeline->IsDataValid(ValidationErrors);
-			IsValid = CombineDataValidationResults(IsValid, IsTimelineValid);
-		}
-	}
-
-	return IsValid;
-}
-
-bool UBlueprint::FindDiffs(const UBlueprint* OtherBlueprint, FDiffResults& Results) const
-{
-	return false;
+	return GeneratedClass ? GeneratedClass->GetDefaultObject()->IsDataValid(ValidationErrors) : EDataValidationResult::Invalid;
 }
 
 FName UBlueprint::GetFunctionNameFromClassByGuid(const UClass* InClass, const FGuid FunctionGuid)

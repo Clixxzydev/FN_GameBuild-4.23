@@ -1397,30 +1397,6 @@ FORCEINLINE bool operator==( TSharedPtr< ObjectTypeA, Mode > const& InSharedPtrA
 
 
 /**
- * Global equality operator for TSharedPtr
- *
- * @return  True if the shared pointer is null
- */
-template< class ObjectTypeA, ESPMode Mode >
-FORCEINLINE bool operator==( TSharedPtr< ObjectTypeA, Mode > const& InSharedPtrA, TYPE_OF_NULLPTR )
-{
-	return !InSharedPtrA.IsValid();
-}
-
-
-/**
- * Global equality operator for TSharedPtr
- *
- * @return  True if the shared pointer is null
- */
-template< class ObjectTypeB, ESPMode Mode >
-FORCEINLINE bool operator==( TYPE_OF_NULLPTR, TSharedPtr< ObjectTypeB, Mode > const& InSharedPtrB )
-{
-	return !InSharedPtrB.IsValid();
-}
-
-
-/**
  * Global inequality operator for TSharedPtr
  *
  * @return  True if the two shared pointers are not equal
@@ -1429,30 +1405,6 @@ template< class ObjectTypeA, class ObjectTypeB, ESPMode Mode >
 FORCEINLINE bool operator!=( TSharedPtr< ObjectTypeA, Mode > const& InSharedPtrA, TSharedPtr< ObjectTypeB, Mode > const& InSharedPtrB )
 {
 	return InSharedPtrA.Get() != InSharedPtrB.Get();
-}
-
-
-/**
- * Global inequality operator for TSharedPtr
- *
- * @return  True if the shared pointer is not null
- */
-template< class ObjectTypeA, ESPMode Mode >
-FORCEINLINE bool operator!=( TSharedPtr< ObjectTypeA, Mode > const& InSharedPtrA, TYPE_OF_NULLPTR )
-{
-	return InSharedPtrA.IsValid();
-}
-
-
-/**
- * Global inequality operator for TSharedPtr
- *
- * @return  True if the shared pointer is not null
- */
-template< class ObjectTypeB, ESPMode Mode >
-FORCEINLINE bool operator!=( TYPE_OF_NULLPTR, TSharedPtr< ObjectTypeB, Mode > const& InSharedPtrB )
-{
-	return InSharedPtrB.IsValid();
 }
 
 
@@ -1570,7 +1522,7 @@ FORCEINLINE bool operator==( TSharedPtr< ObjectTypeA, Mode > const& InSharedPtrA
  * @return  True if the weak pointer is null
  */
 template< class ObjectTypeA, ESPMode Mode >
-FORCEINLINE bool operator==( TWeakPtr< ObjectTypeA, Mode > const& InWeakPtrA, TYPE_OF_NULLPTR )
+FORCEINLINE bool operator==( TWeakPtr< ObjectTypeA, Mode > const& InWeakPtrA, decltype(nullptr) )
 {
 	return !InWeakPtrA.IsValid();
 }
@@ -1582,7 +1534,7 @@ FORCEINLINE bool operator==( TWeakPtr< ObjectTypeA, Mode > const& InWeakPtrA, TY
  * @return  True if the weak pointer is null
  */
 template< class ObjectTypeB, ESPMode Mode >
-FORCEINLINE bool operator==( TYPE_OF_NULLPTR, TWeakPtr< ObjectTypeB, Mode > const& InWeakPtrB )
+FORCEINLINE bool operator==( decltype(nullptr), TWeakPtr< ObjectTypeB, Mode > const& InWeakPtrB )
 {
 	return !InWeakPtrB.IsValid();
 }
@@ -1654,7 +1606,7 @@ FORCEINLINE bool operator!=( TSharedPtr< ObjectTypeA, Mode > const& InSharedPtrA
  * @return  True if the weak pointer is not null
  */
 template< class ObjectTypeA, ESPMode Mode >
-FORCEINLINE bool operator!=( TWeakPtr< ObjectTypeA, Mode > const& InWeakPtrA, TYPE_OF_NULLPTR )
+FORCEINLINE bool operator!=( TWeakPtr< ObjectTypeA, Mode > const& InWeakPtrA, decltype(nullptr) )
 {
 	return InWeakPtrA.IsValid();
 }
@@ -1666,7 +1618,7 @@ FORCEINLINE bool operator!=( TWeakPtr< ObjectTypeA, Mode > const& InWeakPtrA, TY
  * @return  True if the weak pointer is not null
  */
 template< class ObjectTypeB, ESPMode Mode >
-FORCEINLINE bool operator!=( TYPE_OF_NULLPTR, TWeakPtr< ObjectTypeB, Mode > const& InWeakPtrB )
+FORCEINLINE bool operator!=( decltype(nullptr), TWeakPtr< ObjectTypeB, Mode > const& InWeakPtrB )
 {
 	return InWeakPtrB.IsValid();
 }

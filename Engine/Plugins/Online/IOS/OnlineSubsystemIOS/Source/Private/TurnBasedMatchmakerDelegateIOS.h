@@ -3,7 +3,6 @@
 #pragma once
 
 #include <GameKit/GameKit.h>
-#include "Interfaces/OnlineTurnBasedInterface.h"
 
 @interface FTurnBasedMatchmakerDelegateIOS : NSObject < GKTurnBasedMatchmakerViewControllerDelegate >
 

@@ -9,7 +9,6 @@
 #include "Misc/CommandLine.h"
 #include "Misc/NetworkGuid.h"
 #include "Stats/Stats.h"
-#include "Misc/App.h"
 #include "Misc/MemStack.h"
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemTracker.h"
@@ -65,8 +64,6 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "Engine/LevelScriptActor.h"
 #include "Net/NetworkGranularMemoryLogging.h"
-#include "SocketSubsystem.h"
-#include "AddressInfoTypes.h"
 
 #if USE_SERVER_PERF_COUNTERS
 #include "PerfCountersModule.h"
@@ -270,20 +267,16 @@ UNetDriver::UNetDriver(const FObjectInitializer& ObjectInitializer)
 #endif
 ,	ProcessQueuedBunchesCurrentFrameMilliseconds(0.0f)
 ,	DDoS()
-,	LocalAddr(nullptr)
 ,	NetworkObjects(new FNetworkObjectList)
 ,	LagState(ENetworkLagState::NotLagging)
 ,	DuplicateLevelID(INDEX_NONE)
 ,	PacketLossBurstEndTime(-1.0f)
-,	OutTotalNotifiedPackets(0u)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ChannelClasses[CHTYPE_Control]	= UControlChannel::StaticClass();
 	ChannelClasses[CHTYPE_Actor]	= UActorChannel::StaticClass();
 	ChannelClasses[CHTYPE_Voice]	= UVoiceChannel::StaticClass();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	UpdateDelayRandomStream.Initialize(FApp::bUseFixedSeed ? GetFName() : NAME_None);
 }
 
 void UNetDriver::InitPacketSimulationSettings()
@@ -368,8 +361,7 @@ void UNetDriver::LoadChannelDefinitions()
 
 		for (FChannelDefinition& ChannelDef : ChannelDefinitions)
 		{
-			UE_CLOG(!ChannelDef.ChannelName.ToEName() || !ShouldReplicateAsInteger(*ChannelDef.ChannelName.ToEName()), 
-				LogNet, Warning, TEXT("Channel name will be serialized as a string: %s"), *ChannelDef.ChannelName.ToString());
+			UE_CLOG((ChannelDef.ChannelName.GetComparisonIndex() > MAX_NETWORKED_HARDCODED_NAME), LogNet, Warning, TEXT("Channel name will be serialized as a string: %s"), *ChannelDef.ChannelName.ToString());
 			UE_CLOG(ChannelDefinitionMap.Contains(ChannelDef.ChannelName), LogNet, Error, TEXT("Channel name is defined multiple times: %s"), *ChannelDef.ChannelName.ToString());
 			UE_CLOG(StaticChannelIndices.Contains(ChannelDef.StaticChannelIndex), LogNet, Error, TEXT("Channel static index is already in use: %s %i"), *ChannelDef.ChannelName.ToString(), ChannelDef.StaticChannelIndex);
 
@@ -1325,22 +1317,6 @@ void UNetDriver::PostTickFlush()
 	}
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-void UNetDriver::LowLevelSend(FString Address, void* Data, int32 CountBits, FOutPacketTraits& Traits)
-{
-	if (GetSocketSubsystem() != nullptr)
-	{
-		TSharedPtr<FInternetAddr> NetAddress = GetSocketSubsystem()->GetAddressFromString(*Address);
-		if (NetAddress.IsValid())
-		{
-			LowLevelSend(NetAddress, Data, CountBits, Traits);
-			return;
-		}
-	}
-	UE_LOG(LogNet, Warning, TEXT("Could not infer the address to use for LowLevelSend, please use the one that takes an FInternetAddr to avoid this problem"));
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 bool UNetDriver::InitConnectionClass(void)
 {
 	if (NetConnectionClass == NULL && NetConnectionClassName != TEXT(""))
@@ -1430,11 +1406,6 @@ void UNetDriver::InitConnectionlessHandler()
 
 		if (ConnectionlessHandler.IsValid())
 		{
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			ConnectionlessHandler->InitializeAddressSerializer([this](const FString& InAddress) {
-				return GetSocketSubsystem()->GetAddressFromString(InAddress);
-			});
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			ConnectionlessHandler->NotifyAnalyticsProvider(AnalyticsProvider, AnalyticsAggregator);
 			ConnectionlessHandler->Initialize(Handler::Mode::Server, MAX_PACKET_SIZE, true, nullptr, nullptr, NetDriverName);
 
@@ -2440,10 +2411,6 @@ void UNetDriver::LowLevelDestroy()
 	SetWorld(NULL);
 }
 
-FString UNetDriver::LowLevelGetNetworkNumber()
-{
-	return LocalAddr.IsValid() ? LocalAddr->ToString(true) : FString(TEXT(""));
-}
 
 #if !UE_BUILD_SHIPPING
 bool UNetDriver::HandleSocketsCommand( const TCHAR* Cmd, FOutputDevice& Ar )
@@ -3701,7 +3668,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 			const float NextUpdateDelta = bUseAdapativeNetFrequency ? ActorInfo->OptimalNetUpdateDelta : 1.0f / Actor->NetUpdateFrequency;
 
 			// then set the next update time
-			ActorInfo->NextUpdateTime = World->TimeSeconds + UpdateDelayRandomStream.FRand() * ServerTickTime + NextUpdateDelta;
+			ActorInfo->NextUpdateTime = World->TimeSeconds + FMath::SRand() * ServerTickTime + NextUpdateDelta;
 
 			// and mark when the actor first requested an update
 			//@note: using Time because it's compared against UActorChannel.LastUpdateTime which also uses that value
@@ -4028,7 +3995,9 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActors( UNetConnection
 			}
 
 			// if the actor is now relevant or was recently relevant
-			const bool bIsRecentlyRelevant = bIsRelevant || ( Channel && Time - Channel->RelevantTime < RelevantTimeout ) || (ActorInfo->ForceRelevantFrame >= Connection->LastProcessedFrame);
+			const bool bIsRecentlyRelevant = bIsRelevant || ( Channel && Time - Channel->RelevantTime < RelevantTimeout ) || ActorInfo->bForceRelevantNextUpdate;
+
+			ActorInfo->bForceRelevantNextUpdate = false;
 
 			if ( bIsRecentlyRelevant )
 			{
@@ -4062,7 +4031,7 @@ int32 UNetDriver::ServerReplicateActors_ProcessPrioritizedActors( UNetConnection
 					// if it is relevant then mark the channel as relevant for a short amount of time
 					if ( bIsRelevant )
 					{
-						Channel->RelevantTime = Time + 0.5f * UpdateDelayRandomStream.FRand();
+						Channel->RelevantTime = Time + 0.5f * FMath::SRand();
 					}
 					// if the channel isn't saturated
 					if ( Channel->IsNetReady( 0 ) )
@@ -4464,21 +4433,13 @@ int32 UNetDriver::ServerReplicateActors(float DeltaSeconds)
 					PriorityActors[k]->ActorInfo->bPendingNetUpdate = true;
 					if ( Channel != NULL )
 					{
-						Channel->RelevantTime = Time + 0.5f * UpdateDelayRandomStream.FRand();
+						Channel->RelevantTime = Time + 0.5f * FMath::SRand();
 					}
-				}
-
-				// If the actor was forced to relevant and didn't get processed, try again on the next update;
-				if (PriorityActors[k]->ActorInfo->ForceRelevantFrame >= Connection->LastProcessedFrame)
-				{
-					PriorityActors[k]->ActorInfo->ForceRelevantFrame = ReplicationFrame+1;
 				}
 			}
 			RelevantActorMark.Pop();
 
 			ConnectionViewers.Reset();
-
-			Connection->LastProcessedFrame = ReplicationFrame;
 
 			const bool bWasSaturated = GNumSaturatedConnections > LocalNumSaturated;
 			Connection->TrackReplicationForAnalytics(bWasSaturated);
@@ -4830,17 +4791,20 @@ void UNetDriver::AddClientConnection(UNetConnection * NewConnection)
 
 	ClientConnections.Add(NewConnection);
 
-	TSharedPtr<const FInternetAddr> ConnAddr = NewConnection->GetRemoteAddr();
+	TSharedPtr<FInternetAddr> ConnAddr = NewConnection->GetInternetAddr();
 
 	if (ConnAddr.IsValid())
 	{
-		MappedClientConnections.Add(ConnAddr.ToSharedRef(), NewConnection);
+		TSharedRef<FInternetAddr> ConnAddrRef = ConnAddr.ToSharedRef();
+
+		MappedClientConnections.Add(ConnAddrRef, NewConnection);
+
 
 		// On the off-chance of the same IP:Port being reused, check RecentlyDisconnectedClients
 		int32 RecentDisconnectIdx = RecentlyDisconnectedClients.IndexOfByPredicate(
-			[&ConnAddr](const FDisconnectedClient& CurElement)
+			[&ConnAddrRef](const FDisconnectedClient& CurElement)
 			{
-				return *ConnAddr == *CurElement.Address;
+				return *ConnAddrRef == *CurElement.Address;
 			});
 
 		if (RecentDisconnectIdx != INDEX_NONE)
@@ -4952,28 +4916,28 @@ void UNetDriver::RemoveClientConnection(UNetConnection* ClientConnectionToRemove
 {
 	verify(ClientConnections.Remove(ClientConnectionToRemove) == 1);
 
-	TSharedPtr<const FInternetAddr> AddrToRemove = ClientConnectionToRemove->GetRemoteAddr();
+	TSharedPtr<FInternetAddr> AddrToRemove = ClientConnectionToRemove->GetInternetAddr();
 
 	if (AddrToRemove.IsValid())
 	{
-		TSharedRef<const FInternetAddr> ConstAddrRef = AddrToRemove.ToSharedRef();
+		TSharedRef<FInternetAddr> AddrRef = AddrToRemove.ToSharedRef();
 
 		if (RecentlyDisconnectedTrackingTime > 0)
 		{
-			UNetConnection** FoundVal = MappedClientConnections.Find(ConstAddrRef);
+			UNetConnection** FoundVal = MappedClientConnections.Find(AddrRef);
 
 			// Mark recently disconnected clients as nullptr (don't wait for GC), and keep the MappedClientConections entry for a while.
 			// Required for identifying/ignoring packets from recently disconnected clients, with the same performance as for NetConnection's (important for DDoS detection)
 			if (ensure(FoundVal != nullptr))
 			{
-				RecentlyDisconnectedClients.Add(FDisconnectedClient(ConstAddrRef, FPlatformTime::Seconds()));
+				RecentlyDisconnectedClients.Add(FDisconnectedClient(AddrRef, FPlatformTime::Seconds()));
 
 				*FoundVal = nullptr;
 			}
 		}
 		else
 		{
-			verify(MappedClientConnections.Remove(ConstAddrRef) == 1);
+			verify(MappedClientConnections.Remove(AddrRef) == 1);
 		}
 	}
 

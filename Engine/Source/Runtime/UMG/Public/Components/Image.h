@@ -166,10 +166,6 @@ protected:
 	//
 	FReply HandleMouseButtonDown(const FGeometry& Geometry, const FPointerEvent& MouseEvent);
 
-#if WITH_ACCESSIBILITY
-	virtual TSharedPtr<SWidget> GetAccessibleWidget() const override;
-#endif
-
 protected:
 	TSharedPtr<SImage> MyImage;
 

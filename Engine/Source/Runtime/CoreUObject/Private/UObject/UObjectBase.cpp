@@ -125,7 +125,7 @@ UObjectBase::~UObjectBase()
 	{
 		// Validate it.
 		check(IsValidLowLevel());
-		check(GetFName() == NAME_None);
+		LowLevelRename(NAME_None);
 		GUObjectArray.FreeUObjectIndex(this);
 	}
 
@@ -1129,9 +1129,6 @@ void UObjectBaseInit()
  */
 void UObjectBaseShutdown()
 {
-	void ShutdownAsyncThread();
-	ShutdownAsyncThread();
-
 	GUObjectArray.ShutdownUObjectArray();
 	Internal::GObjInitialized = false;
 }

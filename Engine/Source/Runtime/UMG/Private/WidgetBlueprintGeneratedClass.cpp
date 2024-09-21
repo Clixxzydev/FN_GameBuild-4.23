@@ -201,11 +201,6 @@ void UWidgetBlueprintGeneratedClass::InitializeWidgetStatic(UUserWidget* UserWid
 		return;
 	}
 
-#if !UE_BUILD_SHIPPING
-	TWeakObjectPtr<UClass> WidgetGeneratedByClass = MakeWeakObjectPtr(const_cast<UClass*>(InClass));
-	UserWidget->WidgetGeneratedByClass = WidgetGeneratedByClass;
-#endif
-
 	UWidgetTree* ClonedTree = UserWidget->WidgetTree;
 
 	if ( UserWidget->bCookedWidgetTree )
@@ -229,10 +224,6 @@ void UWidgetBlueprintGeneratedClass::InitializeWidgetStatic(UUserWidget* UserWid
 		// If there's an existing widget tree, then we need to initialize all userwidgets in the tree.
 		ClonedTree->ForEachWidget([&] (UWidget* Widget) {
 			check(Widget);
-
-#if !UE_BUILD_SHIPPING
-			Widget->WidgetGeneratedByClass = WidgetGeneratedByClass;
-#endif
 
 			if ( UUserWidget* SubUserWidget = Cast<UUserWidget>(Widget) )
 			{
@@ -268,6 +259,8 @@ void UWidgetBlueprintGeneratedClass::InitializeWidgetStatic(UUserWidget* UserWid
 	UE_LOG(LogUMG, Warning, TEXT("Widget Class %s - Slow Static Duplicate Object."), *InClass->GetName());
 #endif
 
+	UserWidget->WidgetGeneratedByClass = MakeWeakObjectPtr(const_cast<UClass*>(InClass));
+
 #if WITH_EDITOR
 	UserWidget->WidgetGeneratedBy = InClass->ClassGeneratedBy;
 #endif
@@ -285,9 +278,7 @@ void UWidgetBlueprintGeneratedClass::InitializeWidgetStatic(UUserWidget* UserWid
 				return;
 			}
 
-#if !UE_BUILD_SHIPPING
-			Widget->WidgetGeneratedByClass = WidgetGeneratedByClass;
-#endif
+			Widget->WidgetGeneratedByClass = MakeWeakObjectPtr(const_cast<UClass*>(InClass));
 
 #if WITH_EDITOR
 			Widget->WidgetGeneratedBy = InClass->ClassGeneratedBy;

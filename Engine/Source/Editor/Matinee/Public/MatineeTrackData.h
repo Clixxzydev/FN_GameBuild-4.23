@@ -148,7 +148,7 @@ public:
 	/**
 	 * @return	true if the iterator has not reached the end. 
 	 */
-	FORCEINLINE explicit operator bool() const
+	FORCEINLINE operator bool()
 	{
 		// The iterator must be pointing to a valid track, otherwise the iterator is considered invalid. 
 		return GroupIt && IsCurrentTrackValid();

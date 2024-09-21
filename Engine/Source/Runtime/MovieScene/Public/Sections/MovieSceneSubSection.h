@@ -32,7 +32,7 @@ struct FSubSequenceInstanceDataParams
 /**
  * Implements a section in sub-sequence tracks.
  */
-UCLASS(BlueprintType)
+UCLASS()
 class MOVIESCENE_API UMovieSceneSubSection
 	: public UMovieSceneSection
 {
@@ -131,8 +131,6 @@ public:
 	{
 		ActorToRecord = InActorToRecord;
 	}
-
-	FFrameNumber MapTimeToSectionFrame(FFrameTime InPosition) const;
 
 public:
 

@@ -22,9 +22,9 @@ struct FTileLODEntryDetails
 	UPROPERTY(Category=LODDetails, VisibleAnywhere)
 	int32		LODIndex;
 			
-	// Relative to original tile streaming distance (Absolute Distance = Layer Streaming Distance + Relative Distance)
+	// Relative to original tile streaming distance
 	UPROPERTY(Category=LODDetails, EditAnywhere, meta=(ClampMin = "10", ClampMax = "10000000", UIMin = "10", UIMax = "500000"))
-	int32		RelativeDistance;
+	int32		Distance;
 
 	UPROPERTY(Category=ReductionSettings, EditAnywhere)	
 	FLevelSimplificationDetails SimplificationDetails;

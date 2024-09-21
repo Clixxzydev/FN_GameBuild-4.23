@@ -1,9 +1,8 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 // Module includes
-#include "OnlineExternalUIInterfaceIOS.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
 #include "OnlineIdentityInterfaceIOS.h"
-#include "OnlineSubsystemIOS.h"
 
 FOnlineExternalUIIOS::FOnlineExternalUIIOS(FOnlineSubsystemIOS* InSubsystem)
 	: Subsystem(InSubsystem)

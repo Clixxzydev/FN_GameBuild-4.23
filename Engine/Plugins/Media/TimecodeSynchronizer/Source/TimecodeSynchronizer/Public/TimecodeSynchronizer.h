@@ -7,7 +7,6 @@
 
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
-#include "Tickable.h"
 #include "TimeSynchronizationSource.h"
 
 #include "Misc/QualifiedFrameTime.h"
@@ -62,17 +61,6 @@ enum class ETimecodeSynchronizationTimecodeType
 	/** Use one of the InputSource as the Timecode Provider. */
 	InputSource
 };
-
-/**
- * Enumerates possible framerate source
- */
-UENUM()
-enum class ETimecodeSynchronizationFrameRateSources: uint8
-{
-	EngineCustomTimeStepFrameRate UMETA(ToolTip="Frame Rate of engine custom time step if it is of type UFixedFrameRateCustomTimeStep."),
-	CustomFrameRate UMETA(ToolTip = "Custom Frame Rate selected by the user.")
-};
-
 
 /**
  * Enumerates Synchronization related events.
@@ -248,7 +236,7 @@ struct TStructOpsTypeTraits<FTimecodeSynchronizerActiveTimecodedInputSource> : p
  * making sure all sources are ready, determining if sync is possible, etc.
  */
 UCLASS()
-class TIMECODESYNCHRONIZER_API UTimecodeSynchronizer : public UTimecodeProvider, public FTickableGameObject
+class TIMECODESYNCHRONIZER_API UTimecodeSynchronizer : public UTimecodeProvider
 {
 	GENERATED_BODY()
 
@@ -271,15 +259,6 @@ public:
 	virtual bool Initialize(class UEngine* InEngine) override;
 	virtual void Shutdown(class UEngine* InEngine) override;
 	//~ End TimecodeProvider Interface
-
-	//~ Begin FTickableGameObject implementation
-	virtual ETickableTickType GetTickableTickType() const override { return ETickableTickType::Conditional; }
-	virtual bool IsTickableWhenPaused() const override { return true; }
-	virtual bool IsTickableInEditor() const override { return true; }
-	virtual bool IsTickable() const override;
-	virtual void Tick(float DeltaTime) override;
-	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(TimecodeSynchronizer, STATGROUP_Tickables); }
-	//~ End FTickableGameObject
 
 public:
 
@@ -331,24 +310,6 @@ public:
 	 */
 	void AddRuntimeTimeSynchronizationSource(UTimeSynchronizationSource* Source);
 
-	/**
-	 * Get Current System Frame Time which is synchronized
-	 *
-	 * @return FrameTime
-	 */
-	FFrameTime GetCurrentSystemFrameTime() const
-	{
-		if (CurrentSystemFrameTime.IsSet())
-		{
-			return CurrentSystemFrameTime.GetValue();
-		}
-		else
-		{
-			return FFrameTime();
-		}
-	}
-
-
 private:
 
 	/** Synchronization states */
@@ -396,6 +357,9 @@ private:
 	/** Registers asset to MediaModule tick */
 	void SetTickEnabled(bool bEnabled);
 
+	/** Tick method of the asset */
+	void Tick();
+
 	/** Switches on current state and ticks it */
 	void Tick_Switch();
 
@@ -441,13 +405,16 @@ private:
 	FFrameTime GetProviderFrameTime() const;
 
 public:
+	/** The fixed framerate to use. */
+	UPROPERTY(EditAnywhere, Category="Genlock", Meta=(DisplayName="Enable"))
+	bool bUseCustomTimeStep;
 
-	/** Frame Rate Source. */
-	UPROPERTY(EditAnywhere, Category = "Frame Rate Settings", Meta = (DisplayName = "Frame Rate Source"))
-	ETimecodeSynchronizationFrameRateSources FrameRateSource;
+	/** Custom strategy to tick in a interval. */
+	UPROPERTY(EditAnywhere, Instanced, Category="Genlock", Meta=(EditCondition="bUseCustomTimeStep", DisplayName="Genlock Source"))
+	UFixedFrameRateCustomTimeStep* CustomTimeStep;
 
 	/** The fixed framerate to use. */
-	UPROPERTY(EditAnywhere, Category="Frame Rate Settings", Meta=(ClampMin="15.0"))
+	UPROPERTY(EditAnywhere, Category="Genlock", Meta=(EditCondition="!bUseCustomTimeStep", ClampMin="15.0"))
 	FFrameRate FixedFrameRate;
 
 public:
@@ -456,14 +423,14 @@ public:
 	ETimecodeSynchronizationTimecodeType TimecodeProviderType;
 
 	/** Custom strategy to tick in a interval. */
-	UPROPERTY(EditAnywhere, Instanced, Category="Timecode Provider", Meta=(DisplayName="Timecode Source"))
+	UPROPERTY(EditAnywhere, Instanced, Category="Timecode Provider", Meta=(EditCondition="IN_CPP", DisplayName="Timecode Source"))
 	UTimecodeProvider* TimecodeProvider;
 
 	/**
 	 * Index of the source that drives the synchronized Timecode.
 	 * The source need to be timecoded and flag as bUseForSynchronization
 	 */
-	UPROPERTY(EditAnywhere, Category="Timecode Provider")
+	UPROPERTY(EditAnywhere, Category="Timecode Provider", Meta=(EditCondition="IN_CPP"))
 	int32 MasterSynchronizationSourceIndex;
 
 public:
@@ -480,7 +447,7 @@ public:
 	bool bUsePreRollingTimeout;
 
 	/** How long to wait for all source to be ready */
-	UPROPERTY(EditAnywhere, Category="Synchronization", Meta=(EditCondition="bUsePreRollingTimeout", ClampMin="0.0", ForceUnits=s))
+	UPROPERTY(EditAnywhere, Category="Synchronization", Meta=(EditCondition="bUsePreRollingTimeout", ClampMin="0.0"))
 	float PreRollingTimeout; 
 
 public:
@@ -496,14 +463,14 @@ private:
 	TArray<UTimeSynchronizationSource*> DynamicSources;
 
 	/** What mode will be used for synchronization. */
-	UPROPERTY(EditAnywhere, Category = "Synchronization")
+	UPROPERTY(EditAnywhere, Category = "Synchronization", Meta=(EditCondition="IN_CPP"))
 	ETimecodeSynchronizationSyncMode SyncMode;
 
 	/**
 	 * When UserDefined mode is used, the number of frames delayed from the Provider's timecode.
 	 * Negative values indicate the used timecode will be ahead of the Provider's.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Synchronization", Meta=(ClampMin="-640", ClampMax="640"))
+	UPROPERTY(EditAnywhere, Category = "Synchronization", Meta=(EditCondition = "IN_CPP", ClampMin="-640", ClampMax="640"))
 	int32 FrameOffset;
 
 	/**
@@ -511,11 +478,11 @@ private:
 	 * For Auto mode, this represents the number of frames behind the newest synced frame.
 	 * For AutoModeOldest, the is the of frames ahead of the last synced frame.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Synchronization", Meta = (ClampMin = "0", ClampMax = "640"))
+	UPROPERTY(EditAnywhere, Category = "Synchronization", Meta = (EditCondition = "IN_CPP", ClampMin = "0", ClampMax = "640"))
 	int32 AutoFrameOffset = 3;
 
 	/** Whether or not the specified Provider's timecode rolls over. (Rollover is expected to occur at Timecode 24:00:00:00). */
-	UPROPERTY(EditAnywhere, Category = "Synchronization")
+	UPROPERTY(EditAnywhere, Category = "Synchronization", Meta=(EditCondition="IN_CPP"))
 	bool bWithRollover = false;
 
 	/** Sources used for synchronization */
@@ -536,8 +503,6 @@ private:
 	int32 ActualFrameOffset;
 
 private:
-
-	bool bIsTickEnabled;
 
 	int64 LastUpdatedSources = 0;
 

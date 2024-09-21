@@ -43,7 +43,6 @@
 #include "Modules/ModuleManager.h"
 #include "AssetRegistryModule.h"
 #include "NiagaraNodeSimTargetSelector.h"
-#include "NiagaraNodeStaticSwitch.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraSchema"
 
@@ -835,8 +834,8 @@ TArray<TSharedPtr<FNiagaraSchemaAction_NewNode> > UEdGraphSchema_Niagara::GetGra
 	//TODO: Add quick commands for certain UNiagaraStructs and UNiagaraScripts to be added as functions
 
 	// Add reroute node
-	const FText UtilMenuCat = LOCTEXT("NiagaraUsageSelectorMenuCat", "Util");
 	{
+		const FText UtilMenuCat = LOCTEXT("NiagaraRerouteMenuCat", "Util");
 		const FText RerouteMenuDesc = LOCTEXT("NiagaraRerouteMenuDesc", "Reroute ");
 		TSharedPtr<FNiagaraSchemaAction_NewNode> Action = AddNewNodeAction(NewActions, UtilMenuCat, RerouteMenuDesc, TEXT("Reroute"), FText::GetEmpty());
 		UNiagaraNodeReroute* RerouteNode = NewObject<UNiagaraNodeReroute>(OwnerOfTemporaries);
@@ -844,23 +843,17 @@ TArray<TSharedPtr<FNiagaraSchemaAction_NewNode> > UEdGraphSchema_Niagara::GetGra
 	}
 
 	// Add usage selector node
-	{		
+	{
+		const FText UtilMenuCat = LOCTEXT("NiagaraUsageSelectorMenuCat", "Util");
 		const FText UsageSelectorMenuDesc = LOCTEXT("NiagaraUsageSelectorMenuDesc", "Select By Use");
 		TSharedPtr<FNiagaraSchemaAction_NewNode> Action = AddNewNodeAction(NewActions, UtilMenuCat, UsageSelectorMenuDesc, TEXT("Select By Use"), FText::GetEmpty());
 		UNiagaraNodeUsageSelector* Node = NewObject<UNiagaraNodeUsageSelector>(OwnerOfTemporaries);
 		Action->NodeTemplate = Node;
 	}
 
-	// Add static switch node
-	{
-		const FText UsageSelectorMenuDesc = LOCTEXT("NiagaraStaticSwitchMenuDesc", "Static Switch");
-		TSharedPtr<FNiagaraSchemaAction_NewNode> Action = AddNewNodeAction(NewActions, UtilMenuCat, UsageSelectorMenuDesc, TEXT("Static Switch"), FText::GetEmpty());
-		UNiagaraNodeStaticSwitch* Node = NewObject<UNiagaraNodeStaticSwitch>(OwnerOfTemporaries);
-		Action->NodeTemplate = Node;
-	}
-
 	// Add simulation target selector node
 	{
+		const FText UtilMenuCat = LOCTEXT("NiagaraSimTargetSelectorMenuCat", "Util");
 		const FText SimTargetSelectorMenuDesc = LOCTEXT("NiagaraSimTargetSelectorMenuDesc", "Select By Simulation Target");
 		TSharedPtr<FNiagaraSchemaAction_NewNode> Action = AddNewNodeAction(NewActions, UtilMenuCat, SimTargetSelectorMenuDesc, TEXT("Select By Simulation Target"), FText::GetEmpty());
 		UNiagaraNodeSimTargetSelector* Node = NewObject<UNiagaraNodeSimTargetSelector>(OwnerOfTemporaries);

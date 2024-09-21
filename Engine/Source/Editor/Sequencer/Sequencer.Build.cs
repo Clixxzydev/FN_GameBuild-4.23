@@ -74,7 +74,6 @@ public class Sequencer : ModuleRules
 				"PropertyEditor",
                 "SceneOutliner",
                 "CurveEditor",
-                "Analytics",
             }
         );
 

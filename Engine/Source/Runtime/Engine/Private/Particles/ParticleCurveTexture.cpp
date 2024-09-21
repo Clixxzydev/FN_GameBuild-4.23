@@ -82,7 +82,7 @@ public:
 		Parameters.PixelScale.Y = 1.0f / GParticleCurveTextureSizeY;
 		Parameters.CurveOffset = CurveOffset;
 		FParticleCurveInjectionBufferRef UniformBuffer = FParticleCurveInjectionBufferRef::CreateUniformBufferImmediate(Parameters, UniformBuffer_SingleDraw);
-		FRHIVertexShader* VertexShader = GetVertexShader();
+		FVertexShaderRHIParamRef VertexShader = GetVertexShader();
 		SetUniformBufferParameter(RHICmdList, VertexShader, GetUniformBufferParameter<FParticleCurveInjectionParameters>(), UniformBuffer);
 	}
 };
@@ -175,8 +175,8 @@ TGlobalResource<FParticleCurveInjectionVertexDeclaration> GParticleCurveInjectio
 */
 static void InjectCurves(
 	FRHICommandListImmediate& RHICmdList,
-	FRHITexture2D* CurveTextureRHI,
-	FRHITexture2D* CurveTextureTargetRHI,
+	FTexture2DRHIParamRef CurveTextureRHI,
+	FTexture2DRHIParamRef CurveTextureTargetRHI,
 	TArray<FCurveSamples>& InPendingCurves)
 {
 	static bool bFirstCall = true;

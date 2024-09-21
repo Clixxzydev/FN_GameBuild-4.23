@@ -11,7 +11,6 @@
 #include "IAnimationBlueprintEditor.h"
 #include "Containers/ArrayView.h"
 
-class UAnimationBlueprintEditorOptions;
 class IPersonaToolkit;
 class IPersonaViewport;
 class ISkeletonTree;
@@ -125,10 +124,6 @@ public:
 
 	/** Get the object to be displayed in the asset properties */
 	UObject* HandleGetObject();
-	
-	//~ Begin FGCObject Interface
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	//~ End FGCObject Interface
 
 	/** Handle opening a new asset from the asset browser */
 	void HandleOpenNewAsset(UObject* InNewAsset);
@@ -274,16 +269,6 @@ private:
 	/** Handle the viewport being created */
 	void HandleViewportCreated(const TSharedRef<IPersonaViewport>& InPersonaViewport);
 
-    /**
-	 * Load editor settings from disk (docking state, window pos/size, option state, etc).
-	 */
-	virtual void LoadEditorSettings();
-
-	/**
-	 * Saves editor settings to disk (docking state, window pos/size, option state, etc).
-	 */
-	virtual void SaveEditorSettings();
-
 	/** The extender to pass to the level editor to extend it's window menu */
 	TSharedPtr<FExtender> MenuExtender;
 
@@ -307,7 +292,4 @@ private:
 
 	/** The last pin type we added to a graph's inputs */
 	FEdGraphPinType LastGraphPinType;
-
-    /** Configuration class used to store editor settings across sessions. */
-	UAnimationBlueprintEditorOptions* EditorOptions;
 };

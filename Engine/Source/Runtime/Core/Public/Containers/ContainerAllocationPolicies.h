@@ -12,9 +12,6 @@
 
 class FDefaultBitArrayAllocator;
 
-template<int IndexSize> class TSizedDefaultAllocator;
-using FDefaultAllocator = TSizedDefaultAllocator<32>;
-
 /** branchless pointer selection
 * return A ? A : B;
 **/
@@ -27,14 +24,13 @@ ReferencedType* IfAThenAElseB(ReferencedType* A,ReferencedType* B);
 template<typename PredicateType,typename ReferencedType>
 ReferencedType* IfPThenAElseB(PredicateType Predicate,ReferencedType* A,ReferencedType* B);
 
-template <typename SizeType>
-FORCEINLINE SizeType DefaultCalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
+FORCEINLINE int32 DefaultCalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
-	SizeType Retval;
+	int32 Retval;
 	checkSlow(NumElements < NumAllocatedElements);
 
 	// If the container has too much slack, shrink it to exactly fit the number of elements.
-	const SizeType CurrentSlackElements = NumAllocatedElements - NumElements;
+	const uint32 CurrentSlackElements = NumAllocatedElements - NumElements;
 	const SIZE_T CurrentSlackBytes = (NumAllocatedElements - NumElements)*BytesPerElement;
 	const bool bTooManySlackBytes = CurrentSlackBytes >= 16384;
 	const bool bTooManySlackElements = 3 * NumElements < 2 * NumAllocatedElements;
@@ -57,8 +53,7 @@ FORCEINLINE SizeType DefaultCalculateSlackShrink(SizeType NumElements, SizeType 
 	return Retval;
 }
 
-template <typename SizeType>
-FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
+FORCEINLINE int32 DefaultCalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
 #if !defined(AGGRESSIVE_MEMORY_SAVING)
 	#error "AGGRESSIVE_MEMORY_SAVING must be defined"
@@ -71,7 +66,7 @@ FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NumElements, SizeType Nu
 	const SIZE_T ConstantGrow = 16;
 #endif
 
-	SizeType Retval;
+	int32 Retval;
 	checkSlow(NumElements > NumAllocatedElements && NumElements > 0);
 
 	SIZE_T Grow = FirstGrow; // this is the amount for the first alloc
@@ -91,16 +86,15 @@ FORCEINLINE SizeType DefaultCalculateSlackGrow(SizeType NumElements, SizeType Nu
 	// NumElements and MaxElements are stored in 32 bit signed integers so we must be careful not to overflow here.
 	if (NumElements > Retval)
 	{
-		Retval = TNumericLimits<SizeType>::Max();
+		Retval = MAX_int32;
 	}
 
 	return Retval;
 }
 
-template <typename SizeType>
-FORCEINLINE SizeType DefaultCalculateSlackReserve(SizeType NumElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
+FORCEINLINE int32 DefaultCalculateSlackReserve(int32 NumElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
-	SizeType Retval = NumElements;
+	int32 Retval = NumElements;
 	checkSlow(NumElements > 0);
 	if (bAllowQuantize)
 	{
@@ -108,7 +102,7 @@ FORCEINLINE SizeType DefaultCalculateSlackReserve(SizeType NumElements, SIZE_T B
 		// NumElements and MaxElements are stored in 32 bit signed integers so we must be careful not to overflow here.
 		if (NumElements > Retval)
 		{
-			Retval = TNumericLimits<SizeType>::Max();
+			Retval = MAX_int32;
 		}
 	}
 
@@ -136,8 +130,6 @@ struct TAllocatorTraits : TAllocatorTraitsBase<AllocatorType>
 class FContainerAllocatorInterface
 {
 public:
-	/** The integral type to be used for element counts and indices used by the allocator and container - must be signed */
-	using SizeType = int32;
 
 	/** Determines whether the user of the allocator may use the ForAnyElementType inner class. */
 	enum { NeedsElementType = true };
@@ -167,8 +159,8 @@ public:
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
 		void ResizeAllocation(
-			SizeType PreviousNumElements,
-			SizeType NumElements,
+			int32 PreviousNumElements,
+			int32 NumElements,
 			SIZE_T NumBytesPerElement
 			);
 
@@ -178,45 +170,37 @@ public:
 		 * @param CurrentNumSlackElements - The current number of elements allocated.
 		 * @param NumBytesPerElement - The number of bytes/element.
 		 */
-		SizeType CalculateSlackReserve(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+		int32 CalculateSlack(
+			int32 NumElements,
+			int32 CurrentNumSlackElements,
 			SIZE_T NumBytesPerElement
 			) const;
 
 		/**
-		 * Calculates the amount of slack to allocate for an array that has just shrunk to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
-		 * @param CurrentNumSlackElements - The current number of elements allocated.
-		 * @param NumBytesPerElement - The number of bytes/element.
-		 */
-		SizeType CalculateSlackShrink(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+		* Calculates the amount of slack to allocate for an array that has just shrunk to a given number of elements.
+		* @param NumElements - The number of elements to allocate space for.
+		* @param CurrentNumSlackElements - The current number of elements allocated.
+		* @param NumBytesPerElement - The number of bytes/element.
+		*/
+		int32 CalculateSlackShrink(
+			int32 NumElements,
+			int32 CurrentNumSlackElements,
 			SIZE_T NumBytesPerElement
 			) const;
 
 		/**
-		 * Calculates the amount of slack to allocate for an array that has just grown to a given number of elements.
-		 * @param NumElements - The number of elements to allocate space for.
-		 * @param CurrentNumSlackElements - The current number of elements allocated.
-		 * @param NumBytesPerElement - The number of bytes/element.
-		 */
-		SizeType CalculateSlackGrow(
-			SizeType NumElements,
-			SizeType CurrentNumSlackElements,
+		* Calculates the amount of slack to allocate for an array that has just grown to a given number of elements.
+		* @param NumElements - The number of elements to allocate space for.
+		* @param CurrentNumSlackElements - The current number of elements allocated.
+		* @param NumBytesPerElement - The number of bytes/element.
+		*/
+		int32 CalculateSlackGrow(
+			int32 NumElements,
+			int32 CurrentNumSlackElements,
 			SIZE_T NumBytesPerElement
 			) const;
 
-		/**
-		 * Returns the size of any requested heap allocation currently owned by the allocator.
-		 * @param NumAllocatedElements - The number of elements allocated by the container.
-		 * @param NumBytesPerElement - The number of bytes/element.
-		 */
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const;
-
-		/** Returns true if the allocator has made any heap allocations */
-		bool HasAllocation() const;
+		SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const;
 	};
 
 	/**
@@ -231,7 +215,6 @@ template<uint32 Alignment = DEFAULT_ALIGNMENT>
 class TAlignedHeapAllocator
 {
 public:
-	using SizeType = int32;
 
 	enum { NeedsElementType = false };
 	enum { RequireRangeCheck = true };
@@ -278,8 +261,8 @@ public:
 			return Data;
 		}
 		void ResizeAllocation(
-			SizeType PreviousNumElements,
-			SizeType NumElements,
+			int32 PreviousNumElements,
+			int32 NumElements,
 			SIZE_T NumBytesPerElement
 			)
 		{
@@ -290,25 +273,25 @@ public:
 				Data = (FScriptContainerElement*)FMemory::Realloc( Data, NumElements*NumBytesPerElement, Alignment );
 			}
 		}
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, int32 NumBytesPerElement) const
 		{
 			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true, Alignment);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const
 		{
 			return NumAllocatedElements * NumBytesPerElement;
 		}
 
-		bool HasAllocation() const
+		bool HasAllocation()
 		{
 			return !!Data;
 		}
@@ -344,28 +327,15 @@ struct TAllocatorTraits<TAlignedHeapAllocator<Alignment>> : TAllocatorTraitsBase
 	enum { IsZeroConstruct = true };
 };
 
-template <int IndexSize>
-struct TBitsToSizeType
-{
-	static_assert(IndexSize, "Unsupported allocator index size.");
-};
-
-template <> struct TBitsToSizeType<8>  { using Type = int8; };
-template <> struct TBitsToSizeType<16> { using Type = int16; };
-template <> struct TBitsToSizeType<32> { using Type = int32; };
-template <> struct TBitsToSizeType<64> { using Type = int64; };
-
 /** The indirect allocation policy always allocates the elements indirectly. */
-template <int IndexSize>
-class TSizedHeapAllocator
+class CORE_API FHeapAllocator
 {
 public:
-	using SizeType = typename TBitsToSizeType<IndexSize>::Type;
 
 	enum { NeedsElementType = false };
 	enum { RequireRangeCheck = true };
 
-	class ForAnyElementType
+	class CORE_API ForAnyElementType
 	{
 	public:
 		/** Default constructor. */
@@ -405,7 +375,7 @@ public:
 		{
 			return Data;
 		}
-		FORCEINLINE void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements, SIZE_T NumBytesPerElement)
+		FORCEINLINE void ResizeAllocation(int32 PreviousNumElements, int32 NumElements, SIZE_T NumBytesPerElement)
 		{
 			// Avoid calling FMemory::Realloc( nullptr, 0 ) as ANSI C mandates returning a valid pointer which is not what we want.
 			if (Data || NumElements)
@@ -414,25 +384,25 @@ public:
 				Data = (FScriptContainerElement*)FMemory::Realloc( Data, NumElements*NumBytesPerElement );
 			}
 		}
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, int32 NumBytesPerElement) const
 		{
 			return DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SizeType NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			return DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SizeType NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			return DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const
 		{
 			return NumAllocatedElements * NumBytesPerElement;
 		}
 
-		bool HasAllocation() const
+		bool HasAllocation()
 		{
 			return !!Data;
 		}
@@ -461,14 +431,14 @@ public:
 	};
 };
 
-template <uint8 IndexSize>
-struct TAllocatorTraits<TSizedHeapAllocator<IndexSize>> : TAllocatorTraitsBase<TSizedHeapAllocator<IndexSize>>
+template <>
+struct TAllocatorTraits<FHeapAllocator> : TAllocatorTraitsBase<FHeapAllocator>
 {
 	enum { SupportsMove    = true };
 	enum { IsZeroConstruct = true };
 };
 
-using FHeapAllocator = TSizedHeapAllocator<32>;
+class FDefaultAllocator;
 
 /**
  * The inline allocation policy allocates up to a specified number of elements in the same allocation as the container.
@@ -479,7 +449,6 @@ template <uint32 NumInlineElements, typename SecondaryAllocator = FDefaultAlloca
 class TInlineAllocator
 {
 public:
-	using SizeType = int32;
 
 	enum { NeedsElementType = true };
 	enum { RequireRangeCheck = true };
@@ -520,7 +489,7 @@ public:
 			return IfAThenAElseB<ElementType>(SecondaryData.GetAllocation(),GetInlineElements());
 		}
 
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(int32 PreviousNumElements,int32 NumElements,SIZE_T NumBytesPerElement)
 		{
 			// Check if the new allocation will fit in the inline data area.
 			if(NumElements <= NumInlineElements)
@@ -552,21 +521,21 @@ public:
 			}
 		}
 
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			return NumElements <= NumInlineElements ?
 				NumInlineElements :
 				SecondaryData.CalculateSlackReserve(NumElements, NumBytesPerElement);
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			return NumElements <= NumInlineElements ?
 				NumInlineElements :
 				SecondaryData.CalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement);
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			return NumElements <= NumInlineElements ?
@@ -574,7 +543,7 @@ public:
 				SecondaryData.CalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const
 		{
 			if (NumAllocatedElements > NumInlineElements)
 			{
@@ -583,7 +552,7 @@ public:
 			return 0;
 		}
 
-		bool HasAllocation() const
+		bool HasAllocation()
 		{
 			return SecondaryData.HasAllocation();
 		}
@@ -623,7 +592,6 @@ template <uint32 NumInlineElements>
 class TNonRelocatableInlineAllocator
 {
 public:
-	using SizeType = int32;
 
 	enum { NeedsElementType = true };
 	enum { RequireRangeCheck = true };
@@ -671,7 +639,7 @@ public:
 			return Data;
 		}
 
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(int32 PreviousNumElements,int32 NumElements,SIZE_T NumBytesPerElement)
 		{
 			// Check if the new allocation will fit in the inline data area.
 			if(NumElements <= NumInlineElements)
@@ -702,25 +670,25 @@ public:
 			}
 		}
 
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, SIZE_T NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			return (NumElements <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackReserve(NumElements, NumBytesPerElement, true);
 		}
 
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			return (NumElements <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackShrink(NumElements, NumAllocatedElements, NumBytesPerElement, true);
 		}
 
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			// If the elements use less space than the inline allocation, only use the inline allocation as slack.
 			return (NumElements <= NumInlineElements) ? NumInlineElements : DefaultCalculateSlackGrow(NumElements, NumAllocatedElements, NumBytesPerElement, true);
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const
 		{
 			return HasAllocation()? (NumAllocatedElements * NumBytesPerElement) : 0;
 		}
@@ -764,7 +732,6 @@ template <uint32 NumInlineElements>
 class TFixedAllocator
 {
 public:
-	using SizeType = int32;
 
 	enum { NeedsElementType = true };
 	enum { RequireRangeCheck = true };
@@ -798,37 +765,37 @@ public:
 			return GetInlineElements();
 		}
 
-		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
+		void ResizeAllocation(int32 PreviousNumElements,int32 NumElements,SIZE_T NumBytesPerElement)
 		{
 			// Ensure the requested allocation will fit in the inline data area.
 			checkSlow(NumElements <= NumInlineElements);
 		}
 
-		FORCEINLINE SizeType CalculateSlackReserve(SizeType NumElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackReserve(int32 NumElements, SIZE_T NumBytesPerElement) const
 		{
 			// Ensure the requested allocation will fit in the inline data area.
 			checkSlow(NumElements <= NumInlineElements);
 			return NumInlineElements;
 		}
-		FORCEINLINE SizeType CalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackShrink(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			// Ensure the requested allocation will fit in the inline data area.
 			checkSlow(NumAllocatedElements <= NumInlineElements);
 			return NumInlineElements;
 		}
-		FORCEINLINE SizeType CalculateSlackGrow(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		FORCEINLINE int32 CalculateSlackGrow(int32 NumElements, int32 NumAllocatedElements, int32 NumBytesPerElement) const
 		{
 			// Ensure the requested allocation will fit in the inline data area.
 			checkSlow(NumElements <= NumInlineElements);
 			return NumInlineElements;
 		}
 
-		SIZE_T GetAllocatedSize(SizeType NumAllocatedElements, SIZE_T NumBytesPerElement) const
+		SIZE_T GetAllocatedSize(int32 NumAllocatedElements, SIZE_T NumBytesPerElement) const
 		{
 			return 0;
 		}
 
-		bool HasAllocation() const
+		bool HasAllocation()
 		{
 			return false;
 		}
@@ -864,6 +831,9 @@ struct TAllocatorTraits<TFixedAllocator<NumInlineElements>> : TAllocatorTraitsBa
 //
 // Sparse array allocation definitions
 //
+
+class FDefaultAllocator;
+class FDefaultBitArrayAllocator;
 
 /** Encapsulates the allocators used by a sparse array in a single type. */
 template<typename InElementAllocator = FDefaultAllocator,typename InBitArrayAllocator = FDefaultBitArrayAllocator>
@@ -942,6 +912,8 @@ public:
 	typedef InSparseArrayAllocator SparseArrayAllocator;
 	typedef InHashAllocator        HashAllocator;
 };
+
+class FDefaultAllocator;
 
 /** An inline set allocator that allows sizing of the inline allocations for a set number of elements. */
 template<
@@ -1026,13 +998,10 @@ public:
  * 'forward' these TAllocatorTraits specializations below.
  */
 
-template <int IndexSize> class TSizedDefaultAllocator : public TSizedHeapAllocator<IndexSize> { public: typedef TSizedHeapAllocator<IndexSize> Typedef; };
-
+class FDefaultAllocator            : public FHeapAllocator          { public: typedef FHeapAllocator          Typedef; };
 class FDefaultSetAllocator         : public TSetAllocator<>         { public: typedef TSetAllocator<>         Typedef; };
 class FDefaultBitArrayAllocator    : public TInlineAllocator<4>     { public: typedef TInlineAllocator<4>     Typedef; };
 class FDefaultSparseArrayAllocator : public TSparseArrayAllocator<> { public: typedef TSparseArrayAllocator<> Typedef; };
-
-template <int IndexSize> struct TAllocatorTraits<TSizedDefaultAllocator<IndexSize>> : TAllocatorTraits<typename TSizedDefaultAllocator<IndexSize>::Typedef> {};
 
 template <> struct TAllocatorTraits<FDefaultAllocator>            : TAllocatorTraits<typename FDefaultAllocator           ::Typedef> {};
 template <> struct TAllocatorTraits<FDefaultSetAllocator>         : TAllocatorTraits<typename FDefaultSetAllocator        ::Typedef> {};

@@ -8,7 +8,7 @@
 #include "Recorder/TakeRecorder.h"
 #include "Recorder/TakeRecorderParameters.h"
 #include "TakesCoreBlueprintLibrary.h"
-#include "TakesCoreLog.h"
+#include "TakesCoreFwd.h"
 #include "TakeMetaData.h"
 #include "TakeRecorderActorSource.h"
 #include "TakeRecorderSources.h"
@@ -31,7 +31,6 @@
 #include "Editor.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
-#include "Toolkits/AssetEditorManager.h"
 
 #include "TakeRecorderMicrophoneAudioSource.h"
 #include "TakeRecorderWorldSource.h"
@@ -559,12 +558,6 @@ public:
 #if WITH_EDITOR
 		if (UTakeRecorder* ActiveRecorder = UTakeRecorder::GetActiveRecorder())
 		{
-			ULevelSequence* ActiveSequence = ActiveRecorder->GetSequence();
-			if (ActiveSequence)
-			{
-				FAssetEditorManager::Get().CloseAllEditorsForAsset(ActiveSequence);
-			}
-
 			ActiveRecorder->Stop();
 		}
 		return true;

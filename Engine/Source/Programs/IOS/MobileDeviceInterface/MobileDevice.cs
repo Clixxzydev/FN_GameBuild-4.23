@@ -316,7 +316,6 @@ namespace Manzana
 		int StartSession(TypedPtr<AppleMobileDeviceConnection> device);
 		int StopSession(TypedPtr<AppleMobileDeviceConnection> device);
 		int StartHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, ref IntPtr handle, int unknown2);
-		int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> conn);
 		int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown);
 		int SecureStartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, int flagsPassInZero, ref IntPtr handle);
 		string ServiceConnectionReceive(IntPtr handle);
@@ -334,13 +333,6 @@ namespace Manzana
 			IntPtr serviceConnection,
 			TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
 			TypedPtr<CFString> ApplicationIdentifer,
-			TypedPtr<CFDictionary> ClientOptions,
-			DeviceInstallationCallback ProgressCallback,
-			IntPtr UserData);
-		int SecureTransferPath(
-			IntPtr serviceConnection,
-			TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-			TypedPtr<CFURL> UrlPath,
 			TypedPtr<CFDictionary> ClientOptions,
 			DeviceInstallationCallback ProgressCallback,
 			IntPtr UserData);
@@ -460,11 +452,6 @@ namespace Manzana
 			return AMDeviceMethods.StartHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, ref handle, unknown2);
 		}
 
-		public int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> conn)
-		{
-			return AMDeviceMethods.CreateHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, out conn);
-		}
-
 		public int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown)
 		{
 			return AMDeviceMethods.StartService((IntPtr)device, (IntPtr)serviceName, ref handle, unknown);
@@ -515,17 +502,6 @@ namespace Manzana
 			IntPtr UserData)
 		{
 			return AMDeviceMethods.SecureUninstallApplication(serviceConnection, DeviceIfConnIsNull, ApplicationIdentifer, ClientOptions, ProgressCallback, UserData);
-		}
-
-		public int SecureTransferPath(
-			IntPtr serviceConnection,
-			TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-			TypedPtr<CFURL> UrlPath,
-			TypedPtr<CFDictionary> ClientOptions,
-			DeviceInstallationCallback ProgressCallback,
-			IntPtr UserData)
-		{
-			return AMDeviceMethods.SecureTransferPath(serviceConnection, DeviceIfConnIsNull, UrlPath, ClientOptions, ProgressCallback, UserData);
 		}
 
 		public int SecureInstallApplication(
@@ -745,14 +721,6 @@ namespace Manzana
 				return AMDeviceStartHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, ref handle, unknown2);
 			}
 
-			public static int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> OutConn)
-			{
-				IntPtr Conn;
-				int Result = AMDeviceCreateHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, out Conn);
-				OutConn = Conn;
-				return Result;
-			}
-
 			public static int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown)
 			{
 				return AMDeviceStartService((IntPtr)device, (IntPtr)serviceName, ref handle, unknown);
@@ -808,17 +776,6 @@ namespace Manzana
 				IntPtr UserData)
 			{
 				return AMDeviceSecureUninstallApplication(serviceConnection, (IntPtr)DeviceIfConnIsNull, (IntPtr)ApplicationIdentifer, (IntPtr)ClientOptions, ProgressCallback, UserData);
-			}
-
-			public static int SecureTransferPath(
-				IntPtr serviceConnection,
-				TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-				TypedPtr<CFURL> UrlPath,
-				TypedPtr<CFDictionary> ClientOptions,
-				DeviceInstallationCallback ProgressCallback,
-				IntPtr UserData)
-			{
-				return AMDeviceSecureTransferPath(serviceConnection, (IntPtr)DeviceIfConnIsNull, (IntPtr)UrlPath, (IntPtr)ClientOptions, ProgressCallback, UserData);
 			}
 
 			public static int SecureInstallApplication(
@@ -906,9 +863,6 @@ namespace Manzana
 			private extern static int AMDeviceStartHouseArrestService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ bundleName, IntPtr unknown1, ref IntPtr handle, int unknown2);
 
 			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
-			private extern static int AMDeviceCreateHouseArrestService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ bundleName, IntPtr unknown1, out IntPtr conn);
-
-			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
 			private extern static int AMDeviceStartService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ serviceName, ref IntPtr handle, IntPtr unknown);
 
 			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
@@ -948,15 +902,6 @@ namespace Manzana
 				IntPtr serviceConnection,
 				IntPtr/*AppleMobileDeviceConnection*/ DeviceIfConnIsNull,
 				IntPtr/*CFString*/ ApplicationIdentifer,
-				IntPtr/*CFDictionary*/ ClientOptions,
-				DeviceInstallationCallback ProgressCallback,
-				IntPtr UserData);
-
-			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
-			private extern static int AMDeviceSecureTransferPath(
-				IntPtr serviceConnection,
-				IntPtr/*AppleMobileDeviceConnection*/ DeviceIfConnIsNull,
-				IntPtr/*CFURL*/ UrlPath,
 				IntPtr/*CFDictionary*/ ClientOptions,
 				DeviceInstallationCallback ProgressCallback,
 				IntPtr UserData);
@@ -1346,11 +1291,6 @@ namespace Manzana
 			return AMDeviceMethods.StartHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, ref handle, unknown2);
 		}
 
-		public int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> conn)
-		{
-			return AMDeviceMethods.CreateHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, out conn);
-		}
-
 		public int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown)
 		{
 			return AMDeviceMethods.StartService((IntPtr)device, (IntPtr)serviceName, ref handle, unknown);
@@ -1400,17 +1340,6 @@ namespace Manzana
 			IntPtr UserData)
 		{
 			return AMDeviceMethods.SecureUninstallApplication(serviceConnection, DeviceIfConnIsNull, ApplicationIdentifer, ClientOptions, ProgressCallback, UserData);
-		}
-
-		public int SecureTransferPath(
-			IntPtr serviceConnection,
-			TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-			TypedPtr<CFURL> UrlPath,
-			TypedPtr<CFDictionary> ClientOptions,
-			DeviceInstallationCallback ProgressCallback,
-			IntPtr UserData)
-		{
-			return AMDeviceMethods.SecureTransferPath(serviceConnection, DeviceIfConnIsNull, UrlPath, ClientOptions, ProgressCallback, UserData);
 		}
 
 		public int SecureInstallApplication(
@@ -1630,14 +1559,6 @@ namespace Manzana
 				return AMDeviceStartHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, ref handle, unknown2);
 			}
 
-			public static int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> OutConn)
-			{
-				IntPtr Conn;
-				int Result = AMDeviceCreateHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, out Conn);
-				OutConn = Conn;
-				return Result;
-			}
-
 			public static int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown)
 			{
 				return AMDeviceStartService((IntPtr)device, (IntPtr)serviceName, ref handle, unknown);
@@ -1693,17 +1614,6 @@ namespace Manzana
 				IntPtr UserData)
 			{
 				return AMDeviceSecureUninstallApplication(serviceConnection, (IntPtr)DeviceIfConnIsNull, (IntPtr)ApplicationIdentifer, (IntPtr)ClientOptions, ProgressCallback, UserData);
-			}
-
-			public static int SecureTransferPath(
-				IntPtr serviceConnection,
-				TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-				TypedPtr<CFURL> UrlPath,
-				TypedPtr<CFDictionary> ClientOptions,
-				DeviceInstallationCallback ProgressCallback,
-				IntPtr UserData)
-			{
-				return AMDeviceSecureTransferPath(serviceConnection, (IntPtr)DeviceIfConnIsNull, (IntPtr)UrlPath, (IntPtr)ClientOptions, ProgressCallback, UserData);
 			}
 
 			public static int SecureInstallApplication(
@@ -1791,9 +1701,6 @@ namespace Manzana
 			private extern static int AMDeviceStartHouseArrestService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ bundleName, IntPtr unknown1, ref IntPtr handle, int unknown2);
 
 			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
-			private extern static int AMDeviceCreateHouseArrestService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ bundleName, IntPtr unknown1, out IntPtr conn);
-
-			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
 			private extern static int AMDeviceStartService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ serviceName, ref IntPtr handle, IntPtr unknown);
 
 			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
@@ -1833,15 +1740,6 @@ namespace Manzana
 				IntPtr serviceConnection,
 				IntPtr/*AppleMobileDeviceConnection*/ DeviceIfConnIsNull,
 				IntPtr/*CFString*/ ApplicationIdentifer,
-				IntPtr/*CFDictionary*/ ClientOptions,
-				DeviceInstallationCallback ProgressCallback,
-				IntPtr UserData);
-
-			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
-			private extern static int AMDeviceSecureTransferPath(
-				IntPtr serviceConnection,
-				IntPtr/*AppleMobileDeviceConnection*/ DeviceIfConnIsNull,
-				IntPtr/*CFURL*/ UrlPath,
 				IntPtr/*CFDictionary*/ ClientOptions,
 				DeviceInstallationCallback ProgressCallback,
 				IntPtr UserData);
@@ -2244,11 +2142,6 @@ namespace Manzana
 			return AMDeviceMethods.StartHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, ref handle, unknown2);
 		}
 
-		public int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> conn)
-		{
-			return AMDeviceMethods.CreateHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, out conn);
-		}
-
 		public int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown)
 		{
 			return AMDeviceMethods.StartService((IntPtr)device, (IntPtr)serviceName, ref handle, unknown);
@@ -2298,17 +2191,6 @@ namespace Manzana
 			IntPtr UserData)
 		{
 			return AMDeviceMethods.SecureUninstallApplication(serviceConnection, DeviceIfConnIsNull, ApplicationIdentifer, ClientOptions, ProgressCallback, UserData);
-		}
-
-		public int SecureTransferPath(
-			IntPtr serviceConnection,
-			TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-			TypedPtr<CFURL> UrlPath,
-			TypedPtr<CFDictionary> ClientOptions,
-			DeviceInstallationCallback ProgressCallback,
-			IntPtr UserData)
-		{
-			return AMDeviceMethods.SecureTransferPath(serviceConnection, DeviceIfConnIsNull, UrlPath, ClientOptions, ProgressCallback, UserData);
 		}
 
 		public int SecureInstallApplication(
@@ -2528,14 +2410,6 @@ namespace Manzana
 				return AMDeviceStartHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, ref handle, unknown2);
 			}
 
-			public static int CreateHouseArrestService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> bundleName, IntPtr unknown1, out TypedPtr<AFCCommConnection> OutConn)
-			{
-				IntPtr Conn;
-				int Result = AMDeviceCreateHouseArrestService((IntPtr)device, (IntPtr)bundleName, unknown1, out Conn);
-				OutConn = Conn;
-				return Result;
-			}
-
 			public static int StartService(TypedPtr<AppleMobileDeviceConnection> device, TypedPtr<CFString> serviceName, ref IntPtr handle, IntPtr unknown)
 			{
 				return AMDeviceStartService((IntPtr)device, (IntPtr)serviceName, ref handle, unknown);
@@ -2591,17 +2465,6 @@ namespace Manzana
 				IntPtr UserData)
 			{
 				return AMDeviceSecureUninstallApplication(serviceConnection, (IntPtr)DeviceIfConnIsNull, (IntPtr)ApplicationIdentifer, (IntPtr)ClientOptions, ProgressCallback, UserData);
-			}
-
-			public static int SecureTransferPath(
-				IntPtr serviceConnection,
-				TypedPtr<AppleMobileDeviceConnection> DeviceIfConnIsNull,
-				TypedPtr<CFURL> UrlPath,
-				TypedPtr<CFDictionary> ClientOptions,
-				DeviceInstallationCallback ProgressCallback,
-				IntPtr UserData)
-			{
-				return AMDeviceSecureTransferPath(serviceConnection, (IntPtr)DeviceIfConnIsNull, (IntPtr)UrlPath, (IntPtr)ClientOptions, ProgressCallback, UserData);
 			}
 
 			public static int SecureInstallApplication(
@@ -2689,9 +2552,6 @@ namespace Manzana
 			private extern static int AMDeviceStartHouseArrestService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ bundleName, IntPtr unknown1, ref IntPtr handle, int unknown2);
 
 			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
-			private extern static int AMDeviceCreateHouseArrestService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ bundleName, IntPtr unknown1, out IntPtr conn);
-
-			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
 			private extern static int AMDeviceStartService(IntPtr/*AppleMobileDeviceConnection*/ device, IntPtr/*CFString*/ serviceName, ref IntPtr handle, IntPtr unknown);
 
 			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
@@ -2731,15 +2591,6 @@ namespace Manzana
 				IntPtr serviceConnection,
 				IntPtr/*AppleMobileDeviceConnection*/ DeviceIfConnIsNull,
 				IntPtr/*CFString*/ ApplicationIdentifer,
-				IntPtr/*CFDictionary*/ ClientOptions,
-				DeviceInstallationCallback ProgressCallback,
-				IntPtr UserData);
-
-			[DllImport(DLLName, CallingConvention = CallingConvention.Cdecl)]
-			private extern static int AMDeviceSecureTransferPath(
-				IntPtr serviceConnection,
-				IntPtr/*AppleMobileDeviceConnection*/ DeviceIfConnIsNull,
-				IntPtr/*CFURL*/ UrlPath,
 				IntPtr/*CFDictionary*/ ClientOptions,
 				DeviceInstallationCallback ProgressCallback,
 				IntPtr UserData);

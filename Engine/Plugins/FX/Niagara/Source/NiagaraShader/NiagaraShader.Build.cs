@@ -22,7 +22,6 @@ public class NiagaraShader : ModuleRules
                 "RenderCore",
                 "VectorVM",
                 "RHI",
-                "Projects",
                 "NiagaraCore"
             }
         );

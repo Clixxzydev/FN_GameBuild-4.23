@@ -12,7 +12,22 @@
 #include "HAL/PlatformAtomics.h"
 #include "Engine/RendererSettings.h"
 
-extern FVulkanCommandBufferManager* GVulkanCommandBufferManager;
+struct FRHICommandAcquireBackBuffer final : public FRHICommand<FRHICommandAcquireBackBuffer>
+{
+	FVulkanViewport* Viewport;
+	FVulkanBackBufferReference* NewBackBufferReference;
+	FORCEINLINE_DEBUGGABLE FRHICommandAcquireBackBuffer(FVulkanViewport* InViewport, FVulkanBackBufferReference* InNewBackBufferReference)
+		: Viewport(InViewport)
+		, NewBackBufferReference(InNewBackBufferReference)
+	{
+	}
+
+	void Execute(FRHICommandListBase& CmdList)
+	{
+		Viewport->AcquireBackBuffer(CmdList, NewBackBufferReference);
+	}
+};
+
 
 struct FRHICommandProcessDeferredDeletionQueue final : public FRHICommand<FRHICommandProcessDeferredDeletionQueue>
 {
@@ -29,97 +44,6 @@ struct FRHICommandProcessDeferredDeletionQueue final : public FRHICommand<FRHICo
 };
 
 
-FVulkanBackBuffer::FVulkanBackBuffer(FVulkanDevice& Device, FVulkanViewport* InViewport, EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 UEFlags)
-	: FVulkanTexture2D(Device, Format, SizeX, SizeY, 1, 1, VK_NULL_HANDLE, UEFlags, FRHIResourceCreateInfo())
-	, Viewport(InViewport)
-{
-}
-
-void FVulkanBackBuffer::ReleaseAcquiredImage()
-{
-	DefaultView.View = VK_NULL_HANDLE;
-	DefaultView.ViewId = 0;
-	Surface.Image = VK_NULL_HANDLE;
-}
-
-void FVulkanBackBuffer::ReleaseViewport()
-{
-	Viewport = nullptr;
-	ReleaseAcquiredImage();
-}
-
-void FVulkanBackBuffer::OnGetBackBufferImage(FRHICommandListImmediate& RHICmdList)
-{
-	check(Viewport);
-	if (GVulkanDelayAcquireImage == EDelayAcquireImageType::None)
-	{
-		FVulkanCommandListContext& Context = (FVulkanCommandListContext&)RHICmdList.GetContext();
-		AcquireBackBufferImage(Context);
-	}
-}
-
-void FVulkanBackBuffer::OnAdvanceBackBufferFrame(FRHICommandListImmediate& RHICmdList)
-{
-	check(Viewport);
-	ReleaseAcquiredImage();
-}
-
-void FVulkanBackBuffer::OnTransitionResource(FVulkanCommandListContext& Context, EResourceTransitionAccess TransitionType)
-{
-	if (TransitionType == EResourceTransitionAccess::EWritable && GVulkanDelayAcquireImage == EDelayAcquireImageType::LazyAcquire)
-	{
-		AcquireBackBufferImage(Context);
-	}
-}
-
-void FVulkanBackBuffer::AcquireBackBufferImage(FVulkanCommandListContext& Context)
-{
-	check(Viewport);
-	if (Surface.Image == VK_NULL_HANDLE)
-	{
-		check(Viewport->AcquiredImageIndex == -1); //-V595
-		
-		Viewport->AcquireImageIndex(); //-V595
-		// If swapchain got invalidated (OUT_OF_DATE etc) in the above call, we may end up not having a valid viewport pointer at this point. Abort the whole thing.
-		if (Viewport == nullptr)
-		{
-			return;
-		}
-
-		int32 AcquiredImageIndex = Viewport->AcquiredImageIndex;
-		FVulkanTextureView& ImageView = Viewport->TextureViews[AcquiredImageIndex];
-
-		Surface.Image = ImageView.Image;
-		DefaultView.View = ImageView.View;
-		DefaultView.ViewId = ImageView.ViewId;
-
-		// right after acquiring image is in undefined state
-		FTransitionAndLayoutManager& LayoutMgr = Context.GetTransitionAndLayoutManager();
-		VkImageLayout& CurrentLayout = LayoutMgr.FindOrAddLayoutRW(ImageView.Image, VK_IMAGE_LAYOUT_UNDEFINED);
-		CurrentLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		
-		FVulkanCommandBufferManager* CmdBufferManager = Context.GetCommandBufferManager();
-		FVulkanCmdBuffer* CmdBuffer = CmdBufferManager->GetActiveCmdBuffer();
-		if (CmdBuffer->IsInsideRenderPass())
-		{
-			// This could happen due to a SetRT(AndClear) call lingering around (so emulated needs to be ended); however REAL render passes should already have been ended!
-			checkf(!LayoutMgr.bInsideRealRenderPass, TEXT("Did not end Render Pass!"));
-			LayoutMgr.EndEmulatedRenderPass(CmdBuffer);
-		}
-			
-		// Wait for semaphore signal before writing to backbuffer image
-		CmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, Viewport->AcquiredSemaphore);
-	}
-}
-
-FVulkanBackBuffer::~FVulkanBackBuffer()
-{
-	check(Surface.IsImageOwner() == false);
-	// Clear flags so ~FVulkanTexture2D() doesn't try to re-destroy it
-	Surface.UEFlags = 0;
-	ReleaseAcquiredImage();
-}
-
 FVulkanViewport::FVulkanViewport(FVulkanDynamicRHI* InRHI, FVulkanDevice* InDevice, void* InWindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen, EPixelFormat InPreferredPixelFormat)
 	: VulkanRHI::FDeviceChild(InDevice)
 	, RHI(InRHI)
@@ -128,6 +52,7 @@ FVulkanViewport::FVulkanViewport(FVulkanDynamicRHI* InRHI, FVulkanDevice* InDevi
 	, bIsFullscreen(bInIsFullscreen)
 	, PixelFormat(InPreferredPixelFormat)
 	, AcquiredImageIndex(-1)
+	, PreAcquiredImageIndex(-1)
 	, SwapChain(nullptr)
 	, WindowHandle(InWindowHandle)
 	, PresentCount(0)
@@ -141,11 +66,11 @@ FVulkanViewport::FVulkanViewport(FVulkanDynamicRHI* InRHI, FVulkanDevice* InDevi
 	// Make sure Instance is created
 	RHI->InitInstance();
 
-	CreateSwapchain(nullptr);
+	CreateSwapchain();
 
 	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		for (int32 Index = 0, NumBuffers = RenderingDoneSemaphores.Num(); Index < NumBuffers; ++Index)
+		for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
 		{
 			RenderingDoneSemaphores[Index] = new VulkanRHI::FSemaphore(*InDevice);
 			RenderingDoneSemaphores[Index]->AddRef();
@@ -156,28 +81,27 @@ FVulkanViewport::FVulkanViewport(FVulkanDynamicRHI* InRHI, FVulkanDevice* InDevi
 FVulkanViewport::~FVulkanViewport()
 {
 	RenderingBackBuffer = nullptr;
-	
-	if (RHIBackBuffer)
-	{
-		RHIBackBuffer->ReleaseViewport();
-		RHIBackBuffer = nullptr;
-	}
+	RenderingBackBufferReference = nullptr;
+	RHIBackBuffer = nullptr;
 	
 	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		for (int32 Index = 0, NumBuffers = RenderingDoneSemaphores.Num(); Index < NumBuffers; ++Index)
+		for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
 		{
 			RenderingDoneSemaphores[Index]->Release();
 
+			for (int32 i = 0; i < NUM_BUFFERS; ++i)
+			{
+				BackBuffers[i] = nullptr;
+			}
 			TextureViews[Index].Destroy(*Device);
 
 			// FIXME: race condition on TransitionAndLayoutManager, could this be called from RT while RHIT is active?
 			Device->NotifyDeletedImage(BackBufferImages[Index]);
-			Device->NotifyDeletedRenderTarget(BackBufferImages[Index]); 
 			BackBufferImages[Index] = VK_NULL_HANDLE;
 		}
 
-		SwapChain->Destroy(nullptr);
+		SwapChain->Destroy();
 		delete SwapChain;
 		SwapChain = nullptr;
 	}
@@ -227,6 +151,27 @@ bool FVulkanViewport::DoCheckedSwapChainJob(TFunction<int32(FVulkanViewport*)> S
 	return Status >= 0;
 }
 
+void FVulkanViewport::PreAcquireSwapchainImage()
+{
+	check(PreAcquiredImageIndex == -1);
+	AcquireImageIndex();
+	PreAcquiredImageIndex = AcquiredImageIndex;
+}
+
+void FVulkanViewport::GetNextImageIndex()
+{
+	if (PreAcquiredImageIndex != -1)
+	{
+		check(PreAcquiredImageIndex == AcquiredImageIndex);
+		check(AcquiredImageIndex == SwapChain->CurrentImageIndex);
+		PreAcquiredImageIndex = -1;
+	}
+	else
+	{
+		AcquireImageIndex();
+	}
+}
+
 void FVulkanViewport::AcquireImageIndex()
 {
 	if (!DoCheckedSwapChainJob(DoAcquireImageIndex))
@@ -236,53 +181,104 @@ void FVulkanViewport::AcquireImageIndex()
 	check(AcquiredImageIndex != -1);
 }
 
-bool FVulkanViewport::TryAcquireImageIndex()
+void FVulkanViewport::AcquireBackBuffer(FRHICommandListBase& CmdList, FVulkanBackBufferReference* NewBackBufferReference)
 {
-	int NewImageIndex = DoAcquireImageIndex(this);
-	if (NewImageIndex != -1)
+	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		AcquiredImageIndex = NewImageIndex;
-		return true;
+		check(NewBackBufferReference);
+
+		GetNextImageIndex();
+
+		TRefCountPtr<FVulkanBackBuffer> AcquriedBackbuffer = BackBuffers[AcquiredImageIndex];
+		NewBackBufferReference->SetBackBuffer(AcquriedBackbuffer);
+		RHIBackBuffer = AcquriedBackbuffer;
+	}
+	FVulkanCommandListContext& Context = (FVulkanCommandListContext&)CmdList.GetContext();
+
+	FVulkanCommandBufferManager* CmdBufferManager = Context.GetCommandBufferManager();
+	FVulkanCmdBuffer* CmdBuffer = CmdBufferManager->GetActiveCmdBuffer();
+	if (CmdBuffer->IsInsideRenderPass())
+	{
+		// This could happen due to a SetRT(AndClear) call lingering around (so emulated needs to be ended); however REAL render passes should already have been ended!
+		FTransitionAndLayoutManager& LayoutMgr = Context.GetTransitionAndLayoutManager();
+		checkf(!LayoutMgr.bInsideRealRenderPass, TEXT("Did not end Render Pass!"));
+		LayoutMgr.EndEmulatedRenderPass(CmdBuffer);
 	}
 
-	return false;
+	if (FVulkanPlatform::SupportsStandardSwapchain())
+	{
+		FTransitionAndLayoutManager& LayoutMgr = Context.GetTransitionAndLayoutManager();
+		VkImageLayout& CurrentLayout = LayoutMgr.FindOrAddLayoutRW(BackBufferImages[AcquiredImageIndex], VK_IMAGE_LAYOUT_UNDEFINED);
+		
+		VulkanRHI::ImagePipelineBarrier(CmdBuffer->GetHandle(), BackBufferImages[AcquiredImageIndex],
+			EImageLayoutBarrier::Undefined, EImageLayoutBarrier::ColorAttachment, VulkanRHI::SetupImageSubresourceRange());
+		if (FVulkanPlatform::RequiresSwapchainGeneralInitialLayout())
+		{
+			// Fix for artifacting on Mali on Android O: Take an extra roundtrip through COLOR_OPTIMAL -> GENERAL -> COLOR_OPTIMAL
+			VulkanRHI::ImagePipelineBarrier(CmdBuffer->GetHandle(), BackBufferImages[AcquiredImageIndex],
+				EImageLayoutBarrier::ColorAttachment, EImageLayoutBarrier::PixelGeneralRW, VulkanRHI::SetupImageSubresourceRange());
+			VulkanRHI::ImagePipelineBarrier(CmdBuffer->GetHandle(), BackBufferImages[AcquiredImageIndex],
+				EImageLayoutBarrier::PixelGeneralRW, EImageLayoutBarrier::ColorAttachment, VulkanRHI::SetupImageSubresourceRange());
+		}
+
+		CurrentLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	}
+
+	// Submit here so we can add a dependency with the acquired semaphore
+	CmdBuffer->End();
+	if (FVulkanPlatform::SupportsStandardSwapchain())
+	{
+		CmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, AcquiredSemaphore);
+	}
+	Device->GetGraphicsQueue()->Submit(CmdBuffer);
+	CmdBufferManager->FreeUnusedCmdBuffers();
+	CmdBufferManager->PrepareForNewActiveCommandBuffer();
 }
 
-FTexture2DRHIRef FVulkanViewport::GetBackBuffer(FRHICommandListImmediate& RHICmdList)
+FTexture2DRHIRef FVulkanViewport::GetBackBuffer(FRHICommandList& RHICmdList)
 {
 	check(IsInRenderingThread());
 
 	// make sure we aren't in the middle of swapchain recreation (which can happen on e.g. RHI thread)
 	FScopeLock LockSwapchain(&RecreatingSwapchain);
 
-	if (FVulkanPlatform::SupportsStandardSwapchain() && GVulkanDelayAcquireImage != EDelayAcquireImageType::DelayAcquire)
+	if (!RenderingBackBuffer && FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		check(RHICmdList.IsImmediate());
-		check(RHIBackBuffer);
+		check(GVulkanDelayAcquireImage != EDelayAcquireImageType::DelayAcquire);
 		
-		RHICmdList.EnqueueLambda([this](FRHICommandListImmediate& CmdList)
+		if (RenderingBackBufferReference.IsValid())
 		{
-			this->RHIBackBuffer->OnGetBackBufferImage(CmdList);
-		});
+			return RenderingBackBufferReference.GetReference();
+		}
+				
+		RenderingBackBufferReference = new FVulkanBackBufferReference(PixelFormat, SizeX, SizeY, TexCreate_Presentable | TexCreate_RenderTargetable);
+						
+		check(RHICmdList.IsImmediate());
 
-		return RHIBackBuffer.GetReference();
+		if (RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+		{
+			FRHICommandAcquireBackBuffer Cmd(this, RenderingBackBufferReference);
+			Cmd.Execute(RHICmdList);
+		}
+		else
+		{
+			ALLOC_COMMAND_CL(RHICmdList, FRHICommandAcquireBackBuffer)(this, RenderingBackBufferReference);
+		}
+
+		return RenderingBackBufferReference.GetReference();
 	}
-	
+
 	return RenderingBackBuffer.GetReference();
 }
 
-void FVulkanViewport::AdvanceBackBufferFrame(FRHICommandListImmediate& RHICmdList)
+void FVulkanViewport::AdvanceBackBufferFrame()
 {
 	check(IsInRenderingThread());
 
 	if (FVulkanPlatform::SupportsStandardSwapchain() && GVulkanDelayAcquireImage != EDelayAcquireImageType::DelayAcquire)
 	{
-		check(RHIBackBuffer);
-		
-		RHICmdList.EnqueueLambda([this](FRHICommandListImmediate& CmdList)
-		{
-			this->RHIBackBuffer->OnAdvanceBackBufferFrame(CmdList);
-		});
+		RenderingBackBuffer = nullptr;
+		RenderingBackBufferReference = nullptr;
 	}
 }
 
@@ -327,7 +323,6 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 	, DepthStencilRenderTargetImage(VK_NULL_HANDLE)
 {
 	FMemory::Memzero(ColorRenderTargetImages);
-	FMemory::Memzero(ColorResolveTargetImages);
 		
 	AttachmentTextureViews.Empty(RTLayout.GetNumAttachmentDescriptions());
 	uint32 MipIndex = 0;
@@ -346,18 +341,13 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 		}
 
 		FVulkanTextureBase* Texture = FVulkanTextureBase::Cast(RHITexture);
-		// this could fire in case one of the textures is FVulkanBackBuffer and it has not acquired an image
-		// with EDelayAcquireImageType::LazyAcquire acquire happens when texture transition to Writeable state
-		// make sure you call TransitionResource(Writable, Tex) before using this texture as a render-target
-		check(Texture->Surface.Image != VK_NULL_HANDLE);
-
 		ColorRenderTargetImages[Index] = Texture->Surface.Image;
 		MipIndex = InRTInfo.ColorRenderTarget[Index].MipIndex;
 
 		FVulkanTextureView RTView;
-		if (Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D || Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D_ARRAY)
+		if (Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D)
 		{
-			RTView.Create(*Texture->Surface.Device, Texture->Surface.Image, Texture->Surface.GetViewType(), Texture->Surface.GetFullAspectMask(), Texture->Surface.PixelFormat, Texture->Surface.ViewFormat, MipIndex, 1, FMath::Max(0, (int32)InRTInfo.ColorRenderTarget[Index].ArraySliceIndex), Texture->Surface.GetNumberOfArrayLevels(), true);
+			RTView.Create(*Texture->Surface.Device, Texture->Surface.Image, VK_IMAGE_VIEW_TYPE_2D, Texture->Surface.GetFullAspectMask(), Texture->Surface.PixelFormat, Texture->Surface.ViewFormat, MipIndex, 1, FMath::Max(0, (int32)InRTInfo.ColorRenderTarget[Index].ArraySliceIndex), 1, true);
 		}
 		else if (Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_CUBE)
 		{
@@ -374,28 +364,15 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 			ensure(0);
 		}
 
+		if (Texture->MSAASurface)
+		{
+			AttachmentTextureViews.Add(Texture->MSAAView);
+		}
+
 		AttachmentTextureViews.Add(RTView);
 		AttachmentViewsToDelete.Add(RTView.View);
 
 		++NumColorAttachments;
-
-		if (InRTInfo.bHasResolveAttachments)
-		{
-			FRHITexture* ResolveRHITexture = InRTInfo.ColorResolveRenderTarget[Index].Texture;
-			FVulkanTextureBase* ResolveTexture = FVulkanTextureBase::Cast(ResolveRHITexture);
-			ColorResolveTargetImages[Index] = ResolveTexture->Surface.Image;
-
-			//resolve attachments only supported for 2d/2d array textures
-			FVulkanTextureView ResolveRTView;
-			if (ResolveTexture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D || ResolveTexture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D_ARRAY)
-			{
-				ResolveRTView.Create(*ResolveTexture->Surface.Device, ResolveTexture->Surface.Image, ResolveTexture->Surface.GetViewType(), ResolveTexture->Surface.GetFullAspectMask(), ResolveTexture->Surface.PixelFormat, ResolveTexture->Surface.ViewFormat, 
-					MipIndex, 1, FMath::Max(0, (int32)InRTInfo.ColorRenderTarget[Index].ArraySliceIndex), ResolveTexture->Surface.GetNumberOfArrayLevels(), true);
-			}
-
-			AttachmentTextureViews.Add(ResolveRTView);
-			AttachmentViewsToDelete.Add(ResolveRTView.View);
-		}
 	}
 
 	if (RTLayout.GetHasDepthStencil())
@@ -406,7 +383,7 @@ FVulkanFramebuffer::FVulkanFramebuffer(FVulkanDevice& Device, const FRHISetRende
 		check(Texture->PartialView);
 		PartialDepthTextureView = *Texture->PartialView;
 
-		ensure(Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D || Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D_ARRAY || Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_CUBE);
+		ensure(Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_2D || Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_CUBE);
 		if (NumColorAttachments == 0 && Texture->Surface.GetViewType() == VK_IMAGE_VIEW_TYPE_CUBE)
 		{
 			FVulkanTextureView RTView;
@@ -489,20 +466,6 @@ bool FVulkanFramebuffer::Matches(const FRHISetRenderTargetsInfo& InRTInfo) const
 	int32 AttachementIndex = 0;
 	for (int32 Index = 0; Index < InRTInfo.NumColorRenderTargets; ++Index)
 	{
-		if (InRTInfo.bHasResolveAttachments)
-		{
-			const FRHIRenderTargetView& R = InRTInfo.ColorResolveRenderTarget[Index];
-			if (R.Texture)
-			{
-				VkImage AImage = ColorResolveTargetImages[AttachementIndex];
-				VkImage BImage = ((FVulkanTextureBase*)R.Texture->GetTextureBaseRHI())->Surface.Image;
-				if (AImage != BImage)
-				{
-					return false;
-				}
-			}
-		}
-
 		const FRHIRenderTargetView& B = InRTInfo.ColorRenderTarget[Index];
 		if (B.Texture)
 		{
@@ -530,39 +493,34 @@ void FVulkanViewport::RecreateSwapchain(void* NewNativeWindow, bool bForce)
 
 	FScopeLock LockSwapchain(&RecreatingSwapchain);
 	RenderingBackBuffer = nullptr;
+	RenderingBackBufferReference = nullptr;
+	RHIBackBuffer = nullptr;
 	
-	if (RHIBackBuffer)
-	{
-		RHIBackBuffer->ReleaseViewport();
-		RHIBackBuffer = nullptr;
-	}
-
-	FVulkanSwapChainRecreateInfo RecreateInfo = { VK_NULL_HANDLE, VK_NULL_HANDLE };
 	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		for (int32 Index = 0, NumBuffers = BackBufferImages.Num(); Index < NumBuffers; ++Index)
+		for (int32 i = 0; i < NUM_BUFFERS; ++i)
+		{
+			BackBuffers[i] = nullptr;
+		}
+		
+		for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
 		{
 			TextureViews[Index].Destroy(*Device);
-			Device->NotifyDeletedImage(BackBufferImages[Index]);
-			Device->NotifyDeletedRenderTarget(BackBufferImages[Index]);
-			BackBufferImages[Index] = VK_NULL_HANDLE;
 		}
 
-		Device->GetDeferredDeletionQueue().ReleaseResources(true);
+		for (VkImage& BackBufferImage : BackBufferImages)
+		{
+			Device->NotifyDeletedImage(BackBufferImage);
+			BackBufferImage = VK_NULL_HANDLE;
+		}
 
-		SwapChain->Destroy(&RecreateInfo);
+		SwapChain->Destroy();
 		delete SwapChain;
 		SwapChain = nullptr;
-
-		Device->GetDeferredDeletionQueue().ReleaseResources(true);
 	}
 
 	WindowHandle = NewNativeWindow;
-	CreateSwapchain(&RecreateInfo);
-	check(RecreateInfo.Surface == VK_NULL_HANDLE);
-	check(RecreateInfo.SwapChain == VK_NULL_HANDLE);
-
-
+	CreateSwapchain();
 }
 
 void FVulkanViewport::Tick(float DeltaTime)
@@ -600,27 +558,30 @@ void FVulkanViewport::RecreateSwapchainFromRT(EPixelFormat PreferredPixelFormat)
 	Device->WaitUntilIdle();
 
 	RenderingBackBuffer = nullptr;
-	
-	if (RHIBackBuffer)
-	{
-		RHIBackBuffer->ReleaseViewport();
-		RHIBackBuffer = nullptr;
-	}
-
-	FVulkanSwapChainRecreateInfo RecreateInfo = { VK_NULL_HANDLE, VK_NULL_HANDLE};
+	RenderingBackBufferReference = nullptr;
+	RHIBackBuffer = nullptr;
+		
 	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		for (int32 Index = 0, NumBuffers = BackBufferImages.Num(); Index < NumBuffers; ++Index)
+		for (int32 i = 0; i < NUM_BUFFERS; ++i)
+		{
+			BackBuffers[i] = nullptr;
+		}
+		
+		for (int32 Index = 0; Index < NUM_BUFFERS; ++Index)
 		{
 			TextureViews[Index].Destroy(*Device);
-			Device->NotifyDeletedImage(BackBufferImages[Index]);
-			Device->NotifyDeletedRenderTarget(BackBufferImages[Index]);
-			BackBufferImages[Index] = VK_NULL_HANDLE;
+		}
+		
+		for (VkImage& BackBufferImage : BackBufferImages)
+		{
+			Device->NotifyDeletedImage(BackBufferImage);
+			BackBufferImage = VK_NULL_HANDLE;
 		}
 		
 		Device->GetDeferredDeletionQueue().ReleaseResources(true);
 
-		SwapChain->Destroy(&RecreateInfo);
+		SwapChain->Destroy();
 		delete SwapChain;
 		SwapChain = nullptr;
 
@@ -628,12 +589,10 @@ void FVulkanViewport::RecreateSwapchainFromRT(EPixelFormat PreferredPixelFormat)
 	}
 
 	PixelFormat = PreferredPixelFormat;
-	CreateSwapchain(&RecreateInfo);
-	check(RecreateInfo.Surface == VK_NULL_HANDLE);
-	check(RecreateInfo.SwapChain == VK_NULL_HANDLE);
+	CreateSwapchain();
 }
 
-void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo)
+void FVulkanViewport::CreateSwapchain()
 {
 	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
@@ -645,14 +604,10 @@ void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo
 			PixelFormat, SizeX, SizeY,
 			&DesiredNumBackBuffers,
 			Images,
-			LockToVsync,
-			RecreateInfo
+			LockToVsync
 		);
 
-		checkf(Images.Num() >= NUM_BUFFERS, TEXT("We wanted at least %i images, actual Num: %i"), NUM_BUFFERS, Images.Num());
-		BackBufferImages.SetNum(Images.Num());
-		RenderingDoneSemaphores.SetNum(Images.Num());
-		TextureViews.SetNum(Images.Num());
+		checkf(Images.Num() == NUM_BUFFERS, TEXT("Actual Num: %i"), Images.Num());
 
 		FVulkanCmdBuffer* CmdBuffer = Device->GetImmediateContext().GetCommandBufferManager()->GetUploadCmdBuffer();
 		ensure(CmdBuffer->IsOutsideRenderPass());
@@ -660,6 +615,10 @@ void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo
 		for (int32 Index = 0; Index < Images.Num(); ++Index)
 		{
 			BackBufferImages[Index] = Images[Index];
+
+			FName Name = FName(*FString::Printf(TEXT("BackBuffer%d"), Index));
+			//BackBuffers[Index]->SetName(Name);
+
 			TextureViews[Index].Create(*Device, Images[Index], VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT, PixelFormat, UEToVkTextureFormat(PixelFormat, false), 0, 1, 0, 1);
 
 			// Clear the swapchain to avoid a validation warning, and transition to ColorAttachment
@@ -678,40 +637,36 @@ void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo
 				VulkanRHI::vkCmdClearColorImage(CmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &Color, 1, &Range);
 				VulkanRHI::ImagePipelineBarrier(CmdBuffer->GetHandle(), Images[Index], EImageLayoutBarrier::TransferDest, EImageLayoutBarrier::ColorAttachment, Range);
 			}
+		}
+
+		if (GVulkanDelayAcquireImage != EDelayAcquireImageType::DelayAcquire)
+		{
+			for (int32 i = 0; i < NUM_BUFFERS; ++i)
+			{
+				BackBuffers[i] = new FVulkanBackBuffer(*Device, PixelFormat, SizeX, SizeY, VK_NULL_HANDLE, TexCreate_Presentable | TexCreate_RenderTargetable);
+				BackBuffers[i]->Surface.Image = BackBufferImages[i];
+				BackBuffers[i]->DefaultView.View = TextureViews[i].View;
+				BackBuffers[i]->DefaultView.ViewId = TextureViews[i].ViewId;
 
 #if VULKAN_ENABLE_DRAW_MARKERS
-			if (Device->GetDebugMarkerSetObjectName())
-			{
-				VulkanRHI::SetDebugMarkerName(Device->GetDebugMarkerSetObjectName(), Device->GetInstanceHandle(), BackBufferImages[Index], "RenderingBackBuffer");
-			}
+				if (Device->GetDebugMarkerSetObjectName())
+				{
+					VulkanRHI::SetDebugMarkerName(Device->GetDebugMarkerSetObjectName(), Device->GetInstanceHandle(), BackBufferImages[i], "RenderingBackBuffer");
+				}
 #endif
+			}
 		}
 		
 		Device->GetImmediateContext().GetCommandBufferManager()->SubmitUploadCmdBuffer();
-
-		RHIBackBuffer = new FVulkanBackBuffer(*Device, this, PixelFormat, SizeX, SizeY, TexCreate_RenderTargetable | TexCreate_ShaderResource);
 	}
 	else
 	{
 		PixelFormat = FVulkanPlatform::GetPixelFormatForNonDefaultSwapchain();
-		if (RecreateInfo != nullptr)
-		{
-			if(RecreateInfo->SwapChain)
-			{
-				VulkanRHI::vkDestroySwapchainKHR(Device->GetInstanceHandle(), RecreateInfo->SwapChain, VULKAN_CPU_ALLOCATOR);
-				RecreateInfo->SwapChain = VK_NULL_HANDLE;
-			}
-			if (RecreateInfo->Surface)
-			{
-				VulkanRHI::vkDestroySurfaceKHR(RHI->Instance, RecreateInfo->Surface, VULKAN_CPU_ALLOCATOR);
-				RecreateInfo->Surface = VK_NULL_HANDLE;
-			}
-		}
 	}
 
 	if (!FVulkanPlatform::SupportsStandardSwapchain() || GVulkanDelayAcquireImage == EDelayAcquireImageType::DelayAcquire)
 	{
-		RenderingBackBuffer = new FVulkanTexture2D(*Device, PixelFormat, SizeX, SizeY, 1, 1, TexCreate_RenderTargetable | TexCreate_ShaderResource, FRHIResourceCreateInfo());
+		RenderingBackBuffer = new FVulkanBackBuffer(*Device, PixelFormat, SizeX, SizeY, TexCreate_RenderTargetable | TexCreate_ShaderResource);
 #if VULKAN_ENABLE_DRAW_MARKERS
 		if (Device->GetDebugMarkerSetObjectName())
 		{
@@ -721,6 +676,7 @@ void FVulkanViewport::CreateSwapchain(FVulkanSwapChainRecreateInfo* RecreateInfo
 	}
 
 	AcquiredImageIndex = -1;
+	PreAcquiredImageIndex = -1;
 }
 
 inline static void CopyImageToBackBuffer(FVulkanCmdBuffer* CmdBuffer, bool bSourceReadOnly, VkImage SrcSurface, VkImage DstSurface, int32 SizeX, int32 SizeY, int32 WindowSizeX, int32 WindowSizeY)
@@ -797,7 +753,6 @@ inline static void CopyImageToBackBuffer(FVulkanCmdBuffer* CmdBuffer, bool bSour
 bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuffer* CmdBuffer, FVulkanQueue* Queue, FVulkanQueue* PresentQueue, bool bLockToVsync)
 {
 	FPlatformAtomics::AtomicStore(&LockToVsync, bLockToVsync ? 1 : 0);
-	bool bFailedToDelayAcquireBackbuffer = false;
 
 	//Transition back buffer to presentable and submit that command
 	check(CmdBuffer->IsOutsideRenderPass());
@@ -807,25 +762,21 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 		if (GVulkanDelayAcquireImage == EDelayAcquireImageType::DelayAcquire && RenderingBackBuffer)
 		{
 			SCOPE_CYCLE_COUNTER(STAT_VulkanAcquireBackBuffer);
-			// swapchain can go out of date, do not crash at this point
-			if (LIKELY(TryAcquireImageIndex()))
-			{
-				uint32 WindowSizeX = FMath::Min(SizeX, SwapChain->InternalWidth);
-				uint32 WindowSizeY = FMath::Min(SizeY, SwapChain->InternalHeight);
+			GetNextImageIndex();
 
-				Context->RHIPushEvent(TEXT("CopyImageToBackBuffer"), FColor::Blue);
-				CopyImageToBackBuffer(CmdBuffer, true, RenderingBackBuffer->Surface.Image, BackBufferImages[AcquiredImageIndex], SizeX, SizeY, WindowSizeX, WindowSizeY);
-				Context->RHIPopEvent();
-			}
-			else
-			{
-				bFailedToDelayAcquireBackbuffer = true;
-			}
+			uint32 WindowSizeX = FMath::Min(SizeX, SwapChain->InternalWidth);
+			uint32 WindowSizeY = FMath::Min(SizeY, SwapChain->InternalHeight);
+
+			Context->RHIPushEvent(TEXT("CopyImageToBackBuffer"), FColor::Blue);
+			CopyImageToBackBuffer(CmdBuffer, true, RenderingBackBuffer->Surface.Image, BackBufferImages[AcquiredImageIndex], SizeX, SizeY, WindowSizeX, WindowSizeY);
+			Context->RHIPopEvent();
 		}
 		else
 		{
 			check(AcquiredImageIndex != -1);
-			check(RHIBackBuffer != nullptr && RHIBackBuffer->Surface.Image == BackBufferImages[AcquiredImageIndex]);
+			check(PreAcquiredImageIndex == -1);
+
+			check(RHIBackBuffer == nullptr || RHIBackBuffer->Surface.Image == BackBufferImages[AcquiredImageIndex]);
 
 			VkImageLayout& Layout = Context->GetTransitionAndLayoutManager().FindOrAddLayoutRW(BackBufferImages[AcquiredImageIndex], VK_IMAGE_LAYOUT_UNDEFINED);
 			VulkanRHI::ImagePipelineBarrier(CmdBuffer->GetHandle(), BackBufferImages[AcquiredImageIndex], VulkanRHI::GetImageLayoutFromVulkanLayout(Layout), EImageLayoutBarrier::Present, VulkanRHI::SetupImageSubresourceRange());
@@ -834,35 +785,14 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 	}
 
 	CmdBuffer->End();
-	GVulkanCommandBufferManager->FlushResetQueryPools();
+
 	if (FVulkanPlatform::SupportsStandardSwapchain())
 	{
-		if (LIKELY(!bFailedToDelayAcquireBackbuffer))
+		if (GVulkanDelayAcquireImage == EDelayAcquireImageType::DelayAcquire)
 		{
-			if (GVulkanDelayAcquireImage == EDelayAcquireImageType::DelayAcquire)
-			{
-				CmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, AcquiredSemaphore);
-			}
-			Queue->Submit(CmdBuffer, RenderingDoneSemaphores[AcquiredImageIndex]->GetHandle());
+			CmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, AcquiredSemaphore);
 		}
-		else
-		{
-			// failing to do the delayacquire can only happen if we were in this mode to begin with
-			check(GVulkanDelayAcquireImage == EDelayAcquireImageType::DelayAcquire);
-
-			UE_LOG(LogVulkanRHI, Log, TEXT("AcquireNextImage() failed due to the outdated swapchain, not even attempting to present."));
-
-			// cannot just throw out this command buffer (needs to be submitted or other checks fail)
-			Queue->Submit(CmdBuffer);
-			RecreateSwapchain(WindowHandle, true);
-
-			// Swapchain creation pushes some commands - flush the command buffers now to begin with a fresh state
-			Device->SubmitCommandsAndFlushGPU();
-			Device->WaitUntilIdle();
-
-			// early exit
-			return (int32)FVulkanSwapChain::EStatus::Healthy;
-		}
+		Queue->Submit(CmdBuffer, RenderingDoneSemaphores[AcquiredImageIndex]->GetHandle());
 	}
 	else
 	{
@@ -914,6 +844,9 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 		{
 			CustomPresent->PostPresent();
 		}
+
+		// Release the back buffer
+		RHIBackBuffer = nullptr;
 	}
 
 	if (FVulkanPlatform::RequiresWaitingForFrameCompletionEvent() && !bHasCustomPresent)
@@ -943,7 +876,7 @@ bool FVulkanViewport::Present(FVulkanCommandListContext* Context, FVulkanCmdBuff
 	AcquiredImageIndex = -1;
 
 	++PresentCount;
-	++GVulkanRHI->TotalPresentCount;
+	++((FVulkanDynamicRHI*)GDynamicRHI)->TotalPresentCount;
 
 	return bResult;
 }
@@ -965,7 +898,7 @@ FViewportRHIRef FVulkanDynamicRHI::RHICreateViewport(void* WindowHandle, uint32 
 	return new FVulkanViewport(this, Device, WindowHandle, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 }
 
-void FVulkanDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat)
+void FVulkanDynamicRHI::RHIResizeViewport(FViewportRHIParamRef ViewportRHI, uint32 SizeX, uint32 SizeY, bool bIsFullscreen, EPixelFormat PreferredPixelFormat)
 {
 	check(IsInGameThread());
 	FVulkanViewport* Viewport = ResourceCast(ViewportRHI);
@@ -990,7 +923,7 @@ void FVulkanDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI, uint32 Size
 	}
 }
 
-void FVulkanDynamicRHI::RHIResizeViewport(FRHIViewport* ViewportRHI, uint32 SizeX, uint32 SizeY, bool bIsFullscreen)
+void FVulkanDynamicRHI::RHIResizeViewport(FViewportRHIParamRef ViewportRHI, uint32 SizeX, uint32 SizeY, bool bIsFullscreen)
 {
 	check(IsInGameThread());
 	FVulkanViewport* Viewport = ResourceCast(ViewportRHI);
@@ -1038,7 +971,7 @@ void FVulkanDynamicRHI::RHITick(float DeltaTime)
 	}
 }
 
-FTexture2DRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* ViewportRHI)
+FTexture2DRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FViewportRHIParamRef ViewportRHI)
 {
 	check(IsInRenderingThread());
 	check(ViewportRHI);
@@ -1052,24 +985,25 @@ FTexture2DRHIRef FVulkanDynamicRHI::RHIGetViewportBackBuffer(FRHIViewport* Viewp
 	return Viewport->GetBackBuffer(FRHICommandListExecutor::GetImmediateCommandList());
 }
 
-void FVulkanDynamicRHI::RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* ViewportRHI)
+void FVulkanDynamicRHI::RHIAdvanceFrameForGetViewportBackBuffer(FViewportRHIParamRef ViewportRHI)
 {
 	check(IsInRenderingThread());
 	check(ViewportRHI);
 	FVulkanViewport* Viewport = ResourceCast(ViewportRHI);
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+	Viewport->AdvanceBackBufferFrame();
 
-	Viewport->AdvanceBackBufferFrame(RHICmdList);
-
-	if (RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
 	{
-		FRHICommandProcessDeferredDeletionQueue Cmd(Device);
-		Cmd.Execute(RHICmdList);
-	}
-	else
-	{
-		check(IsInRenderingThread());
-		ALLOC_COMMAND_CL(RHICmdList, FRHICommandProcessDeferredDeletionQueue)(Device);
+		FRHICommandList& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
+		if (RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
+		{
+			FRHICommandProcessDeferredDeletionQueue Cmd(Device);
+			Cmd.Execute(RHICmdList);
+		}
+		else
+		{
+			check(IsInRenderingThread());
+			ALLOC_COMMAND_CL(RHICmdList, FRHICommandProcessDeferredDeletionQueue)(Device);
+		}
 	}
 }
 

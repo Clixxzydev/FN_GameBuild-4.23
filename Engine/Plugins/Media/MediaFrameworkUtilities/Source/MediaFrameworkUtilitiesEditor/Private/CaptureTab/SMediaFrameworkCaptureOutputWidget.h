@@ -47,6 +47,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	virtual ~SMediaFrameworkCaptureOutputWidget();
 
 	virtual void StopOutput();
 
@@ -89,7 +90,6 @@ public:
 	~SMediaFrameworkCaptureCameraViewportWidget();
 
 	void StartOutput();
-	virtual void StopOutput() override;
 
 	virtual void OnPostPIEStarted() override;
 	virtual void OnPrePIEEnded() override;
@@ -125,7 +125,6 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	~SMediaFrameworkCaptureRenderTargetWidget();
 
 	void StartOutput();
 
@@ -154,7 +153,6 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-	~SMediaFrameworkCaptureCurrentViewportWidget();
 	virtual void StopOutput() override;
 
 	void StartOutput();

@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Widgets/SWidget.h"
-#include "Widgets/Input/NumericTypeInterface.h"
 #include "UnrealClient.h"
 #include "IPropertyTypeCustomization.h"
 #include "PropertyHandle.h"
@@ -104,8 +103,5 @@ private:
 
 	/** Margin text editable text box */
 	TSharedPtr<SEditableTextBox> MarginEditableTextBox;
-
-	/** Used to evaluate margin strings as mathematical expressions **/
-	TSharedPtr< INumericTypeInterface<float> > NumericInterface;
 };
 

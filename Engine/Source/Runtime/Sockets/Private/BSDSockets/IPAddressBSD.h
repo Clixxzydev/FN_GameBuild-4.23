@@ -5,8 +5,6 @@
 #include "CoreMinimal.h"
 #include "BSDSockets/SocketSubsystemBSDPrivate.h"
 #include "IPAddress.h"
-#include "SocketTypes.h"
-#include "SocketSubsystemPackage.h"
 
 #if PLATFORM_HAS_BSD_SOCKETS || PLATFORM_HAS_BSD_IPV6_SOCKETS
 
@@ -25,17 +23,12 @@ protected:
 	/** The Subsystem that created this address */
 	FSocketSubsystemBSD* SocketSubsystem;
 
-	void Clear();
-	void ResetScopeId();
-
-PACKAGE_SCOPE:
-
 	/**
 	 * Sets the ip address using a network byte order ipv4 address
 	 *
 	 * @param IPv4Addr the new ip address to use
 	 */
-	virtual void SetIp(const in_addr& IPv4Addr)
+	void SetIp(const in_addr& IPv4Addr)
 	{
 		((sockaddr_in*)&Addr)->sin_addr = IPv4Addr;
 		Addr.ss_family = AF_INET;
@@ -47,12 +40,15 @@ PACKAGE_SCOPE:
 	 *
 	 * @param IpAddr the new ip address to use
 	 */
-	virtual void SetIp(const in6_addr& IPv6Addr)
+	void SetIp(const in6_addr& IpAddr)
 	{
-		((sockaddr_in6*)&Addr)->sin6_addr = IPv6Addr;
+		((sockaddr_in6*)&Addr)->sin6_addr = IpAddr;
 		Addr.ss_family = AF_INET6;
 	}
 #endif
+
+	void Clear();
+	void ResetScopeId();
 
 public:
 	/**
@@ -98,7 +94,7 @@ public:
 	 * Sets the ip address from a string IPv6 or IPv4 address.
 	 * Ports may be included using the form Address:Port, or excluded and set manually.
 	 *
-	 * IPv6 - [1111:2222:3333:4444:5555:6666:7777:8888]:PORT || [1111:2222:3333::]:PORT || [::ffff:IPv4]:PORT || any of these without the brackets and port
+	 * IPv6 - [1111:2222:3333:4444:5555:6666:7777:8888]:PORT || [1111:2222:3333::]:PORT || [::ffff:IPv4]:PORT
 	 * IPv4 - aaa.bbb.ccc.ddd:PORT || 127.0.0.1:PORT
 	 *
 	 * @param InAddr the string containing the new ip address to use
@@ -138,7 +134,7 @@ public:
 	 */
 	void GetIp(in6_addr& OutAddr) const
 	{
-		if (GetProtocolType() != FNetworkProtocolTypes::IPv6)
+		if (GetProtocolFamily() != ESocketProtocolFamily::IPv6)
 		{
 			return;
 		}
@@ -154,7 +150,7 @@ public:
 	 */
 	void GetIp(in_addr& OutAddr) const
 	{
-		if (GetProtocolType() != FNetworkProtocolTypes::IPv4)
+		if (GetProtocolFamily() != ESocketProtocolFamily::IPv4)
 		{
 			return;
 		}
@@ -189,6 +185,24 @@ public:
 	 */
 	virtual void SetAnyAddress() override;
 
+	/**
+	 * Sets the address structure to be bindable to any IP address
+	 * for the protocol family specified.
+	 *
+	 * @param ForProtocol the protocol to set the address for
+	 */
+	virtual void SetAnyAddress(ESocketProtocolFamily ForProtocol)
+	{
+		if (ForProtocol == ESocketProtocolFamily::IPv4)
+		{
+			SetAnyIPv4Address();
+		}
+		else
+		{
+			SetAnyIPv6Address();
+		}
+	}
+
 	/** Explicit set to any IPv4 address */
 	virtual void SetAnyIPv4Address();
 
@@ -204,6 +218,24 @@ public:
 	 */
 	virtual void SetBroadcastAddress() override;
 
+	/**
+	 * Sets the address structure to be bound to the multicast ip address
+	 * for the protocol family specified.
+	 *
+	 * @param ForProtocol the protocol to set the address for
+	 */
+	virtual void SetBroadcastAddress(ESocketProtocolFamily ForProtocol)
+	{
+		if (ForProtocol == ESocketProtocolFamily::IPv4)
+		{
+			SetIPv4BroadcastAddress();
+		}
+		else
+		{
+			SetIPv6BroadcastAddress();
+		}
+	}
+
 	/** Explicit set to multicast IPv4 address */
 	virtual void SetIPv4BroadcastAddress();
 
@@ -218,6 +250,24 @@ public:
 	 * To skip assumptions, you can call the designated version explicitly below.
 	 */
 	virtual void SetLoopbackAddress() override;
+
+	/**
+	 * Sets the address structure to be bound to the loopback ip address
+	 * for the protocol family specified.
+	 *
+	 * @param ForProtocol the protocol to set the address for
+	 */
+	virtual void SetLoopbackAddress(ESocketProtocolFamily ForProtocol)
+	{
+		if (ForProtocol == ESocketProtocolFamily::IPv4)
+		{
+			SetIPv4LoopbackAddress();
+		}
+		else
+		{
+			SetIPv6LoopbackAddress();
+		}
+	}
 
 	/** Explicit set to loopback IPv4 address */
 	virtual void SetIPv4LoopbackAddress();
@@ -256,9 +306,9 @@ public:
 	/**
 	 * Returns the protocol family of the address data currently stored in this struct
 	 *
-	 * @return The type of the address. If it's not known or overridden, the address passes None.
+	 * @return They type of the address
 	 */
-	virtual FName GetProtocolType() const override;
+	virtual ESocketProtocolFamily GetProtocolFamily() const;
 
 	/**
 	 * Returns the size of the amount of data that is being used

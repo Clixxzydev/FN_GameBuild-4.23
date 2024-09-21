@@ -744,8 +744,3 @@ void FGeomObject::AddReferencedObjects( FReferenceCollector& Collector )
 {
 	Collector.AddReferencedObject( ActualBrush );
 }
-
-FString FGeomObject::GetReferencerName() const
-{
-	return TEXT("FGeomObject");
-}

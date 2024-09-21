@@ -431,19 +431,17 @@ namespace AutomationTool
 		/// <returns>Path to the editor executable</returns>
 		public static string GetEditorCommandletExe(string BuildRoot, UnrealBuildTool.UnrealTargetPlatform HostPlatform)
 		{
-			if (HostPlatform == UnrealBuildTool.UnrealTargetPlatform.Mac)
+			switch(HostPlatform)
 			{
-				return CommandUtils.CombinePaths(BuildRoot, "Engine/Binaries/Mac/UE4Editor.app/Contents/MacOS/UE4Editor");
+				case UnrealBuildTool.UnrealTargetPlatform.Mac:
+					return CommandUtils.CombinePaths(BuildRoot, "Engine/Binaries/Mac/UE4Editor.app/Contents/MacOS/UE4Editor");
+				case UnrealBuildTool.UnrealTargetPlatform.Win64:
+					return CommandUtils.CombinePaths(BuildRoot, "Engine/Binaries/Win64/UE4Editor-Cmd.exe");
+				case UnrealBuildTool.UnrealTargetPlatform.Linux:
+					return CommandUtils.CombinePaths(BuildRoot, "Engine/Binaries/Linux/UE4Editor");
+				default:
+					throw new AutomationException("EditorCommandlet is not supported for platform {0}", HostPlatform);
 			}
-			if (HostPlatform == UnrealBuildTool.UnrealTargetPlatform.Win64)
-			{
-				return CommandUtils.CombinePaths(BuildRoot, "Engine/Binaries/Win64/UE4Editor-Cmd.exe");
-			}
-			if (HostPlatform == UnrealBuildTool.UnrealTargetPlatform.Linux)
-			{
-				return CommandUtils.CombinePaths(BuildRoot, "Engine/Binaries/Linux/UE4Editor");
-			}
-			throw new AutomationException("EditorCommandlet is not supported for platform {0}", HostPlatform);
 		}
 
 		/// <summary>

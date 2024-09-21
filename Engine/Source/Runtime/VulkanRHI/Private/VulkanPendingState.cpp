@@ -402,15 +402,9 @@ void FVulkanPendingComputeState::PrepareForDispatch(FVulkanCmdBuffer* InCmdBuffe
 
 FVulkanPendingGfxState::~FVulkanPendingGfxState()
 {
-	TArray<FVulkanGraphicsPipelineDescriptorState*> DescriptorStates;
-
 	for (auto& Pair : PipelineStates)
 	{
 		FVulkanGraphicsPipelineDescriptorState* State = Pair.Value;
-		DescriptorStates.Push(State);
-	}
-	for(FVulkanGraphicsPipelineDescriptorState* State : DescriptorStates)
-	{
 		delete State;
 	}
 }
@@ -794,8 +788,7 @@ void FVulkanDescriptorSetCache::AddCachedPool()
 			CachedPools.EmplaceAt(0, MoveTemp(FreePool));
 			return;
 		}
-		// Don't write 'error' as it confuses reporting; it's a perf warning more than an actual error
-		UE_LOG(LogVulkanRHI, Display, TEXT("FVulkanDescriptorSetCache::AddCachedPool() MaxDescriptorSets Delta/Err: %f. Tolerance: [%f..%f]."),
+		UE_LOG(LogVulkanRHI, Display, TEXT("FVulkanDescriptorSetCache::AddCachedPool() MaxDescriptorSets Error: %f. Tolerance: [%f..%f]."),
 			static_cast<double>(Error), static_cast<double>(MinErrorTolerance), static_cast<double>(MaxErrorTolerance));
 		FreePool.Reset();
 	}

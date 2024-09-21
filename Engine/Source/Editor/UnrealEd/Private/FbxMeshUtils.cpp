@@ -210,11 +210,10 @@ namespace FbxMeshUtils
 					NotificationInfo.Text = FText::Format(LOCTEXT("LODImportSuccessful", "Mesh for LOD {0} imported successfully!"), FText::AsNumber(LODLevel));
 					NotificationInfo.ExpireDuration = 5.0f;
 					FSlateNotificationManager::Get().AddNotification(NotificationInfo);
-					if (BaseStaticMesh->IsSourceModelValid(LODLevel))
+					if (BaseStaticMesh->SourceModels.IsValidIndex(LODLevel))
 					{
-						FStaticMeshSourceModel& SourceModel = BaseStaticMesh->GetSourceModel(LODLevel);
-						SourceModel.SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
-						SourceModel.bImportWithBaseMesh = false;
+						BaseStaticMesh->SourceModels[LODLevel].SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
+						BaseStaticMesh->SourceModels[LODLevel].bImportWithBaseMesh = false;
 					}
 					bSuccess = true;
 				}
@@ -256,23 +255,6 @@ namespace FbxMeshUtils
 		// Check the file extension for FBX. Anything that isn't .FBX is rejected
 		const FString FileExtension = FPaths::GetExtension(Filename);
 		const bool bIsFBX = FCString::Stricmp(*FileExtension, TEXT("FBX")) == 0;
-		bool bSceneIsCleanUp = false;
-		TArray< TArray<FbxNode*>* > MeshArray;
-		auto CleanUpScene = [&bSceneIsCleanUp, &MeshArray, &FFbxImporter]()
-		{
-			if (bSceneIsCleanUp)
-			{
-				return;
-			}
-			bSceneIsCleanUp = true;
-			// Cleanup
-			for (int32 i = 0; i < MeshArray.Num(); i++)
-			{
-				delete MeshArray[i];
-			}
-			FFbxImporter->ReleaseScene();
-			FFbxImporter = nullptr;
-		};
 
 		//Skip none fbx file
 		if (!bIsFBX)
@@ -315,26 +297,6 @@ namespace FbxMeshUtils
 		{
 			ClothingAsset->UnbindFromSkeletalMesh(SelectedSkelMesh, LODLevel);
 		}
-
-		//Lambda to call to re-apply the clothing
-		auto ReapplyClothing = [&SelectedSkelMesh, &ClothingAssetsInUse, &ClothingAssetSectionIndices, &ClothingAssetInternalLodIndices, &ImportedResource, &LODLevel]()
-		{
-			// Re-apply our clothing assets
-			int32 NumClothingAssetsToApply = ClothingAssetsInUse.Num();
-			if (ImportedResource && ImportedResource->LODModels.IsValidIndex(LODLevel))
-			{
-				FSkeletalMeshLODModel& LodModel = ImportedResource->LODModels[LODLevel];
-				for (int32 AssetIndex = 0; AssetIndex < NumClothingAssetsToApply; ++AssetIndex)
-				{
-					// Only if the same section exists
-					if (LodModel.Sections.IsValidIndex(ClothingAssetSectionIndices[AssetIndex]))
-					{
-						UClothingAssetBase* AssetToApply = ClothingAssetsInUse[AssetIndex];
-						AssetToApply->BindToSkeletalMesh(SelectedSkelMesh, LODLevel, ClothingAssetSectionIndices[AssetIndex], ClothingAssetInternalLodIndices[AssetIndex]);
-					}
-				}
-			}
-		};
 
 		// don't import material and animation
 		UnFbx::FBXImportOptions* ImportOptions = FFbxImporter->GetImportOptions();
@@ -384,7 +346,6 @@ namespace FbxMeshUtils
 
 		if ( !FFbxImporter->ImportFromFile( *Filename, FPaths::GetExtension( Filename ), true ) )
 		{
-			ReapplyClothing();
 			// Log the error message and fail the import.
 			FFbxImporter->AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Error, LOCTEXT("FBXImport_ParseFailed", "FBX file parsing failed.")), FFbxErrors::Generic_FBXFileParseFailed);
 		}
@@ -392,6 +353,7 @@ namespace FbxMeshUtils
 		{
 			bool bUseLODs = true;
 			int32 MaxLODLevel = 0;
+			TArray< TArray<FbxNode*>* > MeshArray;
 			TArray<FString> LODStrings;
 			TArray<FbxNode*>* MeshObject = NULL;;
 
@@ -401,9 +363,8 @@ namespace FbxMeshUtils
 			// Nothing found, error out
 			if (MeshArray.Num() == 0)
 			{
-				ReapplyClothing();
 				FFbxImporter->AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Error, LOCTEXT("FBXImport_NoMesh", "No meshes were found in file.")), FFbxErrors::Generic_MeshNotFound);
-				CleanUpScene();
+				FFbxImporter->ReleaseScene();
 				return false;
 			}
 
@@ -442,7 +403,6 @@ namespace FbxMeshUtils
 			int32 SelectedLOD = LODLevel;
 			if (SelectedLOD > SelectedSkelMesh->GetLODNum())
 			{
-				ReapplyClothing();
 				// Make sure they don't manage to select a bad LOD index
 				FFbxImporter->AddTokenizedErrorMessage(FTokenizedMessage::Create(EMessageSeverity::Warning, FText::Format(LOCTEXT("FBXImport_InvalidLODIdx", "Invalid mesh LOD index {0}, no prior LOD index exists"), FText::AsNumber(SelectedLOD))), FFbxErrors::Generic_Mesh_LOD_InvalidIndex);
 			}
@@ -498,7 +458,7 @@ namespace FbxMeshUtils
 				}
 					
 				ExistingSkelMeshData* SkelMeshDataPtr = nullptr;
-				if (SelectedSkelMesh->GetLODNum() > SelectedLOD)
+				if (SelectedSkelMesh->GetLODNum() > LODLevel)
 				{
 					SelectedSkelMesh->PreEditChange(NULL);
 					SkelMeshDataPtr = SaveExistingSkelMeshData(SelectedSkelMesh, true, SelectedLOD);
@@ -516,51 +476,60 @@ namespace FbxMeshUtils
 				ImportSkeletalMeshArgs.Name = NAME_None;
 				ImportSkeletalMeshArgs.Flags = RF_Transient;
 				ImportSkeletalMeshArgs.TemplateImportData = TempAssetImportData;
-				ImportSkeletalMeshArgs.LodIndex = SelectedLOD;
+				ImportSkeletalMeshArgs.LodIndex = LODLevel;
 				ImportSkeletalMeshArgs.OrderedMaterialNames = OrderedMaterialNames.Num() > 0 ? &OrderedMaterialNames : nullptr;
 				ImportSkeletalMeshArgs.ImportMaterialOriginalNameData = &ImportMaterialOriginalNameData;
 				ImportSkeletalMeshArgs.ImportMeshSectionsData = &ImportMeshLodData[0];
 				ImportSkeletalMeshArgs.OutData = &OutData;
 
 				TempSkelMesh = (USkeletalMesh*)FFbxImporter->ImportSkeletalMesh( ImportSkeletalMeshArgs );
-				// Add the new imported LOD to the existing model (check skeleton compatibility)
-				if( TempSkelMesh  && FFbxImporter->ImportSkeletalMeshLOD(TempSkelMesh, SelectedSkelMesh, SelectedLOD, true, nullptr, TempAssetImportData))
+
+				// Add imported mesh to existing model
+				bool bMeshImportSuccess = false;
+				if( TempSkelMesh )
 				{
-					TComponentReregisterContext<USkinnedMeshComponent> ReregisterContext;
-					SelectedSkelMesh->ReleaseResources();
-					SelectedSkelMesh->ReleaseResourcesFence.Wait();
-					
+					bMeshImportSuccess = FFbxImporter->ImportSkeletalMeshLOD(TempSkelMesh, SelectedSkelMesh, SelectedLOD, true, nullptr, TempAssetImportData);
+
 					//Update the import data for this lod
-					UnFbx::FFbxImporter::UpdateSkeletalMeshImportData(SelectedSkelMesh, nullptr, SelectedLOD, &ImportMaterialOriginalNameData, &ImportMeshLodData);
+					UnFbx::FFbxImporter::UpdateSkeletalMeshImportData(SelectedSkelMesh, nullptr, LODLevel, &ImportMaterialOriginalNameData, &ImportMeshLodData);
 
 					if (SkelMeshDataPtr != nullptr)
 					{
 						RestoreExistingSkelMeshData(SkelMeshDataPtr, SelectedSkelMesh, SelectedLOD, false, ImportOptions->bImportAsSkeletalSkinning);
 					}
+					SelectedSkelMesh->PostEditChange();
+					// Mark package containing skeletal mesh as dirty.
+					SelectedSkelMesh->MarkPackageDirty();
 
-					if (ImportOptions->bImportMorph)
+					// Now iterate over all skeletal mesh components re-initialising them.
+					for (TObjectIterator<USkeletalMeshComponent> It; It; ++It)
 					{
-						FFbxImporter->ImportFbxMorphTarget(SkelMeshNodeArray, SelectedSkelMesh, SelectedSkelMesh->GetOutermost(), SelectedLOD, OutData);
+						USkeletalMeshComponent* SkelComp = *It;
+						if (SkelComp->SkeletalMesh == SelectedSkelMesh)
+						{
+							FComponentReregisterContext ReregisterContext(SkelComp);
+						}
 					}
+				}
 
+				if(ImportOptions->bImportMorph)
+				{
+					FFbxImporter->ImportFbxMorphTarget(SkelMeshNodeArray, SelectedSkelMesh, SelectedSkelMesh->GetOutermost(), SelectedLOD, OutData);
+					//If we have import some morph target we have to rebuild the render resources since morph target are now using GPU
+					if (SelectedSkelMesh->MorphTargets.Num() > 0)
+					{
+						SelectedSkelMesh->ReleaseResources();
+						//Rebuild the resources with a post edit change since we have added some morph targets
+						SelectedSkelMesh->PostEditChange();
+					}
+				}
+
+				if (bMeshImportSuccess)
+				{
 					bSuccess = true;
 					// Set LOD source filename
 					SelectedSkelMesh->GetLODInfo(SelectedLOD)->SourceImportFilename = UAssetImportData::SanitizeImportFilename(Filename, nullptr);
 					SelectedSkelMesh->GetLODInfo(SelectedLOD)->bImportWithBaseMesh = false;
-
-					ReapplyClothing();
-
-					//Must be the last step because it cleanup the fbx importer to import the alternate skinning FBX
-					if (bMustReimportAlternateSkinWeightProfile)
-					{
-						//We cannot use anymore the FFbxImporter after the cleanup
-						CleanUpScene();
-						FLODUtilities::ReimportAlternateSkinWeight(SelectedSkelMesh, SelectedLOD, false);
-					}
-
-					SelectedSkelMesh->PostEditChange();
-					SelectedSkelMesh->InitResources();
-					SelectedSkelMesh->MarkPackageDirty();
 
 					// Notification of success
 					FNotificationInfo NotificationInfo(FText::GetEmpty());
@@ -570,7 +539,6 @@ namespace FbxMeshUtils
 				}
 				else
 				{
-					ReapplyClothing();
 					// Notification of failure
 					FNotificationInfo NotificationInfo(FText::GetEmpty());
 					NotificationInfo.Text = FText::Format(NSLOCTEXT("UnrealEd", "LODImportFail", "Failed to import mesh for LOD {0}!"), FText::AsNumber(SelectedLOD));
@@ -578,8 +546,36 @@ namespace FbxMeshUtils
 					FSlateNotificationManager::Get().AddNotification(NotificationInfo);
 				}
 			}
+
+			// Cleanup
+			for (int32 i=0; i<MeshArray.Num(); i++)
+			{
+				delete MeshArray[i];
+			}					
 		}
-		CleanUpScene();
+		FFbxImporter->ReleaseScene();
+
+		// Re-apply our clothing assets
+		int32 NumClothingAssetsToApply = ClothingAssetsInUse.Num();
+		if(ImportedResource && ImportedResource->LODModels.IsValidIndex(LODLevel))
+		{
+			FSkeletalMeshLODModel& LodModel = ImportedResource->LODModels[LODLevel];
+			for(int32 AssetIndex = 0; AssetIndex < NumClothingAssetsToApply; ++AssetIndex)
+			{
+				// Only if the same section exists
+				if(LodModel.Sections.IsValidIndex(ClothingAssetSectionIndices[AssetIndex]))
+				{
+					UClothingAssetBase* AssetToApply = ClothingAssetsInUse[AssetIndex];
+					AssetToApply->BindToSkeletalMesh(SelectedSkelMesh, LODLevel, ClothingAssetSectionIndices[AssetIndex], ClothingAssetInternalLodIndices[AssetIndex]);
+				}
+			}
+		}
+
+		if (bMustReimportAlternateSkinWeightProfile)
+		{
+			FLODUtilities::ReimportAlternateSkinWeight(SelectedSkelMesh, LODLevel, true);
+		}
+
 		return bSuccess;
 	}
 
@@ -661,12 +657,11 @@ namespace FbxMeshUtils
 		}
 		else if (StaticMesh)
 		{
-			if (StaticMesh->IsSourceModelValid(LODLevel))
+			if (StaticMesh->SourceModels.IsValidIndex(LODLevel))
 			{
-				const FStaticMeshSourceModel& SourceModel = StaticMesh->GetSourceModel(LODLevel);
-				FilenameToImport = SourceModel.SourceImportFilename.IsEmpty() ?
-					SourceModel.SourceImportFilename :
-					UAssetImportData::ResolveImportFilename(SourceModel.SourceImportFilename, nullptr);
+				FilenameToImport = StaticMesh->SourceModels[LODLevel].SourceImportFilename.IsEmpty() ?
+					StaticMesh->SourceModels[LODLevel].SourceImportFilename :
+					UAssetImportData::ResolveImportFilename(StaticMesh->SourceModels[LODLevel].SourceImportFilename, nullptr);
 			}
 		}
 

@@ -92,7 +92,7 @@ void FxaaVS(
 		TextureAndSampler.smpl = PostprocessInput0Sampler;
 		TextureAndSampler.UVMinMax = PostprocessInput0MinMax;
 
-		OutColor = FxaaPixelShader(
+		OutColor = float4(FxaaPixelShader(
 			TexCenter, TexCorners,
 			TextureAndSampler,
 			TextureAndSampler,
@@ -107,11 +107,7 @@ void FxaaVS(
 			fxaaConsoleEdgeSharpness,
 			fxaaConsoleEdgeThreshold,
 			fxaaConsoleEdgeThresholdMin,
-			fxaaConsole360ConstDir);
-
-		#if (POST_PROCESS_ALPHA != 2)
-			OutColor.a = 1.0;
-		#endif
+			fxaaConsole360ConstDir).rgb, 1.0f);
 
 //		OutColor = Texture2DSample(PostprocessInput0, PostprocessInput0Sampler, TexCenter.xy);
 //		OutColor = Texture2DSample(PostprocessInput0, PostprocessInput0Sampler, TexCenter.xy + fxaaQualityRcpFrame *0.5f);

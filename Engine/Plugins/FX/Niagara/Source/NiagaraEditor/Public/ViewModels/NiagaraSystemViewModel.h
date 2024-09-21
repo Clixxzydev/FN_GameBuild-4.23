@@ -96,16 +96,6 @@ public:
 	DECLARE_MULTICAST_DELEGATE(FOnPinnedCurvesChanged);
 
 public:
-	struct FEmitterHandleToDuplicate
-	{
-		FString SystemPath;
-		FGuid EmitterHandleId;
-		bool operator==(const FEmitterHandleToDuplicate& Other) const
-		{
-			return SystemPath == Other.SystemPath && EmitterHandleId == Other.EmitterHandleId;
-		}
-	};
-	
 	/** Defines different multi-system reset modes for this system view model */
 	enum class EMultiResetMode
 	{
@@ -132,8 +122,10 @@ public:
 		/** Reset this system (do not pull in changes) */
 		ResetSystem,
 	};
+
+public:
 	/** Creates a new view model with the supplied System and System instance. */
-	FNiagaraSystemViewModel(UNiagaraSystem& InSystem, FNiagaraSystemViewModelOptions InOptions, TOptional<const FGuid> InMessageLogGuid = TOptional<const FGuid>());
+	FNiagaraSystemViewModel(UNiagaraSystem& InSystem, FNiagaraSystemViewModelOptions InOptions);
 
 	~FNiagaraSystemViewModel();
 
@@ -226,7 +218,7 @@ public:
 	void CompileSystem(bool bForce);
 
 	/* Get the latest status of this view-model's script compilation.*/
-	ENiagaraScriptCompileStatus GetLatestCompileStatus() const;
+	ENiagaraScriptCompileStatus GetLatestCompileStatus();
 
 	/** Gets the ids for the currently selected emitter handles. */
 	const TArray<FGuid>& GetSelectedEmitterHandleIds();
@@ -298,15 +290,8 @@ public:
 	const TArray<FNiagaraStackModuleData>& GetStackModuleDataForEmitter(TSharedRef<FNiagaraEmitterViewModel> EmitterViewModel);
 
 private:
-
-	/** Sends message jobs to FNiagaraMessageManager for all compile events from the last compile. */
-	void SendLastCompileMessageJobs() const;
-
 	/** Sets up the preview component and System instance. */
 	void SetupPreviewComponentAndInstance();
-
-	/** Resets the emitter handle view models and tracks to remove data from them.  This must be called before modifying the emitter handle collection to prevent accessing invalid data. */
-	void ResetEmitterHandleViewModelsAndTracks();
 
 	/** Rebuilds the emitter handle view models. */
 	void RefreshEmitterHandleViewModels();
@@ -336,13 +321,13 @@ private:
 	void UpdateCompiledDataInterfaces(UNiagaraDataInterface* ChangedDataInterface);
 
 	/** Called whenever a property on the emitter handle changes. */
-	void EmitterHandlePropertyChanged(FGuid EmitterHandleId);
+	void EmitterHandlePropertyChanged(TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel);
 
 	/** Called whenever the name on an emitter handle changes. */
-	void EmitterHandleNameChanged();
+	void EmitterHandleNameChanged(TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel);
 
 	/** Called whenever a property on the emitter changes. */
-	void EmitterPropertyChanged();
+	void EmitterPropertyChanged(TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel);
 
 	/** 
 	 * Called whenever a parameter store owned by the system changes.
@@ -352,7 +337,7 @@ private:
 	void SystemParameterStoreChanged(const FNiagaraParameterStore& ChangedParameterStore, const UNiagaraScript* OwningScript);
 
 	/** Called whenever an emitter's script graph changes. */
-	void EmitterScriptGraphChanged(const FEdGraphEditAction& InAction, const UNiagaraScript& OwningScript, FGuid EmitterHandleId);
+	void EmitterScriptGraphChanged(const FEdGraphEditAction& InAction, const UNiagaraScript& OwningScript, const TSharedRef<FNiagaraEmitterHandleViewModel> OwningEmitterHandleViewModel);
 
 	/** Called whenever the system script graph changes. */
 	void SystemScriptGraphChanged(const FEdGraphEditAction& InAction);
@@ -362,7 +347,7 @@ private:
 	* @param ChangedParameterStore The parameter store that changed.
 	* @param OwningScript The script that owns the parameter store, if there is one.
 	*/
-	void EmitterParameterStoreChanged(const FNiagaraParameterStore& ChangedParameterStore, const UNiagaraScript& OwningScript);
+	void EmitterParameterStoreChanged(const FNiagaraParameterStore& ChangedParameterStore, const UNiagaraScript& OwningScript, const TSharedRef<FNiagaraEmitterHandleViewModel> OwningEmitterHandleViewModel);
 
 	/** Updates the current simulation for a parameter changing, based on the current simulation options. */
 	void UpdateSimulationFromParameterChange();
@@ -401,7 +386,7 @@ private:
 	void SystemInstanceReset();
 
 	/** Duplicates a set of emitters and refreshes everything.*/
-	void DuplicateEmitters(TArray<FEmitterHandleToDuplicate> EmitterHandlesToDuplicate);
+	void DuplicateEmitters(TSet<FGuid> EmitterHandleIdsToDuplicate);
 
 	/** Adds event handler for the system's scripts. */
 	void AddSystemEventHandlers();
@@ -543,7 +528,4 @@ private:
 
 	/** An array of emitter handle ids which need their sequencer tracks refreshed next frame. */
 	TArray<FGuid> EmitterIdsRequiringSequencerTrackUpdate;
-
-	/** GUID used when sending message jobs to FNiagaraMessageManager for notifying the FNiagaraMessageLogViewModel with the same GUID key */
-	const TOptional<const FGuid> SystemMessageLogGuidKey;
 };

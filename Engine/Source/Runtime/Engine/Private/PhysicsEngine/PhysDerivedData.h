@@ -7,11 +7,11 @@
 #include "EngineDefines.h"
 #include "PhysXIncludes.h"
 #include "Stats/Stats.h"
-#include "PhysDerivedDataPublic.h"
+#include "Physics/PhysDerivedDataPublic.h"
 
 #if WITH_PHYSX && WITH_EDITOR
 #include "DerivedDataPluginInterface.h"
-#include "IPhysXCooking.h"
+#include "Physics/IPhysXCooking.h"
 
 class UBodySetup;
 struct FBodyInstance;

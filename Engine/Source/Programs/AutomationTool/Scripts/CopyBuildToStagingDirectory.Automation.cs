@@ -31,23 +31,17 @@ public partial class Project : CommandUtils
 	/// <returns>The path for the BuildPatchTool executable depending on host platform.</returns>
 	private static string GetBuildPatchToolExecutable()
 	{
-		if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win32)
+		switch (UnrealBuildTool.BuildHostPlatform.Current.Platform)
 		{
-			return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Win32/BuildPatchTool.exe");
+			case UnrealTargetPlatform.Win32:
+				return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Win32/BuildPatchTool.exe");
+			case UnrealTargetPlatform.Win64:
+				return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Win64/BuildPatchTool.exe");
+			case UnrealTargetPlatform.Mac:
+				return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Mac/BuildPatchTool");
+			case UnrealTargetPlatform.Linux:
+				return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Linux/BuildPatchTool");
 		}
-		if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Win64)
-		{
-			return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Win64/BuildPatchTool.exe");
-		}
-		if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Mac)
-		{
-			return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Mac/BuildPatchTool");
-		}
-		if (UnrealBuildTool.BuildHostPlatform.Current.Platform == UnrealTargetPlatform.Linux)
-		{
-			return CommandUtils.CombinePaths(CommandUtils.CmdEnv.LocalRoot, "Engine/Binaries/Linux/BuildPatchTool");
-		}
-
 		throw new AutomationException(string.Format("Unknown host platform for BuildPatchTool - {0}", UnrealBuildTool.BuildHostPlatform.Current.Platform));
 	}
 
@@ -1458,7 +1452,7 @@ public partial class Project : CommandUtils
 				continue;
 			}
 
-			IReadOnlyList<string> FilesEnumberable;
+			IEnumerable<string> FilesEnumberable;
 			if (PakRulesConfig.TryGetValues(SectionName, "Files", out FilesEnumberable))
 			{
 				// Only add if we have actual files, we can end up with none due to config overriding
@@ -2047,17 +2041,13 @@ public partial class Project : CommandUtils
 					string ChunkInstallBasePath = CombinePaths(Params.ChunkInstallDirectory, SC.FinalCookPlatform);
 					string RawDataPath = CombinePaths(ChunkInstallBasePath, VersionString, PakName);
 					string RawDataPakPath = CombinePaths(RawDataPath, PakName + "-" + SC.FinalCookPlatform + PostFix + ".pak");
-					bool bPakFilesAreSigned = InternalUtils.SafeFileExists(Path.ChangeExtension(OutputLocation.FullName, ".sig"));
-
 					//copy the pak chunk to the raw data folder
-					InternalUtils.SafeDeleteFile(RawDataPakPath, true);
-					InternalUtils.SafeDeleteFile(Path.ChangeExtension(RawDataPakPath, ".sig"), true);
+					if (InternalUtils.SafeFileExists(RawDataPakPath, true))
+					{
+						InternalUtils.SafeDeleteFile(RawDataPakPath, true);
+					}
 					InternalUtils.SafeCreateDirectory(RawDataPath, true);
 					InternalUtils.SafeCopyFile(OutputLocation.FullName, RawDataPakPath);
-					if (bPakFilesAreSigned)
-					{
-						InternalUtils.SafeCopyFile(Path.ChangeExtension(OutputLocation.FullName, ".sig"), Path.ChangeExtension(RawDataPakPath, ".sig"), true);
-					}
 					InternalUtils.SafeDeleteFile(OutputLocation.FullName, true);
 
 					if (Params.IsGeneratingPatch)
@@ -2070,10 +2060,6 @@ public partial class Project : CommandUtils
 						// for distribution.
 						string SourceRawDataPakPath = CombinePaths(RawDataPath, PakName + "-" + SC.FinalCookPlatform + ".pak");
 						InternalUtils.SafeCopyFile(PatchSourceContentPath, SourceRawDataPakPath);
-						if (bPakFilesAreSigned)
-						{
-							InternalUtils.SafeCopyFile(PatchSourceContentPath, Path.ChangeExtension(SourceRawDataPakPath, ".sig"), true);
-						}
 					}
 
 					string BuildRoot = MakePathSafeToUseWithCommandLine(RawDataPath);

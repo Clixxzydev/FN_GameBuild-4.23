@@ -220,7 +220,6 @@ protected:
 	bool bEQActive;
 	bool bReverbChanged;
 	bool bEQChanged;
-	bool bUseLegacyReverb;
 };
 
 // end 

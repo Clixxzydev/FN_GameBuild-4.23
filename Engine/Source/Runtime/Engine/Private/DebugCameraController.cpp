@@ -59,8 +59,7 @@ ADebugCameraController::ADebugCameraController(const FObjectInitializer& ObjectI
 
 	bEnableBufferVisualization = false;
 	bEnableBufferVisualizationFullMode = false;
-	bIsBufferVisualizationInputSetup = false;
-	bLastDisplayEnabled = true;
+	LastViewModeIndex = VMI_Lit;
 	LastViewModeSettingsIndex = 0;
 }
 
@@ -83,6 +82,13 @@ void InitializeDebugCameraInputBindings()
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_FreezeRendering", EKeys::F));
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_OrbitHitPoint", EKeys::O));
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_OrbitCenter", EKeys::O, true));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_CycleViewMode", EKeys::V));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_ToggleBufferVisualizationOverview", EKeys::B));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationUp", EKeys::Up));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationDown", EKeys::Down));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationRight", EKeys::Right));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationLeft", EKeys::Left));
+		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_ToggleBufferVisualizationFull", EKeys::Enter));
 
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_Select", EKeys::Gamepad_RightTrigger));
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_IncreaseSpeed", EKeys::Gamepad_RightShoulder));
@@ -91,31 +97,6 @@ void InitializeDebugCameraInputBindings()
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_DecreaseFOV", EKeys::Gamepad_DPad_Down));
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_ToggleDisplay", EKeys::Gamepad_FaceButton_Left));
 		UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_FreezeRendering", EKeys::Gamepad_FaceButton_Top));
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
-		if (ADebugCameraController::EnableDebugViewmodes())
-		{
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_CycleViewMode", EKeys::V));
-		}
-
-		if (ADebugCameraController::EnableDebugBuffers())
-		{
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_ToggleBufferVisualizationOverview", EKeys::B));
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_ToggleBufferVisualizationFull", EKeys::Enter));
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationUp", EKeys::Up));
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationDown", EKeys::Down));
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationLeft", EKeys::Left));
-			UPlayerInput::AddEngineDefinedActionMapping(FInputActionKeyMapping("DebugCamera_BufferVisualizationRight", EKeys::Right));
-
-			// The following axis mappings must be defined to override ADefaultPawn axis mappings when buffer visualization is enabled
-			UPlayerInput::AddEngineDefinedAxisMapping(FInputAxisKeyMapping("DebugCamera_DisableAxisMotion", EKeys::Up, 1.f));
-			UPlayerInput::AddEngineDefinedAxisMapping(FInputAxisKeyMapping("DebugCamera_DisableAxisMotion", EKeys::Down, -1.f));
-			UPlayerInput::AddEngineDefinedAxisMapping(FInputAxisKeyMapping("DebugCamera_DisableAxisMotion", EKeys::Left, -1.f));
-			UPlayerInput::AddEngineDefinedAxisMapping(FInputAxisKeyMapping("DebugCamera_DisableAxisMotion", EKeys::Right, 1.f));
-		}
-
-#endif
 	}
 }
 
@@ -137,81 +118,19 @@ void ADebugCameraController::SetupInputComponent()
 	InputComponent->BindAction("DebugCamera_FreezeRendering", IE_Pressed, this, &ADebugCameraController::ToggleFreezeRendering);
 	InputComponent->BindAction("DebugCamera_OrbitHitPoint", IE_Pressed, this, &ADebugCameraController::ToggleOrbitHitPoint);
 	InputComponent->BindAction("DebugCamera_OrbitCenter", IE_Pressed, this, &ADebugCameraController::ToggleOrbitCenter);
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
-	if (ADebugCameraController::EnableDebugViewmodes())
-	{
-		InputComponent->BindAction("DebugCamera_CycleViewMode", IE_Pressed, this, &ADebugCameraController::CycleViewMode);
-	}
-
-	if (ADebugCameraController::EnableDebugBuffers())
-	{
-		InputComponent->BindAction("DebugCamera_ToggleBufferVisualizationOverview", IE_Pressed, this, &ADebugCameraController::ToggleBufferVisualizationOverviewMode);
-		InputComponent->BindAction("DebugCamera_ToggleBufferVisualizationFull", IE_Pressed, this, &ADebugCameraController::ToggleBufferVisualizationFullMode);
-	}
-
-#endif
+	InputComponent->BindAction("DebugCamera_CycleViewMode", IE_Pressed, this, &ADebugCameraController::CycleViewMode);
+	InputComponent->BindAction("DebugCamera_ToggleBufferVisualizationOverview", IE_Pressed, this, &ADebugCameraController::ToggleBufferVisualizationOverviewMode);
+	InputComponent->BindAction("DebugCamera_BufferVisualizationUp", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveUp);
+	InputComponent->BindAction("DebugCamera_BufferVisualizationDown", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveDown);
+	InputComponent->BindAction("DebugCamera_BufferVisualizationRight", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveRight);
+	InputComponent->BindAction("DebugCamera_BufferVisualizationLeft", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveLeft);
+	InputComponent->BindAction("DebugCamera_ToggleBufferVisualizationFull", IE_Pressed, this, &ADebugCameraController::ToggleBufferVisualizationFullMode);
 
 	InputComponent->BindTouch(IE_Pressed, this, &ADebugCameraController::OnTouchBegin);
 	InputComponent->BindTouch(IE_Released, this, &ADebugCameraController::OnTouchEnd);
 	InputComponent->BindTouch(IE_Repeat, this, &ADebugCameraController::OnFingerMove);
 }
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
-void ADebugCameraController::SetupBufferVisualizationOverviewInput()
-{
-	if (InputComponent)
-	{
-		if (bEnableBufferVisualization && !bEnableBufferVisualizationFullMode)
-		{
-			if (!bIsBufferVisualizationInputSetup)
-			{
-				InputComponent->BindAction("DebugCamera_BufferVisualizationUp", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveUp);
-				InputComponent->BindAction("DebugCamera_BufferVisualizationDown", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveDown);
-				InputComponent->BindAction("DebugCamera_BufferVisualizationRight", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveRight);
-				InputComponent->BindAction("DebugCamera_BufferVisualizationLeft", IE_Pressed, this, &ADebugCameraController::BufferVisualizationMoveLeft);
-				InputComponent->BindAxis("DebugCamera_DisableAxisMotion", this, &ADebugCameraController::ConsumeAxisMotion);
-				bIsBufferVisualizationInputSetup = true;
-			}
-		}
-		else
-		{
-			if (bIsBufferVisualizationInputSetup)
-			{
-				// find any bindings that match the action names and remove them
-				for (int32 CurrentBindingIndex = 0; CurrentBindingIndex < InputComponent->GetNumActionBindings(); ++CurrentBindingIndex)
-				{
-					const FInputActionBinding& Binding = InputComponent->GetActionBinding(CurrentBindingIndex);
-					FName ActionName = Binding.GetActionName();
-					if (ActionName == "DebugCamera_BufferVisualizationUp"    ||
-						ActionName == "DebugCamera_BufferVisualizationDown"  ||
-						ActionName == "DebugCamera_BufferVisualizationRight" ||
-						ActionName == "DebugCamera_BufferVisualizationLeft")
-					{
-						InputComponent->RemoveActionBinding(CurrentBindingIndex);
-						--CurrentBindingIndex;
-					}
-				}
-
-				// find the axis binding and remove it
-				for (int32 CurrentAxisBindingIndex = 0; CurrentAxisBindingIndex < InputComponent->AxisBindings.Num(); ++CurrentAxisBindingIndex)
-				{
-					const FInputAxisBinding& Binding = InputComponent->AxisBindings[CurrentAxisBindingIndex];
-					if (Binding.AxisName == "DebugCamera_DisableAxisMotion")
-					{
-						InputComponent->AxisBindings.RemoveAt(CurrentAxisBindingIndex, 1, false);
-						--CurrentAxisBindingIndex;
-					}
-				}
-				bIsBufferVisualizationInputSetup = false;
-			}
-		}
-	}
-}
-
-#endif 
 
 void ADebugCameraController::OnTouchBegin(ETouchIndex::Type FingerIndex, FVector Location)
 {
@@ -335,8 +254,7 @@ ASpectatorPawn* ADebugCameraController::SpawnSpectatorPawn()
 			SpawnParams.Owner = this;
 			SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 			SpawnParams.ObjectFlags |= RF_Transient;	// We never want to save spectator pawns into a map
-
-			SpawnedSpectator = GetWorld()->SpawnActor<ASpectatorPawn>((*GameState->SpectatorClass ? *GameState->SpectatorClass : ASpectatorPawn::StaticClass()), GetSpawnLocation(), GetControlRotation(), SpawnParams);
+			SpawnedSpectator = GetWorld()->SpawnActor<ASpectatorPawn>(ASpectatorPawn::StaticClass(), GetSpawnLocation(), GetControlRotation(), SpawnParams);
 			if (SpawnedSpectator)
 			{
 				SpawnedSpectator->PossessedBy(this);
@@ -473,15 +391,6 @@ void ADebugCameraController::OnDeactivate( APlayerController* RestoredPC )
 		ConsoleCommand(TEXT("FreezeRendering"));
 		bIsFrozenRendering = false;
 	}
-
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
-	if (bEnableBufferVisualization)
-	{
-		ToggleBufferVisualizationOverviewMode();
-	}
-
-#endif
 
 	bIsOrbitingSelectedActor = false;
 
@@ -705,18 +614,6 @@ void ADebugCameraController::ToggleOrbitHitPoint()
 	ToggleOrbit(false);
 }
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-
-bool ADebugCameraController::EnableDebugViewmodes()
-{
-	return AllowDebugViewmodes();
-}
-
-bool ADebugCameraController::EnableDebugBuffers()
-{
-	return AllowDebugViewmodes();
-}
-
 void ADebugCameraController::CycleViewMode()
 {
 	if (bEnableBufferVisualization)
@@ -730,14 +627,14 @@ void ADebugCameraController::CycleViewMode()
 
 		if (DebugViewModes.Num() == 0)
 		{
-			UE_LOG(LogPlayerController, Warning, TEXT("Debug camera controller settings must specify at least one view mode for view mode cycling."));
+			UE_LOG(LogController, Warning, TEXT("Debug camera controller settings must specify at least one view mode for view mode cycling."));
 			return;
 		}
 
 		int32 CurrViewModeIndex = GameViewportClient->ViewModeIndex;
 		int32 CurrIndex = LastViewModeSettingsIndex;
 
-		int32 NextIndex = CurrIndex < DebugViewModes.Num() ? (CurrIndex + 1) % DebugViewModes.Num() : 0;
+		int32 NextIndex = (CurrIndex < DebugViewModes.Num() && CurrViewModeIndex == DebugViewModes[CurrIndex]) ? (CurrIndex + 1) % DebugViewModes.Num() : 0;
 		int32 NextViewModeIndex = DebugViewModes[NextIndex];
 
 		if (NextViewModeIndex != CurrViewModeIndex)
@@ -749,14 +646,12 @@ void ADebugCameraController::CycleViewMode()
 				FString Cmd(TEXT("VIEWMODE "));
 				Cmd += NextViewModeName;
 				GameViewportClient->ConsoleCommand(Cmd);
-			}
-			else
-			{
-				UE_LOG(LogPlayerController, Warning, TEXT("Invalid view mode index %d."), NextViewModeIndex);
+
 			}
 		}
 
 		LastViewModeSettingsIndex = NextIndex;
+		LastViewModeIndex = NextViewModeIndex;
 	}
 }
 
@@ -766,38 +661,25 @@ TArray<FString> ADebugCameraController::GetBufferVisualizationOverviewTargets()
 
 	// Get the list of requested buffers from the console
 	static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.BufferVisualizationOverviewTargets"));
-	if (CVar)
-	{
-		FString SelectedBufferNames = CVar->GetString();
+	FString SelectedBufferNames = CVar->GetString();
 
-		// Extract each material name from the comma separated string
-		while (SelectedBufferNames.Len() && SelectedBuffers.Num() < 16)
+	// Extract each material name from the comma separated string
+	while (SelectedBufferNames.Len())
+	{
+		FString Left, Right;
+
+		// Detect last entry in the list
+		if (!SelectedBufferNames.Split(TEXT(","), &Left, &Right))
 		{
-			FString Left, Right;
-
-			// Detect last entry in the list
-			if (!SelectedBufferNames.Split(TEXT(","), &Left, &Right))
-			{
-				Left = SelectedBufferNames;
-				Right = FString();
-			}
-
-			Left.TrimStartInline();
-			if (GetBufferMaterialName(*Left).IsEmpty())
-			{
-				SelectedBuffers.Add(TEXT(""));
-			}
-			else
-			{
-				SelectedBuffers.Add(*Left);
-			}
-			SelectedBufferNames = Right;
+			Left = SelectedBufferNames;
+			Right = FString();
 		}
+
+		Left.TrimStartInline();
+		SelectedBuffers.Add(*Left);
+		SelectedBufferNames = Right;
 	}
-	else
-	{
-		UE_LOG(LogPlayerController, Warning, TEXT("Console variable r.BufferVisualizationOverviewTargets is not found."));
-	}
+
 	return SelectedBuffers;
 }
 
@@ -808,44 +690,42 @@ void ADebugCameraController::ToggleBufferVisualizationOverviewMode()
 	if (UGameViewportClient* GameViewportClient = GetWorld()->GetGameViewport())
 	{
 		bEnableBufferVisualization = !bEnableBufferVisualization;
+		bEnableBufferVisualizationFullMode = false;
 
 		FString Cmd(TEXT("VIEWMODE "));
 
 		if (bEnableBufferVisualization)
 		{
 			Cmd += GetViewModeName(VMI_VisualizeBuffer);
+			LastViewModeIndex = GameViewportClient->ViewModeIndex;
 
 			TArray<FString> SelectedBuffers = GetBufferVisualizationOverviewTargets();
 
-			if (CurrSelectedBuffer.IsEmpty() || !SelectedBuffers.Contains(CurrSelectedBuffer))
+			if (LastSelectedBuffer.IsEmpty() || !SelectedBuffers.Contains(LastSelectedBuffer))
 			{
 				GetNextBuffer(SelectedBuffers, 1);
 			}
-
-			bLastDisplayEnabled = IsDisplayEnabled();
-			SetDisplay(false);
 		}
 		else
 		{
-			Cmd += GetViewModeName(EViewModeIndex::VMI_Lit);
-			SetDisplay(bLastDisplayEnabled);
+			Cmd += GetViewModeName((EViewModeIndex)LastViewModeIndex);
 		}
 
 		GameViewportClient->ConsoleCommand(Cmd);
-
-		SetupBufferVisualizationOverviewInput();
 	}
 }
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 void ADebugCameraController::UpdateVisualizeBufferPostProcessing(FFinalPostProcessSettings& InOutPostProcessingSettings)
 {
 	if (bEnableBufferVisualization)
 	{
-		FString BufferMaterialName = GetSelectedBufferMaterialName();
-		if (!BufferMaterialName.IsEmpty())
+		FName TargetBufferName = *LastSelectedBuffer;
+		if (UMaterial* Material = GetBufferVisualizationData().GetMaterial(TargetBufferName))
 		{
 			InOutPostProcessingSettings.bBufferVisualizationOverviewTargetIsSelected = true;
-			InOutPostProcessingSettings.BufferVisualizationOverviewSelectedTargetMaterialName = BufferMaterialName;
+			InOutPostProcessingSettings.BufferVisualizationOverviewSelectedTargetMaterialName = Material->GetName();
 			return;
 		}
 	}
@@ -854,9 +734,11 @@ void ADebugCameraController::UpdateVisualizeBufferPostProcessing(FFinalPostProce
 	InOutPostProcessingSettings.BufferVisualizationOverviewSelectedTargetMaterialName.Empty();
 }
 
+#endif
+
 void ADebugCameraController::GetNextBuffer(int32 Step)
 {
-	if (bEnableBufferVisualization && !bEnableBufferVisualizationFullMode)
+	if (bEnableBufferVisualization)
 	{
 		TArray<FString> OverviewBuffers = GetBufferVisualizationOverviewTargets();
 		GetNextBuffer(OverviewBuffers, Step);
@@ -865,17 +747,17 @@ void ADebugCameraController::GetNextBuffer(int32 Step)
 
 void ADebugCameraController::GetNextBuffer(const TArray<FString>& OverviewBuffers, int32 Step)
 {
-	if (bEnableBufferVisualization && !bEnableBufferVisualizationFullMode)
+	if (bEnableBufferVisualization)
 	{
 		int32 BufferIndex = 0;
 
-		if (!CurrSelectedBuffer.IsEmpty())
+		if (!LastSelectedBuffer.IsEmpty())
 		{
 			bool bFoundIndex = false;
 
 			for (int32 Index = 0; Index < OverviewBuffers.Num(); Index++)
 			{
-				if (OverviewBuffers[Index] == CurrSelectedBuffer)
+				if (OverviewBuffers[Index] == LastSelectedBuffer)
 				{
 					BufferIndex = Index;
 					bFoundIndex = true;
@@ -885,17 +767,17 @@ void ADebugCameraController::GetNextBuffer(const TArray<FString>& OverviewBuffer
 
 			if (!bFoundIndex)
 			{
-				CurrSelectedBuffer.Empty();
+				LastSelectedBuffer.Empty();
 			}
 		}
 
-		if (CurrSelectedBuffer.IsEmpty())
+		if (LastSelectedBuffer.IsEmpty())
 		{
 			for (FString Buffer : OverviewBuffers)
 			{
 				if (!Buffer.IsEmpty())
 				{
-					CurrSelectedBuffer = Buffer;
+					LastSelectedBuffer = Buffer;
 					break;
 				}
 			}
@@ -927,7 +809,7 @@ void ADebugCameraController::GetNextBuffer(const TArray<FString>& OverviewBuffer
 			{
 				if (!OverviewBuffers[NextIndex].IsEmpty())
 				{
-					CurrSelectedBuffer = OverviewBuffers[NextIndex];
+					LastSelectedBuffer = OverviewBuffers[NextIndex];
 					break;
 				}
 				NextIndex = Wrap(NextIndex + Step);
@@ -956,29 +838,6 @@ void ADebugCameraController::BufferVisualizationMoveLeft()
 	GetNextBuffer(-1);
 }
 
-FString ADebugCameraController::GetBufferMaterialName(const FString& InBufferName)
-{
-	if (!InBufferName.IsEmpty())
-	{
-		if (UMaterial* Material = GetBufferVisualizationData().GetMaterial(*InBufferName))
-		{
-			return Material->GetName();
-		}
-	}
-
-	return TEXT("");
-}
-
-FString ADebugCameraController::GetSelectedBufferMaterialName()
-{
-	return GetBufferMaterialName(CurrSelectedBuffer);
-}
-
-void ADebugCameraController::ConsumeAxisMotion(float Val)
-{
-	// Just ignore the axis motion.
-}
-
 void ADebugCameraController::ToggleBufferVisualizationFullMode()
 {
 	SetBufferVisualizationFullMode(!bEnableBufferVisualizationFullMode);
@@ -986,27 +845,15 @@ void ADebugCameraController::ToggleBufferVisualizationFullMode()
 
 void ADebugCameraController::SetBufferVisualizationFullMode(bool bFullMode)
 {
-	if (bEnableBufferVisualizationFullMode != bFullMode)
+	bEnableBufferVisualizationFullMode = bFullMode;
+
+	static IConsoleVariable* ICVar = IConsoleManager::Get().FindConsoleVariable(FBufferVisualizationData::GetVisualizationTargetConsoleCommandName());
+	if (ICVar)
 	{
-		static IConsoleVariable* ICVar = IConsoleManager::Get().FindConsoleVariable(FBufferVisualizationData::GetVisualizationTargetConsoleCommandName());
-		if (ICVar)
-		{
-			bEnableBufferVisualizationFullMode = bFullMode;
-
-			static const FName EmptyName = NAME_None;
-			ICVar->Set(bFullMode ? *CurrSelectedBuffer : *EmptyName.ToString(), ECVF_SetByCode);
-
-			SetupBufferVisualizationOverviewInput();
-			SetDisplay(bEnableBufferVisualizationFullMode);
-		}
-		else
-		{
-			UE_LOG(LogPlayerController, Verbose, TEXT("Console variable %s does not exist."), FBufferVisualizationData::GetVisualizationTargetConsoleCommandName());
-		}
+		static const FName EmptyName = NAME_None;
+		ICVar->Set(bFullMode ? *LastSelectedBuffer : *EmptyName.ToString(), ECVF_SetByCode);
 	}
 }
-
-#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
 void ADebugCameraController::SelectTargetedObject()
 {
@@ -1081,18 +928,5 @@ void ADebugCameraController::ToggleDisplay()
 	if (MyHUD)
 	{
 		MyHUD->ShowHUD();
-	}
-}
-
-bool ADebugCameraController::IsDisplayEnabled()
-{
-	return (MyHUD && MyHUD->bShowHUD);
-}
-
-void ADebugCameraController::SetDisplay(bool bEnabled)
-{
-	if (IsDisplayEnabled() != bEnabled)
-	{
-		ToggleDisplay();
 	}
 }

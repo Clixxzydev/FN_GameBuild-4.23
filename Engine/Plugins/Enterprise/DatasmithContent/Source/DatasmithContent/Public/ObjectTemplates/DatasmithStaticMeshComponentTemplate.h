@@ -7,7 +7,7 @@
 #include "DatasmithStaticMeshComponentTemplate.generated.h"
 
 UCLASS()
-class DATASMITHCONTENT_API UDatasmithStaticMeshComponentTemplate : public UDatasmithObjectTemplate
+class DATASMITHCONTENT_API UDatasmithStaticMeshComponentTemplate : public UDatasmithSceneComponentTemplate
 {
 	GENERATED_BODY()
 
@@ -19,7 +19,7 @@ public:
 	UPROPERTY()
 	TArray< class UMaterialInterface* > OverrideMaterials;
 
-	virtual UObject* UpdateObject( UObject* Destination, bool bForce = false ) override;
+	virtual void Apply( UObject* Destination, bool bForce = false ) override;
 	virtual void Load( const UObject* Source ) override;
 	virtual bool Equals( const UDatasmithObjectTemplate* Other ) const override;
 };

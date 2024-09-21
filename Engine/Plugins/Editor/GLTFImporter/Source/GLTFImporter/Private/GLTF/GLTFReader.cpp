@@ -25,10 +25,7 @@ namespace GLTF
 			// Data URIs look like "data:[<mime-type>][;encoding],<data>"
 			// glTF always uses base64 encoding for data URIs
 
-			if (!ensure(URI.StartsWith(TEXT("data:"))))
-			{
-				return false;
-			}
+			check(URI.StartsWith(TEXT("data:")));
 
 			int32      Semicolon, Comma;
 			const bool HasSemicolon = URI.FindChar(TEXT(';'), Semicolon);
@@ -56,10 +53,7 @@ namespace GLTF
 			// Data URIs look like "data:[<mime-type>][;encoding],<data>"
 			// glTF always uses base64 encoding for data URIs
 
-			if (!ensure(URI.StartsWith(TEXT("data:"))))
-			{
-				return false;
-			}
+			check(URI.StartsWith(TEXT("data:")));
 
 			int32      Semicolon, Comma;
 			const bool HasSemicolon = URI.FindChar(TEXT(';'), Semicolon);
@@ -124,7 +118,8 @@ namespace GLTF
 				FString MimeType;
 				uint32  DataSize = 0;
 				bool    bSuccess = DecodeDataURI(URI, MimeType, CurrentBufferOffset, DataSize);
-				if (!bSuccess || MimeType != TEXT("application/octet-stream") || !ensure(DataSize == ByteLength))
+				check(DataSize == ByteLength);
+				if (!bSuccess || MimeType != TEXT("application/octet-stream"))
 				{
 					Messages.Emplace(EMessageSeverity::Error, TEXT("Problem decoding buffer from data URI."));
 				}
@@ -156,7 +151,7 @@ namespace GLTF
 				}
 				else
 				{
-					Messages.Emplace(EMessageSeverity::Error, FString::Printf(TEXT("Could not load file: '%s'"), *FullPath));
+					Messages.Emplace(EMessageSeverity::Error, TEXT("Could not load file."));
 				}
 			}
 		}
@@ -374,13 +369,13 @@ namespace GLTF
 				const FJsonObject& SamplerObject = *Value->AsObject();
 				const int32        Input         = GetIndex(SamplerObject, TEXT("input"));
 				const int32        Output        = GetIndex(SamplerObject, TEXT("output"));
-				if (ensure((Input != INDEX_NONE) && (Output != INDEX_NONE)))
-				{
-					FAnimation::FSampler Sampler(Asset->Accessors[Input], Asset->Accessors[Output]);
-					Sampler.Interpolation =
-						(FAnimation::EInterpolation)GetUnsignedInt(SamplerObject, TEXT("interpolation"), (uint32)Sampler.Interpolation);
-					Animation.Samplers.Add(Sampler);
-				}
+				check(Input != INDEX_NONE);
+				check(Output != INDEX_NONE);
+
+				FAnimation::FSampler Sampler(Asset->Accessors[Input], Asset->Accessors[Output]);
+				Sampler.Interpolation =
+				    (FAnimation::EInterpolation)GetUnsignedInt(SamplerObject, TEXT("interpolation"), (uint32)Sampler.Interpolation);
+				Animation.Samplers.Add(Sampler);
 			}
 		}
 
@@ -392,17 +387,11 @@ namespace GLTF
 			{
 				const FJsonObject& ChannelObject = *Value->AsObject();
 				const int32        Index         = GetIndex(ChannelObject, TEXT("sampler"));
-				if (!ensure(Index != INDEX_NONE))
-				{
-					continue;
-				}
+				check(Index != INDEX_NONE);
 
 				const FJsonObject& TargetObject = *ChannelObject.GetObjectField(TEXT("target"));
 				const int32        NodeIndex    = GetIndex(TargetObject, TEXT("node"));
-				if (!ensure(NodeIndex != INDEX_NONE))
-				{
-					continue;
-				}
+				check(NodeIndex != INDEX_NONE);
 
 				FAnimation::FChannel Channel(Asset->Nodes[NodeIndex]);
 				Channel.Sampler     = Index;
@@ -467,7 +456,11 @@ namespace GLTF
 				Image.Format = ImageFormatFromFilename(Image.URI);
 
 				Image.FilePath = Path / Image.URI;
-				if (bInLoadImageData)
+				if (!FPaths::FileExists(Image.FilePath))
+				{
+					Messages.Emplace(EMessageSeverity::Error, TEXT("Cannot find image: ") + Image.FilePath);
+				}
+				else if (bInLoadImageData)
 				{
 					FArchive* Reader = IFileManager::Get().CreateFileReader(*Image.FilePath);
 					if (Reader)
@@ -724,7 +717,7 @@ namespace GLTF
 					const uint32 DataSize = GetDecodedDataSize(URI, MimeType);
 					if (DataSize > 0 && MimeType == TEXT("application/octet-stream"))
 					{
-						ensure(DataSize == ByteLength);
+						check(DataSize == ByteLength);
 						ExtraBufferSize += ByteLength;
 					}
 				}
@@ -875,7 +868,7 @@ namespace GLTF
 			}
 			else
 			{
-				ensure(Node.Transform.IsValid());
+				check(Node.Transform.IsValid());
 				if (!Node.Transform.GetRotation().IsIdentity() || !Node.Transform.GetTranslation().IsZero() ||
 				    !Node.Transform.GetScale3D().Equals(FVector(1.f)))
 				{
@@ -887,9 +880,7 @@ namespace GLTF
 		{
 			for (int32 JointIndex : Skin.Joints)
 			{
-				ensure(Asset->Nodes[JointIndex].Type == FNode::EType::None 
-					|| Asset->Nodes[JointIndex].Type == FNode::EType::Transform
-					|| Asset->Nodes[JointIndex].Type == FNode::EType::Joint);
+				check(Asset->Nodes[JointIndex].Type == FNode::EType::None || Asset->Nodes[JointIndex].Type == FNode::EType::Transform);
 				Asset->Nodes[JointIndex].Type = FNode::EType::Joint;
 			}
 		}

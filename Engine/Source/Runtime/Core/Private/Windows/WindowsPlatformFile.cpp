@@ -19,7 +19,6 @@
 #include "Async/AsyncWork.h"
 #include "Misc/ScopeLock.h"
 #include "HAL/IConsoleManager.h"
-#include "ProfilingDebugging/PlatformFileTrace.h"
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 
@@ -179,9 +178,7 @@ protected:
 		if (Handle != nullptr)
 		{
 			// Close the file handle
-			TRACE_PLATFORMFILE_BEGIN_CLOSE(Handle);
 			CloseHandle(Handle);
-			TRACE_PLATFORMFILE_END_CLOSE();
 			Handle = nullptr;
 		}
 		return true;
@@ -228,13 +225,11 @@ protected:
 		uint32 NumRead = 0;
 		if (GetOverlappedResult(Handle, &OverlappedIO, (::DWORD*)&NumRead, true) != false)
 		{
-			TRACE_PLATFORMFILE_END_READ(&OverlappedIO, NumRead);
 			UpdateFileOffsetAfterRead(NumRead);
 			return true;
 		}
 		else if (GetLastError() == ERROR_HANDLE_EOF)
 		{
-			TRACE_PLATFORMFILE_END_READ(&OverlappedIO, 0);
 			bIsAtEOF = true;
 			return true;
 		}
@@ -249,13 +244,11 @@ protected:
 			CurrentAsyncReadBuffer = BufferToReadInto;
 			uint32 NumRead = 0;
 			// Now kick off an async read
-			TRACE_PLATFORMFILE_BEGIN_READ(&OverlappedIO, Handle, OverlappedFilePos, BufferSize);
 			if (!ReadFile(Handle, Buffers[BufferToReadInto], BufferSize, (::DWORD*)&NumRead, &OverlappedIO))
 			{
 				uint32 ErrorCode = GetLastError();
 				if (ErrorCode != ERROR_IO_PENDING)
 				{
-					TRACE_PLATFORMFILE_END_READ(&OverlappedIO, 0);
 					bIsAtEOF = true;
 					bHasReadOutstanding = false;
 				}
@@ -263,7 +256,6 @@ protected:
 			else
 			{
 				// Read completed immediately
-				TRACE_PLATFORMFILE_END_READ(&OverlappedIO, NumRead);
 				UpdateFileOffsetAfterRead(NumRead);
 			}
 		}
@@ -493,13 +485,6 @@ class CORE_API FFileHandleWindows : public IFileHandle
 		OverlappedIO.OffsetHigh = LI.HighPart;
 	}
 
-	FORCEINLINE bool UpdatedNonOverlappedPos()
-	{
-		LARGE_INTEGER LI;
-		LI.QuadPart = FilePos;
-		return SetFilePointer(FileHandle, LI.LowPart, &LI.HighPart, FILE_BEGIN) != INVALID_SET_FILE_POINTER;
-	}
-
 	FORCEINLINE void UpdateFileSize()
 	{
 		LARGE_INTEGER LI;
@@ -521,9 +506,7 @@ public:
 	}
 	virtual ~FFileHandleWindows()
 	{
-		TRACE_PLATFORMFILE_BEGIN_CLOSE(FileHandle);
 		CloseHandle(FileHandle);
-		TRACE_PLATFORMFILE_END_CLOSE();
 		FileHandle = NULL;
 	}
 	virtual int64 Tell(void) override
@@ -558,14 +541,12 @@ public:
 		check(IsValid());
 		uint32 NumRead = 0;
 		// Now kick off an async read
-		TRACE_PLATFORMFILE_BEGIN_READ(&OverlappedIO, FileHandle, FilePos, BytesToRead);
 		if (!ReadFile(FileHandle, Destination, BytesToRead, (::DWORD*)&NumRead, &OverlappedIO))
 		{
 			uint32 ErrorCode = GetLastError();
 			if (ErrorCode != ERROR_IO_PENDING)
 			{
 				// Read failed
-				TRACE_PLATFORMFILE_END_READ(&OverlappedIO, 0);
 				return false;
 			}
 			// Wait for the read to complete
@@ -573,11 +554,9 @@ public:
 			if (!GetOverlappedResult(FileHandle, &OverlappedIO, (::DWORD*)&NumRead, true))
 			{
 				// Read failed
-				TRACE_PLATFORMFILE_END_READ(&OverlappedIO, 0);
 				return false;
 			}
 		}
-		TRACE_PLATFORMFILE_END_READ(&OverlappedIO, NumRead);
 		// Update where we are in the file
 		FilePos += NumRead;
 		UpdateOverlappedPos();
@@ -588,14 +567,12 @@ public:
 		check(IsValid());
 		uint32 NumWritten = 0;
 		// Now kick off an async write
-		TRACE_PLATFORMFILE_BEGIN_WRITE(this, FileHandle, FilePos, BytesToWrite);
 		if (!WriteFile(FileHandle, Source, BytesToWrite, (::DWORD*)&NumWritten, &OverlappedIO))
 		{
 			uint32 ErrorCode = GetLastError();
 			if (ErrorCode != ERROR_IO_PENDING)
 			{
 				// Write failed
-				TRACE_PLATFORMFILE_END_WRITE(this, 0);
 				return false;
 			}
 			// Wait for the write to complete
@@ -603,11 +580,9 @@ public:
 			if (!GetOverlappedResult(FileHandle, &OverlappedIO, (::DWORD*)&NumWritten, true))
 			{
 				// Write failed
-				TRACE_PLATFORMFILE_END_WRITE(this, 0);
 				return false;
 			}
 		}
-		TRACE_PLATFORMFILE_END_WRITE(this, NumWritten);
 		// Update where we are in the file
 		FilePos += NumWritten;
 		UpdateOverlappedPos();
@@ -621,9 +596,8 @@ public:
 	}
 	virtual bool Truncate(int64 NewSize) override
 	{
-		// SetEndOfFile isn't an overlapped operation, so we need to call UpdatedNonOverlappedPos after seeking to ensure that the file pointer is in the correct place
 		check(IsValid());
-		return Seek(NewSize) && UpdatedNonOverlappedPos() && SetEndOfFile(FileHandle) != 0;
+		return Seek(NewSize) && SetEndOfFile(FileHandle) != 0;
 	}
 };
 
@@ -683,9 +657,7 @@ public:
 	{
 		check(!NumOutstandingRegions); // can't delete the file before you delete all outstanding regions
 		CloseHandle(MappingHandle);
-		TRACE_PLATFORMFILE_BEGIN_CLOSE(Handle);
 		CloseHandle(Handle);
-		TRACE_PLATFORMFILE_END_CLOSE();
 	}
 	virtual IMappedFileRegion* MapRegion(int64 Offset = 0, int64 BytesToMap = MAX_int64, bool bPreloadHint = false) override
 	{
@@ -816,9 +788,7 @@ public:
 
 	virtual void SetTimeStamp(const TCHAR* Filename, FDateTime DateTime) override
 	{
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle = CreateFileW(*NormalizeFilename(Filename), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, nullptr);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		if (Handle != INVALID_HANDLE_VALUE)
 		{
 			const FILETIME ModificationFileTime = UEDateTimeToWindowsFileTime(DateTime);
@@ -826,9 +796,7 @@ public:
 			{
 				UE_LOG(LogTemp, Warning, TEXT("SetTimeStamp: Failed to SetFileTime on %s"), Filename);
 			}
-			TRACE_PLATFORMFILE_BEGIN_CLOSE(Handle);
 			CloseHandle(Handle);
-			TRACE_PLATFORMFILE_END_CLOSE();
 		}
 		else
 		{
@@ -849,9 +817,7 @@ public:
 
 	virtual FString GetFilenameOnDisk(const TCHAR* Filename) override
 	{
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE hFile = CreateFile(Filename, FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(hFile);
 		if(hFile == INVALID_HANDLE_VALUE)
 		{
 			return NormalizeFilename(Filename);
@@ -876,9 +842,8 @@ public:
 					break;
 				}
 			}
-			TRACE_PLATFORMFILE_BEGIN_CLOSE(hFile);
+
 			CloseHandle(hFile);
-			TRACE_PLATFORMFILE_END_CLOSE();
 
 			NormalizedFileName.RemoveFromStart(TEXT("\\\\?\\"), ESearchCase::CaseSensitive);
 			NormalizedFileName.ReplaceInline(TEXT("\\"), TEXT("/"));
@@ -887,7 +852,7 @@ public:
 		}
 	}
 
-#define USE_WINDOWS_ASYNC_IMPL 0
+#define USE_WINDOWS_ASYNC_IMPL (!IS_PROGRAM && !WITH_EDITOR)
 #if USE_WINDOWS_ASYNC_IMPL
 	virtual IAsyncReadFileHandle* OpenAsyncRead(const TCHAR* Filename) override
 	{
@@ -897,9 +862,7 @@ public:
 
 
 		FString NormalizedFilename = NormalizeFilename(Filename);
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle = CreateFileW(*NormalizedFilename, Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		// we can't really fail here because this is intended to be an async open
 		return new FWindowsAsyncReadFileHandle(Handle, *NormalizedFilename);
 
@@ -914,17 +877,13 @@ public:
 #define USE_OVERLAPPED_IO (!IS_PROGRAM && !WITH_EDITOR)		// Use straightforward synchronous I/O in cooker/editor
 
 #if USE_OVERLAPPED_IO
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle    = CreateFileW(*NormalizeFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		if (Handle != INVALID_HANDLE_VALUE)
 		{
 			return new FAsyncBufferedFileReaderWindows(Handle);
 		}
 #else
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle = CreateFileW(*NormalizeFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		if (Handle != INVALID_HANDLE_VALUE)
 		{
 			return new FFileHandleWindows(Handle);
@@ -938,9 +897,7 @@ public:
 		uint32  Access = GENERIC_READ;
 		uint32  WinFlags = FILE_SHARE_READ | (bAllowWrite ? FILE_SHARE_WRITE : 0);
 		uint32  Create = OPEN_EXISTING;
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle = CreateFileW(*NormalizeFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		if (Handle != INVALID_HANDLE_VALUE)
 		{
 			return new FFileHandleWindows(Handle);
@@ -953,9 +910,7 @@ public:
 		uint32  Access    = GENERIC_WRITE | (bAllowRead ? GENERIC_READ : 0);
 		uint32  WinFlags  = bAllowRead ? FILE_SHARE_READ : 0;
 		uint32  Create    = bAppend ? OPEN_ALWAYS : CREATE_ALWAYS;
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle    = CreateFileW(*NormalizeFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		if(Handle != INVALID_HANDLE_VALUE)
 		{
 			FFileHandleWindows *PlatformFileHandle = new FFileHandleWindows(Handle);
@@ -979,9 +934,7 @@ public:
 		uint32  Access = GENERIC_READ;
 		uint32  WinFlags = FILE_SHARE_READ;
 		uint32  Create = OPEN_EXISTING;
-		TRACE_PLATFORMFILE_BEGIN_OPEN(Filename);
 		HANDLE Handle = CreateFileW(*NormalizeFilename(Filename), Access, WinFlags, NULL, Create, FILE_ATTRIBUTE_NORMAL, NULL);
-		TRACE_PLATFORMFILE_END_OPEN(Handle);
 		if (Handle == INVALID_HANDLE_VALUE)
 		{
 			return nullptr;
@@ -989,9 +942,7 @@ public:
 		HANDLE MappingHandle = CreateFileMapping(Handle, NULL, PAGE_READONLY, 0, 0, NULL);
 		if (MappingHandle == INVALID_HANDLE_VALUE)
 		{
-			TRACE_PLATFORMFILE_BEGIN_CLOSE(Handle);
 			CloseHandle(Handle);
-			TRACE_PLATFORMFILE_END_CLOSE();
 			return nullptr;
 		}
 		return new FMappedFileHandleWindows(Handle, MappingHandle, Size, Filename);

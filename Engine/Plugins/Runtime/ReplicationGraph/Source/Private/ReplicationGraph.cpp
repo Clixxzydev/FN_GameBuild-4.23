@@ -99,8 +99,6 @@ static FAutoConsoleVariableRef CVarRepGraphPrintTrackClassReplication(TEXT("Net.
 int32 CVar_RepGraph_DormantDynamicActorsDestruction = 0;
 static FAutoConsoleVariableRef CVarRepGraphDormantDynamicActorsDestruction(TEXT("Net.RepGraph.DormantDynamicActorsDestruction"), CVar_RepGraph_DormantDynamicActorsDestruction, TEXT(""), ECVF_Default );
 
-static TAutoConsoleVariable<float> CVar_ForceConnectionViewerPriority(TEXT("Net.RepGraph.ForceConnectionViewerPriority"), 1, TEXT("Force the connection's player controller and viewing pawn as topmost priority."));
-
 REPGRAPH_DEVCVAR_SHIPCONST(int32, "Net.RepGraph.LogNetDormancyDetails", CVar_RepGraph_LogNetDormancyDetails, 0, "Logs actors that are removed from the replication graph/nodes.");
 REPGRAPH_DEVCVAR_SHIPCONST(int32, "Net.RepGraph.LogActorRemove", CVar_RepGraph_LogActorRemove, 0, "Logs actors that are removed from the replication graph/nodes.");
 REPGRAPH_DEVCVAR_SHIPCONST(int32, "Net.RepGraph.LogActorAdd", CVar_RepGraph_LogActorAdd, 0, "Logs actors that are added to replication graph/nodes.");
@@ -1240,6 +1238,19 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 				}
 
 				// -------------------
+				// Always prioritize the connection's owner and view target, since these are the most important actors for the client.
+				// -------------------
+				for (const FNetViewer& CurViewer : Viewers)
+				{
+					// We need to find if this is anyone's viewer or viewtarget, not just the parent connection.
+					if (Actor == CurViewer.ViewTarget || Actor == CurViewer.InViewer)
+					{
+						AccumulatedPriority -= 10.0f;
+						break;
+					}
+				}
+
+				// -------------------
 				//	Game code priority
 				// -------------------
 
@@ -1251,26 +1262,6 @@ void UReplicationGraph::ReplicateActorListsForConnections_Default(UNetReplicatio
 					if (DO_REPGRAPH_DETAILS(UNLIKELY(DebugDetails)))
 					{
 						DebugDetails->GameCodeScaling = -1.f;
-					}
-                }
-				
-				// -------------------
-				// Always prioritize the connection's owner and view target, since these are the most important actors for the client.
-				// -------------------
-				for (const FNetViewer& CurViewer : Viewers)
-				{
-					// We need to find if this is anyone's viewer or viewtarget, not just the parent connection.
-					if (Actor == CurViewer.ViewTarget || Actor == CurViewer.InViewer)
-					{
-						if (CVar_ForceConnectionViewerPriority.GetValueOnAnyThread() > 0)
-						{
-							AccumulatedPriority = -MAX_FLT;
-						}
-						else
-						{
-							AccumulatedPriority -= 10.0f;
-						}
-						break;
 					}
 				}
 
@@ -3329,11 +3320,11 @@ FORCEINLINE void UReplicationGraphNode_DynamicSpatialFrequency::CalcFrequencyFor
 	float SmallestDistanceToActorSq = TNumericLimits<float>::Max();
 	const FNetViewer* LowestDistanceViewer = nullptr;
 
-	// Find the closest viewer to this item or the first viewer if there are no viewers closer.
+	// Find the closest viewer to this item
 	for (const FNetViewer& CurViewer : Viewers)
 	{
 		float CurDistance = (GlobalInfo.WorldLocation - CurViewer.ViewLocation).SizeSquared();
-		if (LowestDistanceViewer == nullptr || CurDistance < SmallestDistanceToActorSq)
+		if (CurDistance < SmallestDistanceToActorSq)
 		{
 			LowestDistanceViewer = &CurViewer;
 			SmallestDistanceToActorSq = CurDistance;

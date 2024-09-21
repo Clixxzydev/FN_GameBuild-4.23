@@ -54,7 +54,6 @@ private:
 	
 	// FGCObject Interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
 
 	/** 
 	 * Creates Pan texture controls

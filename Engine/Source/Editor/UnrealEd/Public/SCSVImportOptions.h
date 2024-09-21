@@ -25,19 +25,16 @@ public:
 	SLATE_BEGIN_ARGS(SCSVImportOptions)
 		: _WidgetWindow()
 		, _FullPath()
-		, _TempImportDataTable()
 		{}
 
 		SLATE_ARGUMENT(TSharedPtr<SWindow>, WidgetWindow)
 		SLATE_ARGUMENT(FText, FullPath)
-		SLATE_ARGUMENT(UDataTable*, TempImportDataTable)
 	SLATE_END_ARGS()
 
 	SCSVImportOptions()
 		: bImport(false)
 		, SelectedImportType(ECSVImportType::ECSV_DataTable)
 		, SelectedStruct(nullptr)
-		, TempImportDataTable(nullptr)
 		{}
 
 	void Construct(const FArguments& InArgs);
@@ -57,22 +54,16 @@ public:
 	/** Whether to show table row options */
 	EVisibility GetTableRowOptionVis() const;
 
-	/** Whether to show curve type options */
+	/** Whether to show table row options */
 	EVisibility GetCurveTypeVis() const;
-
-	/** Whether to show details panel */
-	EVisibility GetDetailsPanelVis() const;
 
 	FString GetImportTypeText(TSharedPtr<ECSVImportType> Type) const;
 
 	/** Called to create a widget for each struct */
 	TSharedRef<SWidget> MakeImportTypeItemWidget(TSharedPtr<ECSVImportType> Type);
 
-	/** Called when import type changes */
-	void OnImportTypeSelected(TSharedPtr<ECSVImportType> Selection, ESelectInfo::Type SelectionType);
-
-	/** Called when datatable row is selected */
-	void OnStructSelected(UScriptStruct* NewStruct);
+	/** Called to create a widget for each struct */
+	TSharedRef<SWidget> MakeRowStructItemWidget(UScriptStruct* Struct);
 
 	FString GetCurveTypeText(CurveInterpModePtr InterpMode) const;
 
@@ -89,6 +80,8 @@ public:
 	FReply OnCancel();
 
 	FText GetSelectedItemText() const;
+
+	FText GetSelectedRowOptionText() const;
 
 	FText GetSelectedCurveTypeText() const;
 
@@ -113,20 +106,17 @@ private:
 
 	// Row type
 
+	/** Array of row struct options */
+	TArray< UScriptStruct* >						RowStructs;
+
 	/** The row struct combo box */
-	TSharedPtr< SWidget >							RowStructCombo;
+	TSharedPtr< SComboBox<UScriptStruct*> >			RowStructCombo;
 
 	/** The selected row struct */
 	UScriptStruct*									SelectedStruct;
 
-	/** Temp DataTable to hold import options */
-	TWeakObjectPtr< UDataTable >					TempImportDataTable;
-
 	/** The curve interpolation combo box */
 	TSharedPtr< SComboBox<CurveInterpModePtr> >		CurveInterpCombo;
-
-	/** A property view to edit advanced options */
-	TSharedPtr< class IDetailsView >				PropertyView;
 
 	/** All available curve interpolation modes */
 	TArray< CurveInterpModePtr >					CurveInterpModes;

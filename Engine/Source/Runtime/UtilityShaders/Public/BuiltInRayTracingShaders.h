@@ -39,6 +39,17 @@ class UTILITYSHADERS_API FOcclusionMainRG : public FBuiltInRayTracingShader
 	END_SHADER_PARAMETER_STRUCT()
 };
 
+class FOcclusionMainMS : public FBuiltInRayTracingShader
+{
+	DECLARE_EXPORTED_SHADER_TYPE(FOcclusionMainMS, Global, UTILITYSHADERS_API);
+public:
+
+	FOcclusionMainMS() = default;
+	FOcclusionMainMS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FBuiltInRayTracingShader(Initializer)
+	{}
+};
+
 class UTILITYSHADERS_API FIntersectionMainRG : public FBuiltInRayTracingShader
 {
 	DECLARE_GLOBAL_SHADER(FIntersectionMainRG);
@@ -47,8 +58,19 @@ class UTILITYSHADERS_API FIntersectionMainRG : public FBuiltInRayTracingShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FBasicRayData>, Rays)
-		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FIntersectionPayload>, IntersectionOutput)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FBasicRayIntersectionData>, IntersectionOutput)
 	END_SHADER_PARAMETER_STRUCT()
+};
+
+class FIntersectionMainMS : public FBuiltInRayTracingShader
+{
+	DECLARE_EXPORTED_SHADER_TYPE(FIntersectionMainMS, Global, UTILITYSHADERS_API);
+public:
+
+	FIntersectionMainMS() = default;
+	FIntersectionMainMS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FBuiltInRayTracingShader(Initializer)
+	{}
 };
 
 class FIntersectionMainCHS : public FBuiltInRayTracingShader

@@ -1,4 +1,4 @@
-// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
+﻿// Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "LiveLinkDrivenComponent.h"
 
@@ -7,7 +7,6 @@
 
 #include "GameFramework/Actor.h"
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UDEPRECATED_LiveLinkDrivenComponent::UDEPRECATED_LiveLinkDrivenComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -67,4 +66,3 @@ void UDEPRECATED_LiveLinkDrivenComponent::TickComponent(float DeltaTime, enum EL
 		}
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS

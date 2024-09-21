@@ -7,7 +7,7 @@
 
 
 /* Define if building universal (internal helper macro) */
-/* #undef AC_APPLE_UNIVERSAL_BUILD */
+#define AC_APPLE_UNIVERSAL_BUILD 1
 
 /* Define for AIX if your compiler is a genuine IBM xlC/xlC_r and you want
    support for AIX C++ shared extension modules. */
@@ -285,7 +285,7 @@
 #define HAVE_GETC_UNLOCKED 1
 
 /* Define to 1 if you have the `getentropy' function. */
-#define HAVE_GETENTROPY 1
+/* #undef HAVE_GETENTROPY */
 
 /* Define to 1 if you have the `getgroups' function. */
 #define HAVE_GETGROUPS 1
@@ -561,7 +561,7 @@
 #define HAVE_RL_CALLBACK 1
 
 /* Define if you can turn off readline's signal handling. */
-#define HAVE_RL_CATCH_SIGNAL 1
+/* #undef HAVE_RL_CATCH_SIGNAL */
 
 /* Define if you have readline 2.2 */
 #define HAVE_RL_COMPLETION_APPEND_CHARACTER 1
@@ -573,13 +573,13 @@
 #define HAVE_RL_COMPLETION_MATCHES 1
 
 /* Define if you have rl_completion_suppress_append */
-#define HAVE_RL_COMPLETION_SUPPRESS_APPEND 1
+/* #undef HAVE_RL_COMPLETION_SUPPRESS_APPEND */
 
 /* Define if you have readline 4.0 */
 #define HAVE_RL_PRE_INPUT_HOOK 1
 
 /* Define if you have readline 4.0 */
-#define HAVE_RL_RESIZE_TERMINAL 1
+/* #undef HAVE_RL_RESIZE_TERMINAL */
 
 /* Define to 1 if you have the `round' function. */
 #define HAVE_ROUND 1
@@ -1126,7 +1126,7 @@
 
 /* Define if you want to produce an OpenStep/Rhapsody framework (shared
    library plus accessory files). */
-/* #undef WITH_NEXT_FRAMEWORK */
+#define WITH_NEXT_FRAMEWORK 1
 
 /* Define if you want to compile in Python-specific mallocs */
 #define WITH_PYMALLOC 1

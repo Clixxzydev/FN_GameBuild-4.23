@@ -22,8 +22,8 @@ UEditorUtilityWidgetBlueprint::UEditorUtilityWidgetBlueprint(const FObjectInitia
 
 void UEditorUtilityWidgetBlueprint::BeginDestroy()
 {
-	// Only cleanup script if it has been registered and we're not shutdowning editor
-	if (!GIsRequestingExit && RegistrationName != NAME_None)
+	// prevent the cleanup script from running on editor shutdown
+	if (!GIsRequestingExit)
 	{
 		IBlutilityModule* BlutilityModule = FModuleManager::GetModulePtr<IBlutilityModule>("Blutility");
 		if (BlutilityModule)
@@ -56,66 +56,38 @@ TSharedRef<SDockTab> UEditorUtilityWidgetBlueprint::SpawnEditorUITab(const FSpaw
 	SpawnedTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateUObject(this, &UEditorUtilityWidgetBlueprint::UpdateRespawnListIfNeeded));
 	CreatedTab = SpawnedTab;
 	
-	GEditor->OnBlueprintReinstanced().AddUObject(this, &UEditorUtilityWidgetBlueprint::RegenerateCreatedTab);
-	
-	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-	LevelEditor.OnMapChanged().AddUObject(this, &UEditorUtilityWidgetBlueprint::ChangeTabWorld);
+	OnCompiled().AddUObject(this, &UEditorUtilityWidgetBlueprint::RegenerateCreatedTab);
 
 	return SpawnedTab;
 }
 
 TSharedRef<SWidget> UEditorUtilityWidgetBlueprint::CreateUtilityWidget()
 {
-	TSharedRef<SWidget> TabWidget = SNullWidget::NullWidget;
-
 	UClass* BlueprintClass = GeneratedClass;
 	TSubclassOf<UEditorUtilityWidget> WidgetClass = BlueprintClass;
 	UWorld* World = GEditor->GetEditorWorldContext().World();
-	if (!CreatedUMGWidget && World)
-	{
-		CreatedUMGWidget = CreateWidget<UEditorUtilityWidget>(World, WidgetClass);
-	}
-
+	check(World);
+	CreatedUMGWidget = CreateWidget<UEditorUtilityWidget>(World, WidgetClass);
+	TSharedRef<SWidget> TabWidget = SNullWidget::NullWidget;
 	if (CreatedUMGWidget)
 	{
+		TSharedRef<SWidget> CreatedSlateWidget = CreatedUMGWidget->TakeWidget();
 		TabWidget = SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
 			.HAlign(HAlign_Fill)
 			[
-				CreatedUMGWidget->TakeWidget()
+				CreatedSlateWidget
 			];
 	}
 	return TabWidget;
 }
 
-void UEditorUtilityWidgetBlueprint::RegenerateCreatedTab()
+void UEditorUtilityWidgetBlueprint::RegenerateCreatedTab(UBlueprint* RecompiledBlueprint)
 {
 	if (CreatedTab.IsValid())
 	{
 		TSharedRef<SWidget> TabWidget = CreateUtilityWidget();
 		CreatedTab.Pin()->SetContent(TabWidget);
-	}
-}
-
-void UEditorUtilityWidgetBlueprint::ChangeTabWorld(UWorld* World, EMapChangeType MapChangeType)
-{
-	if (MapChangeType == EMapChangeType::TearDownWorld)
-	{
-		if (CreatedTab.IsValid())
-		{
-			CreatedTab.Pin()->SetContent(SNullWidget::NullWidget);
-		}
-		
-		if(CreatedUMGWidget)
-		{
-			CreatedUMGWidget->Rename(nullptr, GetTransientPackage());
-			CreatedUMGWidget = nullptr;
-		}
-	}
-	else if (MapChangeType != EMapChangeType::SaveMap)
-	{
-		// Recreate the widget if we are loading a map or opening a new map
-		RegenerateCreatedTab();
 	}
 }
 
@@ -135,5 +107,4 @@ void UEditorUtilityWidgetBlueprint::GetReparentingRules(TSet< const UClass* >& A
 	AllowedChildrenOfClasses.Empty();
 	AllowedChildrenOfClasses.Add(UEditorUtilityWidget::StaticClass());
 }
-
 

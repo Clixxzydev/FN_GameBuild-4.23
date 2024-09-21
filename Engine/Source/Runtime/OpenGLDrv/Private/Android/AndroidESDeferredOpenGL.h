@@ -32,7 +32,7 @@ union FEGLGLSync
 
 	}
 
-	explicit operator bool() const
+	operator bool() const
 	{
 		return GL;
 	}

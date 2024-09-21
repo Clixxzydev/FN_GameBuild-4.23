@@ -123,9 +123,6 @@ private:
 	FOnGenerateWidget OnGenerateWidget;
 
 	const TArray< TSharedPtr<FString> >* OptionsSource;
-
-	/** Used to focus the name box immediately following construction */
-	EActiveTimerReturnType SetFocusPostConstruct(double InCurrentTime, float InDeltaTime);
 };
 
 

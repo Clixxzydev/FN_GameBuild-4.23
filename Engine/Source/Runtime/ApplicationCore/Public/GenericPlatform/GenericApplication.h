@@ -9,9 +9,6 @@
 #include "Math/Vector4.h"
 #include "Templates/SharedPointer.h"
 #include "Delegates/Delegate.h"
-#if WITH_ACCESSIBILITY
-#include "GenericPlatform/GenericAccessibleInterfaces.h"
-#endif
 #include "GenericPlatform/GenericApplicationMessageHandler.h"
 #include "GenericPlatform/GenericWindowDefinition.h"
 #include "GenericPlatform/GenericWindow.h"
@@ -431,9 +428,6 @@ public:
 	GenericApplication( const TSharedPtr< ICursor >& InCursor )
 		: Cursor( InCursor )
 		, MessageHandler( MakeShareable( new FGenericApplicationMessageHandler() ) )
-#if WITH_ACCESSIBILITY
-		, AccessibleMessageHandler(MakeShareable(new FGenericAccessibleMessageHandler()))
-#endif
 	{
 
 	}
@@ -443,11 +437,6 @@ public:
 	virtual void SetMessageHandler( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler ) { MessageHandler = InMessageHandler; }
 
 	TSharedRef< FGenericApplicationMessageHandler > GetMessageHandler() { return MessageHandler; }
-
-#if WITH_ACCESSIBILITY
-	virtual void SetAccessibleMessageHandler(const TSharedRef<FGenericAccessibleMessageHandler>& InAccessibleMessageHandler) { AccessibleMessageHandler = InAccessibleMessageHandler; }
-	TSharedRef<FGenericAccessibleMessageHandler> GetAccessibleMessageHandler() const { return AccessibleMessageHandler; }
-#endif
 
 	virtual void PollGameDeviceState( const float TimeDelta ) { }
 
@@ -554,10 +543,6 @@ public:
 protected:
 
 	TSharedRef< class FGenericApplicationMessageHandler > MessageHandler;
-
-#if WITH_ACCESSIBILITY
-	TSharedRef<FGenericAccessibleMessageHandler> AccessibleMessageHandler;
-#endif
 	
 	/** Trigger the OnDisplayMetricsChanged event with the argument 'InMetrics' */
 	void BroadcastDisplayMetricsChanged( const FDisplayMetrics& InMetrics ){ OnDisplayMetricsChangedEvent.Broadcast( InMetrics ); }

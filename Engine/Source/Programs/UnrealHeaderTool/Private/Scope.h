@@ -263,8 +263,6 @@ private:
 	friend struct FStructScopeArchiveProxy;
 };
 
-using FScopeSet = TSet<FScope*, DefaultKeyFuncs<FScope*>, TInlineSetAllocator<1024>>;
-
 /**
  * Represents a scope associated with source file.
  */
@@ -302,15 +300,18 @@ public:
 	 *
 	 * @param Out (Output parameter) Array to append scopes.
 	 */
-	void AppendIncludedFileScopes(FScopeSet& Out)
+	void AppendIncludedFileScopes(TArray<FScope*>& Out)
 	{
-		bool bAlreadyAdded = false;
-		Out.Add(this, &bAlreadyAdded);
-
-		if (!bAlreadyAdded)
+		if (!Out.Contains(this))
 		{
-			for (FFileScope* IncludedScope : IncludedScopes)
+			Out.Add(this);
+		}
+
+		for (FFileScope* IncludedScope : IncludedScopes)
+		{
+			if (!Out.Contains(IncludedScope))
 			{
+				Out.Add(IncludedScope);
 				IncludedScope->AppendIncludedFileScopes(Out);
 			}
 		}
@@ -380,7 +381,7 @@ public:
 	typedef typename TConditionalType<TIsConst, TMap<FName, UField*>::TConstIterator, TMap<FName, UField*>::TIterator>::Type MapIteratorType;
 	typedef typename TConditionalType<TIsConst, const FScope, FScope>::Type ScopeType;
 	typedef typename TConditionalType<TIsConst, const FFileScope, FFileScope>::Type FileScopeType;
-	typedef typename TConditionalType<TIsConst, FScopeSet::TConstIterator, FScopeSet::TIterator>::Type ScopeArrayIteratorType;
+	typedef typename TConditionalType<TIsConst, typename TArray<ScopeType*>::TConstIterator, typename TArray<ScopeType*>::TIterator>::Type ScopeArrayIteratorType;
 
 	// Constructor.
 	TDeepScopeTypeIterator(ScopeType* Scope)
@@ -417,7 +418,7 @@ public:
 	 */
 	bool MoveNext()
 	{
-		if (!ScopeIterator.IsSet() && !MoveToNextScope())
+		if (!ScopeIterator.IsValid() && !MoveToNextScope())
 		{
 			return false;
 		}
@@ -430,7 +431,7 @@ public:
 		{
 			do
 			{
-				ScopeIterator.Reset();
+				ScopeIterator = nullptr;
 				if (!MoveToNextScope())
 				{
 					return false;
@@ -460,9 +461,9 @@ private:
 	 */
 	bool MoveToNextScope()
 	{
-		if (!ScopesIterator.IsSet())
+		if (!ScopesIterator.IsValid())
 		{
-			ScopesIterator.Emplace(ScopesToTraverse);
+			ScopesIterator = MakeShareable(new ScopeArrayIteratorType(ScopesToTraverse));
 		}
 		else
 		{
@@ -474,17 +475,17 @@ private:
 			return false;
 		}
 
-		ScopeIterator.Emplace(ScopesIterator->operator*());
+		ScopeIterator = MakeShareable(new FScope::TScopeTypeIterator<TType, TIsConst>(ScopesIterator->operator*()));
 		return true;
 	}
 
+	// List of scopes to traverse.
+	TArray<ScopeType*> ScopesToTraverse;
+
 	// Current scope iterator.
-	TOptional<FScope::TScopeTypeIterator<TType, TIsConst> > ScopeIterator;
+	TSharedPtr<FScope::TScopeTypeIterator<TType, TIsConst> > ScopeIterator;
 
 	// Scopes list iterator.
-	TOptional<ScopeArrayIteratorType> ScopesIterator;
-
-	// List of scopes to traverse.
-	FScopeSet  ScopesToTraverse;
+	TSharedPtr<ScopeArrayIteratorType> ScopesIterator;
 };
 

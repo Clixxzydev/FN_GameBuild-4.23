@@ -228,30 +228,40 @@ static FName FormatRemap[][2] =
 };
 
 
-void FLuminTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray< TArray<FName> >& OutFormats) const
+void FLuminTargetPlatform::GetTextureFormats(const UTexture* InTexture, TArray<FName>& OutFormats) const
 {
 	check(InTexture);
 
-	GetDefaultTextureFormatNamePerLayer(OutFormats.AddDefaulted_GetRef(), this, InTexture, LuminEngineSettings, false);
-	for (FName& TextureFormatName : OutFormats.Last())
+	FName TextureFormatName = NAME_None;
+
+	// forward rendering only needs one channel for shadow maps
+	if (InTexture->LODGroup == TEXTUREGROUP_Shadowmap)
 	{
-		// forward rendering only needs one channel for shadow maps
-		if (InTexture->LODGroup == TEXTUREGROUP_Shadowmap)
+		TextureFormatName = FName(TEXT("G8"));
+	}
+
+	// if we didn't assign anything specially, then use the defaults
+	if (TextureFormatName == NAME_None)
+	{
+		TextureFormatName = GetDefaultTextureFormatName(this, InTexture, LuminEngineSettings, false);
+	}
+
+	// perform any remapping away from defaults
+	bool bFoundRemap = false;
+	for (int32 RemapIndex = 0; RemapIndex < ARRAY_COUNT(FormatRemap); ++RemapIndex)
+	{
+		if (TextureFormatName == FormatRemap[RemapIndex][0])
 		{
-			TextureFormatName = FName(TEXT("G8"));
+			// we found a remapping
+			bFoundRemap = true;
+			OutFormats.AddUnique(FormatRemap[RemapIndex][1]);
 		}
-		else
-		{
-			for (int32 RemapIndex = 0; RemapIndex < ARRAY_COUNT(FormatRemap); ++RemapIndex)
-			{
-				if (TextureFormatName == FormatRemap[RemapIndex][0])
-				{
-					// we found a remapping
-					TextureFormatName = FormatRemap[RemapIndex][1];
-					break;
-				}
-			}
-		}
+	}
+
+	// if we didn't already remap above, add it now
+	if (!bFoundRemap)
+	{
+		OutFormats.Add(TextureFormatName);
 	}
 }
 

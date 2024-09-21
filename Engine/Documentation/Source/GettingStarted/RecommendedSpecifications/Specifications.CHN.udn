@@ -10,6 +10,8 @@ Parent:GettingStarted
 Order:
 Tags:Specifications
 
+%Globals:OSSelect_Linux%
+
 [TOC(start:2)]
 
 [EXCERPT:Main]

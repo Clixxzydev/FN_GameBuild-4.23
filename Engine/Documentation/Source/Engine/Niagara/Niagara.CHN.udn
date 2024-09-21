@@ -1,15 +1,19 @@
-﻿INTSourceChangelist:6429916
+﻿INTSourceChangelist:4323617
 Availability:Public
 Title: Niagara编辑器
 Crumbs: %ROOT%, Engine
 Description: Niagara是虚幻引擎4的视觉效果编辑器，用于创建和实时预览粒子效果。 
-type:landing
-topic-image:Niagara_Topic.png
+Navigation:topic
+parent:Engine
+order:4
+topic-image:NiagaraBanner.png
 social-image:NiagaraSocial.png
-hero-image:NiagaraBanner.png
-related:Engine/Rendering/ParticleSystems
+related:Engine\Rendering\ParticleSystems
 tags:Niagara
-tags:Early Access
+
+[REGION:banner]
+![](NiagaraBanner.png)(convert:false)
+[/REGION]
 
 **Niagara编辑器** 是虚幻引擎4（UE4）中创建和调整视觉效果的两个工具之一。在Niagara之前，在UE4中创建和编辑视觉效果的主要方法是使用[**级联**](Engine\Rendering\ParticleSystems)。虽然Niagara拥有许多与级联相同的粒子操控方法，但与Niagara互动以及使用Niagara构建视觉效果的方法却迥然相异。
 
@@ -22,3 +26,20 @@ tags:Early Access
 ## 指南
 
 [DIR(output:"fancy" parent:"Engine/Niagara/HowTo" org:"hierarchy" end:"1")]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

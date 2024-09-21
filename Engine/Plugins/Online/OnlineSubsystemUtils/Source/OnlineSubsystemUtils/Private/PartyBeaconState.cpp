@@ -85,30 +85,6 @@ bool FPartyReservation::CanPlayerMigrateFromReservation(const FPartyReservation&
 	return TeamNum == Other.TeamNum;
 }
 
-int32 FPartyReservation::RemoveAllPartyMembers(const FPlayerReservation& OtherRes)
-{
-	int32 NumRemoved = 0;
-	for(int32 Idx = PartyMembers.Num() - 1; Idx >= 0; Idx--)
-	{
-		if (PartyMembers[Idx].UniqueId == OtherRes.UniqueId)
-		{
-			NumRemoved++;
-			RemovePartyMemberAtIndex(Idx);
-		}
-	}
-
-	return NumRemoved;
-}
-
-void FPartyReservation::RemovePartyMemberAtIndex(int32 Idx)
-{
-	if (-1 < Idx && Idx < PartyMembers.Num())
-	{
-		RemovedPartyMembers.Add(PartyMembers[Idx]);
-		PartyMembers.RemoveAtSwap(Idx);
-	}
-}
-
 UPartyBeaconState::UPartyBeaconState(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer),
 	SessionName(NAME_None),
@@ -738,7 +714,7 @@ void UPartyBeaconState::UpdatePartyLeader(const FUniqueNetIdRepl& InPartyMemberI
 						FPlayerReservation PlayerReservation = PriorReservation->PartyMembers[PriorPlayerReservationIdx];
 
 						// Remove player from their previous reservation and find a new place for them
-						PriorReservation->RemovePartyMemberAtIndex(PriorPlayerReservationIdx);
+						PriorReservation->PartyMembers.RemoveAtSwap(PriorPlayerReservationIdx);
 
 						// If there is already a reservation that has the new party leader as a leader, join it
 						// If not, create one
@@ -914,7 +890,7 @@ bool UPartyBeaconState::RemovePlayer(const FUniqueNetIdRepl& PlayerId)
 			if (PlayerEntry.UniqueId == PlayerId)
 			{
 				// player removed
-				Reservation.RemovePartyMemberAtIndex(PlayerIdx--);
+				Reservation.PartyMembers.RemoveAtSwap(PlayerIdx--);
 				bWasRemoved = true;
 
 				// free up a consumed entry

@@ -96,24 +96,19 @@ FBehaviorTreeEditor::~FBehaviorTreeEditor()
 	Debugger.Reset();
 }
 
-void FBehaviorTreeEditor::RefreshBlackboardViewsAssociatedObject()
-{
-	if (BlackboardView.IsValid())
-	{
-		BlackboardView->SetObject(GetBlackboardData());
-	}
-
-	if (BlackboardEditor.IsValid())
-	{
-		BlackboardEditor->SetObject(GetBlackboardData());
-	}
-}
-
 void FBehaviorTreeEditor::PostUndo(bool bSuccess)
 {
 	if (bSuccess)
 	{
-		RefreshBlackboardViewsAssociatedObject();
+		if(BlackboardView.IsValid())
+		{
+			BlackboardView->SetObject(GetBlackboardData());
+		}
+
+		if(BlackboardEditor.IsValid())
+		{
+			BlackboardEditor->SetObject(GetBlackboardData());
+		}
 	}
 
 	FAIGraphEditor::PostUndo(bSuccess);
@@ -123,7 +118,15 @@ void FBehaviorTreeEditor::PostRedo(bool bSuccess)
 {
 	if (bSuccess)
 	{
-		RefreshBlackboardViewsAssociatedObject();
+		if (BlackboardView.IsValid())
+		{
+			BlackboardView->SetObject(GetBlackboardData());
+		}
+
+		if (BlackboardEditor.IsValid())
+		{
+			BlackboardEditor->SetObject(GetBlackboardData());
+		}
 	}
 
 	FAIGraphEditor::PostRedo(bSuccess);
@@ -138,7 +141,14 @@ void FBehaviorTreeEditor::NotifyPostChange( const FPropertyChangedEvent& Propert
 			BlackboardData = BehaviorTree->BlackboardAsset;
 		}
 
-		RefreshBlackboardViewsAssociatedObject();
+		if(BlackboardView.IsValid())
+		{
+			BlackboardView->SetObject(GetBlackboardData());
+		}
+		if(BlackboardEditor.IsValid())
+		{
+			BlackboardEditor->SetObject(GetBlackboardData());
+		}
 	}
 }
 
@@ -205,8 +215,7 @@ void FBehaviorTreeEditor::InitBehaviorTreeEditor( const EToolkitMode::Type Mode,
 		ToolbarBuilder = MakeShareable(new FBehaviorTreeEditorToolbar(SharedThis(this)));
 	}
 
-	// if we are already editing objects, dont try to recreate the editor from scratch but update the list of objects in edition
-    // ex: BehaviorTree may want to reuse an editor already opened for its associated Blackboard asset.
+	// if we are already editing objects, dont try to recreate the editor from scratch
 	const TArray<UObject*>* EditedObjects = GetObjectsCurrentlyBeingEdited();
 	if(EditedObjects == nullptr || EditedObjects->Num() == 0)
 	{
@@ -256,14 +265,6 @@ void FBehaviorTreeEditor::InitBehaviorTreeEditor( const EToolkitMode::Type Mode,
 	{
 		check(Debugger.IsValid());
 		Debugger->Setup(BehaviorTree, SharedThis(this));
-
-		for (UObject* ObjectToEdit : ObjectsToEdit)
-		{
-			if (!EditedObjects->Contains(ObjectToEdit))
-		    {
-				AddEditingObject(ObjectToEdit);
-		    }
-		}
 	}
 
 	if(BehaviorTreeToEdit != nullptr)
@@ -315,7 +316,6 @@ void FBehaviorTreeEditor::RestoreBehaviorTree()
 	if(bNewGraph)
 	{
 		MyGraph->UpdateAsset(UBehaviorTreeGraph::ClearDebuggerFlags | UBehaviorTreeGraph::KeepRebuildCounter);
-		RefreshBlackboardViewsAssociatedObject();
 	}
 	else
 	{
@@ -384,7 +384,14 @@ float FBehaviorTreeEditor::HandleGetDebugTimeStamp(bool bUseCurrentState) const
 
 void FBehaviorTreeEditor::HandleDebuggedBlackboardChanged(UBlackboardData* InBlackboardData)
 {
-	RefreshBlackboardViewsAssociatedObject();
+	if(BlackboardView.IsValid())
+	{
+		BlackboardView->SetObject(InBlackboardData);
+	}
+	if(BlackboardEditor.IsValid())
+	{
+		BlackboardEditor->SetObject(InBlackboardData);
+	}
 }
 
 bool FBehaviorTreeEditor::HandleGetDisplayCurrentState() const
@@ -559,12 +566,6 @@ TSharedRef<SGraphEditor> FBehaviorTreeEditor::CreateGraphEditorWidget(UEdGraph* 
 			FCanExecuteAction::CreateSP( this, &FBehaviorTreeEditor::CanToggleBreakpoint ),
 			FIsActionChecked(),
 			FIsActionButtonVisible::CreateSP( this, &FBehaviorTreeEditor::CanToggleBreakpoint )
-			);
-
-		GraphEditorCommands->MapAction(
-			FGraphEditorCommands::Get().CreateComment,
-			FExecuteAction::CreateSP(this, &FBehaviorTreeEditor::OnCreateComment),
-			FCanExecuteAction::CreateSP(this, &FBehaviorTreeEditor::CanCreateComment)
 			);
 	}
 
@@ -1837,23 +1838,6 @@ void FBehaviorTreeEditor::CreateNewBlackboard()
 bool FBehaviorTreeEditor::CanCreateNewBlackboard() const
 {
 	return !IsDebuggerReady();
-}
-
-bool FBehaviorTreeEditor::CanCreateComment() const
-{
-	return (SelectedNodesCount > 0);
-}
-
-void FBehaviorTreeEditor::OnCreateComment()
-{
-	if (BehaviorTree && BehaviorTree->BTGraph)
-	{
-		TSharedPtr<FEdGraphSchemaAction> Action = BehaviorTree->BTGraph->GetSchema()->GetCreateCommentAction();
-		if (Action.IsValid())
-		{
-			Action->PerformAction(BehaviorTree->BTGraph, nullptr, FVector2D());
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -11,7 +11,6 @@ parent:Engine/Editor
 order:1
 checkpoint: editorqs
 type:quick start
-type:multi-step
 topic-image:engine_qs_topic.png
 
 ![](Finished.png)

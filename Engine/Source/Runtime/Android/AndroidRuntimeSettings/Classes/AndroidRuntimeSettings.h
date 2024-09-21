@@ -91,19 +91,6 @@ namespace EAndroidInstallLocation
 	};
 }
 
-/** The target Oculus Mobile device for application packaging */
-UENUM()
-namespace EOculusMobileDevice
-{
-	enum Type
-	{
-		/** Package for Oculus Go / Gear VR */
-		GearGo UMETA(DisplayName = "Oculus Go / Gear VR"),
-		/** Package for Oculus Quest */
-		Quest UMETA(DisplayName = "Oculus Quest"),
-	};
-}
-
 /**
  * Holds the game-specific achievement name and corresponding ID from Google Play services.
  */
@@ -200,18 +187,6 @@ public:
 	// The version number used to indicate newer versions in the Store
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = "APK Packaging", Meta = (DisplayName = "Store Version (1-2147483647)", ClampMin="1", ClampMax="2147483647"))
 	int32 StoreVersion;
-
-	// Offset to add to store version for APKs generated for armv7
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = "APK Packaging", meta = (DisplayName = "Store Version offset (armv7)"))
-	int32 StoreVersionOffsetArmV7;
-
-	// Offset to add to store version for APKs generated for arm64
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = "APK Packaging", meta = (DisplayName = "Store Version offset (arm64)"))
-	int32 StoreVersionOffsetArm64;
-
-	// Offset to add to store version for APKs generated for x86_64
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = "APK Packaging", meta = (DisplayName = "Store Version offset (x86_64)"))
-	int32 StoreVersionOffsetX8664;
 
 	// The visual application name displayed for end users
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = "APK Packaging", Meta = (DisplayName = "Application Display Name (app_name), project name if blank"))
@@ -326,9 +301,9 @@ public:
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Add permissions to support Voice chat (RECORD_AUDIO)"))
 	bool bAndroidVoiceEnabled;
 
-	// Package for an Oculus Mobile device
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Package for Oculus Mobile devices"))
-	TArray<TEnumAsByte<EOculusMobileDevice::Type>> PackageForOculusMobile;
+	// Configure AndroidManifest.xml for Oculus Mobile
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Configure the AndroidManifest for deployment to Oculus Mobile"))
+	bool bPackageForGearVR;
 
 	// Removes Oculus Signature Files (osig) from APK if Gear VR APK signed for distribution and enables entitlement checker
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = "Advanced APK Packaging", Meta = (DisplayName = "Remove Oculus Signature Files from Distribution APK"))
@@ -370,15 +345,15 @@ public:
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Support x86_64 [aka x64]"))
 	bool bBuildForX8664;
 
-	// Include shaders for devices that support OpenGL ES 2 and above
-	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Support OpenGL ES2 (Deprecated)"))
+	// Enable ES2 support?
+	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Support OpenGL ES2"))
 	bool bBuildForES2;
 
-	// Include shaders for devices supporting OpenGL ES 3.1 and above (default)
+	// Enable ES3.1 support?
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Support OpenGL ES3.1"))
 	bool bBuildForES31;
 
-	// Support the Vulkan RHI and include Vulkan shaders
+	// Enable Vulkan rendering support?
 	UPROPERTY(GlobalConfig, EditAnywhere, Category = Build, meta = (DisplayName = "Support Vulkan"))
 	bool bSupportsVulkan;
 

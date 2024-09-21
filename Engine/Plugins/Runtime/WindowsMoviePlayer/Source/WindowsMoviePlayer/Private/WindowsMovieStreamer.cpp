@@ -113,7 +113,7 @@ void FMediaFoundationMovieStreamer::ConvertSample()
 	const FIntPoint OutputDim = SourceFormat.OutputDim;
 
 	FSlateTexture2DRHIRef* CurrentTexture = Texture.Get();
-	FRHITexture* RenderTarget = CurrentTexture->GetRHIRef();
+	FTextureRHIParamRef RenderTarget = CurrentTexture->GetRHIRef();
 
 	// perform the conversion
 	FRHICommandListImmediate& CommandList = FRHICommandListExecutor::GetImmediateCommandList();

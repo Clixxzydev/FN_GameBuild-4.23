@@ -120,9 +120,7 @@ static inline int vorbis_ftoi(double f){  /* yes, double!  Otherwise,
 
 /* MSVC inline assembly. 32 bit only; inline ASM isn't implemented in the
  * 64 bit compiler */
-// @MIXEDREALITY_CHANGE : BEGIN - __asm not defined on ARM
-#if !defined ARM && defined(_MSC_VER) && !defined(_WIN64) && !defined(_WIN32_WCE)
-// @MIXEDREALITY_CHANGE : END
+#if defined(_MSC_VER) && !defined(_WIN64) && !defined(_WIN32_WCE)
 #  define VORBIS_FPU_CONTROL
 
 typedef ogg_int16_t vorbis_fpu_control;
@@ -147,9 +145,7 @@ static __inline void vorbis_fpu_restore(vorbis_fpu_control fpu){
 
 /* Optimized code path for x86_64 builds. Uses SSE2 intrinsics. This can be
    done safely because all x86_64 CPUs supports SSE2. */
-// @MIXEDREALITY_CHANGE : BEGIN - emmintrin not supported on ARM
-#if !defined ARM && ((defined(_MSC_VER) && defined(_WIN64)) || (defined(__GNUC__) && defined (__x86_64__)))
-// @MIXEDREALITY_CHANGE : END
+#if (defined(_MSC_VER) && defined(_WIN64)) || (defined(__GNUC__) && defined (__x86_64__))
 #  define VORBIS_FPU_CONTROL
 
 typedef ogg_int16_t vorbis_fpu_control;

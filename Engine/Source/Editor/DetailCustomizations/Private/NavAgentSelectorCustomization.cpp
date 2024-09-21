@@ -39,7 +39,7 @@ void FNavAgentSelectorCustomization::CustomizeChildren(TSharedRef<class IPropert
 	StructPropertyHandle->GetNumChildren(NumChildren);
 
 	FString AgentPrefix("bSupportsAgent");
-	const UNavigationSystemV1* NavSysCDO = (*GEngine->NavigationSystemClass != nullptr && GEngine->NavigationSystemClass->IsChildOf(UNavigationSystemV1::StaticClass()))
+	const UNavigationSystemV1* NavSysCDO = (*GEngine->NavigationSystemClass != nullptr)
 		? GetDefault<UNavigationSystemV1>(GEngine->NavigationSystemClass)
 		: GetDefault<UNavigationSystemV1>();
 
@@ -85,7 +85,7 @@ void FNavAgentSelectorCustomization::CustomizeChildren(TSharedRef<class IPropert
 
 void FNavAgentSelectorCustomization::OnAgentStateChanged()
 {
-	const UNavigationSystemV1* NavSysCDO = (*GEngine->NavigationSystemClass != nullptr && GEngine->NavigationSystemClass->IsChildOf(UNavigationSystemV1::StaticClass()))
+	const UNavigationSystemV1* NavSysCDO = (*GEngine->NavigationSystemClass != nullptr)
 		? GetDefault<UNavigationSystemV1>(GEngine->NavigationSystemClass)
 		: GetDefault<UNavigationSystemV1>();
 

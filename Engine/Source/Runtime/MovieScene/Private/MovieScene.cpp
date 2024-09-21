@@ -593,17 +593,6 @@ bool UMovieScene::AddGivenTrack(UMovieSceneTrack* InTrack, const FGuid& ObjectGu
 	{
 		if (Binding.GetObjectGuid() == ObjectGuid)
 		{
-			// Tracks of the same class should be unique per name.
-			for (UMovieSceneTrack* Track : Binding.GetTracks())
-			{
-				if (Track->GetClass() == InTrack->GetClass() && Track->GetTrackName() == InTrack->GetTrackName())
-				{
-					// If a track of the same class and name exists, remove it so the new track replaces it
-					Binding.RemoveTrack(*Track);
-					break;
-				}
-			}
-
 			InTrack->Rename(nullptr, this);
 			check(InTrack);
 			Binding.AddTrack(*InTrack);
@@ -1058,17 +1047,7 @@ void UMovieScene::MoveBindingContents(const FGuid& SourceBindingId, const FGuid&
 	}
 }
 
-void UMovieScene::SetMarkedFrame(int32 InMarkIndex, FFrameNumber InFrameNumber)
-{
-	if (InMarkIndex < 0 && InMarkIndex > MarkedFrames.Num()-1)
-	{
-		return;
-	}
-
-	MarkedFrames[InMarkIndex].FrameNumber = InFrameNumber;
-}
-
-int32 UMovieScene::AddMarkedFrame(const FMovieSceneMarkedFrame &InMarkedFrame)
+void UMovieScene::AddMarkedFrame(const FMovieSceneMarkedFrame &InMarkedFrame)
 {
 	FString NewLabel;
 
@@ -1109,8 +1088,6 @@ int32 UMovieScene::AddMarkedFrame(const FMovieSceneMarkedFrame &InMarkedFrame)
 	{
 		MarkedFrames[MarkedIndex].Label = NewLabel;
 	}
-
-	return MarkedIndex;
 }
 
 void UMovieScene::RemoveMarkedFrame(int32 RemoveIndex)

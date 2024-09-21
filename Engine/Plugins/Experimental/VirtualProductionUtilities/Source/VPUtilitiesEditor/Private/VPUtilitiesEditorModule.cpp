@@ -3,8 +3,6 @@
 #include "VPUtilitiesEditorModule.h"
 
 #include "Framework/Docking/WorkspaceItem.h"
-#include "GameplayTagContainer.h"
-#include "LevelEditor.h"
 #include "ISettingsModule.h"
 #include "ISettingsSection.h"
 #include "Modules/ModuleInterface.h"
@@ -13,7 +11,6 @@
 #include "Textures/SlateIcon.h"
 #include "VPCustomUIHandler.h"
 #include "VPSettings.h"
-#include "VPUtilitiesEditorSettings.h"
 #include "VPUtilitiesEditorStyle.h"
 #include "UObject/StrongObjectPtr.h"
 #include "WorkspaceMenuStructure.h"
@@ -29,7 +26,6 @@ class FVPUtilitiesEditorModule : public IModuleInterface
 {
 public:
 	TStrongObjectPtr<UVPCustomUIHandler> CustomUIHandler;
-	FName VPRoleNotificationBarIdentifier = TEXT("VPRoles");
 
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override
@@ -55,6 +51,7 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+
 		UnregisterSettings();
 		SGenlockProviderTab::UnregisterNomadTabSpawner();
 
@@ -78,21 +75,6 @@ public:
 				LOCTEXT("VirtualProductionSettingsName", "Virtual Production"),
 				LOCTEXT("VirtualProductionSettingsDescription", "Configure the Virtual Production settings."),
 				GetMutableDefault<UVPSettings>());
-
-			ISettingsSectionPtr EditorSettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "VirtualProductionEditor",
-				LOCTEXT("VirtualProductionEditorSettingsName", "Virtual Production Editor"),
-				LOCTEXT("VirtualProductionEditorSettingsDescription", "Configure the Virtual Production Editor settings."),
-				GetMutableDefault<UVPUtilitiesEditorSettings>());
-		}
-
-		FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor");
-		if (LevelEditorModule != nullptr)
-		{
-			FLevelEditorModule::FStatusBarItem Item;
-			Item.Label = LOCTEXT("VPRolesLabel", "VP Roles: ");
-			Item.Value = MakeAttributeLambda([]() { return FText::FromString(GetMutableDefault<UVPSettings>()->GetRoles().ToStringSimple()); });
-			Item.Visibility = MakeAttributeLambda([]() { return GetMutableDefault<UVPSettings>()->bShowRoleInEditor ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; });
-			LevelEditorModule->AddStatusBarItem(VPRoleNotificationBarIdentifier, Item);
 		}
 	}
 
@@ -103,13 +85,6 @@ public:
 		if (SettingsModule != nullptr)
 		{
 			SettingsModule->UnregisterSettings("Project", "Plugins", "VirtualProduction");
-			SettingsModule->UnregisterSettings("Project", "Plugins", "VirtualProductionEditor");
-		}
-
-		FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor");
-		if (LevelEditorModule != nullptr)
-		{
-			LevelEditorModule->RemoveStatusBarItem(VPRoleNotificationBarIdentifier);
 		}
 	}
 };

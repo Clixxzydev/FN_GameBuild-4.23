@@ -14,8 +14,8 @@ namespace UnrealBuildTool.Rules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"RenderCore",
-				}
+                    "RenderCore",
+                }
 			);
 
 			PrivateDependencyModuleNames.AddRange(
@@ -24,19 +24,9 @@ namespace UnrealBuildTool.Rules
 					"Landscape",
 					"LevelSequence",
 					"MeshDescription",
-					"Projects"
-				}
+                    "Projects",
+                }
 			);
-
-			if (Target.Type == TargetType.Editor)
-			{
-				PrivateDependencyModuleNames.AddRange(
-					new string[]
-					{
-						"UnrealEd"
-					}
-				);
-			}
 		}
 	}
 }

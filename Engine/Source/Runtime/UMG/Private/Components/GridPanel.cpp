@@ -67,17 +67,9 @@ TSharedRef<SWidget> UGridPanel::RebuildWidget()
 	return MyGridPanel.ToSharedRef();
 }
 
-UGridSlot* UGridPanel::AddChildToGrid(UWidget* Content, int32 InRow, int32 InColumn)
+UGridSlot* UGridPanel::AddChildToGrid(UWidget* Content)
 {
-	UGridSlot* GridSlot = Cast<UGridSlot>(Super::AddChild(Content));
-
-	if (GridSlot != nullptr)
-	{
-		GridSlot->SetRow(InRow);
-		GridSlot->SetColumn(InColumn);
-	}
-
-	return GridSlot;
+	return Cast<UGridSlot>(Super::AddChild(Content));
 }
 
 void UGridPanel::SynchronizeProperties()

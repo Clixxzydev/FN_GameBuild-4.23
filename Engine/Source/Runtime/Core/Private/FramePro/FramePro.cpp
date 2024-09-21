@@ -9864,9 +9864,9 @@ namespace FramePro
 	}
 
 //------------------------------------------------------------------------
-//                         FRAMEPRO_PLATFORM_HOLOLENS
+//                         FRAMEPRO_PLATFORM_UWP
 //------------------------------------------------------------------------
-#elif FRAMEPRO_PLATFORM_HOLOLENS
+#elif FRAMEPRO_PLATFORM_UWP
 
 	//------------------------------------------------------------------------
 	// need to include windows.h in header for QueryPerformanceCounter()
@@ -9914,7 +9914,7 @@ namespace FramePro
 		//------------------------------------------------------------------------
 		Platform::Enum Platform::GetPlatformEnum()
 		{
-			return Platform::Windows_HoloLens;
+			return Platform::Windows_UWP;
 		}
 
 		//------------------------------------------------------------------------

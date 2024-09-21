@@ -128,8 +128,6 @@ void SScrollBarTrack::SetSizes(float InThumbOffsetFraction, float InThumbSizeFra
 	{
 		ThumbSizeFraction = 0.0f;
 	}
-
-	Invalidate(EInvalidateWidget::Paint);
 }
 
 bool SScrollBarTrack::IsNeeded() const
@@ -161,9 +159,5 @@ float SScrollBarTrack::GetThumbSizeFraction() const
 
 void SScrollBarTrack::SetIsAlwaysVisible(bool InIsAlwaysVisible)
 {
-	if (bIsAlwaysVisible != InIsAlwaysVisible)
-	{
-		bIsAlwaysVisible = InIsAlwaysVisible;
-		Invalidate(EInvalidateWidget::Layout);
-	}
+	bIsAlwaysVisible = InIsAlwaysVisible;
 }

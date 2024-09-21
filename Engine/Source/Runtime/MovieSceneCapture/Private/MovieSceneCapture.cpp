@@ -86,8 +86,6 @@ FMovieSceneCaptureSettings::FMovieSceneCaptureSettings()
 	HandleFrames = 0;
 	GameModeOverride = nullptr;
 	OutputFormat = TEXT("{world}");
-	bUseCustomFrameRate = false;
-	CustomFrameRate = FFrameRate(24, 1);
 	FrameRate = FFrameRate(24, 1);
 	ZeroPadFrameNumbers = 4;
 	bEnableTextureStreaming = false;
@@ -300,10 +298,6 @@ void UMovieSceneCapture::Initialize(TSharedPtr<FSceneViewport> InSceneViewport, 
 		if (FParse::Bool(FCommandLine::Get(), TEXT("-PathTracer="), bOverridePathTracer))
 		{
 			Settings.bUsePathTracer = bOverridePathTracer;
-			if (bOverridePathTracer)
-			{
-				InSceneViewport->GetClient()->GetEngineShowFlags()->SetPathTracing(true);
-			}
 		}
 
 		uint16 OverridePathTracerSamplePerPixel;
@@ -384,13 +378,9 @@ void UMovieSceneCapture::Initialize(TSharedPtr<FSceneViewport> InSceneViewport, 
 		FString FrameRateOverrideString;
 		if ( FParse::Value( FCommandLine::Get(), TEXT( "-MovieFrameRate=" ), FrameRateOverrideString ) )
 		{
-			if (!TryParseString(Settings.CustomFrameRate, *FrameRateOverrideString))
+			if (!TryParseString(Settings.FrameRate, *FrameRateOverrideString))
 			{
-				UE_LOG(LogMovieSceneCapture, Error, TEXT("Unrecognized capture frame rate: %s. Defaulting to sequence frame rate."), *FrameRateOverrideString);
-			}
-			else
-			{
-				Settings.bUseCustomFrameRate = true;
+				UE_LOG(LogMovieSceneCapture, Error, TEXT("Unrecognized capture frame rate: %s."), *FrameRateOverrideString);
 			}
 		}
 	}
@@ -409,7 +399,7 @@ void UMovieSceneCapture::Initialize(TSharedPtr<FSceneViewport> InSceneViewport, 
 	CachedMetrics.Width = InitSettings->DesiredSize.X;
 	CachedMetrics.Height = InitSettings->DesiredSize.Y;
 
-	double FrameRate = Settings.GetFrameRate().AsDecimal();
+	double FrameRate = Settings.FrameRate.AsDecimal();
 
 	FormatMappings.Reserve(10);
 	if (FrameRate == FMath::RoundToDouble(FrameRate))

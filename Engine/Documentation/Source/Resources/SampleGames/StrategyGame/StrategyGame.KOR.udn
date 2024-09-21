@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6666933
+﻿INTSourceChangelist:3782314
 Availability: Public
 Title:전략 게임
 Crumbs:%ROOT%, Resources
@@ -13,7 +13,11 @@ Related: Gameplay/Input
 Related: Engine/Rendering/ParticleSystems
 Version: 4.9
 topic-image:StrategyGameTopic.png
-hero-image:StragetyGame.png
+
+
+[REGION:fullwidth]
+![](StragetyGame.png)
+[/REGION]
 
 
 [TOC(start:2 end:2)]

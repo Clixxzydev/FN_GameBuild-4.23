@@ -31,8 +31,3 @@ void UMovieSceneNiagaraTrack::RemoveSection(UMovieSceneSection& Section)
 {
 	Sections.Remove(&Section);
 }
-
-void UMovieSceneNiagaraTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	Sections.RemoveAt(SectionIndex);
-}

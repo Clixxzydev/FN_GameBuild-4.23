@@ -119,7 +119,6 @@ class FRHIFrameFlipTrackingRunnable : public FRunnable
 	static FRunnableThread* Thread;
 	static FRHIFrameFlipTrackingRunnable Singleton;
 	static bool bInitialized;
-	static bool bRun;
 
 	FCriticalSection CS;
 	struct FFramePair
@@ -128,6 +127,8 @@ class FRHIFrameFlipTrackingRunnable : public FRunnable
 		FGraphEventRef Event;
 	};
 	TArray<FFramePair> FramePairs;
+
+	bool bRun;
 
 	FRHIFrameFlipTrackingRunnable();
 
@@ -142,6 +143,7 @@ public:
 };
 
 FRHIFrameFlipTrackingRunnable::FRHIFrameFlipTrackingRunnable()
+	: bRun(true)
 {}
 
 #if USE_FRAME_OFFSET_THREAD
@@ -150,11 +152,11 @@ struct FRHIFrameOffsetThread : public FRunnable
 	static FRunnableThread* Thread;
 	static FRHIFrameOffsetThread Singleton;
 	static bool bInitialized;
-	static bool bRun;
 
 	FCriticalSection CS;
 	FRHIFlipDetails LastFlipFrame;
 
+	bool bRun;
 
 	FEvent* WaitEvent;
 
@@ -220,7 +222,8 @@ struct FRHIFrameOffsetThread : public FRunnable
 
 public:
 	FRHIFrameOffsetThread()
-		: WaitEvent(nullptr)
+		: bRun(true)
+		, WaitEvent(nullptr)
 	{}
 
 	~FRHIFrameOffsetThread()
@@ -256,7 +259,6 @@ public:
 	static void Initialize()
 	{
 		bInitialized = true;
-		bRun = true;
 		Singleton.GetOrInitializeWaitEvent();
 		check(Thread == nullptr);
 		Thread = FRunnableThread::Create(&Singleton, TEXT("RHIFrameOffsetThread"), 0, TPri_AboveNormal);
@@ -264,7 +266,7 @@ public:
 
 	static void Shutdown()
 	{
-		// PS4 calls shutdown before initialize has been called, so bail out if that happens
+		// PS4 calls shutdown before initialize has been called, so bail out if that happens  
 		if (!bInitialized)
 		{
 			return;
@@ -313,7 +315,6 @@ private:
 FRunnableThread* FRHIFrameOffsetThread::Thread = nullptr;
 FRHIFrameOffsetThread FRHIFrameOffsetThread::Singleton;
 bool FRHIFrameOffsetThread::bInitialized = false;
-bool FRHIFrameOffsetThread::bRun = false;
 
 #endif // USE_FRAME_OFFSET_THREAD
 
@@ -322,11 +323,6 @@ uint32 FRHIFrameFlipTrackingRunnable::Run()
 	uint64 SyncFrame = 0;
 	double SyncTime = FPlatformTime::Seconds();
 	bool bForceFlipSync = true;
-
-	if ( ! FPlatformMisc::UseRenderThread() )
-	{
-		return 0;
-	}
 
 	while (bRun)
 	{
@@ -391,24 +387,13 @@ void FRHIFrameFlipTrackingRunnable::Stop()
 
 void FRHIFrameFlipTrackingRunnable::Initialize()
 {
-	if ( ! FPlatformMisc::UseRenderThread() )
-	{
-		return;
-	}
-
 	check(Thread == nullptr);
 	bInitialized = true;
-	bRun = true;
 	Thread = FRunnableThread::Create(&Singleton, TEXT("RHIFrameFlipThread"), 0, TPri_AboveNormal);
 }
 
 void FRHIFrameFlipTrackingRunnable::Shutdown()
 {
-	if ( ! FPlatformMisc::UseRenderThread() )
-	{
-		return;
-	}
-
 	if (!bInitialized)
 	{
 		return;
@@ -440,11 +425,6 @@ void FRHIFrameFlipTrackingRunnable::Shutdown()
 
 void FRHIFrameFlipTrackingRunnable::CompleteGraphEventOnFlip(uint64 PresentIndex, FGraphEventRef Event)
 {
-	if ( ! FPlatformMisc::UseRenderThread() )
-	{
-		return;
-	}
-
 	FScopeLock Lock(&Singleton.CS);
 
 	if (Thread)
@@ -474,7 +454,6 @@ void FRHIFrameFlipTrackingRunnable::CompleteGraphEventOnFlip(uint64 PresentIndex
 FRunnableThread* FRHIFrameFlipTrackingRunnable::Thread;
 FRHIFrameFlipTrackingRunnable FRHIFrameFlipTrackingRunnable::Singleton;
 bool FRHIFrameFlipTrackingRunnable::bInitialized = false;
-bool FRHIFrameFlipTrackingRunnable::bRun = false;
 
 RHI_API uint32 RHIGetSyncInterval()
 {

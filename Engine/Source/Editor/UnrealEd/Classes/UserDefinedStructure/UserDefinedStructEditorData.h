@@ -64,10 +64,7 @@ struct FStructVariableDescription
 	uint8 bInvalidMember:1;
 
 	UPROPERTY()
-	uint8 bDontEditOnInstance:1;
-
-	UPROPERTY()
-	uint8 bEnableSaveGame : 1;
+	uint8 bDontEditoOnInstance:1;
 
 	UPROPERTY()
 	uint8 bEnableMultiLineText:1;
@@ -95,8 +92,7 @@ struct FStructVariableDescription
 		, bIsSet_DEPRECATED(false)
 		, bIsMap_DEPRECATED(false)
 		, bInvalidMember(false)
-		, bDontEditOnInstance(false)
-		, bEnableSaveGame(false)
+		, bDontEditoOnInstance(false)
 		, bEnableMultiLineText(false)
 		, bEnable3dWidget(false)
 	{ }

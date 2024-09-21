@@ -36,13 +36,6 @@ class FMemoryReader;
 struct FDialogueContext;
 
 
-/** Delegate called from AsyncLoadGameFromSlot. First two parameters are passed in SlotName and UserIndex, third parameter is the returned SaveGame, or null if it failed to load */
-DECLARE_DELEGATE_ThreeParams(FAsyncSaveGameToSlotDelegate, const FString&, const int32, bool);
-
-/** Delegate called from AsyncLoadGameFromSlot. First two parameters are passed in SlotName and UserIndex, third parameter is the returned SaveGame, or null if it failed to load */
-DECLARE_DELEGATE_ThreeParams(FAsyncLoadGameFromSlotDelegate, const FString&, const int32, USaveGame*);
-
-/** Static class with useful gameplay utility functions that can be called from both Blueprint and C++ */
 UCLASS()
 class ENGINE_API UGameplayStatics : public UBlueprintFunctionLibrary
 {
@@ -79,15 +72,6 @@ class ENGINE_API UGameplayStatics : public UBlueprintFunctionLibrary
 	/** Bind the bounds of an array of Actors */
 	UFUNCTION(BlueprintCallable, Category="Collision")
 	static void GetActorArrayBounds(const TArray<AActor*>& Actors, bool bOnlyCollidingComponents, FVector& Center, FVector& BoxExtent);
-	
-	/** 
-	 *	Find the first Actor in the world of the specified class. 
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
-	 *	@param	ActorClass	Class of Actor to find. Must be specified or result will be empty.
-	 *	@return				Actor of the specified class.
-	 */
-	UFUNCTION(BlueprintCallable, Category="Utilities", meta=(WorldContext="WorldContextObject", DeterminesOutputType="ActorClass"))
-	static class AActor* GetActorOfClass(const UObject* WorldContextObject, TSubclassOf<AActor> ActorClass);
 
 	/** 
 	 *	Find all Actors in the world of the specified class. 
@@ -108,23 +92,13 @@ class ENGINE_API UGameplayStatics : public UBlueprintFunctionLibrary
 	static void GetAllActorsWithInterface(const UObject* WorldContextObject, TSubclassOf<UInterface> Interface, TArray<AActor*>& OutActors);
 
 	/**
-	 *	Find all Actors in the world with the specified tag.
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
-	 *	@param	Tag			Tag to find. Must be specified or result array will be empty.
-	 *	@param	OutActors	Output array of Actors of the specified tag.
-	 */
+	*	Find all Actors in the world with the specified tag.
+	*	This is a slow operation, use with caution e.g. do not use every frame.
+	*	@param	Tag			Tag to find. Must be specified or result array will be empty.
+	*	@param	OutActors	Output array of Actors of the specified tag.
+	*/
 	UFUNCTION(BlueprintCallable, Category="Utilities",  meta=(WorldContext="WorldContextObject"))
 	static void GetAllActorsWithTag(const UObject* WorldContextObject, FName Tag, TArray<AActor*>& OutActors);
-
-	/**
-	 *	Find all Actors in the world of the specified class with the specified tag.
-	 *	This is a slow operation, use with caution e.g. do not use every frame.
-	 *	@param	Tag			Tag to find. Must be specified or result array will be empty.
-	 *	@param	ActorClass	Class of Actor to find. Must be specified or result array will be empty.
-	 *	@param	OutActors	Output array of Actors of the specified tag.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (WorldContext = "WorldContextObject"))
-	static void GetAllActorsOfClassWithTag(const UObject* WorldContextObject, TSubclassOf<AActor> ActorClass, FName Tag, TArray<AActor*>& OutActors);
 
 	// --- Player functions ------------------------------
 
@@ -280,18 +254,6 @@ class ENGINE_API UGameplayStatics : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (WorldContext = "WorldContextObject"))
 	static bool GetEnableWorldRendering(const UObject* WorldContextObject);
-
-	/**
-	 * Returns the current viewport mouse capture mode
-	 */
-	UFUNCTION(BlueprintPure, Category = "Utilities", meta = (WorldContext = "WorldContextObject"))
-	static EMouseCaptureMode GetViewportMouseCaptureMode(const UObject* WorldContextObject);
-
-	/**
-	 * Sets the current viewport mouse capture mode
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Utilities", meta = (WorldContext = "WorldContextObject"))
-	static void SetViewportMouseCaptureMode(const UObject* WorldContextObject, const EMouseCaptureMode MouseCaptureMode);
 
 	/** Hurt locally authoritative actors within the radius. Will only hit components that block the Visibility channel.
 	 * @param BaseDamage - The base damage to apply, i.e. the damage at the origin.
@@ -510,7 +472,7 @@ public:
 	 * @param ConcurrencySettings - Override concurrency settings package to play sound with
 	 * @param OwningActor - The actor to use as the "owner" for concurrency settings purposes. Allows PlaySound calls to do a concurrency limit per owner.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Audio", meta=(WorldContext="WorldContextObject", AdvancedDisplay = "3", UnsafeDuringActorConstruction = "true", Keywords = "play"))
+	UFUNCTION(BlueprintCallable, Category="Audio", meta=(WorldContext="WorldContextObject", AdvancedDisplay = "3", UnsafeDuringActorConstruction = "true"))
 	static void PlaySoundAtLocation(const UObject* WorldContextObject, USoundBase* Sound, FVector Location, FRotator Rotation, float VolumeMultiplier = 1.f, float PitchMultiplier = 1.f, float StartTime = 0.f, class USoundAttenuation* AttenuationSettings = nullptr, USoundConcurrency* ConcurrencySettings = nullptr, AActor* OwningActor = nullptr);
 
 	static void PlaySoundAtLocation(const UObject* WorldContextObject, USoundBase* Sound, FVector Location, float VolumeMultiplier = 1.f, float PitchMultiplier = 1.f, float StartTime = 0.f, class USoundAttenuation* AttenuationSettings = nullptr, USoundConcurrency* ConcurrencySettings = nullptr)
@@ -843,118 +805,87 @@ public:
 	// --- Save Game functions ------------------------------
 
 	/** 
-	 * Create a new, empty SaveGame object to set data on and then pass to SaveGameToSlot.
-	 * @param	SaveGameClass	Class of SaveGame to create
-	 * @return					New SaveGame object to write data to
+	 *	Create a new, empty SaveGame object to set data on and then pass to SaveGameToSlot.
+	 *	@param	SaveGameClass	Class of SaveGame to create
+	 *	@return					New SaveGame object to write data to
 	 */
-	UFUNCTION(BlueprintCallable, Category="SaveGame", meta=(DeterminesOutputType="SaveGameClass"))
+	UFUNCTION(BlueprintCallable, Category="Game", meta=(DeterminesOutputType="SaveGameClass"))
 	static USaveGame* CreateSaveGameObject(TSubclassOf<USaveGame> SaveGameClass);
 
 	/** 
-	 * Serialize our USaveGame object into a given array of bytes
-	 * @note This will write out all non-transient properties, the SaveGame property flag is not checked
-	 * 
-	 * @param SaveGameObject	Object that contains data about the save game that we want to write out
-	 * @param OutSaveData		Byte array that is written into
-	 * @return					Whether we successfully wrote data
+	 *	Create a new, empty SaveGame object to set data on and then pass to SaveGameToSlot.
+	 *	@param	SaveGameBlueprint	Blueprint of SaveGame to create
+	 *	@return						New SaveGame object to write data to
 	 */
-	static bool SaveGameToMemory(USaveGame* SaveGameObject, TArray<uint8>& OutSaveData);
+	UFUNCTION(BlueprintCallable, Category="Game", meta=(DeprecatedFunction, DeprecationMessage="Use GameplayStatics.CreateSaveGameObject instead."))
+	static USaveGame* CreateSaveGameObjectFromBlueprint(UBlueprint* SaveGameBlueprint);
 
 	/** 
-	 * Save the contents of the buffer to a platform-specific save slot/file 
-	 * @param InSaveData		Data to save
-	 * @param SlotName			Name of save game slot to save to.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the saving.
-	 * @return					Whether we successfully saved this information
+	 *	Serialize our USaveGame object into a given array of bytes
+	 *	@param SaveGameObject	Object that contains data about the save game that we want to write out
+	 *	@return					Whether we successfully wrote data
 	 */
-	static bool SaveDataToSlot(const TArray<uint8>& InSaveData, const FString& SlotName, const int32 UserIndex);
+	static bool SaveGameToMemory(USaveGame * SaveGameObject, TArray<uint8>& OutSaveData);
 
 	/** 
-	 * Schedule an async save to a specific slot. UAsyncActionHandleSaveGame::AsyncSaveGameToSlot is the blueprint version of this.
-	 * This will do the serialize on the game thread, the platform-specific write on a worker thread, then call the complete delegate on the game thread.
-	 * The passed in delegate will be copied to a worker thread so make sure any payload is thread safe to copy by value.
-	 *
-	 * @param SaveGameObject	Object that contains data about the save game that we want to write out.
-	 * @param SlotName			Name of the save game slot to load from.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the loading.
-	 * @param SavedDelegate		Delegate that will be called on game thread when save succeeds or fails.
+	 *	Save the contents of the buffer to a slot/file
+	 *	@param InSaveData		Data to save
+	 *	@param SlotName			Name of save game slot to save to.
+	 *  @param UserIndex		For some platforms, master user index to identify the user doing the saving.
 	 */
-	static void AsyncSaveGameToSlot(USaveGame* SaveGameObject, const FString& SlotName, const int32 UserIndex, FAsyncSaveGameToSlotDelegate SavedDelegate = FAsyncSaveGameToSlotDelegate());
+	static bool SaveDataToSlot(const TArray<uint8> & InSaveData, const FString & SlotName, const int32 UserIndex);
 
 	/** 
-	 * Save the contents of the SaveGameObject to a platform-specific save slot/file.
-	 * @note This will write out all non-transient properties, the SaveGame property flag is not checked
-	 *
-	 * @param SaveGameObject	Object that contains data about the save game that we want to write out
-	 * @param SlotName			Name of save game slot to save to.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the saving.
-	 * @return					Whether we successfully saved this information
+	 *	Save the contents of the SaveGameObject to a slot.
+	 *	@param SaveGameObject	Object that contains data about the save game that we want to write out
+	 *	@param SlotName			Name of save game slot to save to.
+	 *  @param UserIndex		For some platforms, master user index to identify the user doing the saving.
+	 *	@return					Whether we successfully saved this information
 	 */
-	UFUNCTION(BlueprintCallable, Category="SaveGame")
+	UFUNCTION(BlueprintCallable, Category="Game")
 	static bool SaveGameToSlot(USaveGame* SaveGameObject, const FString& SlotName, const int32 UserIndex);
 
 	/**
-	 * See if a save game exists with the specified name.
-	 * @param SlotName			Name of save game slot.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the saving.
+	 *	See if a save game exists with the specified name.
+	 *	@param SlotName			Name of save game slot.
+	 *  @param UserIndex		For some platforms, master user index to identify the user doing the saving.
 	 */
-	UFUNCTION(BlueprintCallable, Category="SaveGame")
+	UFUNCTION(BlueprintCallable, Category="Game")
 	static bool DoesSaveGameExist(const FString& SlotName, const int32 UserIndex);
 
 	/**
-	 * Tries to load a SaveGame object from a given array of bytes.
-	 * @param InSaveData		The array containing the serialized USaveGame data to load
-	 * @return					Object containing loaded game state (nullptr if load fails)
+	 *	Load the contents from a given array of bytes.
+	 *	@param InSaveData		The array containing the serialized USaveGame data to load
+	 *	@return SaveGameObject	Object containing loaded game state (NULL if load fails)
 	 */
 	static USaveGame* LoadGameFromMemory(const TArray<uint8>& InSaveData);
 
-	/**
-	 * Load contents from a slot/file into a buffer of save data.
-	 * @param OutSaveData		Data buffer to load into
-	 * @param SlotName			Name of save game slot to save to.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the saving.
-	 * @return					Whether valid save data was found and loaded.
-	 */
-	static bool LoadDataFromSlot(TArray<uint8>& OutSaveData, const FString& SlotName, const int32 UserIndex);
-
 	/** 
-	 * Schedule an async load of a specific slot. UAsyncActionHandleSaveGame::AsyncLoadGameFromSlot is the blueprint version of this.
-	 * This will do the platform-specific read on a worker thread, the serialize and creation on the game thread, and then will call the passed in delegate
-	 * The passed in delegate will be copied to a worker thread so make sure any payload is thread safe to copy by value
-	 *
-	 * @param SlotName			Name of the save game slot to load from.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the loading.
-	 * @param LoadedDelegate	Delegate that will be called on game thread when load succeeds or fails.
+	 *	Load the contents from a given slot.
+	 *	@param SlotName			Name of the save game slot to load from.
+	 *  @param UserIndex		For some platforms, master user index to identify the user doing the loading.
+	 *	@return SaveGameObject	Object containing loaded game state (NULL if load fails)
 	 */
-	static void AsyncLoadGameFromSlot(const FString& SlotName, const int32 UserIndex, FAsyncLoadGameFromSlotDelegate LoadedDelegate);
-
-	/** 
-	 * Load the contents from a given slot.
-	 * @param SlotName			Name of the save game slot to load from.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the loading.
-	 * @return					Object containing loaded game state (nullptr if load fails)
-	 */
-	UFUNCTION(BlueprintCallable, Category="SaveGame")
+	UFUNCTION(BlueprintCallable, Category="Game")
 	static USaveGame* LoadGameFromSlot(const FString& SlotName, const int32 UserIndex);
 
 	/** 
-	 * Takes the provided buffer and consumes it, parsing past the internal header data, returning a MemoryReader
-	 * that has: 1) been set up with all the related header information, and 2) offset to where tagged USaveGame object 
-	 * serialization begins. NOTE: that the returned object has a reference to the supplied data - scope them 
-	 * accordingly.
-	 *
-	 * @param SaveData			A byte array, presumably produced by one of the SaveGame functions here.
-	 * @return					A memory reader, wrapping SaveData, offset to the point past the header data.
+	 *	Takes the provided buffer and consumes it, parsing past the internal header data, returning a MemoryReader
+	 *  that has: 1) been set up with all the related header information, and 2) offset to where tagged USaveGame object 
+	 *  serialization begins. NOTE: that the returned object has a reference to the supplied data - scope them 
+	 *  accordingly.
+	 *	@param  SaveData	A byte array, presumably produced by one of the SaveGame functions here.
+	 *	@return				A memory reader, wrapping SaveData, offset to the point past the header data.
 	 */
 	static FMemoryReader StripSaveGameHeader(const TArray<uint8>& SaveData);
 
 	/**
 	 * Delete a save game in a particular slot.
-	 * @param SlotName			Name of save game slot to delete.
-	 * @param UserIndex			For some platforms, master user index to identify the user doing the deletion.
-	 * @return					True if a file was actually able to be deleted. use DoesSaveGameExist to distinguish between delete failures and failure due to file not existing.
+	 *	@param SlotName			Name of save game slot to delete.
+	 *  @param UserIndex		For some platforms, master user index to identify the user doing the deletion.
+	 *  @return True if a file was actually able to be deleted. use DoesSaveGameExist to distinguish between delete failures and failure due to file not existing.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "SaveGame")
+	UFUNCTION(BlueprintCallable, Category = "Game")
 	static bool DeleteGameInSlot(const FString& SlotName, const int32 UserIndex);
 
 	/** Returns the frame delta time in seconds, adjusted by time dilation. */
@@ -977,7 +908,6 @@ public:
 	UFUNCTION(BlueprintPure, Category="Utilities|Time", meta=(WorldContext="WorldContextObject"))
 	static float GetAudioTimeSeconds(const UObject* WorldContextObject);
 
-	/** Returns time in seconds since the application was started. Unlike the other time functions this is accurate to the exact time this function is called instead of set once per frame. */
 	UFUNCTION(BlueprintPure, Category="Utilities|Time", meta=(WorldContext="WorldContextObject"))
 	static void GetAccurateRealTime(const UObject* WorldContextObject, int32& Seconds, float& PartialSeconds);
 

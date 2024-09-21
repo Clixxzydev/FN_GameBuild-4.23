@@ -458,7 +458,6 @@ void QuantizeBoundShaderState(
 		break;
 
 	case SF_RayHitGroup:
-	case SF_RayCallable:
 
 		// Local root signature is used for hit group shaders, using the exact number of resources to minimize shader binding table record size.
 

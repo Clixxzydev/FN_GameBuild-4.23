@@ -6,7 +6,6 @@
 #include "Input/Reply.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/Input/SSearchBox.h"
 #include "GraphEditor.h"
 #include "AssetData.h"
 #include "HistoryManager.h"
@@ -131,13 +130,6 @@ private:
 	void ShowReferenceTree();
 	void ViewSizeMap();
 	void ViewAssetAudit();
-	void ZoomToFit();
-	bool CanZoomToFit() const;
-	void OnFind();
-
-	/** Handlers for searching */
-	void HandleOnSearchTextChanged(const FText& SearchText);
-	void HandleOnSearchTextCommitted(const FText& SearchText, ETextCommit::Type CommitType);
 
 	void ReCenterGraphOnNodes(const TSet<UObject*>& Nodes);
 
@@ -161,7 +153,6 @@ private:
 	TSharedPtr<SGraphEditor> GraphEditorPtr;
 
 	TSharedPtr<FUICommandList> ReferenceViewerActions;
-	TSharedPtr<SSearchBox> SearchBox;
 
 	UEdGraph_ReferenceViewer* GraphObj;
 

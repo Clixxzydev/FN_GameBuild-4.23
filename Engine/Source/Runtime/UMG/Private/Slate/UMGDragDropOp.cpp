@@ -27,11 +27,6 @@ void FUMGDragDropOp::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(GameViewport);
 }
 
-FString FUMGDragDropOp::GetReferencerName() const
-{
-	return TEXT("FUMGDragDropOp");
-}
-
 void FUMGDragDropOp::Construct()
 {
 

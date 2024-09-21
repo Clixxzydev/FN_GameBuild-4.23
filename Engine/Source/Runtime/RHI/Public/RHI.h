@@ -127,26 +127,22 @@ RHI_API bool RHIGetPreviewFeatureLevel(ERHIFeatureLevel::Type& PreviewFeatureLev
 inline bool RHISupportsInstancedStereo(const EShaderPlatform Platform)
 {
 	// Only D3D SM5, PS4 and Metal SM5 supports Instanced Stereo
-	return Platform == EShaderPlatform::SP_PCD3D_SM5 || Platform == EShaderPlatform::SP_PS4 || Platform == EShaderPlatform::SP_METAL_SM5 || Platform == EShaderPlatform::SP_METAL_SM5_NOTESS
-		|| FDataDrivenShaderPlatformInfo::GetInfo(Platform).bSupportsInstancedStereo;
+	return (Platform == EShaderPlatform::SP_PCD3D_SM5 || Platform == EShaderPlatform::SP_PS4 || Platform == EShaderPlatform::SP_METAL_SM5 || Platform == EShaderPlatform::SP_METAL_SM5_NOTESS);
 }
 
 inline bool RHISupportsMultiView(const EShaderPlatform Platform)
 {
 	// Only PS4 and Metal SM5 from 10.13 onward supports Multi-View
-	return (Platform == EShaderPlatform::SP_PS4) || ((Platform == EShaderPlatform::SP_METAL_SM5 || Platform == SP_METAL_SM5_NOTESS))
-		|| FDataDrivenShaderPlatformInfo::GetInfo(Platform).bSupportsMultiView;
+	return (Platform == EShaderPlatform::SP_PS4) || ((Platform == EShaderPlatform::SP_METAL_SM5 || Platform == SP_METAL_SM5_NOTESS));
 }
 
 inline bool RHISupportsMSAA(EShaderPlatform Platform)
 {
 	return 
 		//@todo-rco: Fix when iOS OpenGL supports MSAA
-		(Platform != SP_OPENGL_ES2_IOS
+		Platform != SP_OPENGL_ES2_IOS
 		// @todo optimise MSAA for XboxOne, currently uses significant eRAM.
-		&& Platform != SP_XBOXONE_D3D12)
-		// @todo platplug: Maybe this should become bDisallowMSAA to default of 0 is a better default (since now MSAA is opt-out more than opt-in) 
-		|| FDataDrivenShaderPlatformInfo::GetInfo(Platform).bSupportsMSAA;
+		&& Platform != SP_XBOXONE_D3D12;
 }
 
 inline bool RHISupportsBufferLoadTypeConversion(EShaderPlatform Platform)
@@ -169,8 +165,7 @@ inline bool RHISupports4ComponentUAVReadWrite(EShaderPlatform Platform)
 {
 	// Must match usf PLATFORM_SUPPORTS_4COMPONENT_UAV_READ_WRITE
 	// D3D11 does not support multi-component loads from a UAV: "error X3676: typed UAV loads are only allowed for single-component 32-bit element types"
-	return Platform == SP_XBOXONE_D3D12 || Platform == SP_PS4 || IsMetalPlatform(Platform) 
-		|| FDataDrivenShaderPlatformInfo::GetInfo(Platform).bSupports4ComponentUAVReadWrite;
+	return Platform == SP_XBOXONE_D3D12 || Platform == SP_PS4 || IsMetalPlatform(Platform);
 }
 
 /** Whether Manual Vertex Fetch is supported for the specified shader platform.
@@ -380,10 +375,6 @@ extern RHI_API TRHIGlobal<int32> GMaxShadowDepthBufferSizeY;
 
 /** The maximum size allowed for 2D textures in both dimensions. */
 extern RHI_API TRHIGlobal<int32> GMaxTextureDimensions;
-
-/** The maximum size allowed for 3D textures in all three dimensions. */
-extern RHI_API TRHIGlobal<int32> GMaxVolumeTextureDimensions;
-
 
 FORCEINLINE uint32 GetMax2DTextureDimension()
 {
@@ -1159,7 +1150,6 @@ struct FClearValueBinding
 	// common clear values
 	static RHI_API const FClearValueBinding None;
 	static RHI_API const FClearValueBinding Black;
-	static RHI_API const FClearValueBinding BlackMaxAlpha;
 	static RHI_API const FClearValueBinding White;
 	static RHI_API const FClearValueBinding Transparent;
 	static RHI_API const FClearValueBinding DepthOne;
@@ -1226,52 +1216,6 @@ struct FRHIResourceCreateInfo
 	// whether to create an RHI object with no underlying resource
 	bool bWithoutNativeResource;
 	const TCHAR* DebugName;
-};
-
-enum ERHITextureSRVOverrideSRGBType
-{
-	SRGBO_Default,
-	SRGBO_ForceDisable,
-	SRGBO_ForceEnable,
-};
-
-struct FRHITextureSRVCreateInfo
-{
-	explicit FRHITextureSRVCreateInfo(uint8 InMipLevel = 0u, uint8 InNumMipLevels = 1u, uint8 InFormat = PF_Unknown)
-		: Format(InFormat)
-		, SRGBOverride(SRGBO_Default)
-		, MipLevel(InMipLevel)
-		, NumMipLevels(InNumMipLevels)
-		, FirstArraySlice(0)
-		, NumArraySlices(0)
-	{}
-
-	explicit FRHITextureSRVCreateInfo(uint8 InMipLevel, uint8 InNumMipLevels, uint32 InFirstArraySlice, uint32 InNumArraySlices, uint8 InFormat = PF_Unknown)
-		: Format(InFormat)
-		, SRGBOverride(SRGBO_Default)
-		, MipLevel(InMipLevel)
-		, NumMipLevels(InNumMipLevels)
-		, FirstArraySlice(InFirstArraySlice)
-		, NumArraySlices(InNumArraySlices)
-	{}
-
-	/** View the texture with a different format. Leave as PF_Unknown to use original format. Useful when sampling stencil */
-	uint8 Format;
-
-	/** Potentially override the texture's sRGB flag */
-	ERHITextureSRVOverrideSRGBType SRGBOverride;
-
-	/** Specify the mip level to use. Useful when rendering to one mip while sampling from another */
-	uint8 MipLevel;
-
-	/** Create a view to a single, or multiple mip levels */
-	uint8 NumMipLevels;
-
-	/** Specify first array slice index. By default 0. */
-	uint32 FirstArraySlice;
-
-	/** Specify number of array slices. If FirstArraySlice and NumArraySlices are both zero, the SRV is created for all array slices. By default 0. */
-	uint32 NumArraySlices;
 };
 
 // Forward-declaration.
@@ -1383,6 +1327,12 @@ enum class EResourceTransitionAccess
 	ERWSubResBarrier, //For special cases where read/write happens to different subresources of the same resource in the same call.  Inserts a barrier, but read validation will pass.  Temporary until we pass full subresource info to all transition calls.
 	EMetaData,		  // For transitioning texture meta data, for example for making readable in shaders
 	EMaxAccess,
+};
+
+enum class EResourceAliasability
+{
+	EAliasable, // Make the resource aliasable with other resources
+	EUnaliasable, // Make the resource unaliasable with any other resources
 };
 
 class RHI_API FResourceTransitionUtility
@@ -1632,13 +1582,13 @@ extern RHI_API void RHIExit();
 
 
 // the following helper macros allow to safely convert shader types without much code clutter
-#define GETSAFERHISHADER_PIXEL(Shader) ((Shader) ? (Shader)->GetPixelShader() : nullptr)
-#define GETSAFERHISHADER_VERTEX(Shader) ((Shader) ? (Shader)->GetVertexShader() : nullptr)
-#define GETSAFERHISHADER_HULL(Shader) ((Shader) ? (Shader)->GetHullShader() : nullptr)
-#define GETSAFERHISHADER_DOMAIN(Shader) ((Shader) ? (Shader)->GetDomainShader() : nullptr)
-#define GETSAFERHISHADER_GEOMETRY(Shader) ((Shader) ? (Shader)->GetGeometryShader() : (FRHIGeometryShader*)FGeometryShaderRHIRef())
-#define GETSAFERHISHADER_COMPUTE(Shader) ((Shader) ? (Shader)->GetComputeShader() : nullptr)
-#define GETSAFERHISHADER_RAYTRACING(Shader) ((Shader) ? (Shader)->GetRayTracingShader() : (FRHIRayTracingShader*)FRayTracingShaderRHIRef())
+#define GETSAFERHISHADER_PIXEL(Shader) ((Shader) ? (Shader)->GetPixelShader() : (FPixelShaderRHIParamRef)FPixelShaderRHIRef())
+#define GETSAFERHISHADER_VERTEX(Shader) ((Shader) ? (Shader)->GetVertexShader() : (FVertexShaderRHIParamRef)FVertexShaderRHIRef())
+#define GETSAFERHISHADER_HULL(Shader) ((Shader) ? (Shader)->GetHullShader() : (FHullShaderRHIParamRef)FHullShaderRHIRef())
+#define GETSAFERHISHADER_DOMAIN(Shader) ((Shader) ? (Shader)->GetDomainShader() : (FDomainShaderRHIParamRef)FDomainShaderRHIRef())
+#define GETSAFERHISHADER_GEOMETRY(Shader) ((Shader) ? (Shader)->GetGeometryShader() : (FGeometryShaderRHIParamRef)FGeometryShaderRHIRef())
+#define GETSAFERHISHADER_COMPUTE(Shader) ((Shader) ? (Shader)->GetComputeShader() : (FComputeShaderRHIParamRef)FComputeShaderRHIRef())
+#define GETSAFERHISHADER_RAYTRACING(Shader) ((Shader) ? (Shader)->GetRayTracingShader() : (FRayTracingShaderRHIParamRef)FRayTracingShaderRHIRef())
 
 
 // Panic delegate is called when when a fatal condition is encountered within RHI function.

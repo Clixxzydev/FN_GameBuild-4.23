@@ -40,22 +40,22 @@ ENUM_CLASS_FLAGS(EStructSerializerBackendFlags);
 struct FStructSerializerState
 {
 	/** Holds a flag indicating whether the property has been processed. */
-	bool HasBeenProcessed = false;
+	bool HasBeenProcessed;
 
 	/** Holds a pointer to the key property's data. */
-	const void* KeyData = nullptr;
+	const void* KeyData;
 
 	/** Holds the key property's meta data (only used for TMap). */
-	UProperty* KeyProperty = nullptr;
+	UProperty* KeyProperty;
 
 	/** Holds a pointer to the property value's data. */
-	const void* ValueData = nullptr;
+	const void* ValueData;
 
 	/** Holds the property value's meta data. */
-	UProperty* ValueProperty = nullptr;
+	UProperty* ValueProperty;
 
 	/** Holds a pointer to the UStruct describing the data. */
-	UStruct* ValueType = nullptr;
+	UStruct* ValueType;
 };
 
 

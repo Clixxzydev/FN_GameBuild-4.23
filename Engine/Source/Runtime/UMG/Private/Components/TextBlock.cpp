@@ -30,11 +30,6 @@ UTextBlock::UTextBlock(const FObjectInitializer& ObjectInitializer)
 		static ConstructorHelpers::FObjectFinder<UFont> RobotoFontObj(*UWidget::GetDefaultFontName());
 		Font = FSlateFontInfo(RobotoFontObj.Object, 24, FName("Bold"));
 	}
-
-#if WITH_EDITORONLY_DATA
-	AccessibleBehavior = ESlateAccessibleBehavior::Auto;
-	bCanChildrenBeAccessible = false;
-#endif
 }
 
 void UTextBlock::PostLoad()
@@ -224,13 +219,6 @@ EVisibility UTextBlock::GetTextWarningImageVisibility() const
 {
 	return Text.IsCultureInvariant() ? EVisibility::Visible : EVisibility::Collapsed;
 }
-
-#if WITH_ACCESSIBILITY
-TSharedPtr<SWidget> UTextBlock::GetAccessibleWidget() const
-{
-	return MyTextBlock;
-}
-#endif
 
 void UTextBlock::OnBindingChanged(const FName& Property)
 {

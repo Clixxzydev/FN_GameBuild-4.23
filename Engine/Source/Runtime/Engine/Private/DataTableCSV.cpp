@@ -26,35 +26,14 @@ bool FDataTableExporterCSV::WriteTable(const UDataTable& InDataTable)
 	}
 
 	// Write the header (column titles)
-	FString ImportKeyField;
-	if (!InDataTable.ImportKeyField.IsEmpty())
-	{
-		// Write actual name if we have it
-		ImportKeyField = InDataTable.ImportKeyField;
-		ExportedText += ImportKeyField;
-	}
-	else
-	{
-		ExportedText += TEXT("---");
-	}
-
-	UProperty* SkipProperty = nullptr;
+	ExportedText += TEXT("---");
 	for (TFieldIterator<UProperty> It(InDataTable.RowStruct); It; ++It)
 	{
 		UProperty* BaseProp = *It;
 		check(BaseProp);
 
-		FString ColumnHeader = DataTableUtils::GetPropertyExportName(BaseProp, DTExportFlags);
-		
-		if (ColumnHeader == ImportKeyField)
-		{
-			// Don't write header again if this is the name field, and save for skipping later
-			SkipProperty = BaseProp;
-			continue;
-		}
-		
 		ExportedText += TEXT(",");
-		ExportedText += ColumnHeader;
+		ExportedText += DataTableUtils::GetPropertyExportName(BaseProp, DTExportFlags);
 	}
 	ExportedText += TEXT("\n");
 
@@ -73,7 +52,7 @@ bool FDataTableExporterCSV::WriteTable(const UDataTable& InDataTable)
 	return true;
 }
 
-bool FDataTableExporterCSV::WriteRow(const UScriptStruct* InRowStruct, const void* InRowData, const UProperty* SkipProperty)
+bool FDataTableExporterCSV::WriteRow(const UScriptStruct* InRowStruct, const void* InRowData)
 {
 	if (!InRowStruct)
 	{
@@ -84,11 +63,6 @@ bool FDataTableExporterCSV::WriteRow(const UScriptStruct* InRowStruct, const voi
 	{
 		UProperty* BaseProp = *It;
 		check(BaseProp);
-
-		if (BaseProp == SkipProperty)
-		{
-			continue;
-		}
 
 		const void* Data = BaseProp->ContainerPtrToValuePtr<void>(InRowData, 0);
 		WriteStructEntry(InRowData, BaseProp, Data);
@@ -150,22 +124,7 @@ bool FDataTableImporterCSV::ReadTable()
 	}
 
 	// Find property for each column
-	int32 KeyColumn = 0;
-	if (!DataTable->ImportKeyField.IsEmpty())
-	{
-		// Search for key column by name
-		for (int32 ColIdx = 0; ColIdx < Rows[0].Num(); ++ColIdx)
-		{
-			const TCHAR* ColumnValue = Rows[0][ColIdx];
-			if (DataTable->ImportKeyField == FString(ColumnValue))
-			{
-				KeyColumn = ColIdx;
-				break;
-			}
-		}
-	}
-	
-	TArray<UProperty*> ColumnProps = DataTable->GetTablePropertyArray(Rows[0], DataTable->RowStruct, ImportProblems, KeyColumn);
+	TArray<UProperty*> ColumnProps = DataTable->GetTablePropertyArray(Rows[0], DataTable->RowStruct, ImportProblems);
 
 	// Empty existing data
 	DataTable->EmptyTable();
@@ -175,8 +134,8 @@ bool FDataTableImporterCSV::ReadTable()
 	{
 		const TArray<const TCHAR*>& Cells = Rows[RowIdx];
 
-		// Need at least the key column
-		if (Cells.Num() <= KeyColumn)
+		// Need at least 1 cells (row name)
+		if(Cells.Num() < 1)
 		{
 			ImportProblems.Add(FString::Printf(TEXT("Row '%d' has too few cells."), RowIdx));
 			continue;
@@ -190,20 +149,12 @@ bool FDataTableImporterCSV::ReadTable()
 		}
 
 		// Get row name
-		FName RowName = DataTableUtils::MakeValidName(Cells[KeyColumn]);
+		FName RowName = DataTableUtils::MakeValidName(Cells[0]);
 
 		// Check its not 'none'
 		if(RowName == NAME_None)
 		{
-			if (!DataTable->ImportKeyField.IsEmpty())
-			{
-				ImportProblems.Add(FString::Printf(TEXT("Row '%d' missing key field '%s'."), RowIdx, *DataTable->ImportKeyField));
-			}
-			else
-			{
-				ImportProblems.Add(FString::Printf(TEXT("Row '%d' missing a name."), RowIdx));
-			}
-
+			ImportProblems.Add(FString::Printf(TEXT("Row '%d' missing a name."), RowIdx));
 			continue;
 		}
 
@@ -222,14 +173,9 @@ bool FDataTableImporterCSV::ReadTable()
 		// Add to row map
 		DataTable->AddRowInternal(RowName, RowData);
 
-		// Now iterate over cells (skipping first cell unless we had an explicit name)
-		for(int32 CellIdx = 0; CellIdx < Cells.Num(); CellIdx++)
+		// Now iterate over cells (skipping first cell, that was row name)
+		for(int32 CellIdx=1; CellIdx<Cells.Num(); CellIdx++)
 		{
-			if (CellIdx == KeyColumn)
-			{
-				continue;
-			}
-
 			// Try and assign string to data using the column property
 			UProperty* ColumnProp = ColumnProps[CellIdx];
 			const FString CellValue = Cells[CellIdx];
@@ -239,7 +185,7 @@ bool FDataTableImporterCSV::ReadTable()
 			if(Error.Len() > 0)
 			{
 				FString ColumnName = (ColumnProp != nullptr) 
-					? DataTableUtils::GetPropertyExportName(ColumnProp)
+					? DataTableUtils::GetPropertyDisplayName(ColumnProp, ColumnProp->GetName())
 					: FString(TEXT("NONE"));
 				ImportProblems.Add(FString::Printf(TEXT("Problem assigning string '%s' to property '%s' on row '%s' : %s"), *CellValue, *ColumnName, *RowName.ToString(), *Error));
 			}

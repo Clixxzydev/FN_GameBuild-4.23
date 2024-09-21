@@ -77,53 +77,29 @@ struct FDestroyAudioPreAnimatedToken : IMovieScenePreAnimatedToken
 
 struct FCachedAudioTrackData : IPersistentEvaluationData
 {
-	TMap<FObjectKey, TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>> AudioComponentsByActorKey;
-	
-	FCachedAudioTrackData()
-	{
-		// Create the container for master tracks, which do not have an actor to attach to
-		AudioComponentsByActorKey.Add(FObjectKey(), TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>());
-	}
+	TArray<TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>> AudioComponentsByRow;
 
-	UAudioComponent* GetAudioComponent(FObjectKey ActorKey, FObjectKey SectionKey)
+	UAudioComponent* GetAudioComponentForRow(int32 RowIndex, FObjectKey Key)
 	{
-		if (TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>* Map = AudioComponentsByActorKey.Find(ActorKey))
+		if (AudioComponentsByRow.Num() > RowIndex)
 		{
-			// First, check for an exact match for this section
-			TWeakObjectPtr<UAudioComponent> ExistingComponentPtr = Map->FindRef(SectionKey);
-			if (ExistingComponentPtr.IsValid())
-			{
-				return ExistingComponentPtr.Get();
-			}
-
-			// If no exact match, check for any AudioComponent that isn't busy
-			for (TPair<FObjectKey, TWeakObjectPtr<UAudioComponent >> Pair : *Map)
-			{
-				UAudioComponent* ExistingComponent = Map->FindRef(Pair.Key).Get();
-				if (ExistingComponent && !ExistingComponent->IsPlaying())
-				{
-					// Replace this entry with the new SectionKey to claim it
-					Map->Remove(Pair.Key);
-					Map->Add(SectionKey, ExistingComponent);
-					return ExistingComponent;
-				}
-			}
+			return AudioComponentsByRow[RowIndex].FindRef(Key).Get();
 		}
 
 		return nullptr;
 	}
 
 	/** Only to be called on the game thread */
-	UAudioComponent* AddAudioComponentForRow(int32 RowIndex, FObjectKey SectionKey, AActor& PrincipalActor, IMovieScenePlayer& Player)
+	UAudioComponent* AddAudioComponentForRow(int32 RowIndex, AActor& PrincipalActor, IMovieScenePlayer& Player)
 	{
-		FObjectKey ActorKey(&PrincipalActor);
-		
-		if (!AudioComponentsByActorKey.Contains(ActorKey))
+		const int32 NumExtra = RowIndex + 1 - AudioComponentsByRow.Num();
+		if (NumExtra > 0)
 		{
-			AudioComponentsByActorKey.Add(ActorKey, TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>());
+			AudioComponentsByRow.AddDefaulted(NumExtra);
 		}
 
-		UAudioComponent* ExistingComponent = GetAudioComponent(ActorKey, SectionKey);
+		FObjectKey ActorKey(&PrincipalActor);
+		UAudioComponent* ExistingComponent = AudioComponentsByRow[RowIndex].FindRef(ActorKey).Get();
 		if (!ExistingComponent)
 		{
 			USoundCue* TempPlaybackAudioCue = NewObject<USoundCue>();
@@ -145,7 +121,7 @@ struct FCachedAudioTrackData : IPersistentEvaluationData
 
 			Player.SavePreAnimatedState(*ExistingComponent, FMovieSceneAnimTypeID::Unique(), FDestroyAudioPreAnimatedToken::FProducer());
 
-			AudioComponentsByActorKey[ActorKey].Add(SectionKey, ExistingComponent);
+			AudioComponentsByRow[RowIndex].Add(ActorKey, ExistingComponent);
 
 			ExistingComponent->SetFlags(RF_Transient);
 			ExistingComponent->AttachToComponent(PrincipalActor.GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
@@ -155,9 +131,15 @@ struct FCachedAudioTrackData : IPersistentEvaluationData
 	}
 
 	/** Only to be called on the game thread */
-	UAudioComponent* AddMasterAudioComponentForRow(int32 RowIndex, FObjectKey SectionKey, UWorld* World, IMovieScenePlayer& Player)
+	UAudioComponent* AddMasterAudioComponentForRow(int32 RowIndex, UWorld* World, IMovieScenePlayer& Player)
 	{
-		UAudioComponent* ExistingComponent = GetAudioComponent(FObjectKey(), SectionKey);
+		const int32 NumExtra = RowIndex + 1 - AudioComponentsByRow.Num();
+		if (NumExtra > 0)
+		{
+			AudioComponentsByRow.AddDefaulted(NumExtra);
+		}
+
+		UAudioComponent* ExistingComponent = AudioComponentsByRow[RowIndex].FindRef(FObjectKey()).Get();
 		if (!ExistingComponent)
 		{
 			USoundCue* TempPlaybackAudioCue = NewObject<USoundCue>();
@@ -172,7 +154,7 @@ struct FCachedAudioTrackData : IPersistentEvaluationData
 			Player.SavePreAnimatedState(*ExistingComponent, FMovieSceneAnimTypeID::Unique(), FDestroyAudioPreAnimatedToken::FProducer());
 			
 			ExistingComponent->SetFlags(RF_Transient);
-			AudioComponentsByActorKey[FObjectKey()].Add(SectionKey, ExistingComponent);
+			AudioComponentsByRow[RowIndex].Add(FObjectKey(), ExistingComponent);
 		}
 
 		return ExistingComponent;
@@ -180,9 +162,9 @@ struct FCachedAudioTrackData : IPersistentEvaluationData
 
 	void StopAllSounds()
 	{
-		for (TPair<FObjectKey, TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>>& Map : AudioComponentsByActorKey)
+		for (TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>& Map : AudioComponentsByRow)
 		{
-			for (TPair<FObjectKey, TWeakObjectPtr<UAudioComponent>>& Pair : Map.Value)
+			for (auto& Pair : Map)
 			{
 				if (UAudioComponent* AudioComponent = Pair.Value.Get())
 				{
@@ -192,13 +174,16 @@ struct FCachedAudioTrackData : IPersistentEvaluationData
 		}
 	}
 
-	void StopSoundsOnSection(FObjectKey ObjectKey)
+	void StopSoundsOnRow(int32 RowIndex)
 	{
-		for (TPair<FObjectKey, TMap<FObjectKey, TWeakObjectPtr<UAudioComponent>>>& Pair : AudioComponentsByActorKey)
+		if (RowIndex >= 0 && RowIndex < AudioComponentsByRow.Num())
 		{
-			if (UAudioComponent* AudioComponent = Pair.Value.FindRef(ObjectKey).Get())
+			for (auto& Pair : AudioComponentsByRow[RowIndex])
 			{
-				AudioComponent->Stop();
+				if (UAudioComponent* AudioComponent = Pair.Value.Get())
+				{
+					AudioComponent->Stop();
+				}
 			}
 		}
 	}
@@ -207,8 +192,8 @@ struct FCachedAudioTrackData : IPersistentEvaluationData
 
 struct FAudioSectionExecutionToken : IMovieSceneExecutionToken
 {
-	FAudioSectionExecutionToken(const UMovieSceneAudioSection* InAudioSection)
-		: AudioSection(InAudioSection), SectionKey(InAudioSection)
+	FAudioSectionExecutionToken(const FMovieSceneAudioSectionTemplateData& InAudioData)
+		: AudioData(InAudioData)
 	{}
 
 	virtual void Execute(const FMovieSceneContext& Context, const FMovieSceneEvaluationOperand& Operand, FPersistentEvaluationData& PersistentData, IMovieScenePlayer& Player)
@@ -226,32 +211,32 @@ struct FAudioSectionExecutionToken : IMovieSceneExecutionToken
 		{
 			UObject* PlaybackContext = Player.GetPlaybackContext();
 
-			UAudioComponent* AudioComponent = TrackData.GetAudioComponent(FObjectKey(), SectionKey);
+			UAudioComponent* AudioComponent = TrackData.GetAudioComponentForRow(AudioData.RowIndex, FObjectKey());
 			if (!AudioComponent)
 			{
 				// Initialize the sound
-				AudioComponent = TrackData.AddMasterAudioComponentForRow(AudioSection->GetRowIndex(), SectionKey, PlaybackContext ? PlaybackContext->GetWorld() : nullptr, Player);
+				AudioComponent = TrackData.AddMasterAudioComponentForRow(AudioData.RowIndex, PlaybackContext ? PlaybackContext->GetWorld() : nullptr, Player);
 
 				if (AudioComponent)
 				{
-					if (AudioSection->GetOnQueueSubtitles().IsBound())
+					if (AudioData.OnQueueSubtitles.IsBound())
 					{
-						AudioComponent->OnQueueSubtitles = AudioSection->GetOnQueueSubtitles();
+						AudioComponent->OnQueueSubtitles = AudioData.OnQueueSubtitles;
 					}
-					if (AudioSection->GetOnAudioFinished().IsBound())
+					if (AudioData.OnAudioFinished.IsBound())
 					{
-						AudioComponent->OnAudioFinished = AudioSection->GetOnAudioFinished();
+						AudioComponent->OnAudioFinished = AudioData.OnAudioFinished;
 					}
-					if (AudioSection->GetOnAudioPlaybackPercent().IsBound())
+					if(AudioData.OnAudioPlaybackPercent.IsBound())
 					{
-						AudioComponent->OnAudioPlaybackPercent = AudioSection->GetOnAudioPlaybackPercent();
+						AudioComponent->OnAudioPlaybackPercent = AudioData.OnAudioPlaybackPercent;
 					}
 				}
 			}
 
 			if (AudioComponent)
 			{
-				EnsureAudioIsPlaying(*AudioComponent, PersistentData, Context, false, Player);
+				AudioData.EnsureAudioIsPlaying(*AudioComponent, PersistentData, Context, false, Player);
 			}
 		}
 
@@ -266,129 +251,141 @@ struct FAudioSectionExecutionToken : IMovieSceneExecutionToken
 					continue;
 				}
 
-				UAudioComponent* AudioComponent = TrackData.GetAudioComponent(Actor, SectionKey);
+				UAudioComponent* AudioComponent = TrackData.GetAudioComponentForRow(AudioData.RowIndex, Actor);
 				if (!AudioComponent)
 				{
 					// Initialize the sound
-					AudioComponent = TrackData.AddAudioComponentForRow(AudioSection->GetRowIndex(), SectionKey, *Actor, Player);
+					AudioComponent = TrackData.AddAudioComponentForRow(AudioData.RowIndex, *Actor, Player);
 
 					if (AudioComponent)
 					{
-						if (AudioSection->GetOnQueueSubtitles().IsBound())
+						if (AudioData.OnQueueSubtitles.IsBound())
 						{
-							AudioComponent->OnQueueSubtitles = AudioSection->GetOnQueueSubtitles();
+							AudioComponent->OnQueueSubtitles = AudioData.OnQueueSubtitles;
 						}
-						if (AudioSection->GetOnAudioFinished().IsBound())
+						if (AudioData.OnAudioFinished.IsBound())
 						{
-							AudioComponent->OnAudioFinished = AudioSection->GetOnAudioFinished();
+							AudioComponent->OnAudioFinished = AudioData.OnAudioFinished;
 						}
-						if (AudioSection->GetOnAudioPlaybackPercent().IsBound())
+						if (AudioData.OnAudioPlaybackPercent.IsBound())
 						{
-							AudioComponent->OnAudioPlaybackPercent = AudioSection->GetOnAudioPlaybackPercent();
+							AudioComponent->OnAudioPlaybackPercent = AudioData.OnAudioPlaybackPercent;
 						}
 					}
 				}
-
+				
 				if (AudioComponent)
 				{
-					EnsureAudioIsPlaying(*AudioComponent, PersistentData, Context, true, Player);
+					AudioData.EnsureAudioIsPlaying(*AudioComponent, PersistentData, Context, true, Player);
 				}
 			}
 		}
 	}
 
-	void EnsureAudioIsPlaying(UAudioComponent& AudioComponent, FPersistentEvaluationData& PersistentData, const FMovieSceneContext& Context, bool bAllowSpatialization, IMovieScenePlayer& Player) const
+	FMovieSceneAudioSectionTemplateData AudioData;
+};
+
+FMovieSceneAudioSectionTemplateData::FMovieSceneAudioSectionTemplateData(const UMovieSceneAudioSection& Section)
+	: Sound(Section.GetSound())
+	, AudioStartOffset(Section.GetStartOffset())
+	, AudioPitchMultiplierCurve(Section.GetPitchMultiplierChannel())
+	, AudioVolumeCurve(Section.GetSoundVolumeChannel())
+	, RowIndex(Section.GetRowIndex())
+	, bOverrideAttenuation(Section.GetOverrideAttenuation())
+	, AttenuationSettings(Section.GetAttenuationSettings())
+	, OnQueueSubtitles(Section.GetOnQueueSubtitles())
+	, OnAudioFinished(Section.GetOnAudioFinished())
+	, OnAudioPlaybackPercent(Section.GetOnAudioPlaybackPercent())
+{
+	SectionStartTimeSeconds = (Section.HasStartFrame() ? Section.GetInclusiveStartFrame() : 0) / Section.GetTypedOuter<UMovieScene>()->GetTickResolution();
+}
+
+void FMovieSceneAudioSectionTemplateData::EnsureAudioIsPlaying(UAudioComponent& AudioComponent, FPersistentEvaluationData& PersistentData, const FMovieSceneContext& Context, bool bAllowSpatialization, IMovieScenePlayer& Player) const
+{
+	Player.SavePreAnimatedState(AudioComponent, FStopAudioPreAnimatedToken::GetAnimTypeID(), FStopAudioPreAnimatedToken::FProducer());
+
+	bool bPlaySound = !AudioComponent.IsPlaying() || AudioComponent.Sound != Sound;
+
+	float AudioVolume = 1.f;
+	AudioVolumeCurve.Evaluate(Context.GetTime(), AudioVolume);
+	if (AudioComponent.VolumeMultiplier != AudioVolume)
 	{
-		Player.SavePreAnimatedState(AudioComponent, FStopAudioPreAnimatedToken::GetAnimTypeID(), FStopAudioPreAnimatedToken::FProducer());
+		AudioComponent.SetVolumeMultiplier(AudioVolume);
+	}
 
-		bool bPlaySound = !AudioComponent.IsPlaying() || AudioComponent.Sound != AudioSection->GetSound();
+	float PitchMultiplier = 1.f;
+	AudioPitchMultiplierCurve.Evaluate(Context.GetTime(), PitchMultiplier);
+	if (AudioComponent.PitchMultiplier != PitchMultiplier)
+	{
+		AudioComponent.SetPitchMultiplier(PitchMultiplier);
+	}
 
-		float AudioVolume = 1.f;
-		AudioSection->GetSoundVolumeChannel().Evaluate(Context.GetTime(), AudioVolume);
-		AudioVolume = AudioVolume * AudioSection->EvaluateEasing(Context.GetTime());
-		if (AudioComponent.VolumeMultiplier != AudioVolume)
+	if (bPlaySound)
+	{
+		AudioComponent.bAllowSpatialization = bAllowSpatialization;
+	
+		if (bOverrideAttenuation)
 		{
-			AudioComponent.SetVolumeMultiplier(AudioVolume);
+			AudioComponent.AttenuationSettings = AttenuationSettings;
 		}
-
-		float PitchMultiplier = 1.f;
-		AudioSection->GetPitchMultiplierChannel().Evaluate(Context.GetTime(), PitchMultiplier);
-		if (AudioComponent.PitchMultiplier != PitchMultiplier)
-		{
-			AudioComponent.SetPitchMultiplier(PitchMultiplier);
-		}
-
-		if (bPlaySound)
-		{
-			AudioComponent.bAllowSpatialization = bAllowSpatialization;
-
-			if (AudioSection->GetOverrideAttenuation())
-			{
-				AudioComponent.AttenuationSettings = AudioSection->GetAttenuationSettings();
-			}
-
-			AudioComponent.Stop();
-			AudioComponent.SetSound(AudioSection->GetSound());
+		
+		AudioComponent.Stop();
+		AudioComponent.SetSound(Sound);
 #if WITH_EDITOR
-			UObject* PlaybackContext = Player.GetPlaybackContext();
-			UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
-			if (GIsEditor && World != nullptr && !World->IsPlayInEditor())
-			{
-				AudioComponent.bIsUISound = true;
-				AudioComponent.bIsPreviewSound = true;
-			}
-			else
+		UObject* PlaybackContext = Player.GetPlaybackContext();
+		UWorld* World = PlaybackContext ? PlaybackContext->GetWorld() : nullptr;
+		if (GIsEditor && World != nullptr && !World->IsPlayInEditor())
+		{
+			AudioComponent.bIsUISound = true;
+			AudioComponent.bIsPreviewSound = true;
+		}
+		else
 #endif // WITH_EDITOR
-			{
-				AudioComponent.bIsUISound = false;
-			}
-
-			float SectionStartTimeSeconds = (AudioSection->HasStartFrame() ? AudioSection->GetInclusiveStartFrame() : 0) / AudioSection->GetTypedOuter<UMovieScene>()->GetTickResolution();
-
-			const float AudioTime = (Context.GetTime() / Context.GetFrameRate()) - SectionStartTimeSeconds + (float)Context.GetFrameRate().AsSeconds(AudioSection->GetStartOffset());
-			if (AudioTime >= 0.f && AudioComponent.Sound && AudioTime < AudioComponent.Sound->GetDuration())
-			{
-				AudioComponent.Play(AudioTime);
-			}
-
-			if (Context.GetStatus() == EMovieScenePlayerStatus::Scrubbing)
-			{
-				// While scrubbing, play the sound for a short time and then cut it.
-				AudioComponent.StopDelayed(AudioTrackConstants::ScrubDuration);
-			}
+		{
+			AudioComponent.bIsUISound = false;
 		}
 
-		if (bAllowSpatialization)
+		const float AudioTime = (Context.GetTime() / Context.GetFrameRate()) - SectionStartTimeSeconds + (float)Context.GetFrameRate().AsSeconds(AudioStartOffset);
+		if (AudioTime >= 0.f && AudioComponent.Sound && AudioTime < AudioComponent.Sound->GetDuration())
 		{
-			if (FAudioDevice* AudioDevice = AudioComponent.GetAudioDevice())
-			{
-				DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.MovieSceneUpdateAudioTransform"), STAT_MovieSceneUpdateAudioTransform, STATGROUP_TaskGraphTasks);
+			AudioComponent.Play(AudioTime);
+		}
 
-				const FTransform ActorTransform = AudioComponent.GetOwner()->GetTransform();
-				const uint64 ActorComponentID = AudioComponent.GetAudioComponentID();
-				FAudioThread::RunCommandOnAudioThread([AudioDevice, ActorComponentID, ActorTransform]()
-				{
-					if (FActiveSound* ActiveSound = AudioDevice->FindActiveSound(ActorComponentID))
-					{
-						ActiveSound->bLocationDefined = true;
-						ActiveSound->Transform = ActorTransform;
-					}
-				}, GET_STATID(STAT_MovieSceneUpdateAudioTransform));
-			}
+		if (Context.GetStatus() == EMovieScenePlayerStatus::Scrubbing)
+		{
+			// Fade out the sound at the same volume in order to simply
+			// set a short duration on the sound, far from ideal soln
+			AudioComponent.FadeOut(AudioTrackConstants::ScrubDuration, 1.f);
 		}
 	}
 
-	const UMovieSceneAudioSection* AudioSection;
-	FObjectKey SectionKey;
-};
+	if (bAllowSpatialization)
+	{
+		if (FAudioDevice* AudioDevice = AudioComponent.GetAudioDevice())
+		{
+			DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.MovieSceneUpdateAudioTransform"), STAT_MovieSceneUpdateAudioTransform, STATGROUP_TaskGraphTasks);
+
+			const FTransform ActorTransform = AudioComponent.GetOwner()->GetTransform();
+			const uint64 ActorComponentID = AudioComponent.GetAudioComponentID();
+			FAudioThread::RunCommandOnAudioThread([AudioDevice, ActorComponentID, ActorTransform]()
+			{
+				if (FActiveSound* ActiveSound = AudioDevice->FindActiveSound(ActorComponentID))
+				{
+					ActiveSound->bLocationDefined = true;
+					ActiveSound->Transform = ActorTransform;
+				}
+			}, GET_STATID(STAT_MovieSceneUpdateAudioTransform));
+		}
+	}
+}
 
 FMovieSceneAudioSectionTemplate::FMovieSceneAudioSectionTemplate()
-	: AudioSection()
+	: AudioData()
 {
 }
 
 FMovieSceneAudioSectionTemplate::FMovieSceneAudioSectionTemplate(const UMovieSceneAudioSection& Section)
-	: AudioSection(&Section)
+	: AudioData(Section)
 {
 }
 
@@ -399,7 +396,7 @@ void FMovieSceneAudioSectionTemplate::Evaluate(const FMovieSceneEvaluationOperan
 
 	if (GEngine && GEngine->UseSound() && Context.GetStatus() != EMovieScenePlayerStatus::Jumping)
 	{
-		ExecutionTokens.Add(FAudioSectionExecutionToken(AudioSection));
+		ExecutionTokens.Add(FAudioSectionExecutionToken(AudioData));
 	}
 }
 
@@ -411,6 +408,6 @@ void FMovieSceneAudioSectionTemplate::TearDown(FPersistentEvaluationData& Persis
 	{
 		FCachedAudioTrackData& TrackData = PersistentData.GetOrAddTrackData<FCachedAudioTrackData>();
 
-		TrackData.StopSoundsOnSection(AudioSection);
+		TrackData.StopSoundsOnRow(AudioData.RowIndex);
 	}
 }

@@ -225,9 +225,6 @@ namespace FShaderCompileUtilities
 {
 	bool DoWriteTasks(const TArray<FShaderCommonCompileJob*>& QueuedJobs, FArchive& TransferFile);
 	void DoReadTaskResults(const TArray<FShaderCommonCompileJob*>& QueuedJobs, FArchive& OutputFile);
-
-	/** Execute the specified (single or pipeline) shader compile job. */
-	void ExecuteShaderCompileJob(FShaderCommonCompileJob& Job);
 }
 
 #if PLATFORM_WINDOWS // XGE shader compilation is only supported on Windows.
@@ -349,11 +346,13 @@ struct FShaderMapCompileResults
 	FShaderMapCompileResults() :
 		NumJobsQueued(0),
 		bAllJobsSucceeded(true),
+		bApplyCompletedShaderMapForRendering(true),
 		bRecreateComponentRenderStateOnCompletion(false)
 	{}
 
 	int32 NumJobsQueued;
 	bool bAllJobsSucceeded;
+	bool bApplyCompletedShaderMapForRendering;
 	bool bRecreateComponentRenderStateOnCompletion;
 	TArray<FShaderCommonCompileJob*> FinishedJobs;
 };
@@ -446,6 +445,8 @@ private:
 	FString AbsoluteShaderDebugInfoDirectory;
 	/** Name of the shader worker application. */
 	FString ShaderCompileWorkerName;
+	/** Whether the SCW has crashed and we should fall back to calling the compiler dll's directly. */
+	bool bFallBackToDirectCompiles;
 
 	/** 
 	 * Tracks the total time that shader compile workers have been busy since startup.  
@@ -552,7 +553,7 @@ public:
 	 * Adds shader jobs to be asynchronously compiled. 
 	 * FinishCompilation or ProcessAsyncResults must be used to get the results.
 	 */
-	ENGINE_API void AddJobs(TArray<FShaderCommonCompileJob*>& NewJobs, bool bOptimizeForLowLatency, bool bRecreateComponentRenderStateOnCompletion);
+	ENGINE_API void AddJobs(TArray<FShaderCommonCompileJob*>& NewJobs, bool bApplyCompletedShaderMapForRendering, bool bOptimizeForLowLatency, bool bRecreateComponentRenderStateOnCompletion);
 
 	/**
 	* Removes all outstanding compile jobs for the passed shader maps.

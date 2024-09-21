@@ -12,34 +12,11 @@
 class FVulkanDynamicRHI;
 class FVulkanSwapChain;
 class FVulkanQueue;
-class FVulkanViewport;
 
 namespace VulkanRHI
 {
 	class FSemaphore;
 }
-
-class FVulkanBackBuffer : public FVulkanTexture2D
-{
-public:
-	FVulkanBackBuffer(FVulkanDevice& Device, FVulkanViewport* InViewport, EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 UEFlags);
-	virtual ~FVulkanBackBuffer();
-	
-	virtual void OnTransitionResource(FVulkanCommandListContext& Context, EResourceTransitionAccess TransitionType) override final;
-
-	void OnGetBackBufferImage(FRHICommandListImmediate& RHICmdList);
-	void OnAdvanceBackBufferFrame(FRHICommandListImmediate& RHICmdList);
-
-	void ReleaseViewport();
-
-private:
-	void AcquireBackBufferImage(FVulkanCommandListContext& Context);
-	void ReleaseAcquiredImage();
-
-private:
-	FVulkanViewport* Viewport;
-};
-
 
 class FVulkanViewport : public FRHIViewport, public VulkanRHI::FDeviceChild
 {
@@ -49,8 +26,7 @@ public:
 	FVulkanViewport(FVulkanDynamicRHI* InRHI, FVulkanDevice* InDevice, void* InWindowHandle, uint32 InSizeX,uint32 InSizeY,bool bInIsFullscreen, EPixelFormat InPreferredPixelFormat);
 	~FVulkanViewport();
 
-	FTexture2DRHIRef GetBackBuffer(FRHICommandListImmediate& RHICmdList);
-	void AdvanceBackBufferFrame(FRHICommandListImmediate& RHICmdList);
+	FTexture2DRHIRef GetBackBuffer(FRHICommandList& RHICmdList);
 
 	void WaitForFrameEventCompletion();
 
@@ -72,7 +48,9 @@ public:
 	}
 
 	virtual void Tick(float DeltaTime) override final;
-	
+
+	void AdvanceBackBufferFrame();
+
 	bool Present(FVulkanCommandListContext* Context, FVulkanCmdBuffer* CmdBuffer, FVulkanQueue* Queue, FVulkanQueue* PresentQueue, bool bLockToVsync);
 
 	inline uint32 GetPresentCount() const
@@ -81,15 +59,17 @@ public:
 	}
 
 protected:
-	// NUM_BUFFERS don't have to match exactly as the driver can require a minimum number larger than NUM_BUFFERS. Provide some slack
-	TArray<VkImage, TInlineAllocator<NUM_BUFFERS*2>> BackBufferImages;
-	TArray<VulkanRHI::FSemaphore*, TInlineAllocator<NUM_BUFFERS*2>> RenderingDoneSemaphores;
-	TArray<FVulkanTextureView, TInlineAllocator<NUM_BUFFERS*2>> TextureViews;
-	TRefCountPtr<FVulkanBackBuffer> RHIBackBuffer;
+	VkImage BackBufferImages[NUM_BUFFERS];
+	VulkanRHI::FSemaphore* RenderingDoneSemaphores[NUM_BUFFERS];
+	FVulkanTextureView TextureViews[NUM_BUFFERS];
+	
+	TRefCountPtr<FVulkanBackBuffer> BackBuffers[NUM_BUFFERS];
+	TRefCountPtr<FVulkanBackBufferReference> RenderingBackBufferReference;
 
 	// 'Dummy' back buffer
-	TRefCountPtr<FVulkanTexture2D>	RenderingBackBuffer;
-	
+	TRefCountPtr<FVulkanBackBuffer> RenderingBackBuffer;
+	TRefCountPtr<FVulkanBackBuffer> RHIBackBuffer;
+
 	/** narrow-scoped section that locks access to back buffer during its recreation*/
 	FCriticalSection RecreatingSwapchain;
 
@@ -99,6 +79,7 @@ protected:
 	bool bIsFullscreen;
 	EPixelFormat PixelFormat;
 	int32 AcquiredImageIndex;
+	int32 PreAcquiredImageIndex;
 	FVulkanSwapChain* SwapChain;
 	void* WindowHandle;
 	uint32 PresentCount;
@@ -113,9 +94,11 @@ protected:
 	FVulkanCmdBuffer* LastFrameCommandBuffer = nullptr;
 	uint64 LastFrameFenceCounter = 0;
 
-	void CreateSwapchain(struct FVulkanSwapChainRecreateInfo* RecreateInfo);
+	void CreateSwapchain();
+	void PreAcquireSwapchainImage();
+	void GetNextImageIndex();
 	void AcquireImageIndex();
-	bool TryAcquireImageIndex();
+	void AcquireBackBuffer(FRHICommandListBase& CmdList, FVulkanBackBufferReference* NewBackBuffer);
 
 	void RecreateSwapchain(void* NewNativeWindow, bool bForce = false);
 	void RecreateSwapchainFromRT(EPixelFormat PreferredPixelFormat);
@@ -127,7 +110,6 @@ protected:
 	friend class FVulkanDynamicRHI;
 	friend class FVulkanCommandListContext;
 	friend struct FRHICommandAcquireBackBuffer;
-	friend class FVulkanBackBuffer;
 };
 
 template<>

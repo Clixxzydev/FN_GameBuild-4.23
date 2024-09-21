@@ -19,7 +19,6 @@
 #include "XAudio2Effects.h"
 #include "Interfaces/IAudioFormat.h"
 #include "HAL/PlatformAffinity.h"
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS || PLATFORM_XBOXONE
 #include "Windows/WindowsHWrapper.h"
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include "Windows/AllowWindowsPlatformAtomics.h"
@@ -30,7 +29,6 @@ THIRD_PARTY_INCLUDES_START
 THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformAtomics.h"
 #include "Windows/HideWindowsPlatformTypes.h"
-#endif
 #include "XAudio2Support.h"
 #include "Runtime/HeadMountedDisplay/Public/IHeadMountedDisplayModule.h"
 
@@ -109,9 +107,9 @@ bool FXAudio2Device::InitializeHardware()
 
 	SampleRate = UE4_XAUDIO2_SAMPLERATE;
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
-	bComInitialized = FPlatformMisc::CoInitialize();
-#if PLATFORM_64BITS && !PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
+	bComInitialized = FWindowsPlatformMisc::CoInitialize();
+#if PLATFORM_64BITS
 	// Work around the fact the x64 version of XAudio2_7.dll does not properly ref count
 	// by forcing it to be always loaded
 
@@ -135,8 +133,8 @@ bool FXAudio2Device::InitializeHardware()
 			return false;
 		}
 	}
-#endif	//PLATFORM_64BITS && !PLATFORM_HOLOLENS
-#endif	//PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#endif	//PLATFORM_64BITS
+#endif	//PLATFORM_WINDOWS
 
 #if DEBUG_XAUDIO2
 	uint32 Flags = XAUDIO2_DEBUG_ENGINE;
@@ -302,8 +300,7 @@ void FXAudio2Device::TeardownHardware()
 #if PLATFORM_WINDOWS
 	if (bComInitialized)
 	{
-		FPlatformMisc::CoUninitialize();
-		bComInitialized = false;
+		FWindowsPlatformMisc::CoUninitialize();
 	}
 #endif
 }

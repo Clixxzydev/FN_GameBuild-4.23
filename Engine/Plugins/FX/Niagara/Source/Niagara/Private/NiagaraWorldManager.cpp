@@ -11,13 +11,10 @@
 #include "Scalability.h"
 #include "Misc/ConfigCacheIni.h"
 #include "NiagaraDataInterfaceSkeletalMesh.h"
-#include "GameFramework/PlayerController.h"
 #include "EngineModule.h"
 #include "NiagaraStats.h"
-#include "NiagaraEmitterInstanceBatcher.h"
 
 DECLARE_CYCLE_STAT(TEXT("Niagara Manager Tick [GT]"), STAT_NiagaraWorldManTick, STATGROUP_Niagara);
-DECLARE_CYCLE_STAT(TEXT("Niagara Manager Wait On Render [GT]"), STAT_NiagaraWorldManWaitOnRender, STATGROUP_Niagara);
 
 TGlobalResource<FNiagaraViewDataMgr> GNiagaraViewDataManager;
 
@@ -36,6 +33,8 @@ void FNiagaraViewDataMgr::Init()
 
 	GNiagaraViewDataManager.PostOpaqueDelegate.BindRaw(&GNiagaraViewDataManager, &FNiagaraViewDataMgr::PostOpaqueRender);
 	RendererModule.RegisterPostOpaqueRenderDelegate(GNiagaraViewDataManager.PostOpaqueDelegate);
+
+	RendererModule.OnPreSceneRender().AddRaw(&GNiagaraViewDataManager, &FNiagaraViewDataMgr::OnPreSceneRenderCalled);
 }
 
 void FNiagaraViewDataMgr::Shutdown()
@@ -62,6 +61,8 @@ FNiagaraWorldManager::FNiagaraWorldManager(UWorld* InWorld)
 {
 }
 
+
+
 FNiagaraWorldManager* FNiagaraWorldManager::Get(UWorld* World)
 {
 	//INiagaraModule& NiagaraModule = FModuleManager::LoadModuleChecked<INiagaraModule>("Niagara");
@@ -73,11 +74,6 @@ void FNiagaraWorldManager::AddReferencedObjects(FReferenceCollector& Collector)
 	// World doesn't need to be added to the reference list. It will be handle via OnWorldInit & OnWorldCleanup & OnPreWorldFinishDestroy in INiagaraModule
 
 	Collector.AddReferencedObjects(ParameterCollections);
-}
-
-FString FNiagaraWorldManager::GetReferencerName() const
-{
-	return TEXT("FNiagaraWorldManager");
 }
 
 UNiagaraParameterCollectionInstance* FNiagaraWorldManager::GetParameterCollection(UNiagaraParameterCollection* Collection)
@@ -175,28 +171,6 @@ void FNiagaraWorldManager::DestroySystemSimulation(UNiagaraSystem* System)
 	}	
 }
 
-void FNiagaraWorldManager::DestroySystemInstance(TUniquePtr<FNiagaraSystemInstance>& InPtr)
-{
-	check(IsInGameThread());
-	check(InPtr != nullptr);
-	DeferredDeletionQueue[DeferredDeletionQueueIndex].Queue.Emplace(MoveTemp(InPtr));
-}
-
-void FNiagaraWorldManager::OnBatcherDestroyed(NiagaraEmitterInstanceBatcher* InBatcher)
-{
-	// Process the deferred deletion queue before deleting the batcher of this world.
-	// This is required because the batcher is accessed in FNiagaraEmitterInstance::~FNiagaraEmitterInstance
-	if (World && World->FXSystem && World->FXSystem->GetInterface(NiagaraEmitterInstanceBatcher::Name) == InBatcher)
-	{
-		for ( int32 i=0; i < NumDeferredQueues; ++i)
-		{
-			DeferredDeletionQueue[DeferredDeletionQueueIndex].Fence.Wait();
-			DeferredDeletionQueue[i].Queue.Empty();
-		}
-	}
-}
-
-
 void FNiagaraWorldManager::OnWorldCleanup(bool bSessionEnded, bool bCleanupResources)
 {
 	for (TPair<UNiagaraSystem*, TSharedRef<FNiagaraSystemSimulation, ESPMode::ThreadSafe>>& SimPair : SystemSimulations)
@@ -205,42 +179,38 @@ void FNiagaraWorldManager::OnWorldCleanup(bool bSessionEnded, bool bCleanupResou
 	}
 	SystemSimulations.Empty();
 	CleanupParameterCollections();
-
-	for ( int32 i=0; i < NumDeferredQueues; ++i)
-	{
-		DeferredDeletionQueue[DeferredDeletionQueueIndex].Fence.Wait();
-		DeferredDeletionQueue[i].Queue.Empty();
-	}
 }
 
 void FNiagaraWorldManager::Tick(float DeltaSeconds)
 {
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTick);
-	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
+/*
+Some experimental tinkering with links to effects quality.
+Going off this idea tbh
 
-	FNiagaraSharedObject::FlushDeletionList();
-
-	SkeletalMeshGeneratedData.TickGeneratedData(DeltaSeconds);
-
-	// Cache player view locations for all system instances to access
-	bCachedPlayerViewLocationsValid = true;
-	if (World->GetPlayerControllerIterator())
+	int32 CurrentEffectsQuality = Scalability::GetEffectsQualityDirect(true);
+	if (CachedEffectsQuality != CurrentEffectsQuality)
 	{
-		for ( FConstPlayerControllerIterator Iterator=World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+		CachedEffectsQuality = CurrentEffectsQuality;
+		FString SectionName = FString::Printf(TEXT("%s@%d"), TEXT("EffectsQuality"), CurrentEffectsQuality);
+		if (FConfigFile* File = GConfig->FindConfigFileWithBaseName(TEXT("Niagara")))
 		{
-			APlayerController* PlayerController = Iterator->Get();
-			if (PlayerController && PlayerController->IsLocalPlayerController())
+			FString ScalabilityCollectionString;			
+			if (File->GetString(*SectionName, TEXT("ScalabilityCollection"), ScalabilityCollectionString))
 			{
-				FVector* POVLoc = new(CachedPlayerViewLocations) FVector;
-				FRotator POVRotation;
-				PlayerController->GetPlayerViewPoint(*POVLoc, POVRotation);
+				//NewLandscape_Material = LoadObject<UMaterialInterface>(NULL, *NewLandsfgcapeMaterialName, NULL, LOAD_NoWarn);
+				UNiagaraParameterCollectionInstance* ScalabilityCollection = LoadObject<UNiagaraParameterCollectionInstance>(NULL, *ScalabilityCollectionString, NULL, LOAD_NoWarn);
+				if (ScalabilityCollection)
+				{
+					SetParameterCollection(ScalabilityCollection);
+				}
 			}
 		}
 	}
-	else
-	{
-		CachedPlayerViewLocations.Append(World->ViewLocationsRenderedLastFrame);
-	}
+*/
+	SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManTick);
+	SCOPE_CYCLE_COUNTER(STAT_NiagaraOverview_GT);
+
+	SkeletalMeshGeneratedData.TickGeneratedData(DeltaSeconds);
 
 	//Tick our collections to push any changes to bound stores.
 	for (TPair<UNiagaraParameterCollection*, UNiagaraParameterCollectionInstance*> CollectionInstPair : ParameterCollections)
@@ -262,27 +232,5 @@ void FNiagaraWorldManager::Tick(float DeltaSeconds)
 	for (UNiagaraSystem* DeadSystem : DeadSystems)
 	{
 		SystemSimulations.Remove(DeadSystem);
-	}
-
-	// Clear cached player view location list, it should never be used outside of the world tick
-	bCachedPlayerViewLocationsValid = false;
-	CachedPlayerViewLocations.Reset();
-
-	// Enqueue fence for deferred deletion if we need to wait on anything
-	if ( DeferredDeletionQueue[DeferredDeletionQueueIndex].Queue.Num() > 0 )
-	{
-		DeferredDeletionQueue[DeferredDeletionQueueIndex].Fence.BeginFence();
-	}
-
-	// Remove instances from oldest frame making sure they aren't in use on the RT
-	DeferredDeletionQueueIndex = (DeferredDeletionQueueIndex + 1) % NumDeferredQueues;
-	if ( DeferredDeletionQueue[DeferredDeletionQueueIndex].Queue.Num() > 0 )
-	{
-		if ( !DeferredDeletionQueue[DeferredDeletionQueueIndex].Fence.IsFenceComplete() )
-		{
-			SCOPE_CYCLE_COUNTER(STAT_NiagaraWorldManWaitOnRender);
-			DeferredDeletionQueue[DeferredDeletionQueueIndex].Fence.Wait();
-		}
-		DeferredDeletionQueue[DeferredDeletionQueueIndex].Queue.Empty();
 	}
 }

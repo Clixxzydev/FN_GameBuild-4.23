@@ -721,13 +721,6 @@ public:
 	UPROPERTY(Category=Mesh, BlueprintReadWrite)
 	TArray<UMorphTarget*> MorphTargets;
 
-	/**
-	 *	Returns the list of all morph targets of this skeletal mesh
-	 *  @return	The list of morph targets
-	 */
-	UFUNCTION(BlueprintPure, Category = Mesh, meta = (DisplayName = "Get All Morph Target Names", ScriptName = "GetAllMorphTargetNames", Keywords = "morph shape"))
-	TArray<FString> K2_GetAllMorphTargetNames() const;
-
 	/** A fence which is used to keep track of the rendering thread releasing the static mesh resources. */
 	FRenderCommandFence ReleaseResourcesFence;
 
@@ -967,14 +960,6 @@ public:
 	/** Returns a socket by index. Max index is NumSockets(). The meshes sockets are accessed first, then the skeletons.  */
 	UFUNCTION(BlueprintCallable, Category = "Animation")
 	USkeletalMeshSocket* GetSocketByIndex(int32 Index) const;
-
-	/**
-	 * Returns vertex color data by position.
-	 * For matching to reimported meshes that may have changed or copying vertex paint data from mesh to mesh.
-	 *
-	 *	@return	VertexColorData		Returns a map of vertex position and their associated color.
-	 */
-	TMap<FVector, FColor> GetVertexColorData(const uint32 PaintingMeshLODIndex = 0) const;
 
 	/** Called to rebuild an out-of-date or invalid socket map */
 	void RebuildSocketMap();

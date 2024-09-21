@@ -658,10 +658,13 @@ public:
 		FFloat16* Data = reinterpret_cast<FFloat16*>(&InOutImage.RawData[0]);
 		for (int TexelIndex = 0; TexelIndex < TexelNum; ++TexelIndex)
 		{
-			// Flush negative values to 0, as those aren't supported by BC6H_UF16.
 			FFloat16& F16Value = Data[TexelIndex];
+
+			const bool bDenormalOrZero = F16Value.Components.Exponent == 0;
 			const bool bNegative = F16Value.Components.Sign == 1;
-			if (bNegative)
+
+			// Flush denormals and negative values to 0.
+			if (bDenormalOrZero || bNegative)
 			{
 				F16Value = 0;
 			}

@@ -655,8 +655,7 @@ void FMetalDeviceContext::EndDrawingViewport(FMetalViewport* Viewport, bool bPre
 	// We may be limiting our framerate to the display link
 	if( FrameReadyEvent != nullptr && !GMetalSeparatePresentThread )
 	{
-		bool bIgnoreThreadIdleStats = true; // Idle time is already counted by the caller
-		FrameReadyEvent->Wait(MAX_uint32, bIgnoreThreadIdleStats);
+		FrameReadyEvent->Wait();
 	}
 	
 	Viewport->ReleaseDrawable();
@@ -704,7 +703,7 @@ void FMetalDeviceContext::ReleaseTexture(FMetalTexture& Texture)
 			{
 				[Texture.GetPtr() retain];
 				ObjectFreeList.Add(Texture.GetPtr());
-        }
+			}
         }
 		else if(!UsedTextures.Contains(Texture))
 		{
@@ -737,7 +736,7 @@ void FMetalDeviceContext::RegisterUB(FMetalUniformBuffer* UB)
 	UniformBuffers.Add(UB);
 }
 
-void FMetalDeviceContext::UpdateIABs(FRHITextureReference* ModifiedRef)
+void FMetalDeviceContext::UpdateIABs(FTextureReferenceRHIParamRef ModifiedRef)
 {
 	if(GIsMetalInitialized)
 	{
@@ -779,20 +778,7 @@ FMetalTexture FMetalDeviceContext::CreateTexture(FMetalSurface* Surface, mtlpp::
 
 FMetalBuffer FMetalDeviceContext::CreatePooledBuffer(FMetalPooledBufferArgs const& Args)
 {
-	uint32 RequestedBufferOffsetAlignment = BufferOffsetAlignment;
-	
-#if PLATFORM_IOS
-	if((Args.Flags & BUF_ShaderResource) != 0)
-	{
-		// Buffer backed linear textures have specific align requirements
-		// We don't know upfront the pixel format that may be requested for an SRV so we can't use minimumLinearTextureAlignmentForPixelFormat:
-		const uint32 BufferBackedLinearTextureOffsetAlignment = 64;	// Hot fix only - This is defined in the header for > 4.23
-		RequestedBufferOffsetAlignment = BufferBackedLinearTextureOffsetAlignment;
-	}
-#endif
-
-	NSUInteger CpuResourceOption = ((NSUInteger)Args.CpuCacheMode) << mtlpp::ResourceCpuCacheModeShift;
-    FMetalBuffer Buffer = Heap.CreateBuffer(Args.Size, RequestedBufferOffsetAlignment, Args.Flags, FMetalCommandQueue::GetCompatibleResourceOptions((mtlpp::ResourceOptions)(CpuResourceOption | mtlpp::ResourceOptions::HazardTrackingModeUntracked | ((NSUInteger)Args.Storage << mtlpp::ResourceStorageModeShift))));
+    FMetalBuffer Buffer = Heap.CreateBuffer(Args.Size, BufferOffsetAlignment, Args.Flags, FMetalCommandQueue::GetCompatibleResourceOptions((mtlpp::ResourceOptions)(BUFFER_CACHE_MODE | mtlpp::ResourceOptions::HazardTrackingModeUntracked | ((NSUInteger)Args.Storage << mtlpp::ResourceStorageModeShift))));
 	check(Buffer && Buffer.GetPtr());
 #if METAL_DEBUG_OPTIONS
 	if (GMetalResourcePurgeOnDelete && !Buffer.GetHeap())
@@ -1120,7 +1106,7 @@ void FMetalContext::FinishFrame()
 #endif
 }
 
-void FMetalContext::TransitionResources(FRHIUnorderedAccessView** InUAVs, int32 NumUAVs)
+void FMetalContext::TransitionResources(FUnorderedAccessViewRHIParamRef* InUAVs, int32 NumUAVs)
 {
 	for (uint32 i = 0; i < NumUAVs; i++)
 	{
@@ -1162,6 +1148,10 @@ void FMetalContext::TransitionResources(FRHIUnorderedAccessView** InUAVs, int32 
 				if (Surface != nullptr && Surface->Texture)
 				{
 					RenderPass.TransitionResources(Surface->Texture);
+					if (Surface->StencilTexture)
+					{
+						RenderPass.TransitionResources(Surface->StencilTexture);
+					}
 					if (Surface->MSAATexture)
 					{
 						RenderPass.TransitionResources(Surface->MSAATexture);
@@ -1172,7 +1162,7 @@ void FMetalContext::TransitionResources(FRHIUnorderedAccessView** InUAVs, int32 
 	}
 }
 
-void FMetalContext::TransitionResources(FRHITexture** InTextures, int32 NumTextures)
+void FMetalContext::TransitionResources(FTextureRHIParamRef* InTextures, int32 NumTextures)
 {
 	for (uint32 i = 0; i < NumTextures; i++)
 	{
@@ -1182,6 +1172,10 @@ void FMetalContext::TransitionResources(FRHITexture** InTextures, int32 NumTextu
 			if (Surface != nullptr && Surface->Texture)
 			{
 				RenderPass.TransitionResources(Surface->Texture);
+				if (Surface->StencilTexture)
+				{
+					RenderPass.TransitionResources(Surface->StencilTexture);
+				}
 				if (Surface->MSAATexture)
 				{
 					RenderPass.TransitionResources(Surface->MSAATexture);
@@ -1217,7 +1211,7 @@ void FMetalContext::ResetRenderCommandEncoder()
 	
 	StateCache.InvalidateRenderTargets();
 	
-	SetRenderPassInfo(StateCache.GetRenderPassInfo(), true);
+	SetRenderTargetsInfo(StateCache.GetRenderTargetsInfo(), true);
 }
 
 bool FMetalContext::PrepareToDraw(uint32 PrimitiveType, EMetalIndexType IndexType)
@@ -1279,7 +1273,7 @@ bool FMetalContext::PrepareToDraw(uint32 PrimitiveType, EMetalIndexType IndexTyp
 	bool const bNeedsDepthStencilWrite = (IsValidRef(CurrentPSO->PixelShader) && (CurrentPSO->PixelShader->Bindings.InOutMask & 0x8000));
 	
 	// @todo Improve the way we handle binding a dummy depth/stencil so we can get pure UAV raster operations...
-	bool const bNeedsDepthStencilForUAVRaster = (StateCache.GetRenderPassInfo().GetNumColorRenderTargets() == 0 && StateCache.GetRenderPassInfo().NumUAVs > 0);
+	bool const bNeedsDepthStencilForUAVRaster = (StateCache.GetRenderTargetsInfo().NumColorRenderTargets == 0 && StateCache.GetRenderTargetsInfo().NumUAVs > 0);
 	
 	bool const bBindDepthStencilForWrite = bNeedsDepthStencilWrite && !StateCache.HasValidDepthStencilSurface();
 	bool const bBindDepthStencilForUAVRaster = bNeedsDepthStencilForUAVRaster && !StateCache.HasValidDepthStencilSurface();
@@ -1310,7 +1304,7 @@ bool FMetalContext::PrepareToDraw(uint32 PrimitiveType, EMetalIndexType IndexTyp
 			FBSize = CGSizeMake(StateCache.GetViewport(0).width, StateCache.GetViewport(0).height);
 		}
 		
-		FRHIRenderPassInfo Info = StateCache.GetRenderPassInfo();
+		FRHISetRenderTargetsInfo Info = StateCache.GetRenderTargetsInfo();
 		
 		FTexture2DRHIRef FallbackDepthStencilSurface = StateCache.CreateFallbackDepthStencilSurface(FBSize.width, FBSize.height);
 		check(IsValidRef(FallbackDepthStencilSurface));
@@ -1318,27 +1312,25 @@ bool FMetalContext::PrepareToDraw(uint32 PrimitiveType, EMetalIndexType IndexTyp
 		if (bBindDepthStencilForWrite)
 		{
 			check(!bBindDepthStencilForUAVRaster);
-			Info.DepthStencilRenderTarget.DepthStencilTarget = FallbackDepthStencilSurface;
+			Info.DepthStencilRenderTarget.Texture = FallbackDepthStencilSurface;
 		}
 		else
 		{
 			check(bBindDepthStencilForUAVRaster);
-			Info.DepthStencilRenderTarget.DepthStencilTarget = FallbackDepthStencilSurface;
-			Info.DepthStencilRenderTarget.ExclusiveDepthStencil = FExclusiveDepthStencil::DepthRead_StencilRead;
-			Info.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(MakeRenderTargetActions(ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::ENoAction), MakeRenderTargetActions(ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::ENoAction));
+			Info.DepthStencilRenderTarget = FRHIDepthRenderTargetView(FallbackDepthStencilSurface, ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::ENoAction, FExclusiveDepthStencil::DepthRead_StencilRead);
 		}
 		
 		// Ensure that we make it a Clear/Store -> Load/Store for the colour targets or we might render incorrectly
-		for (uint32 i = 0; i < Info.GetNumColorRenderTargets(); i++)
+		for (uint32 i = 0; i < Info.NumColorRenderTargets; i++)
 		{
-			if (GetLoadAction(Info.ColorRenderTargets[i].Action) != ERenderTargetLoadAction::ELoad)
+			if (Info.ColorRenderTarget[i].LoadAction != ERenderTargetLoadAction::ELoad)
 			{
-				check(GetStoreAction(Info.ColorRenderTargets[i].Action) == ERenderTargetStoreAction::EStore || GetStoreAction(Info.ColorRenderTargets[i].Action) == ERenderTargetStoreAction::EMultisampleResolve);
-				Info.ColorRenderTargets[i].Action = MakeRenderTargetActions(ERenderTargetLoadAction::ELoad, GetStoreAction(Info.ColorRenderTargets[i].Action));
+				check(Info.ColorRenderTarget[i].StoreAction == ERenderTargetStoreAction::EStore || Info.ColorRenderTarget[i].StoreAction == ERenderTargetStoreAction::EMultisampleResolve);
+				Info.ColorRenderTarget[i].LoadAction = ERenderTargetLoadAction::ELoad;
 			}
 		}
 		
-		if (StateCache.SetRenderPassInfo(Info, StateCache.GetVisibilityResultsBuffer(), true))
+		if (StateCache.SetRenderTargetsInfo(Info, StateCache.GetVisibilityResultsBuffer(), true))
 		{
 			RenderPass.RestartRenderPass(StateCache.GetRenderPassDescriptor());
 		}
@@ -1353,13 +1345,13 @@ bool FMetalContext::PrepareToDraw(uint32 PrimitiveType, EMetalIndexType IndexTyp
 	}
 	else if (!bNeedsDepthStencilWrite && !bNeedsDepthStencilForUAVRaster && StateCache.GetFallbackDepthStencilBound())
 	{
-		FRHIRenderPassInfo Info = StateCache.GetRenderPassInfo();
-		Info.DepthStencilRenderTarget.DepthStencilTarget = nullptr;
+		FRHISetRenderTargetsInfo Info = StateCache.GetRenderTargetsInfo();
+		Info.DepthStencilRenderTarget.Texture = nullptr;
 		
 		RenderPass.EndRenderPass();
 		
 		StateCache.SetRenderTargetsActive(false);
-		StateCache.SetRenderPassInfo(Info, StateCache.GetVisibilityResultsBuffer(), true);
+		StateCache.SetRenderTargetsInfo(Info, StateCache.GetVisibilityResultsBuffer(), true);
 		
 		RenderPass.BeginRenderPass(StateCache.GetRenderPassDescriptor());
 		
@@ -1372,7 +1364,7 @@ bool FMetalContext::PrepareToDraw(uint32 PrimitiveType, EMetalIndexType IndexTyp
 	return true;
 }
 
-void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInfo, bool const bRestart)
+void FMetalContext::SetRenderTargetsInfo(const FRHISetRenderTargetsInfo& RenderTargetsInfo, bool const bRestart)
 {
 	if (CommandList.IsParallel())
 	{
@@ -1386,10 +1378,10 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 		
 		for (uint32 RenderTargetIndex = 0; RenderTargetIndex < MaxSimultaneousRenderTargets; RenderTargetIndex++)
 		{
-			if (RenderTargetIndex < RenderTargetsInfo.GetNumColorRenderTargets() && RenderTargetsInfo.ColorRenderTargets[RenderTargetIndex].RenderTarget != nullptr)
+			if (RenderTargetIndex < RenderTargetsInfo.NumColorRenderTargets && RenderTargetsInfo.ColorRenderTarget[RenderTargetIndex].Texture != nullptr)
 			{
-				const FRHIRenderPassInfo::FColorEntry& RenderTargetView = RenderTargetsInfo.ColorRenderTargets[RenderTargetIndex];
-				if(GetLoadAction(RenderTargetView.Action) == ERenderTargetLoadAction::EClear)
+				const FRHIRenderTargetView& RenderTargetView = RenderTargetsInfo.ColorRenderTarget[RenderTargetIndex];
+				if(RenderTargetView.LoadAction == ERenderTargetLoadAction::EClear)
 				{
 					bClearInParallelBuffer = true;
 				}
@@ -1401,13 +1393,13 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 			UE_LOG(LogMetal, Warning, TEXT("One or more render targets bound for clear during parallel encoding: this will not behave as expected because each command-buffer will clear the target of the previous contents."));
 		}
 		
-		if (RenderTargetsInfo.DepthStencilRenderTarget.DepthStencilTarget != nullptr)
+		if (RenderTargetsInfo.DepthStencilRenderTarget.Texture != nullptr)
 		{
-			if(GetLoadAction(GetDepthActions(RenderTargetsInfo.DepthStencilRenderTarget.Action)) == ERenderTargetLoadAction::EClear)
+			if(RenderTargetsInfo.DepthStencilRenderTarget.DepthLoadAction == ERenderTargetLoadAction::EClear)
 			{
 				UE_LOG(LogMetal, Warning, TEXT("Depth-target bound for clear during parallel encoding: this will not behave as expected because each command-buffer will clear the target of the previous contents."));
 			}
-			if(GetLoadAction(GetStencilActions(RenderTargetsInfo.DepthStencilRenderTarget.Action)) == ERenderTargetLoadAction::EClear)
+			if(RenderTargetsInfo.DepthStencilRenderTarget.StencilLoadAction == ERenderTargetLoadAction::EClear)
 			{
 				UE_LOG(LogMetal, Warning, TEXT("Stencil-target bound for clear during parallel encoding: this will not behave as expected because each command-buffer will clear the target of the previous contents."));
 			}
@@ -1419,29 +1411,25 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 	if (IsFeatureLevelSupported( GMaxRHIShaderPlatform, ERHIFeatureLevel::ES3_1 ))
 	{
 		// @todo Improve the way we handle binding a dummy depth/stencil so we can get pure UAV raster operations...
-		const bool bNeedsDepthStencilForUAVRaster = RenderTargetsInfo.GetNumColorRenderTargets() == 0 && RenderTargetsInfo.NumUAVs > 0 && !RenderTargetsInfo.DepthStencilRenderTarget.DepthStencilTarget;
+		const bool bNeedsDepthStencilForUAVRaster = RenderTargetsInfo.NumColorRenderTargets == 0 && RenderTargetsInfo.NumUAVs > 0 && !RenderTargetsInfo.DepthStencilRenderTarget.Texture;
 
 		if (bNeedsDepthStencilForUAVRaster)
 		{
-			FRHIRenderPassInfo Info = RenderTargetsInfo;
+			FRHISetRenderTargetsInfo Info = RenderTargetsInfo;
 			CGSize FBSize = CGSizeMake(StateCache.GetViewport(0).width, StateCache.GetViewport(0).height);
 			FTexture2DRHIRef FallbackDepthStencilSurface = StateCache.CreateFallbackDepthStencilSurface(FBSize.width, FBSize.height);
 			check(IsValidRef(FallbackDepthStencilSurface));
-
-			Info.DepthStencilRenderTarget.DepthStencilTarget = FallbackDepthStencilSurface;
-			Info.DepthStencilRenderTarget.ResolveTarget = nullptr;
-			Info.DepthStencilRenderTarget.ExclusiveDepthStencil = FExclusiveDepthStencil::DepthRead_StencilRead;
 #if PLATFORM_MAC
-			Info.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(MakeRenderTargetActions(ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction), MakeRenderTargetActions(ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction));
+			Info.DepthStencilRenderTarget = FRHIDepthRenderTargetView(FallbackDepthStencilSurface, ERenderTargetLoadAction::ENoAction, ERenderTargetStoreAction::ENoAction, FExclusiveDepthStencil::DepthRead_StencilRead);
 #else
-			Info.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(MakeRenderTargetActions(ERenderTargetLoadAction::EClear, ERenderTargetStoreAction::ENoAction), MakeRenderTargetActions(ERenderTargetLoadAction::EClear, ERenderTargetStoreAction::ENoAction));
+			Info.DepthStencilRenderTarget = FRHIDepthRenderTargetView(FallbackDepthStencilSurface, ERenderTargetLoadAction::EClear, ERenderTargetStoreAction::ENoAction, FExclusiveDepthStencil::DepthRead_StencilRead);
 #endif
 
 			if (QueryBuffer->GetCurrentQueryBuffer() != StateCache.GetVisibilityResultsBuffer())
 			{
 				RenderPass.EndRenderPass();
 			}
-			bSet = StateCache.SetRenderPassInfo(Info, QueryBuffer->GetCurrentQueryBuffer(), bRestart);
+			bSet = StateCache.SetRenderTargetsInfo(Info, QueryBuffer->GetCurrentQueryBuffer(), bRestart);
 		}
 		else
 		{
@@ -1449,7 +1437,7 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 			{
 				RenderPass.EndRenderPass();
 			}
-			bSet = StateCache.SetRenderPassInfo(RenderTargetsInfo, QueryBuffer->GetCurrentQueryBuffer(), bRestart);
+			bSet = StateCache.SetRenderTargetsInfo(RenderTargetsInfo, QueryBuffer->GetCurrentQueryBuffer(), bRestart);
 		}
 	}
 	else
@@ -1458,7 +1446,7 @@ void FMetalContext::SetRenderPassInfo(const FRHIRenderPassInfo& RenderTargetsInf
 		{
 			RenderPass.EndRenderPass();
 		}
-		bSet = StateCache.SetRenderPassInfo(RenderTargetsInfo, NULL, bRestart);
+		bSet = StateCache.SetRenderTargetsInfo(RenderTargetsInfo, NULL, bRestart);
 	}
 	
 	if (bSet && StateCache.GetHasValidRenderTarget())
@@ -1660,7 +1648,7 @@ void FMetalDeviceContext::BeginParallelRenderCommandEncoding(uint32 Num)
 	FPlatformAtomics::AtomicStore(&NumParallelContextsInPass, (int32)Num);
 }
 
-void FMetalDeviceContext::SetParallelRenderPassDescriptor(FRHIRenderPassInfo const& TargetInfo)
+void FMetalDeviceContext::SetParallelRenderPassDescriptor(FRHISetRenderTargetsInfo const& TargetInfo)
 {
 	FScopeLock Lock(&FreeListMutex);
 
@@ -1669,7 +1657,7 @@ void FMetalDeviceContext::SetParallelRenderPassDescriptor(FRHIRenderPassInfo con
 		RenderPass.Begin(EndFence);
 		EndFence = nullptr;
 		StateCache.InvalidateRenderTargets();
-		SetRenderPassInfo(TargetInfo, false);
+		SetRenderTargetsInfo(TargetInfo, false);
 	}
 }
 

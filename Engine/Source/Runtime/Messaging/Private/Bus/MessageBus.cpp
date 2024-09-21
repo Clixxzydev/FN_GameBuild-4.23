@@ -80,16 +80,14 @@ void FMessageBus::Publish(
 	void* Message,
 	UScriptStruct* TypeInfo,
 	EMessageScope Scope,
-	const TMap<FName, FString>& Annotations,
 	const FTimespan& Delay,
 	const FDateTime& Expiration,
 	const TSharedRef<IMessageSender, ESPMode::ThreadSafe>& Publisher
 )
 {
-	Router->RouteMessage(MakeShared<FMessageContext, ESPMode::ThreadSafe>(
+	Router->RouteMessage(MakeShareable(new FMessageContext(
 		Message,
 		TypeInfo,
-		Annotations,
 		nullptr,
 		Publisher->GetSenderAddress(),
 		TArray<FMessageAddress>(),
@@ -98,7 +96,7 @@ void FMessageBus::Publish(
 		FDateTime::UtcNow() + Delay,
 		Expiration,
 		FTaskGraphInterface::Get().GetCurrentThreadIfKnown()
-	));
+	)));
 }
 
 
@@ -112,7 +110,6 @@ void FMessageBus::Send(
 	void* Message,
 	UScriptStruct* TypeInfo,
 	EMessageFlags Flags,
-	const TMap<FName, FString>& Annotations,
 	const TSharedPtr<IMessageAttachment, ESPMode::ThreadSafe>& Attachment,
 	const TArray<FMessageAddress>& Recipients,
 	const FTimespan& Delay,
@@ -120,10 +117,9 @@ void FMessageBus::Send(
 	const TSharedRef<IMessageSender, ESPMode::ThreadSafe>& Sender
 )
 {
-	Router->RouteMessage(MakeShared<FMessageContext, ESPMode::ThreadSafe>(
+	Router->RouteMessage(MakeShareable(new FMessageContext(
 		Message,
 		TypeInfo,
-		Annotations,
 		Attachment,
 		Sender->GetSenderAddress(),
 		Recipients,
@@ -132,7 +128,7 @@ void FMessageBus::Send(
 		FDateTime::UtcNow() + Delay,
 		Expiration,
 		FTaskGraphInterface::Get().GetCurrentThreadIfKnown()
-	));
+	)));
 }
 
 

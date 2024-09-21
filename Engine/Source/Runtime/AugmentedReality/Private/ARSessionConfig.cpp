@@ -7,20 +7,19 @@
 #include "ARSessionConfigCookSupport.h"
 
 UARSessionConfig::UARSessionConfig()
-	: bTrackSceneObjects(true)
-	, WorldAlignment(EARWorldAlignment::Gravity)
-	, SessionType(EARSessionType::World)
-	, PlaneDetectionMode_DEPRECATED(EARPlaneDetectionMode::HorizontalPlaneDetection)
-	, bHorizontalPlaneDetection(true)
-	, bVerticalPlaneDetection(true)
-	, bEnableAutoFocus(true)
-	, LightEstimationMode(EARLightEstimationMode::AmbientLightEstimate)
-	, FrameSyncMode(EARFrameSyncMode::SyncTickWithoutCameraImage)
-	, bEnableAutomaticCameraOverlay(true)
-	, bEnableAutomaticCameraTracking(true)
-	, bResetCameraTracking(true)
-	, bResetTrackedObjects(true)
-	, MaxNumSimultaneousImagesTracked(1)
+: WorldAlignment(EARWorldAlignment::Gravity)
+, SessionType(EARSessionType::World)
+, PlaneDetectionMode_DEPRECATED(EARPlaneDetectionMode::HorizontalPlaneDetection)
+, bHorizontalPlaneDetection(true)
+, bVerticalPlaneDetection(true)
+, bEnableAutoFocus(true)
+, LightEstimationMode(EARLightEstimationMode::AmbientLightEstimate)
+, FrameSyncMode(EARFrameSyncMode::SyncTickWithoutCameraImage)
+, bEnableAutomaticCameraOverlay(true)
+, bEnableAutomaticCameraTracking(true)
+, bResetCameraTracking(true)
+, bResetTrackedObjects(true)
+, MaxNumSimultaneousImagesTracked(1)
 {
 }
 
@@ -199,14 +198,4 @@ void UARSessionConfig::Serialize(FArchive& Ar)
 			bVerticalPlaneDetection = false;
 		}
 	}
-}
-
-EARSessionTrackingFeature UARSessionConfig::GetEnabledSessionTrackingFeature() const
-{
-	return EnabledSessionTrackingFeature;
-}
-
-void UARSessionConfig::SetSessionTrackingFeatureToEnable(EARSessionTrackingFeature InSessionTrackingFeature)
-{
-	EnabledSessionTrackingFeature = InSessionTrackingFeature;
 }

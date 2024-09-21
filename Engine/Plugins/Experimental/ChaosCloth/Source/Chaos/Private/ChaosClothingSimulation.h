@@ -18,11 +18,10 @@ class ClothingSimulationContext : public IClothingSimulationContext
   public:
     ClothingSimulationContext() {}
     ~ClothingSimulationContext() {}
-
-	float DeltaTime;
+    float DeltaTime;
     TArray<FMatrix> RefToLocals;
     TArray<FTransform> BoneTransforms;
-	FTransform ComponentToWorld;
+    FTransform LocalToWorld;
 };
 
 class ClothingSimulation : public IClothingSimulation
@@ -58,25 +57,19 @@ class ClothingSimulation : public IClothingSimulation
   private:
     // UE Collision Data (Needed only for GetCollisions)
     TArray<Pair<uint32, FClothCollisionPrim_Sphere>> IndexAndSphereCollisionMap;
-    TArray<Pair<uint32, FClothCollisionPrim_SphereConnection>> IndexAndCapsuleCollisionMap;
     TArray<Pair<uint32, FClothCollisionPrim_Convex>> IndexAndConvexCollisionMap;
     // Animation Data
     UClothingAsset* Asset;
     TArray<Chaos::TRigidTransform<float, 3>> OldAnimationTransforms;
     TArray<Chaos::TRigidTransform<float, 3>> AnimationTransforms;
-	TArray<Chaos::TVector<float, 3>> OldAnimationPositions;
+    TArray<Chaos::TVector<float, 3>> OldAnimationPositions;
     TArray<Chaos::TVector<float, 3>> AnimationPositions;
     TArray<Chaos::TVector<float, 3>> AnimationNormals;
-    Chaos::TArrayCollectionArray<int32> BoneIndices;
+    Chaos::TArrayCollectionArray<float> BoneIndices;
     Chaos::TArrayCollectionArray<Chaos::TRigidTransform<float, 3>> BaseTransforms;
     // Sim Data
     TArray<Chaos::TVector<uint32, 2>> IndexToRangeMap;
-    //TUniquePtr<Chaos::TTriangleMesh<float>> Mesh;
-
-	TArray<TUniquePtr<Chaos::TTriangleMesh<float>>> Meshes;
-	mutable TArray<TArray<Chaos::TVector<float, 3>>> FaceNormals;
-	mutable TArray<TArray<Chaos::TVector<float, 3>>> PointNormals;
-
+    TUniquePtr<Chaos::TTriangleMesh<float>> Mesh;
     TUniquePtr<Chaos::TPBDEvolution<float, 3>> Evolution;
     float Time;
     float DeltaTime;
@@ -84,8 +77,7 @@ class ClothingSimulation : public IClothingSimulation
     float ClampDeltaTime;
     // Parameters that should be set in the ui
     int32 NumIterations;
-	float MinMass;
-	float EdgeStiffness;
+    float EdgeStiffness;
     float BendingStiffness;
     float AreaStiffness;
     float VolumeStiffness;

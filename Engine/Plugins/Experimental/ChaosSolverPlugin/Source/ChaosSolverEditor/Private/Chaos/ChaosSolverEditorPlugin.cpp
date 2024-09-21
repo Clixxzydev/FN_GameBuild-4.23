@@ -12,7 +12,6 @@
 #include "HAL/ConsoleManager.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
-#include "ChaosSolverEditorDetails.h"
 
 
 
@@ -31,9 +30,6 @@ void IChaosSolverEditorPlugin::StartupModule()
 	{
 	}
 
-	// Register details view customizations
-	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.RegisterCustomPropertyTypeLayout("ChaosDebugSubstepControl", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FChaosDebugSubstepControlCustomization::MakeInstance));
 }
 
 
@@ -45,10 +41,6 @@ void IChaosSolverEditorPlugin::ShutdownModule()
 		IAssetTools& AssetTools = AssetToolsModule.Get();
 		AssetTools.UnregisterAssetTypeActions(AssetTypeActions_ChaosSolver->AsShared());
 	}
-
-	// Unregister details view customizations
-	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyModule.UnregisterCustomPropertyTypeLayout("ChaosDebugSubstepControl");
 }
 
 

@@ -11,7 +11,6 @@
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimBlueprint.h"
 #include "Editor.h"
-#include "EditorCategoryUtils.h"
 #include "DetailLayoutBuilder.h"
 #include "IDetailPropertyRow.h"
 #include "DetailCategoryBuilder.h"
@@ -97,14 +96,8 @@ void FSkeletalMeshComponentDetails::CustomizeDetails(IDetailLayoutBuilder& Detai
 	UpdatePhysicsCategory(DetailBuilder);
 }
 
-void FSkeletalMeshComponentDetails::UpdateAnimationCategory(IDetailLayoutBuilder& DetailBuilder)
+void FSkeletalMeshComponentDetails::UpdateAnimationCategory( IDetailLayoutBuilder& DetailBuilder )
 {
-	// Custom skeletal mesh components may hide the animation category, so we won't assume it's visible
-	if (DetailBuilder.GetBaseClass() && FEditorCategoryUtils::IsCategoryHiddenFromClass(DetailBuilder.GetBaseClass(), "Animation"))
-	{
-		return;
-	}
-
 	UpdateSkeletonNameAndPickerVisibility();
 
 	IDetailCategoryBuilder& AnimationCategory = DetailBuilder.EditCategory("Animation", FText::GetEmpty(), ECategoryPriority::Important);

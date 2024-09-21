@@ -17,6 +17,8 @@
 #include "MovieScene.h"
 #include "ISequencer.h"
 #include "MovieSceneSequence.h"
+#include "Sections/MovieSceneSubSection.h"
+#include "Tracks/MovieSceneSubTrack.h"
 #include "Tracks/MovieSceneCinematicShotTrack.h"
 #include "Sections/MovieSceneCinematicShotSection.h"
 #include "SequencerKeyCollection.h"
@@ -26,7 +28,6 @@
 #include "CineCameraComponent.h"
 #include "Math/UnitConversion.h"
 #include "LevelEditorSequencerIntegration.h"
-#include "Fonts/FontMeasure.h"
 
 
 #define LOCTEXT_NAMESPACE "SCinematicLevelViewport"
@@ -84,6 +85,7 @@ FCinematicViewportClient::FCinematicViewportClient()
 {
 	bDrawAxes = false;
 	bIsRealtime = true;
+	SetGameView(true);
 	SetAllowCinematicControl(true);
 	bDisableInput = false;
 }
@@ -168,11 +170,6 @@ void SCinematicLevelViewport::Construct(const FArguments& InArgs)
 		.Realtime(true);
 
 	ViewportClient->SetViewportWidget(ViewportWidget);
-	
-	// Automatically engage game-view to hide editor only sprites. This needs to be done
-	// after the Viewport Client and Widget are constructed as they reset the view to defaults
-	// as part of their initialization.
-	ViewportClient->SetGameView(true);
 
 	TypeInterfaceProxy = MakeShareable( new FTypeInterfaceProxy );
 
@@ -215,7 +212,6 @@ void SCinematicLevelViewport::Construct(const FArguments& InArgs)
 					return UIData.OuterResolution.AsDecimal() * UIData.OuterPlayRate.AsInterval(); 
 				})
 				.LinearDeltaSensitivity(25)
-				.MinDesiredWidth(this, &SCinematicLevelViewport::GetPlayTimeMinDesiredWidth)
 			]
 		]
 
@@ -502,29 +498,6 @@ double SCinematicLevelViewport::GetTime() const
 	return 0;
 }
 
-float SCinematicLevelViewport::GetPlayTimeMinDesiredWidth() const
-{
-	ISequencer* Sequencer = GetSequencer();
-	if (Sequencer)
-	{
-		TRange<double> ViewRange = Sequencer->GetViewRange();
-
-		FString LowerBoundStr = Sequencer->GetNumericTypeInterface()->ToString(ViewRange.GetLowerBoundValue());
-		FString UpperBoundStr = Sequencer->GetNumericTypeInterface()->ToString(ViewRange.GetUpperBoundValue());
-
-		const FSlateFontInfo PlayTimeFont = FEditorStyle::GetFontStyle("Sequencer.FixedFont");
-
-		const TSharedRef< FSlateFontMeasure > FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-
-		FVector2D LowerTextSize = FontMeasureService->Measure(LowerBoundStr, PlayTimeFont);
-		FVector2D UpperTextSize = FontMeasureService->Measure(UpperBoundStr, PlayTimeFont);
-
-		return FMath::Max(LowerTextSize.X, UpperTextSize.X);
-	}
-
-	return 0.f;
-}
-
 void SCinematicLevelViewport::CacheDesiredViewportSize(const FGeometry& AllottedGeometry)
 {
 	FVector2D AllowableSpace = AllottedGeometry.GetLocalSize();
@@ -654,8 +627,12 @@ void SCinematicLevelViewport::Tick(const FGeometry& AllottedGeometry, const doub
 		return;
 	}
 
-	// Find the cinematic shot track
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = Cast<UMovieSceneCinematicShotTrack>(Sequence->GetMovieScene()->FindMasterTrack(UMovieSceneCinematicShotTrack::StaticClass()));
+	// Find either a cinematic shot track or a sub track
+	UMovieSceneSubTrack* SubTrack = Cast<UMovieSceneSubTrack>(Sequence->GetMovieScene()->FindMasterTrack(UMovieSceneCinematicShotTrack::StaticClass()));
+	if (!SubTrack)
+	{
+		SubTrack = Cast<UMovieSceneSubTrack>(Sequence->GetMovieScene()->FindMasterTrack(UMovieSceneSubTrack::StaticClass()));
+	}
 
 	const FFrameRate OuterResolution = Sequencer->GetFocusedTickResolution();
 	const FFrameRate OuterPlayRate   = Sequencer->GetFocusedDisplayRate();
@@ -664,14 +641,15 @@ void SCinematicLevelViewport::Tick(const FGeometry& AllottedGeometry, const doub
 	UIData.OuterResolution = OuterResolution;
 	UIData.OuterPlayRate = OuterPlayRate;
 
-	UMovieSceneCinematicShotSection* CinematicShotSection = nullptr;
-	if (CinematicShotTrack)
+
+	UMovieSceneSubSection* SubSection = nullptr;
+	if (SubTrack)
 	{
-		for (UMovieSceneSection* Section : CinematicShotTrack->GetAllSections())
+		for (UMovieSceneSection* Section : SubTrack->GetAllSections())
 		{
 			if (Section->GetRange().Contains(OuterTime.FrameNumber))
 			{
-				CinematicShotSection = CastChecked<UMovieSceneCinematicShotSection>(Section);
+				SubSection = CastChecked<UMovieSceneSubSection>(Section);
 			}
 		}
 	}
@@ -680,11 +658,11 @@ void SCinematicLevelViewport::Tick(const FGeometry& AllottedGeometry, const doub
 
 	TSharedPtr<INumericTypeInterface<double>> TimeDisplayFormatInterface = Sequencer->GetNumericTypeInterface();
 
-	UMovieSceneSequence* SubSequence = CinematicShotSection ? CinematicShotSection->GetSequence() : nullptr;
+	UMovieSceneSequence* SubSequence = SubSection ? SubSection->GetSequence() : nullptr;
 	if (SubSequence)
 	{
 		FFrameRate                   InnerResolution       = SubSequence->GetMovieScene()->GetTickResolution();
-		FMovieSceneSequenceTransform OuterToInnerTransform = CinematicShotSection ? CinematicShotSection->OuterToInnerTransform() : FMovieSceneSequenceTransform();
+		FMovieSceneSequenceTransform OuterToInnerTransform = SubSection->OuterToInnerTransform();
 		const FFrameTime             InnerShotPosition	   = OuterTime * OuterToInnerTransform;
 
 		UIData.LocalPlaybackTime = FText::Format(
@@ -692,9 +670,14 @@ void SCinematicLevelViewport::Tick(const FGeometry& AllottedGeometry, const doub
 			FText::FromString(TimeDisplayFormatInterface->ToString(InnerShotPosition.GetFrame().Value))
 		);
 
+		UMovieSceneCinematicShotSection* CinematicShotSection = Cast<UMovieSceneCinematicShotSection>(SubSection);
 		if (CinematicShotSection)
 		{
 			UIData.ShotName = FText::FromString(CinematicShotSection->GetShotDisplayName());
+		}
+		else if (SubSection->GetSequence() != nullptr)
+		{
+			UIData.ShotName = SubSection->GetSequence()->GetDisplayName();
 		}
 	}
 	else

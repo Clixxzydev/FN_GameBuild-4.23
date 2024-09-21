@@ -29,13 +29,9 @@ public class WebSockets : ModuleRules
 
 		bool bPlatformSupportsXboxWebsockets = Target.Platform == UnrealTargetPlatform.XboxOne;
 
-		bool bPlatformSupportsWinRTWebsockets =
-			Target.Platform == UnrealTargetPlatform.HoloLens;
-
 		bool bShouldUseModule = 
 				bPlatformSupportsLibWebsockets || 
-					bPlatformSupportsXboxWebsockets ||
-					bPlatformSupportsWinRTWebsockets;
+				bPlatformSupportsXboxWebsockets;
 
 		if (bShouldUseModule)
 		{

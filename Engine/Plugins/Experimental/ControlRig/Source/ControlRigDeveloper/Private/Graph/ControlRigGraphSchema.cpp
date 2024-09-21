@@ -97,25 +97,16 @@ const FPinConnectionResponse UControlRigGraphSchema::CanCreateConnection(const U
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(Blueprint);
 	if (RigBlueprint != nullptr)
 	{
+		if (A->Direction == EGPD_Input)
+		{
+			const UEdGraphPin* Temp = A;
+			A = B;
+			B = Temp;
+		}
+
 		FString LeftA, LeftB, RightA, RightB;
 		RigBlueprint->Model->SplitPinPath(A->GetName(), LeftA, RightA);
 		RigBlueprint->Model->SplitPinPath(B->GetName(), LeftB, RightB);
-
-		const FControlRigModelPin* PinA = RigBlueprint->Model->FindPin(*LeftA, *RightA);
-		if (PinA)
-		{
-			RigBlueprint->ModelController->PrepareCycleCheckingForPin(*LeftA, *RightA, A->Direction == EGPD_Input);
-		}
-
-		if (A->Direction == EGPD_Input)
-		{
-			FString Temp = LeftA;
-			LeftA = LeftB;
-			LeftB = Temp;
-			Temp = RightA;
-			RightA = RightB;
-			RightB = Temp;
-		}
 
 		FString FailureReason;
 		bool bResult = RigBlueprint->ModelController->CanLink(*LeftA, *RightA, *LeftB, *RightB, &FailureReason);
@@ -152,7 +143,10 @@ void UControlRigGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNo
 	if (RigBlueprint != nullptr)
 	{
 		FString Left, Right;
-		RigBlueprint->Model->SplitPinPath(TargetPin.GetName(), Left, Right);
+		if (!TargetPin.GetName().Split(TEXT("."), &Left, &Right))
+		{
+			return;
+		}
 		if (RigBlueprint->ModelController->BreakLinks(*Left, *Right, TargetPin.Direction == EGPD_Input))
 		{
 			FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
@@ -175,9 +169,16 @@ void UControlRigGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraph
 			SourcePin = Temp;
 		}
 		
-		FString SourceLeft, SourceRight, TargetLeft, TargetRight;
-		RigBlueprint->Model->SplitPinPath(SourcePin->GetName(), SourceLeft, SourceRight);
-		RigBlueprint->Model->SplitPinPath(TargetPin->GetName(), TargetLeft, TargetLeft);
+		FString SourceLeft, SourceRight;
+		if (!SourcePin->GetName().Split(TEXT("."), &SourceLeft, &SourceRight))
+		{
+			return;
+		}
+		FString TargetLeft, TargetRight;
+		if (!TargetPin->GetName().Split(TEXT("."), &TargetLeft, &TargetRight))
+		{
+			return;
+		}
 		if (RigBlueprint->ModelController->BreakLink(*SourceLeft, *SourceRight, *TargetLeft, *TargetRight))
 		{
 			FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);

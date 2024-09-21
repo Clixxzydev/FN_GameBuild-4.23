@@ -3,7 +3,6 @@
 #include "ControlRigBlueprint.h"
 #include "ControlRigBlueprintGeneratedClass.h"
 #include "EdGraph/EdGraph.h"
-#include "EdGraphNode_Comment.h"
 #include "Modules/ModuleManager.h"
 #include "Engine/SkeletalMesh.h"
 #include "BlueprintActionDatabaseRegistrar.h"
@@ -101,18 +100,6 @@ void UControlRigBlueprint::GetInstanceActions(FBlueprintActionDatabaseRegistrar&
 	IControlRigEditorModule::Get().GetInstanceActions(this, ActionRegistrar);
 }
 
-void UControlRigBlueprint::SetObjectBeingDebugged(UObject* NewObject)
-{
-	UControlRig* PreviousRigBeingDebugged = Cast<UControlRig>(GetObjectBeingDebugged());
-	if (PreviousRigBeingDebugged && PreviousRigBeingDebugged != NewObject)
-	{
-		PreviousRigBeingDebugged->DrawInterface = nullptr;
-		PreviousRigBeingDebugged->ControlRigLog = nullptr;
-	}
-
-	Super::SetObjectBeingDebugged(NewObject);
-}
-
 UControlRigModel::FModifiedEvent& UControlRigBlueprint::OnModified()
 {
 	return _ModifiedEvent;
@@ -194,12 +181,6 @@ void UControlRigBlueprint::PopulateModelFromGraph(const UControlRigGraph* InGrap
 					}
 				}
 			}
-			else if (const UEdGraphNode_Comment* CommentNode = Cast<UEdGraphNode_Comment>(Node))
-			{
-				FVector2D NodePosition = FVector2D((float)CommentNode->NodePosX, (float)CommentNode->NodePosY);
-				FVector2D NodeSize = FVector2D((float)CommentNode->NodeWidth, (float)CommentNode->NodeHeight);
-				ModelController->AddComment(CommentNode->GetFName(), CommentNode->NodeComment, NodePosition, NodeSize, CommentNode->CommentColor, false);
-			}
 		}
 
 		for (const UEdGraphNode* Node : InGraph->Nodes)
@@ -229,15 +210,10 @@ void UControlRigBlueprint::PopulateModelFromGraph(const UControlRigGraph* InGrap
 			}
 		}
 	}
-}
 
-void UControlRigBlueprint::RebuildGraphFromModel()
-{
-	TGuardValue<bool> SelfGuard(bSuspendModelNotificationsForSelf, true);
-	check(ModelController);
+	// now let's update everyone listening (including the graph)
 	ModelController->ResendAllNotifications();
 }
-
 
 void UControlRigBlueprint::HandleModelModified(const UControlRigModel* InModel, EControlRigModelNotifType InType, const void* InPayload)
 {
@@ -263,42 +239,26 @@ void UControlRigBlueprint::HandleModelModified(const UControlRigModel* InModel, 
 				LastNameFromNotification = NAME_None;
 
 				const FControlRigModelNode* Node = (const FControlRigModelNode*)InPayload;
-				bool bValidNode = false;
 				if (Node != nullptr)
 				{
 					LastNameFromNotification = Node->Name;
-					switch (Node->NodeType)
+					if (Node->IsParameter())
 					{
-						case EControlRigModelNodeType::Parameter:
-						{
-							FControlRigBlueprintUtils::AddPropertyMember(this, Node->Pins[0].Type, *Node->Name.ToString());
-							HandleModelModified(InModel, EControlRigModelNotifType::NodeChanged, InPayload);
-							bValidNode = true;
-							break;
-						}
-						case EControlRigModelNodeType::Function:
-						{
-							FControlRigBlueprintUtils::AddUnitMember(this, Node->UnitStruct(), Node->Name);
-							bValidNode = true;
-							break;
-						}
-						default:
-						{
-							break;
-						}
+						FControlRigBlueprintUtils::AddPropertyMember(this, Node->Pins[0].Type, *Node->Name.ToString());
+						HandleModelModified(InModel, EControlRigModelNotifType::NodeChanged, InPayload);
+					}
+					else
+					{
+						FControlRigBlueprintUtils::AddUnitMember(this, Node->UnitStruct(), Node->Name);
 					}
 				}
+				FBlueprintEditorUtils::MarkBlueprintAsModified(this);
 
-				if (bValidNode)
+				if (Node != nullptr)
 				{
-					FBlueprintEditorUtils::MarkBlueprintAsModified(this);
-
-					if (Node != nullptr)
+					if (Node->IsParameter())
 					{
-						if (Node->IsParameter())
-						{
-							UpdateParametersOnControlRig();
-						}
+						UpdateParametersOnControlRig();
 					}
 				}
 				break;
@@ -393,7 +353,7 @@ void UControlRigBlueprint::HandleModelModified(const UControlRigModel* InModel, 
 									return true;
 								}, true, true);
 							}
-							else
+							else if (InType == EControlRigModelNotifType::PinRemoved)
 							{
 								PerformArrayOperation(PinPath, [](FScriptArrayHelper& InArrayHelper, int32 InArrayIndex)
 								{

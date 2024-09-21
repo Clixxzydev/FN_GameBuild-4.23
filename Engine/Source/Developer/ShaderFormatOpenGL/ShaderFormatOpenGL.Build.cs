@@ -17,8 +17,7 @@ public class ShaderFormatOpenGL : ModuleRules
 				"Core",
 				"RenderCore",
 				"ShaderCompilerCommon",
-				"ShaderPreprocessor",
-				"RHI" // @todo platplug: this is caused by the DataDrivenShaderPlatformInfo stuff - maybe it should move to somewhere else, like RenderCore?
+				"ShaderPreprocessor"
 			}
 			);
 

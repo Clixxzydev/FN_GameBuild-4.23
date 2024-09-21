@@ -99,7 +99,7 @@ void FAnimSequenceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	]
 	.ValueContent()
 	[
-		SAssignNew(RetargetSourceComboBox, SSearchableComboBox)
+		SAssignNew(RetargetSourceComboBox, SComboBox< TSharedPtr<FString> >)
 		.OptionsSource(&RetargetSourceComboList)
 		.OnGenerateWidget(this, &FAnimSequenceDetails::MakeRetargetSourceComboWidget)
 		.OnSelectionChanged(this, &FAnimSequenceDetails::OnRetargetSourceChanged)

@@ -402,8 +402,7 @@ private:
 #if GOOGLEVRHMD_SUPPORTED_INSTANT_PREVIEW_PLATFORMS
 	static const int kReadbackTextureCount = 5;
 	FTexture2DRHIRef ReadbackTextures[kReadbackTextureCount];
-	FRenderQueryPoolRHIRef RenderQueryPool;
-	FRHIPooledRenderQuery* ReadbackCopyQueries = nullptr;
+	FRenderQueryRHIRef ReadbackCopyQueries[kReadbackTextureCount];
 	FIntPoint ReadbackTextureSizes[kReadbackTextureCount];
 	int ReadbackTextureCount;
 	instant_preview::ReferencePose ReadbackReferencePoses[kReadbackTextureCount];
@@ -764,7 +763,7 @@ public:
 #endif
 
 	virtual void SetTrackingOrigin(EHMDTrackingOrigin::Type) override;
-	virtual EHMDTrackingOrigin::Type GetTrackingOrigin() const override;
+	virtual EHMDTrackingOrigin::Type GetTrackingOrigin() override;
 
 
 #if GOOGLEVRHMD_SUPPORTED_INSTANT_PREVIEW_PLATFORMS

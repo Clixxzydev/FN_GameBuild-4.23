@@ -149,7 +149,7 @@ bool UProceduralFoliageComponent::ExecuteSimulation(TArray<FDesiredFoliageInstan
 				// Create a temp tile that will contain the composite contents of the tile after accounting for overlap
 				UProceduralFoliageTile* CompositeTile = FoliageSpawner->CreateTempTile();
 
-				Futures.Add(Async(EAsyncExecution::ThreadPool, [=]()
+				Futures.Add(Async<TArray<FDesiredFoliageInstance>*>(EAsyncExecution::ThreadPool, [=]()
 				{
 					if (LastCancelPtr->GetValue() != LastCanelInit)
 					{

@@ -3,7 +3,7 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-[SupportedPlatforms("Win64", "Mac")]
+[SupportedPlatforms(UnrealTargetPlatform.Win64, UnrealTargetPlatform.Mac)]
 public class SymbolDebuggerTarget : TargetRules
 {
 	public SymbolDebuggerTarget(TargetInfo Target) : base(Target)

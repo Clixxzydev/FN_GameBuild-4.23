@@ -115,8 +115,6 @@ private:
 
 	EVisibility GetResetButtonVisibility() const;
 
-	EVisibility GetDropdownButtonVisibility() const;
-
 	FReply ResetButtonPressed() const;
 
 	EVisibility GetResetToBaseButtonVisibility() const;
@@ -137,10 +135,6 @@ private:
 
 	void ShowReassignDynamicInputScriptMenu();
 
-	void OnLibraryToggleChanged(ECheckBoxState CheckState);
-
-	ECheckBoxState LibraryToggleIsChecked() const;
-
 private:
 	UNiagaraStackFunctionInput* FunctionInput;
 
@@ -150,7 +144,4 @@ private:
 	TSharedPtr<SNiagaraParameterEditor> LocalValueStructParameterEditor;
 	TSharedPtr<IStructureDetailsView> LocalValueStructDetailsView;
 	TSharedPtr<SComboButton> SetFunctionInputButton;
-	TSharedPtr<SGraphActionMenu> SelectInputFunctionMenu;
-
-	static bool bIncludeNonLibraryInputs;
 };

@@ -41,27 +41,25 @@ FAssetEditorToolkit::FAssetEditorToolkit()
 	, bCheckDirtyOnAssetSave(false)
 	, AssetEditorModeManager(nullptr)
 	, bIsToolbarFocusable(false)
-	, bIsToolbarUsingSmallIcons(false)
 {
 	WorkspaceMenuCategory = FWorkspaceItem::NewGroup(LOCTEXT("WorkspaceMenu_BaseAssetEditor", "Asset Editor"));
 }
 
-void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, UObject* ObjectToEdit, const bool bInIsToolbarFocusable, const bool bInUseSmallToolbarIcons )
+void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, UObject* ObjectToEdit, const bool bInIsToolbarFocusable )
 {
 	TArray< UObject* > ObjectsToEdit;
 	ObjectsToEdit.Add( ObjectToEdit );
 
-	InitAssetEditor( Mode, InitToolkitHost, AppIdentifier, StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ObjectsToEdit, bInIsToolbarFocusable, bInUseSmallToolbarIcons );
+	InitAssetEditor( Mode, InitToolkitHost, AppIdentifier, StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ObjectsToEdit, bInIsToolbarFocusable );
 }
 
-void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, const TArray<UObject*>& ObjectsToEdit, const bool bInIsToolbarFocusable, const bool bInUseSmallToolbarIcons )
+void FAssetEditorToolkit::InitAssetEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, const FName AppIdentifier, const TSharedRef<FTabManager::FLayout>& StandaloneDefaultLayout, const bool bCreateDefaultStandaloneMenu, const bool bCreateDefaultToolbar, const TArray<UObject*>& ObjectsToEdit, const bool bInIsToolbarFocusable )
 {
 	// Must not already be editing an object
 	check( ObjectsToEdit.Num() > 0 );
 	check( EditingObjects.Num() == 0 );
 
 	bIsToolbarFocusable = bInIsToolbarFocusable;
-	bIsToolbarUsingSmallIcons = bInUseSmallToolbarIcons;
 
 	// cache reference to ToolkitManager; also ensure it was initialized.
 	FToolkitManager& ToolkitManager = FToolkitManager::Get();
@@ -617,16 +615,8 @@ const FSlateBrush* FAssetEditorToolkit::GetDefaultTabIcon() const
 	{
 		if (Object)
 		{
-			UClass* IconClass = Object->GetClass();
-
-			if (IconClass->IsChildOf<UBlueprint>())
-			{
-				UBlueprint* Blueprint = Cast<UBlueprint>(Object);
-				IconClass = Blueprint->GeneratedClass;
-			}
-
 			// Find the first object that has a valid brush
-			const FSlateBrush* ThisAssetBrush = FSlateIconFinder::FindIconBrushForClass(IconClass);
+			const FSlateBrush* ThisAssetBrush = FSlateIconFinder::FindIconBrushForClass(Object->GetClass());
 			if (ThisAssetBrush != nullptr)
 			{
 				IconBrush = ThisAssetBrush;
@@ -961,7 +951,7 @@ void FAssetEditorToolkit::GenerateToolbar()
 {
 	TSharedPtr<FExtender> Extender = FExtender::Combine(ToolbarExtenders);
 
-	FToolBarBuilder ToolbarBuilder( GetToolkitCommands(), FMultiBoxCustomization::AllowCustomization( GetToolkitFName() ), Extender, Orient_Horizontal, bIsToolbarUsingSmallIcons);
+	FToolBarBuilder ToolbarBuilder( GetToolkitCommands(), FMultiBoxCustomization::AllowCustomization( GetToolkitFName() ), Extender);
 	ToolbarBuilder.SetIsFocusable(bIsToolbarFocusable);
 	ToolbarBuilder.BeginSection("Asset");
 	{
@@ -1133,10 +1123,6 @@ void FAssetEditorToolkit::FGCEditingObjects::AddReferencedObjects(FReferenceColl
 	OwnerToolkit.EditingObjects.RemoveAllSwap([](UObject* Obj) { return Obj == nullptr; } );
 }
 
-FString FAssetEditorToolkit::FGCEditingObjects::GetReferencerName() const
-{
-	return TEXT("FAssetEditorToolkit::FGCEditorObjects");
-}
 
 TSharedPtr<FExtender> FExtensibilityManager::GetAllExtenders()
 {

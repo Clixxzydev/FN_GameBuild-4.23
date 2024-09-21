@@ -7,35 +7,21 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "RenderGraph.h"
-
-// TODO: kill these includes once FRCPassPostProcessTemporalAA is gone.
 #include "RendererInterface.h"
 #include "RenderingCompositionGraph.h"
-
-
-class FViewInfo;
-class FSceneTextureParameters;
-struct FTemporalAAHistory;
 
 
 /** Lists of TAA configurations. */
 enum class ETAAPassConfig
 {
-	// Permutations for main scene color TAA.
+	LegacyDepthOfField,
 	Main,
-	MainUpsampling,
-	MainSuperSampling,
-
-	// Permutation for SSR noise accumulation.
 	ScreenSpaceReflections,
-	
-	// Permutation for light shaft noise accumulation.
 	LightShaft,
-
-	// Permutation for DOF that handle Coc.
+	MainUpsampling,
 	DiaphragmDOF,
 	DiaphragmDOFUpsampling,
+	MainSuperSampling,
 
 	MAX
 };
@@ -57,56 +43,40 @@ static FORCEINLINE bool IsDOFTAAConfig(ETAAPassConfig Pass)
 }
 
 
-/** GPU Output of the TAA pass. */
-struct FTAAOutputs
-{
-	// Anti aliased scene color.
-	// Can have alpha channel, or CoC for DOF.
-	FRDGTexture* SceneColor = nullptr;
-
-	// Optional information that get anti aliased, such as separate CoC for DOF.
-	FRDGTexture* SceneMetadata = nullptr;
-
-	// Optional scene color output at half the resolution.
-	FRDGTexture* DownsampledSceneColor = nullptr;
-};
-
-
 /** Configuration of TAA. */
 struct FTAAPassParameters
 {
 	// TAA pass to run.
-	ETAAPassConfig Pass = ETAAPassConfig::Main;
+	ETAAPassConfig Pass;
 
 	// Whether to use the faster shader permutation.
-	bool bUseFast = false;
+	bool bUseFast;
 
 	// Whether to do compute or not.
-	bool bIsComputePass = false;
+	bool bIsComputePass;
 
 	// Whether downsampled (box filtered, half resolution) frame should be written out.
 	// Only used when bIsComputePass is true.
-	bool bDownsample = false;
-	EPixelFormat DownsampleOverrideFormat = PF_Unknown;
+	bool bDownsample;
+	EPixelFormat DownsampleOverrideFormat;
 
 	// Viewport rectangle of the input and output of TAA at ResolutionDivisor == 1.
 	FIntRect InputViewRect;
 	FIntRect OutputViewRect;
 
 	// Resolution divisor.
-	int32 ResolutionDivisor = 1;
-
-	// Anti aliased scene color.
-	// Can have alpha channel, or CoC for DOF.
-	FRDGTexture* SceneColorInput = nullptr;
-
-	// Optional information that get anti aliased, such as separate CoC for DOF.
-	FRDGTexture* SceneMetadataInput = nullptr;
+	int32 ResolutionDivisor;
 
 
 	FTAAPassParameters(const FViewInfo& View)
-		: InputViewRect(View.ViewRect)
+		: Pass(ETAAPassConfig::Main)
+		, bUseFast(false)
+		, bIsComputePass(false)
+		, bDownsample(false)
+		, DownsampleOverrideFormat(PF_Unknown)
+		, InputViewRect(View.ViewRect)
 		, OutputViewRect(View.ViewRect)
+		, ResolutionDivisor(1)
 	{ }
 
 
@@ -137,25 +107,14 @@ struct FTAAPassParameters
 		OutputViewRect.Max -= OutputViewRect.Min;
 		OutputViewRect.Min = FIntPoint::ZeroValue;
 	}
-	
-	/** Returns the texture resolution that will be outputed. */
-	FIntPoint GetOutputExtent() const;
-
-	/** Validate the settings of TAA, to make sure there is no issue. */
-	bool Validate() const;
-
-	
-	/** Apply a temporal AA pass. */
-	FTAAOutputs AddTemporalAAPass(
-		FRDGBuilder& GraphBuilder,
-		const FSceneTextureParameters& SceneTextures,
-		const FViewInfo& View,
-		const FTemporalAAHistory& InputHistory,
-		FTemporalAAHistory* OutputHistory) const;
-}; // struct FTAAPassParameters
+};
 
 
-// DEPRECATED. Use FTAAPassParameters::AddTemporalAAPass() instead.
+// ePId_Input0: Full Res Scene color (point)
+// ePId_Input2: Velocity (point)
+// ePId_Output0: Antialiased color
+// ePId_Output1: Downsampled antialiased color (only when FTAAConfig::bDownsample is true)
+// derives from TRenderingCompositePassBase<InputCount, OutputCount> 
 class FRCPassPostProcessTemporalAA : public TRenderingCompositePassBase<3, 3>
 {
 public:
@@ -170,13 +129,19 @@ public:
 	virtual void Release() override { delete this; }
 	virtual FPooledRenderTargetDesc ComputeOutputDesc(EPassOutputId InPassOutputId) const override;
 
-	virtual FRHIComputeFence* GetComputePassEndFence() const override { return AsyncEndFence; }
+	virtual FComputeFenceRHIParamRef GetComputePassEndFence() const override { return AsyncEndFence; }
+
+	bool IsDownsamplePossible() const { return bDownsamplePossible; }
 
 private:
-	const FTAAPassParameters SavedParameters;
+	const FTAAPassParameters Parameters;
+
+	FIntPoint OutputExtent;
 
 	FComputeFenceRHIRef AsyncEndFence;
 
 	const FTemporalAAHistory& InputHistory;
 	FTemporalAAHistory* OutputHistory;
+
+	bool bDownsamplePossible = false;
 };

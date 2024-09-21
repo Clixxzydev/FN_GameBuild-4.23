@@ -82,20 +82,3 @@ FDetailWidgetRow FDetailCustomBuilderRow::GetWidgetRow()
 {
 	return *HeaderRow;
 }
-
-bool FDetailCustomBuilderRow::AreChildCustomizationsHidden() const
-{
-	bool bChildCustomizationsHidden = true;
-	if (ChildrenBuilder)
-	{
-		for (const FDetailLayoutCustomization& ChildCustomizations : ChildrenBuilder->GetChildCustomizations())
-		{
-			if (!ChildCustomizations.IsHidden())
-			{
-				bChildCustomizationsHidden = false;
-				break;
-			}
-		}
-	}
-	return bChildCustomizationsHidden;
-}

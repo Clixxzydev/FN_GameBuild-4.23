@@ -20,8 +20,6 @@ SHADER_PARAMETER(FVector4, LightMapCoordinateScaleBias) // TLightMapPolicy
 SHADER_PARAMETER(FVector4, ShadowMapCoordinateScaleBias) // TDistanceFieldShadowsAndLightMapPolicy
 SHADER_PARAMETER_ARRAY_EX(FVector4, LightMapScale, [MAX_NUM_LIGHTMAP_COEF], EShaderPrecisionModifier::Half) // TLightMapPolicy
 SHADER_PARAMETER_ARRAY_EX(FVector4, LightMapAdd, [MAX_NUM_LIGHTMAP_COEF], EShaderPrecisionModifier::Half) // TLightMapPolicy
-SHADER_PARAMETER_ARRAY(FUintVector4, LightmapVTPackedPageTableUniform, [2]) // VT (1 page table, 2x uint4)
-SHADER_PARAMETER_ARRAY(FUintVector4, LightmapVTPackedUniform, [5]) // VT (5 layers, 1x uint4 per layer)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 ENGINE_API void GetDefaultPrecomputedLightingParameters(FPrecomputedLightingUniformParameters& Parameters);
@@ -34,7 +32,7 @@ ENGINE_API void GetPrecomputedLightingParameters(
 struct FLightmapSceneShaderData
 {
 	// Must match usf
-	enum { LightmapDataStrideInFloat4s = 15 };
+	enum { LightmapDataStrideInFloat4s = 8 };
 
 	FVector4 Data[LightmapDataStrideInFloat4s];
 

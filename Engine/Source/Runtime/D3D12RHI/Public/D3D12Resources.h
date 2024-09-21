@@ -476,8 +476,7 @@ public:
 
 		if (!IsCPUInaccessible(Resource->GetHeapType()))
 		{
-			D3D12_RANGE range = { 0, IsCPUWritable(Resource->GetHeapType())? 0 : BufferSize };
-			SetMappedBaseAddress(Resource->Map(&range));
+			SetMappedBaseAddress(Resource->Map());
 		}
 		SetGPUVirtualAddress(Resource->GetGPUVirtualAddress());
 		SetTransient(bInIsTransient);
@@ -491,8 +490,7 @@ public:
 
 		if (IsCPUWritable(Resource->GetHeapType()))
 		{
-			D3D12_RANGE range = { 0, 0 };
-			SetMappedBaseAddress(Resource->Map(&range));
+			SetMappedBaseAddress(Resource->Map());
 		}
 		SetGPUVirtualAddress(Resource->GetGPUVirtualAddress());
 	}
@@ -592,7 +590,6 @@ class FD3D12DeferredDeletionQueue : public FD3D12AdapterChild
 			FD3D12Resource* RHIObject;
 			ID3D12Object*   D3DObject;
 		};
-		FD3D12Fence* Fence;
 		uint64 FenceValue;
 		EObjectType Type;
 	};
@@ -602,8 +599,8 @@ public:
 
 	inline const uint32 QueueSize() const { return DeferredReleaseQueue.GetSize(); }
 
-	void EnqueueResource(FD3D12Resource* pResource, FD3D12Fence* Fence);
-	void EnqueueResource(ID3D12Object* pResource, FD3D12Fence* Fence);
+	void EnqueueResource(FD3D12Resource* pResource);
+	void EnqueueResource(ID3D12Object* pResource);
 
 	bool ReleaseResources(bool DeleteImmediately = false);
 
@@ -728,7 +725,7 @@ public:
 	virtual ~FD3D12UniformBuffer();
 };
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 class FD3D12TransientResource
 {
 	// Nothing special for fast ram
@@ -779,30 +776,20 @@ public:
 	FD3D12LockedResource LockedData;
 };
 
-class FD3D12ShaderResourceView;
-
 /** Structured buffer resource class. */
 class FD3D12StructuredBuffer : public FRHIStructuredBuffer, public FD3D12BaseShaderResource, public FD3D12TransientResource, public FD3D12LinkedAdapterObject<FD3D12StructuredBuffer>
 {
 public:
-	// Current SRV
-	FD3D12ShaderResourceView* DynamicSRV;
 
 	FD3D12StructuredBuffer(FD3D12Device* InParent, uint32 InStride, uint32 InSize, uint32 InUsage)
 		: FRHIStructuredBuffer(InStride, InSize, InUsage)
 		, FD3D12BaseShaderResource(InParent)
-		, DynamicSRV(nullptr)
 		, LockedData(InParent)
 	{
 	}
 
 	void Rename(FD3D12ResourceLocation& NewLocation);
 	void RenameLDAChain(FD3D12ResourceLocation& NewLocation);
-
-	void SetDynamicSRV(FD3D12ShaderResourceView* InSRV)
-	{
-		DynamicSRV = InSRV;
-	}
 
 	virtual ~FD3D12StructuredBuffer();
 
@@ -822,6 +809,8 @@ public:
 
 	FD3D12LockedResource LockedData;
 };
+
+class FD3D12ShaderResourceView;
 
 /** Vertex buffer resource class. */
 class FD3D12VertexBuffer : public FRHIVertexBuffer, public FD3D12BaseShaderResource, public FD3D12TransientResource, public FD3D12LinkedAdapterObject<FD3D12VertexBuffer>
@@ -919,29 +908,10 @@ public:
 		Barrier.UAV.pResource = nullptr;	// Ignore the resource ptr for now. HW doesn't do anything with it.
 	}
 
-	// Add a transition resource barrier to the batch. Returns the number of barriers added, which may be negative if an existing barrier was cancelled.
-	int32 AddTransition(ID3D12Resource* pResource, D3D12_RESOURCE_STATES Before, D3D12_RESOURCE_STATES After, uint32 Subresource)
+	// Add a transition resource barrier to the batch.
+	void AddTransition(ID3D12Resource* pResource, D3D12_RESOURCE_STATES Before, D3D12_RESOURCE_STATES After, uint32 Subresource)
 	{
 		check(Before != After);
-
-		if (Barriers.Num())
-		{
-			// Check if we are simply reverting the last transition. In that case, we can just remove both transitions.
-			// This happens fairly frequently due to resource pooling since different RHI buffers can point to the same underlying D3D buffer.
-			// Instead of ping-ponging that underlying resource between COPY_DEST and GENERIC_READ, several copies can happen without a ResourceBarrier() in between.
-			// Doing this check also eliminates a D3D debug layer warning about multiple transitions of the same subresource.
-			const D3D12_RESOURCE_BARRIER& Last = Barriers.Last();
-			if (pResource == Last.Transition.pResource &&
-				Subresource == Last.Transition.Subresource &&
-				Before == Last.Transition.StateAfter &&
-				After  == Last.Transition.StateBefore &&
-				Last.Type == D3D12_RESOURCE_BARRIER_TYPE_TRANSITION)
-			{
-				Barriers.RemoveAt(Barriers.Num() - 1);
-				return -1;
-			}
-		}
-
 		Barriers.AddUninitialized();
 		D3D12_RESOURCE_BARRIER& Barrier = Barriers.Last();
 		Barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -950,7 +920,6 @@ public:
 		Barrier.Transition.StateAfter = After;
 		Barrier.Transition.Subresource = Subresource;
 		Barrier.Transition.pResource = pResource;
-		return 1;
 	}
 
 	void AddAliasingBarrier(ID3D12Resource* pResource)

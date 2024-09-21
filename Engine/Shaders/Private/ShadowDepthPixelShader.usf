@@ -83,9 +83,11 @@ void Main(
 #endif
 
 #if PERSPECTIVE_CORRECT_DEPTH
-	const float InvMaxSubjectDepth = PassStruct.ShadowParams.w;
+	float DepthBias = PassStruct.ShadowParams.x;
+	float InvMaxSubjectDepth = PassStruct.ShadowParams.y;
+
 	Inputs.ShadowDepth *= InvMaxSubjectDepth;
-	Inputs.ShadowDepth += Inputs.DepthBias;
+	Inputs.ShadowDepth += DepthBias;
 
 	OutDepth = saturate(Inputs.ShadowDepth);
 #endif
@@ -148,7 +150,7 @@ void Main(
 #if MATERIAL_BLOCK_GI
 	OutColor = 1.0f;
 	OutReflectiveShadowMapDiffuse = opacity;
-#elif MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ALPHACOMPOSITE || MATERIALBLENDING_ALPHAHOLDOUT
+#elif MATERIALBLENDING_TRANSLUCENT || MATERIALBLENDING_ALPHACOMPOSITE
 	OutColor = 0;
 	OutReflectiveShadowMapDiffuse = 0;
 	clip(-1.0);

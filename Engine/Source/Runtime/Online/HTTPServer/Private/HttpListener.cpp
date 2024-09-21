@@ -58,9 +58,7 @@ bool FHttpListener::StartListening()
 	ListenSocket->SetNonBlocking(true);
 
 	// Bind to Localhost/Caller-defined port
-	TSharedRef<FInternetAddr> LocalhostAddr = SocketSubsystem->CreateInternetAddr();
-	LocalhostAddr->SetAnyAddress();
-	LocalhostAddr->SetPort(ListenPort);
+	TSharedRef<FInternetAddr> LocalhostAddr = SocketSubsystem->CreateInternetAddr(ListenerInterfaceAddress, ListenPort);
 	if (!ListenSocket->Bind(*LocalhostAddr))
 	{
 		UE_LOG(LogHttpListener, Error, 

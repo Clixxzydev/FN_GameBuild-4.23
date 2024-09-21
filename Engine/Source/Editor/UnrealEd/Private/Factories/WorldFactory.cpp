@@ -1,8 +1,9 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "Factories/WorldFactory.h"
-#include "Editor.h"
 #include "UObject/Package.h"
+#include "Engine/Level.h"
+#include "Editor/EditorEngine.h"
 #include "ThumbnailRendering/WorldThumbnailInfo.h"
 #include "EditorClassUtils.h"
 
@@ -28,7 +29,6 @@ UObject* UWorldFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName
 	// Create a new world.
 	const bool bAddToRoot = false;
 	UWorld* NewWorld = UWorld::CreateWorld(WorldType, bInformEngineOfWorld, Name, Cast<UPackage>(InParent), bAddToRoot, FeatureLevel);
-	GEditor->InitBuilderBrush(NewWorld);
 	NewWorld->SetFlags(Flags);
 	NewWorld->ThumbnailInfo = NewObject<UWorldThumbnailInfo>(NewWorld, NAME_None, RF_Transactional);
 

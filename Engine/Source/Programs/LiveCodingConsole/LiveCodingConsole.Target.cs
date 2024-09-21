@@ -15,7 +15,6 @@ public class LiveCodingConsoleTarget : TargetRules
 		bUseMallocProfiler = false;
 		bCompileWithPluginSupport = true;
 		bIncludePluginsForTargetPlatforms = true;
-		bWithLiveCoding = true;
 
 		// Editor-only data, however, is needed
 		bBuildWithEditorOnlyData = true;

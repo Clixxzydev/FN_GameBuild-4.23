@@ -34,7 +34,6 @@ public:
 
 private:
 	virtual void AddReferencedObjects( FReferenceCollector& Collector ) override;
-	virtual FString GetReferencerName() const override;
 	virtual UWorld* GetTickableGameObjectWorld() const override;
 	virtual void Tick( float DeltaTime ) override;
 	virtual bool IsTickable() const override;

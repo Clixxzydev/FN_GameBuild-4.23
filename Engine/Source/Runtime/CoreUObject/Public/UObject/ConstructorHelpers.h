@@ -114,14 +114,9 @@ public:
 			return !!Object;
 		}
 
-		virtual void AddReferencedObjects( FReferenceCollector& Collector ) override
+		virtual void AddReferencedObjects( FReferenceCollector& Collector )
 		{
 			Collector.AddReferencedObject(Object);
-		}
-
-		virtual FString GetReferencerName() const override
-		{
-			return TEXT("FObjectFinder");
 		}
 	};
 
@@ -157,14 +152,9 @@ public:
 			return !!Get();
 		}
 
-		virtual void AddReferencedObjects( FReferenceCollector& Collector ) override
+		virtual void AddReferencedObjects( FReferenceCollector& Collector )
 		{
 			Collector.AddReferencedObject(Object);
-		}
-
-		virtual FString GetReferencerName() const override
-		{
-			return TEXT("FObjectFinderOptional");
 		}
 	};
 
@@ -185,16 +175,11 @@ public:
 			return !!*Class;
 		}
 		
-		virtual void AddReferencedObjects( FReferenceCollector& Collector ) override
+		virtual void AddReferencedObjects( FReferenceCollector& Collector )
 		{
 			UClass* ReferencedClass = Class.Get();
 			Collector.AddReferencedObject(ReferencedClass);
 			Class = ReferencedClass;
-		}
-
-		virtual FString GetReferencerName() const override
-		{
-			return TEXT("FClassFinder");
 		}
 	};
 

@@ -456,15 +456,6 @@ FixICU()
   set +x
 }
 
-BuildStrophe()
-{
-  echo "building libstrophe"
-  set -x
-  cd Source/ThirdParty/libstrophe/libstrophe-0.9.1/BuildForUE/Linux
-  bash BuildForLinux.sh
-  set +x
-}
-
 Run()
 {
   cd ${TOP_DIR}
@@ -499,7 +490,6 @@ build_all() {
    Run BuildSDL2
    Run Buildcoremod
    Run FixICU
-   Run BuildStrophe
 }
 
 print_help() {
@@ -532,7 +522,6 @@ print_valid_build_opts() {
   echo "    Mono"
   echo "    GoogleTest"
   echo "    LLVMCompilerRt"
-  echo "    Strophe"
 }
 
 BuildList=()

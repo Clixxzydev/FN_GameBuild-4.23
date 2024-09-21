@@ -15,28 +15,21 @@ namespace
 	}
 }
 
-UObject* UDatasmithSceneComponentTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithSceneComponentTemplate::Apply( UObject* Destination, bool bForce )
 {
+#if WITH_EDITORONLY_DATA
 	USceneComponent* SceneComponent = Cast< USceneComponent >( Destination );
 
 	if ( !SceneComponent )
 	{
-		return nullptr;
+		return;
 	}
 
-#if WITH_EDITORONLY_DATA
 	UDatasmithSceneComponentTemplate* PreviousTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithSceneComponentTemplate >( Destination ) : nullptr;
 
 	if ( !PreviousTemplate || PreviousTemplate->Mobility == SceneComponent->Mobility )
 	{
-		// We can't attach a static component to a dynamic parent
-		EComponentMobility::Type TargetMobility = Mobility;
-		if (AttachParent)
-		{
-			TargetMobility = (EComponentMobility::Type) FMath::Max((uint8)Mobility, (uint8)AttachParent->Mobility);
-		}
-
-		SceneComponent->SetMobility( TargetMobility );
+		SceneComponent->SetMobility( Mobility );
 	}
 
 	const ULevel* SceneComponentLevel = SceneComponent->GetComponentLevel();
@@ -100,9 +93,10 @@ UObject* UDatasmithSceneComponentTemplate::UpdateObject( UObject* Destination, b
 	{
 		SceneComponent->ComponentTags = FDatasmithObjectTemplateUtils::ThreeWaySetMerge(PreviousTemplate->Tags, TSet<FName>(SceneComponent->ComponentTags), Tags).Array();
 	}
-#endif // #if WITH_EDITORONLY_DATA
 
-	return Destination;
+
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( Destination, this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithSceneComponentTemplate::Load( const UObject* Source )

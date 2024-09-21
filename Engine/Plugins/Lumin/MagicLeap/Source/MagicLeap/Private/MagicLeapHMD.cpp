@@ -1988,6 +1988,7 @@ void FMagicLeapHMD::RestoreBaseProfile()
 void FMagicLeapHMD::EnablePrivileges()
 {
 #if WITH_MLSDK
+	UE_LOG(LogMagicLeap, Warning, TEXT("FMagicLeapHMD::EnablePrivileges"));
 	MLResult Result = MLPrivilegesStartup();
 	bPrivilegesEnabled = (Result == MLResult_Ok);
 	UE_CLOG(!bPrivilegesEnabled, LogMagicLeap, Error, TEXT("MLPrivilegesStartup() "

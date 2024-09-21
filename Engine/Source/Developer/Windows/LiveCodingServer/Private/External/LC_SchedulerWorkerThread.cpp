@@ -5,16 +5,43 @@
 #include "LC_SchedulerTask.h"
 
 
+namespace
+{
+	struct ThreadContext
+	{
+		scheduler::WorkerThread* instance;
+		scheduler::TaskQueue* queue;
+	};
+}
+
+
 scheduler::WorkerThread::WorkerThread(TaskQueue* queue)
 	: m_thread()
 {
-	m_thread = thread::Create("Live coding worker", 128u * 1024u, &scheduler::WorkerThread::ThreadFunction, this, queue);
+	ThreadContext* context = new ThreadContext;
+	context->instance = this;
+	context->queue = queue;
+	
+	m_thread = thread::Create(128u * 1024u, &ThreadProxy, context);
 }
 
 
 scheduler::WorkerThread::~WorkerThread(void)
 {
 	thread::Join(m_thread);
+}
+
+
+unsigned int __stdcall scheduler::WorkerThread::ThreadProxy(void* context)
+{
+	thread::SetName("Live coding worker");
+
+	ThreadContext* realContext = static_cast<ThreadContext*>(context);
+	const unsigned int exitCode = realContext->instance->ThreadFunction(realContext->queue);
+
+	delete realContext;
+
+	return exitCode;
 }
 
 

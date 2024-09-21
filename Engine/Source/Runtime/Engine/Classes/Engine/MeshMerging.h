@@ -6,7 +6,6 @@
 #include "UObject/ObjectMacros.h"
 #include "Engine/MaterialMerging.h"
 #include "GameFramework/Actor.h"
-#include "Components/InstancedStaticMeshComponent.h"
 #include "MeshMerging.generated.h"
 
 /** The importance of a mesh feature when automatically generating mesh LODs. */
@@ -426,7 +425,7 @@ struct FMeshMergingSettings
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** The lightmap resolution used both for generating lightmap UV coordinates, and also set on the generated static mesh */
+	/** Target lightmap resolution */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = MeshSettings, meta=(ClampMax = 4096, EditCondition = "!bComputedLightMapResolution", DisplayAfter="bGenerateLightMapUV"))
 	int32 TargetLightMapResolution;
 
@@ -446,7 +445,6 @@ struct FMeshMergingSettings
 	UPROPERTY(EditAnywhere, Category = MeshSettings, BlueprintReadWrite, meta = (DisplayAfter="LODSelectionType", ClampMin = "0", ClampMax = "7", UIMin = "0", UIMax = "7", EnumCondition = 1))
 	int32 SpecificLOD;
 
-	/** Which selection mode should be used when generating the merged static mesh */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshSettings, meta = (DisplayAfter="bBakeVertexDataToMesh"))
 	EMeshLODSelectionType LODSelectionType;
 
@@ -494,7 +492,6 @@ struct FMeshMergingSettings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = LandscapeCulling)
 	uint8 bUseLandscapeCulling:1;
 
-	/** Whether or not to include any imposter LODs that are part of the source static meshes */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = MeshSettings)
 	uint8 bIncludeImposters:1;
 
@@ -621,7 +618,6 @@ struct FMeshInstancingSettings
 		, MeshReplacementMethod(EMeshInstancingReplacementMethod::KeepOriginalActorsAsEditorOnly)
 		, bSkipMeshesWithVertexColors(true)
 		, bUseHLODVolumes(true)
-		, ISMComponentToUse(UInstancedStaticMeshComponent::StaticClass())
 	{}
 
 	/** The actor class to attach new instance static mesh components to */
@@ -649,10 +645,4 @@ struct FMeshInstancingSettings
 	 */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="Instancing", meta=(DisplayName="Use HLOD Volumes"))
 	bool bUseHLODVolumes;
-
-	/**
-	 * Whether to use the Instanced Static Mesh Compoment or the Hierarchical Instanced Static Mesh Compoment
-	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Instancing", meta = (DisplayName = "Select the type of Instanced Component", DisallowedClasses = "FoliageInstancedStaticMeshComponent"))
-	TSubclassOf<UInstancedStaticMeshComponent> ISMComponentToUse;
 };

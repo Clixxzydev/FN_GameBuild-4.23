@@ -75,14 +75,9 @@ struct FMovieSceneTrackFieldData
 		return true;
 	}
 
-	friend bool operator==(const FMovieSceneTrackFieldData& A, const FMovieSceneTrackFieldData& B)
-	{
-		return A.Field == B.Field;
-	}
-
 	TMovieSceneEvaluationTree<FMovieSceneTrackIdentifier> Field;
 };
-template<> struct TStructOpsTypeTraits<FMovieSceneTrackFieldData> : public TStructOpsTypeTraitsBase2<FMovieSceneTrackFieldData> { enum { WithSerializer = true, WithIdenticalViaEquality = true }; };
+template<> struct TStructOpsTypeTraits<FMovieSceneTrackFieldData> : public TStructOpsTypeTraitsBase2<FMovieSceneTrackFieldData> { enum { WithSerializer = true }; };
 
 /** Data that represents a single sub-section */
 USTRUCT()
@@ -97,11 +92,6 @@ struct FMovieSceneSubSectionData
 	friend FArchive& operator<<(FArchive& Ar, FMovieSceneSubSectionData& In)
 	{
 		return Ar << In.Section << In.ObjectBindingId << In.Flags;
-	}
-
-	friend bool operator==(const FMovieSceneSubSectionData& A, const FMovieSceneSubSectionData& B)
-	{
-		return A.Section == B.Section && A.ObjectBindingId == B.ObjectBindingId && A.Flags == B.Flags;
 	}
 
 	/** The sub section itself */

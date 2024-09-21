@@ -7,7 +7,7 @@
 #include "MovieSceneSection.h"
 #include "MovieSceneTrack.h"
 #include "MovieScene.h"
-#include "TakesCoreLog.h"
+#include "TakesCoreFwd.h"
 #include "Channels/MovieSceneChannel.h"
 #include "Channels/MovieSceneChannelData.h"
 #include "Channels/MovieSceneChannelProxy.h"

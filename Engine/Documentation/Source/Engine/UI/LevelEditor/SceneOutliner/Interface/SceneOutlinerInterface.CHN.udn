@@ -1,18 +1,17 @@
-﻿INTSourceChangelist:3108692
+﻿INTSourceChangelist:1997499
 Availability:Public
-Title:世界大纲视图用户界面
+Title:场景大纲视图用户界面
 Crumbs: %ROOT%, Engine, Engine/UI, Engine/UI/LevelEditor, Engine/UI/LevelEditor/SceneOutliner
 Description: 当前关卡中的所有Actor的层次化树形视图，用于进行选择、附加操作等。
-Version: 4.9
 
 [TOC(start:2)]
 
-
+## 概述
 
 [INCLUDE:Engine/UI/LevelEditor/SceneOutliner/#SceneOutliner]
 
 [REGION:note]
-当关卡编辑器处于Play（播放）或Simulate（模拟）模式时，世界大纲视图除了显示现有Actor之外，还会显示从游戏性代码或者蓝图中动态生成的Actor。
+当关卡编辑器处于Play（播放）或Simulate（模拟）模式时，场景大纲视图除了显示现有Actor之外，还会显示从游戏性代码或者蓝图中动态生成的Actor。
 [/REGION]
 
 ![](LE_SceneOutlinerUI.png)
@@ -28,4 +27,4 @@ Version: 4.9
 
 [Include:Shared/Editors/Common/EditorMenuItems/#UITabTips]
 
-关于 **世界大纲视图** 的更多信息，请参阅文档[](Engine/UI/LevelEditor\SceneOutliner)。
+关于场景大纲视图的更多信息，请参照[](Engine/UI/LevelEditor\SceneOutliner)。

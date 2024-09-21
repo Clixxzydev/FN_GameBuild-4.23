@@ -3,52 +3,7 @@
 #pragma once
 
 #include "UObject/GCObject.h"
-#include "Templates/EnableIf.h"
-#include "Templates/PointerIsConvertibleFromTo.h"
-#include "Templates/UniqueObj.h"
-
-namespace UE4StrongObjectPtr_Private
-{
-	class FInternalReferenceCollector : public FGCObject
-	{
-	public:
-		FInternalReferenceCollector(const volatile UObject* InObject = nullptr)
-			: Object(InObject)
-		{
-			check(IsInGameThread());
-		}
-
-		virtual ~FInternalReferenceCollector()
-		{
-			check(IsInGameThread() || IsInGarbageCollectorThread());
-		}
-
-		bool IsValid() const
-		{
-			return Object != nullptr;
-		}
-
-		template <typename UObjectType>
-		FORCEINLINE UObjectType* GetAs() const
-		{
-			return (UObjectType*)Object;
-		}
-
-		FORCEINLINE void Set(const volatile UObject* InObject)
-		{
-			Object = InObject;
-		}
-
-		//~ FGCObject interface
-		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
-		{
-			Collector.AddReferencedObject(Object);
-		}
-
-	private:
-		const volatile UObject* Object;
-	};
-}
+#include "Templates/UniquePtr.h"
 
 /**
  * Specific implementation of FGCObject that prevents a single UObject-based pointer from being GC'd while this guard is in scope.
@@ -58,45 +13,63 @@ template <typename ObjectType>
 class TStrongObjectPtr
 {
 public:
-	TStrongObjectPtr(TStrongObjectPtr&& InOther) = default;
-	TStrongObjectPtr(const TStrongObjectPtr& InOther) = default;
-	TStrongObjectPtr& operator=(TStrongObjectPtr&& InOther) = default;
-	~TStrongObjectPtr() = default;
-
-	FORCEINLINE_DEBUGGABLE TStrongObjectPtr(TYPE_OF_NULLPTR = nullptr)
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr()
+		: ReferenceCollector(MakeUnique<FInternalReferenceCollector>(nullptr))
 	{
 		static_assert(TPointerIsConvertibleFromTo<ObjectType, const volatile UObject>::Value, "TStrongObjectPtr can only be constructed with UObject types");
 	}
 
 	FORCEINLINE_DEBUGGABLE explicit TStrongObjectPtr(ObjectType* InObject)
-		: ReferenceCollector(InObject)
+		: ReferenceCollector(MakeUnique<FInternalReferenceCollector>(InObject))
 	{
 		static_assert(TPointerIsConvertibleFromTo<ObjectType, const volatile UObject>::Value, "TStrongObjectPtr can only be constructed with UObject types");
 	}
 
-	template <
-		typename OtherObjectType,
-		typename = typename TEnableIf<TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value>::Type
-	>
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr(const TStrongObjectPtr& InOther)
+		: ReferenceCollector(MakeUnique<FInternalReferenceCollector>(InOther.Get()))
+	{
+	}
+
+	template <typename OtherObjectType>
 	FORCEINLINE_DEBUGGABLE TStrongObjectPtr(const TStrongObjectPtr<OtherObjectType>& InOther)
-		: ReferenceCollector(InOther.Get())
+		: ReferenceCollector(MakeUnique<FInternalReferenceCollector>(InOther.Get()))
 	{
 	}
 
 	FORCEINLINE_DEBUGGABLE TStrongObjectPtr& operator=(const TStrongObjectPtr& InOther)
 	{
-		// TUniqueObj is not assignable so we need to implement this instead of defaulting it.
 		ReferenceCollector->Set(InOther.Get());
 		return *this;
 	}
 
 	template <typename OtherObjectType>
-	FORCEINLINE_DEBUGGABLE typename TEnableIf<
-		TPointerIsConvertibleFromTo<OtherObjectType, ObjectType>::Value,
-		TStrongObjectPtr&
-	>::Type operator=(const TStrongObjectPtr<OtherObjectType>& InOther)
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr& operator=(const TStrongObjectPtr<OtherObjectType>& InOther)
 	{
 		ReferenceCollector->Set(InOther.Get());
+		return *this;
+	}
+
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr(TStrongObjectPtr&& InOther)
+	{
+		ReferenceCollector = MoveTemp(InOther.ReferenceCollector);
+	}
+
+	template <typename OtherObjectType>
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr(TStrongObjectPtr<OtherObjectType>&& InOther)
+	{
+		ReferenceCollector = MoveTemp(InOther.ReferenceCollector);
+	}
+
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr& operator=(TStrongObjectPtr&& InOther)
+	{
+		ReferenceCollector = MoveTemp(InOther.ReferenceCollector);
+		return *this;
+	}
+
+	template <typename OtherObjectType>
+	FORCEINLINE_DEBUGGABLE TStrongObjectPtr<OtherObjectType>& operator=(TStrongObjectPtr<OtherObjectType>&& InOther)
+	{
+		ReferenceCollector = MoveTemp(InOther.ReferenceCollector);
 		return *this;
 	}
 
@@ -114,17 +87,17 @@ public:
 
 	FORCEINLINE_DEBUGGABLE bool IsValid() const
 	{
-		return ReferenceCollector->IsValid();
+		return Get() != nullptr;
 	}
 
 	FORCEINLINE_DEBUGGABLE explicit operator bool() const
 	{
-		return ReferenceCollector->IsValid();
+		return Get() != nullptr;
 	}
 
 	FORCEINLINE_DEBUGGABLE ObjectType* Get() const
 	{
-		return ReferenceCollector->GetAs<ObjectType>();
+		return ReferenceCollector->Get();
 	}
 
 	FORCEINLINE_DEBUGGABLE void Reset(ObjectType* InNewObject = nullptr)
@@ -138,7 +111,41 @@ public:
 	}
 
 private:
-	TUniqueObj<UE4StrongObjectPtr_Private::FInternalReferenceCollector> ReferenceCollector;
+	class FInternalReferenceCollector : public FGCObject
+	{
+	public:
+		FInternalReferenceCollector(ObjectType* InObject)
+			: Object(InObject)
+		{
+			check(IsInGameThread());
+		}
+
+		virtual ~FInternalReferenceCollector()
+		{
+			check(IsInGameThread());
+		}
+
+		FORCEINLINE ObjectType* Get() const
+		{
+			return Object;
+		}
+
+		FORCEINLINE void Set(ObjectType* InObject)
+		{
+			Object = InObject;
+		}
+
+		//~ FGCObject interface
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+		{
+			Collector.AddReferencedObject(Object);
+		}
+
+	private:
+		ObjectType* Object;
+	};
+
+	TUniquePtr<FInternalReferenceCollector> ReferenceCollector;
 };
 
 template <typename LHSObjectType, typename RHSObjectType>

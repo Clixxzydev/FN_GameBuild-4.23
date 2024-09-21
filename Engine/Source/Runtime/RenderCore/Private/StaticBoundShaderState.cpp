@@ -50,11 +50,11 @@ FGlobalBoundShaderStateResource::~FGlobalBoundShaderStateResource()
 /**
  * Initializes a global bound shader state with a vanilla bound shader state and required information.
  */
-FRHIBoundShaderState* FGlobalBoundShaderStateResource::GetInitializedRHI(
-	FRHIVertexDeclaration* VertexDeclaration,
-	FRHIVertexShader* VertexShader,
-	FRHIPixelShader* PixelShader,
-	FRHIGeometryShader* GeometryShader
+FBoundShaderStateRHIParamRef FGlobalBoundShaderStateResource::GetInitializedRHI(
+	FVertexDeclarationRHIParamRef VertexDeclaration,
+	FVertexShaderRHIParamRef VertexShader, 
+	FPixelShaderRHIParamRef PixelShader,
+	FGeometryShaderRHIParamRef GeometryShader
 	)
 {
 	check(IsInitialized());
@@ -94,7 +94,7 @@ FRHIBoundShaderState* FGlobalBoundShaderStateResource::GetInitializedRHI(
 	return BoundShaderState;
 }
 
-FRHIBoundShaderState* FGlobalBoundShaderStateResource::GetPreinitializedRHI()
+FBoundShaderStateRHIParamRef FGlobalBoundShaderStateResource::GetPreinitializedRHI()
 {
 	check(IsInitialized());
 	check(GIsRHIInitialized);

@@ -30,7 +30,6 @@ struct ENGINE_API FAnimationRecordingSettings
 		, Length((float)DefaultMaximumLength)
 		, InterpMode(ERichCurveInterpMode::RCIM_Linear)
 		, TangentMode(ERichCurveTangentMode::RCTM_Auto)
-		, bCheckDeltaTimeAtBeginning(true)
 	{}
 
 	/** Whether to record animation in world space, defaults to true */
@@ -60,7 +59,4 @@ struct ENGINE_API FAnimationRecordingSettings
 	/** Tangent mode for the recorded keys. */
 	UPROPERTY(EditAnywhere, Category = "Settings")
 	TEnumAsByte<ERichCurveTangentMode> TangentMode;
-
-	/** Whether to check DeltaTime at recording for pauses, turned off for TakeRecorder*/
-	bool bCheckDeltaTimeAtBeginning;
 };

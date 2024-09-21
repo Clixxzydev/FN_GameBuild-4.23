@@ -63,8 +63,7 @@ public class UMGEditor : ModuleRules
 				"RenderCore",
                 "TargetPlatform",
 				"TimeManagement",
-				"GameProjectGeneration",
-				"PropertyPath"
+				"GameProjectGeneration"
 			}
 			);
 	}

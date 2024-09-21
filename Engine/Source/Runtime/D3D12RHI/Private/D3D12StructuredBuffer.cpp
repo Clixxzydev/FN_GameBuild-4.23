@@ -1,7 +1,6 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
 #include "D3D12RHIPrivate.h"
-#include "D3D12View.h"
 
 D3D12_RESOURCE_DESC CreateStructuredBufferResourceDesc(uint32 Size, uint32 InUsage)
 {
@@ -77,11 +76,6 @@ FD3D12StructuredBuffer::~FD3D12StructuredBuffer()
 void FD3D12StructuredBuffer::Rename(FD3D12ResourceLocation& NewLocation)
 {
 	FD3D12ResourceLocation::TransferOwnership(ResourceLocation, NewLocation);
-
-	if (DynamicSRV != nullptr)
-	{
-		DynamicSRV->Rename(ResourceLocation);
-	}
 }
 
 void FD3D12StructuredBuffer::RenameLDAChain(FD3D12ResourceLocation& NewLocation)
@@ -100,21 +94,16 @@ void FD3D12StructuredBuffer::RenameLDAChain(FD3D12ResourceLocation& NewLocation)
 		for (FD3D12StructuredBuffer* NextBuffer = GetNextObject(); NextBuffer; NextBuffer = NextBuffer->GetNextObject())
 		{
 			FD3D12ResourceLocation::ReferenceNode(NextBuffer->GetParentDevice(), NextBuffer->ResourceLocation, ResourceLocation);
-
-			if (NextBuffer->DynamicSRV)
-			{
-				NextBuffer->DynamicSRV->Rename(NextBuffer->ResourceLocation);
-			}
 		}
 	}
 }
 
-void* FD3D12DynamicRHI::RHILockStructuredBuffer(FRHIStructuredBuffer* StructuredBufferRHI, uint32 Offset, uint32 Size, EResourceLockMode LockMode)
+void* FD3D12DynamicRHI::RHILockStructuredBuffer(FStructuredBufferRHIParamRef StructuredBufferRHI, uint32 Offset, uint32 Size, EResourceLockMode LockMode)
 {
 	return LockBuffer(nullptr, FD3D12DynamicRHI::ResourceCast(StructuredBufferRHI), Offset, Size, LockMode);
 }
 
-void FD3D12DynamicRHI::RHIUnlockStructuredBuffer(FRHIStructuredBuffer* StructuredBufferRHI)
+void FD3D12DynamicRHI::RHIUnlockStructuredBuffer(FStructuredBufferRHIParamRef StructuredBufferRHI)
 {
 	UnlockBuffer(nullptr, FD3D12DynamicRHI::ResourceCast(StructuredBufferRHI));
 }

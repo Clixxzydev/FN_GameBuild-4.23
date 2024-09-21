@@ -191,8 +191,6 @@ void FLayerCollectionViewModel::OnFilterChanged()
 
 void FLayerCollectionViewModel::Refresh()
 {
-	WorldLayers->UpdateAllActorsVisibility( true, true );
-
 	OnLayersChanged( ELayersAction::Reset, NULL, NAME_None );
 }
 

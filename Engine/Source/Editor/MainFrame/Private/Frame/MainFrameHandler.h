@@ -107,8 +107,7 @@ public:
 			// We can't close if lightmass is currently building
 			if (GUnrealEd->WarnIfLightingBuildIsCurrentlyRunning()) {return false;}
 
-			// We can't close if a modal dialog is on screen. (Clicking on the Editor window top right 'X' already prevent that, but closing from the Windows task bar preview does not)
-			bool bOkToExit = FSlateApplication::IsInitialized() ? !FSlateApplication::Get().GetActiveModalWindow().IsValid() : true;
+			bool bOkToExit = true;
 
 			// Check if level Mode is open this does PostEditMove processing on actors when it closes so need to do this first before save dialog
 			if( GLevelEditorModeTools().IsModeActive( FBuiltinEditorModes::EM_Level ) || 

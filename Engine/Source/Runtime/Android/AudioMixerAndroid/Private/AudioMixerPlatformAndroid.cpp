@@ -51,8 +51,6 @@ namespace Audio
 		: bSuspended(false)
 		, bInitialized(false)
 		, bInCallback(false)
-		, NumSamplesPerRenderCallback(0)
-		, NumSamplesPerDeviceCallback(0)
 	{
 	}
 
@@ -87,25 +85,6 @@ namespace Audio
 			default:
 			case SL_RESULT_UNKNOWN_ERROR:			return TEXT("SL_RESULT_UNKNOWN_ERROR");
 		}
-	}
-
-	int32 FMixerPlatformAndroid::GetDeviceBufferSize(int32 RenderCallbackSize) const
-	{
-#if USE_ANDROID_JNI
-		// Override with platform-specific frames per buffer size
-		int32 MinFramesPerBuffer = AndroidThunkCpp_GetMetaDataInt(TEXT("audiomanager.framesPerBuffer"));
-
-		int32 BufferSizeToUse = MinFramesPerBuffer;
-		while (BufferSizeToUse < RenderCallbackSize)
-		{
-			BufferSizeToUse += MinFramesPerBuffer;
-		}
-
-		return BufferSizeToUse;
-#else
-		ensureMsgf(false, TEXT("JNI not supported on this platform. Audio output may be broken."));
-		return 1024;
-#endif
 	}
 
 	bool FMixerPlatformAndroid::InitializeHardware()
@@ -220,7 +199,7 @@ namespace Audio
 
 		AudioStreamInfo.OutputDeviceIndex = 0;
 		AudioStreamInfo.NumOutputFrames = OpenStreamParams.NumFrames;
-		AudioStreamInfo.NumBuffers = FMath::Max(OpenStreamParams.NumBuffers, 4);
+		AudioStreamInfo.NumBuffers = OpenStreamParams.NumBuffers;
 		AudioStreamInfo.AudioMixer = OpenStreamParams.AudioMixer;
 
 		if (!GetOutputDeviceInfo(AudioStreamInfo.OutputDeviceIndex, AudioStreamInfo.DeviceInfo))
@@ -230,19 +209,7 @@ namespace Audio
 
 		SLresult Result;
 
-		FAudioPlatformSettings PlatformSettings = GetPlatformSettings();
-
-		// Set up circular buffer between our rendering buffer size and the device's buffer size.
-		// Since we are only using this circular buffer on a single thread, we do not need to add extra slack.
-		NumSamplesPerRenderCallback = OpenStreamParams.NumFrames * AudioStreamInfo.DeviceInfo.NumChannels;
-		NumSamplesPerDeviceCallback = PlatformSettings.CallbackBufferFrameSize * AudioStreamInfo.DeviceInfo.NumChannels;
-		const int32 MaxCircularBufferCapacity = FMath::Max<int32>(NumSamplesPerRenderCallback, NumSamplesPerDeviceCallback) * 2;
-		CircularOutputBuffer.SetCapacity(MaxCircularBufferCapacity);
-
-		DeviceBuffer.Reset();
-		DeviceBuffer.AddUninitialized(NumSamplesPerDeviceCallback);
-
-		// Data Info:
+		// data info
 		SLDataLocator_AndroidSimpleBufferQueue LocationBuffer = { SL_DATALOCATOR_ANDROIDSIMPLEBUFFERQUEUE, 1};
 
 		// PCM Info
@@ -353,7 +320,20 @@ namespace Audio
  	{
 		FAudioPlatformSettings PlatformSettings = FAudioPlatformSettings::GetPlatformSettings(TEXT("/Script/AndroidRuntimeSettings.AndroidRuntimeSettings"));
 
-		PlatformSettings.CallbackBufferFrameSize = GetDeviceBufferSize(PlatformSettings.CallbackBufferFrameSize);
+#if USE_ANDROID_JNI
+		// Override with platform-specific frames per buffer size
+		int32 MinFramesPerBuffer = AndroidThunkCpp_GetMetaDataInt(TEXT("audiomanager.framesPerBuffer"));
+
+		int32 BufferSizeToUse = MinFramesPerBuffer;
+		while (BufferSizeToUse < PlatformSettings.CallbackBufferFrameSize)
+		{
+			BufferSizeToUse += MinFramesPerBuffer;
+		}
+
+		PlatformSettings.CallbackBufferFrameSize = BufferSizeToUse;
+#else
+		// @todo Lumin: implement this?
+#endif
 		return PlatformSettings;
 	}
 
@@ -396,20 +376,9 @@ namespace Audio
 
 	void FMixerPlatformAndroid::SubmitBuffer(const uint8* Buffer)
 	{
-		check(DeviceBuffer.Num() == NumSamplesPerDeviceCallback);
-
-		int32 PushResult = CircularOutputBuffer.Push((const int16*)Buffer, NumSamplesPerRenderCallback);
-		check(PushResult == NumSamplesPerRenderCallback)
-
-		while (CircularOutputBuffer.Num() >= NumSamplesPerDeviceCallback)
-		{
-			int32 PopResult = CircularOutputBuffer.Pop(DeviceBuffer.GetData(), NumSamplesPerDeviceCallback);
-			check(PopResult == NumSamplesPerDeviceCallback);
-
-			const auto BufferSize = NumSamplesPerDeviceCallback * sizeof(int16);
-			SLresult Result = (*SL_PlayerBufferQueue)->Enqueue(SL_PlayerBufferQueue, Buffer, BufferSize);
-			OPENSLES_LOG_ON_FAIL(Result);
-		}
+		const auto BufferSize = AudioStreamInfo.NumOutputFrames * AudioStreamInfo.DeviceInfo.NumChannels * sizeof(int16);
+		SLresult Result = (*SL_PlayerBufferQueue)->Enqueue(SL_PlayerBufferQueue, Buffer, BufferSize);
+		OPENSLES_LOG_ON_FAIL(Result);
 	}
 
 	FName FMixerPlatformAndroid::GetRuntimeFormat(USoundWave* InSoundWave)

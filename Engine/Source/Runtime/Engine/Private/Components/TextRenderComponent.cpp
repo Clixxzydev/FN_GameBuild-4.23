@@ -465,11 +465,6 @@ public:
 		}
 	}
 
-	virtual FString GetReferencerName() const override
-	{
-		return TEXT("FTextRenderComponentMIDCache");
-	}
-
 private:
 	/** Key identifying an array of MIDs */
 	struct FKey

@@ -26,7 +26,10 @@ class AConcertClientPresenceActor : public AActor
 public:
 
 	/** AActor interface */
-	virtual bool IsEditorOnly() const override final;
+	virtual bool IsEditorOnly() const override final
+	{
+		return false;
+	}
 
 #if WITH_EDITOR
 	virtual bool IsSelectable() const override final
@@ -74,8 +77,5 @@ protected:
 	class UMaterialInstanceDynamic* TextMID;
 
 	TOptional<FConcertClientMovement> PresenceMovement;
-
-	/** Flag initialized from presence settings on actor creation to have the presence potentially show up in PIE or Game. */
-	bool bIsEditorOnly = true;
 };
 

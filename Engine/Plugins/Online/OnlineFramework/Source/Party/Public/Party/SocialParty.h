@@ -146,8 +146,6 @@ public:
 	/** Is the specified net driver for our reservation beacon? */
 	bool IsNetDriverFromReservationBeacon(const UNetDriver* InNetDriver) const;
 
-	void DisconnectParty();
-
 	template <typename MemberT = UPartyMember>
 	TArray<MemberT*> GetPartyMembers() const
 	{
@@ -165,9 +163,6 @@ public:
 	DECLARE_EVENT_OneParam(USocialParty, FLeavePartyEvent, EMemberExitedReason);
 	FLeavePartyEvent& OnPartyLeaveBegin() const { return OnPartyLeaveBeginEvent; }
 	FLeavePartyEvent& OnPartyLeft() const { return OnPartyLeftEvent; }
-
-	DECLARE_EVENT(USocialParty, FDisconnectPartyEvent);
-	FDisconnectPartyEvent& OnPartyDisconnected() const { return OnPartyDisconnectedEvent; }
 
 	DECLARE_EVENT_OneParam(USocialParty, FOnPartyMemberCreated, UPartyMember&);
 	FOnPartyMemberCreated& OnPartyMemberCreated() const { return OnPartyMemberCreatedEvent; }
@@ -397,7 +392,6 @@ private:
 
 	mutable FLeavePartyEvent OnPartyLeaveBeginEvent;
 	mutable FLeavePartyEvent OnPartyLeftEvent;
-	mutable FDisconnectPartyEvent OnPartyDisconnectedEvent;
 	mutable FOnPartyMemberCreated OnPartyMemberCreatedEvent;
 	mutable FOnPartyConfigurationChanged OnPartyConfigurationChangedEvent;
 	mutable FOnPartyStateChanged OnPartyStateChangedEvent;

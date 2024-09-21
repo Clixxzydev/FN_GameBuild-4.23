@@ -790,7 +790,7 @@ bool UEditorLevelLibrary::SetCurrentLevelByName(FName LevelName)
 
 /**
  *
- * Editor Scripting | Dataprep
+ * Editor Scripting | DataPrep
  *
  **/
 namespace InternalEditorLevelLibrary

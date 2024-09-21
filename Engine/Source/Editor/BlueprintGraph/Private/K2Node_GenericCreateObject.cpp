@@ -18,8 +18,7 @@ struct FK2Node_GenericCreateObject_Utils
 			&& (bAllowAbstract || !ObjectClass->HasAnyClassFlags(CLASS_Abstract))
 			&& !ObjectClass->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists);
 
-		// UObject is a special case where if we are allowing abstract we are going to allow it through even though it doesn't have BlueprintType on it
-		if (bCanSpawnObject && (!bAllowAbstract || (*ObjectClass != UObject::StaticClass())))
+		if (bCanSpawnObject)
 		{
 			static const FName BlueprintTypeName(TEXT("BlueprintType"));
 			static const FName NotBlueprintTypeName(TEXT("NotBlueprintType"));

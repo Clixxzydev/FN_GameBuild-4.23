@@ -1,4 +1,4 @@
-Availability: Docs
+Availability:Public
 Title: Unreal Build System
 Crumbs:
 Description:Unreal Engine's custom build system for compiling the engine and game projects.
@@ -63,4 +63,4 @@ Running `GenerateProject.bat` from time-to-time will keep your code editor up-to
 ## Advanced Topics
 
 %Programming/UnrealBuildSystem/IWYUReferenceGuide:topic%
-%Programming/BuildTools/AutomationTool/BuildGraph:topic%
+%Programming/Development/BuildGraph:topic%

@@ -561,15 +561,6 @@ void UUnrealEdEngine::SelectActor(AActor* Actor, bool bInSelected, bool bNotify,
 	// Select the actor and update its internals.
 	if( !bSelectionHandled )
 	{
-		if (bInSelected)
-		{
-			// If trying to select an Actor spawned by a ChildActorComponent, instead iterate up the hierarchy until we find a valid actor to select
-			while (Actor->IsChildActor())
-			{
-				Actor = Actor->GetParentComponent()->GetOwner();
-			}
-		}
-
 		if (UActorGroupingUtils::IsGroupingActive())
 		{
 			// if this actor is a group, do a group select/deselect
@@ -592,7 +583,7 @@ void UUnrealEdEngine::SelectActor(AActor* Actor, bool bInSelected, bool bNotify,
 
 		// Don't do any work if the actor's selection state is already the selected state.
 		const bool bActorSelected = Actor->IsSelected();
-		if ( bActorSelected != bInSelected )
+		if ( (bActorSelected && !bInSelected) || (!bActorSelected && bInSelected) )
 		{
 			if(bInSelected)
 			{

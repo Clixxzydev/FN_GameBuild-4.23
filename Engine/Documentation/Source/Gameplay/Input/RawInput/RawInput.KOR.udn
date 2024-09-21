@@ -1,10 +1,12 @@
-﻿INTSourceChangelist:6535113
-Availability:Public
+﻿INTSourceChangelist:3413921
+Availability:Docs
 Title:RawInput 플러그인
+Crumbs:%ROOT%
 Description: RawInput 플러그인은 XInput 표준에 맞지 않는 디바이스에서 읽을 수 있습니다.
 version: 4.16
 skilllevel:Intermediate
-Parent:Gameplay/HowTo/CharacterMovement/Blueprints/Input
+Parent:Engine/Gameplay/Input
+Order: 
 type:overview
 tags:Input
 

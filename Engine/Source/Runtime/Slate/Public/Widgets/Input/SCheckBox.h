@@ -52,8 +52,7 @@ public:
 		, _UndeterminedImage( nullptr )
 		, _UndeterminedHoveredImage( nullptr )
 		, _UndeterminedPressedImage( nullptr )
-	{
-	}
+		{}
 
 		/** Content to be placed next to the check box, or for a toggle button, the content to be placed inside the button */
 		SLATE_DEFAULT_SLOT( FArguments, Content )
@@ -130,7 +129,6 @@ public:
 
 	SLATE_END_ARGS()
 
-	SCheckBox();
 
 	/**
 	 * Construct this widget
@@ -148,9 +146,6 @@ public:
 	virtual void OnMouseEnter( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent ) override;
 	virtual void OnMouseLeave( const FPointerEvent& MouseEvent ) override;
 	virtual bool IsInteractable() const override;
-#if WITH_ACCESSIBILITY
-	virtual TSharedRef<FSlateAccessibleWidget> CreateAccessibleWidget() override;
-#endif
 	// End of SWidget interface
 
 	/**

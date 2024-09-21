@@ -4,16 +4,16 @@
 
 #include "Components/StaticMeshComponent.h"
 
-UObject* UDatasmithStaticMeshComponentTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithStaticMeshComponentTemplate::Apply( UObject* Destination, bool bForce )
 {
+#if WITH_EDITORONLY_DATA
 	UStaticMeshComponent* StaticMeshComponent = Cast< UStaticMeshComponent >( Destination );
 
 	if ( !StaticMeshComponent )
 	{
-		return nullptr;
+		return;
 	}
 
-#if WITH_EDITORONLY_DATA
 	UDatasmithStaticMeshComponentTemplate* PreviousStaticMeshTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithStaticMeshComponentTemplate >( Destination ) : nullptr;
 
 	if ( !PreviousStaticMeshTemplate || PreviousStaticMeshTemplate->StaticMesh == StaticMeshComponent->GetStaticMesh() )
@@ -45,8 +45,7 @@ UObject* UDatasmithStaticMeshComponentTemplate::UpdateObject( UObject* Destinati
 	{
 		for ( int32 MaterialIndexToRemove = PreviousStaticMeshTemplate->OverrideMaterials.Num() - 1; MaterialIndexToRemove >= OverrideMaterials.Num(); --MaterialIndexToRemove )
 		{
-			if ( StaticMeshComponent->OverrideMaterials.IsValidIndex( MaterialIndexToRemove ) &&
-				StaticMeshComponent->OverrideMaterials[MaterialIndexToRemove] == PreviousStaticMeshTemplate->OverrideMaterials[MaterialIndexToRemove] )
+			if ( StaticMeshComponent->OverrideMaterials.IsValidIndex( MaterialIndexToRemove ) )
 			{
 				StaticMeshComponent->OverrideMaterials.RemoveAt( MaterialIndexToRemove );
 			}
@@ -54,9 +53,9 @@ UObject* UDatasmithStaticMeshComponentTemplate::UpdateObject( UObject* Destinati
 	}
 
 	StaticMeshComponent->MarkRenderStateDirty();
-#endif // #if WITH_EDITORONLY_DATA
 
-	return Destination;
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( Destination, this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithStaticMeshComponentTemplate::Load( const UObject* Source )

@@ -97,7 +97,7 @@ public:
 	 *
 	 * The default implementation always reports 'eye'-level tracking.
 	 */
-	virtual EHMDTrackingOrigin::Type GetTrackingOrigin() const override
+	virtual EHMDTrackingOrigin::Type GetTrackingOrigin() override
 	{
 		return EHMDTrackingOrigin::Eye;
 	}

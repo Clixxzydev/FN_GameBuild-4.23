@@ -92,18 +92,6 @@ void UMovieScenePropertyTrack::RemoveSection(UMovieSceneSection& Section)
 	}
 }
 
-void UMovieScenePropertyTrack::RemoveSectionAt(int32 SectionIndex)
-{
-	bool bResetSectionToKey = (SectionToKey == Sections[SectionIndex]);
-
-	Sections.RemoveAt(SectionIndex);
-
-	if (bResetSectionToKey)
-	{
-		SectionToKey = Sections.Num() > 0 ? Sections[0] : nullptr;
-	}
-}
-
 
 bool UMovieScenePropertyTrack::IsEmpty() const
 {
@@ -158,12 +146,9 @@ UMovieSceneSection* UMovieScenePropertyTrack::FindOrExtendSection(FFrameNumber T
 		bool bCalculateWeight = false;
 		if (SectionToKey && !OverlappingSections.Contains(SectionToKey))
 		{
-			if (SectionToKey->HasEndFrame() && SectionToKey->GetExclusiveEndFrame() <= Time)
+			if (SectionToKey->HasEndFrame() && SectionToKey->GetExclusiveEndFrame() < Time)
 			{
-				if (SectionToKey->GetExclusiveEndFrame() != Time)
-				{
-					SectionToKey->SetEndFrame(Time);
-				}
+				SectionToKey->SetEndFrame(Time);
 			}
 			else
 			{
@@ -226,13 +211,10 @@ UMovieSceneSection* UMovieScenePropertyTrack::FindOrExtendSection(FFrameNumber T
 			{
 				// SectionIndex == 0 
 				UMovieSceneSection* PreviousSection = Sections[0];
-				if(PreviousSection->HasEndFrame() && PreviousSection->GetExclusiveEndFrame() <= Time)
+				if(PreviousSection->HasEndFrame() && PreviousSection->GetExclusiveEndFrame() < Time)
 				{
 					// Append and grow the section
-					if (PreviousSection->GetExclusiveEndFrame() != Time)
-					{
-						PreviousSection->SetEndFrame(Time);
-					}
+					PreviousSection->SetEndFrame(Time);
 				}
 				else
 				{

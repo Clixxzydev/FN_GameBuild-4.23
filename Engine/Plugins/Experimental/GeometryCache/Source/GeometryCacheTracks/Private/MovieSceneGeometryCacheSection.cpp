@@ -46,19 +46,18 @@ void UMovieSceneGeometryCacheSection::PostLoad()
 {
 	Super::PostLoad();
 
-	FFrameRate DisplayRate = GetTypedOuter<UMovieScene>()->GetDisplayRate();
-	FFrameRate TickResolution = GetTypedOuter<UMovieScene>()->GetTickResolution();
+	FFrameRate LegacyFrameRate = GetLegacyConversionFrameRate();
 
 	if (Params.StartOffset_DEPRECATED != GeometryCacheDeprecatedMagicNumber)
 	{
-		Params.StartFrameOffset = ConvertFrameTime(FFrameTime::FromDecimal(DisplayRate.AsDecimal() * Params.StartOffset_DEPRECATED), DisplayRate, TickResolution).FrameNumber;
+		Params.StartFrameOffset = UpgradeLegacyMovieSceneTime(this, LegacyFrameRate, Params.StartOffset_DEPRECATED).Value;
 
 		Params.StartOffset_DEPRECATED = GeometryCacheDeprecatedMagicNumber;
 	}
 
 	if (Params.EndOffset_DEPRECATED != GeometryCacheDeprecatedMagicNumber)
 	{
-		Params.EndFrameOffset = ConvertFrameTime(FFrameTime::FromDecimal(DisplayRate.AsDecimal() * Params.EndOffset_DEPRECATED), DisplayRate, TickResolution).FrameNumber;
+		Params.EndFrameOffset = UpgradeLegacyMovieSceneTime(this, LegacyFrameRate, Params.EndOffset_DEPRECATED).Value;
 
 		Params.EndOffset_DEPRECATED = GeometryCacheDeprecatedMagicNumber;
 	}

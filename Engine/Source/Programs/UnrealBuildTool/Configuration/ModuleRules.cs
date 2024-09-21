@@ -409,20 +409,9 @@ namespace UnrealBuildTool
 		internal DirectoryReference Directory;
 
 		/// <summary>
-		/// Additional directories that contribute to this module (likely in UnrealBuildTool.PlatformExtensionsDirectory). 
-		/// The dictionary tracks module subclasses 
-		/// </summary>
-		internal Dictionary<Type, DirectoryReference> DirectoriesForModuleSubClasses;
-
-		/// <summary>
 		/// Plugin containing this module
 		/// </summary>
 		internal PluginInfo Plugin;
-
-		/// <summary>
-		/// The rules context for this instance
-		/// </summary>
-		internal ModuleRulesContext Context;
 
 		/// <summary>
 		/// Rules for the target that this module belongs to
@@ -563,11 +552,6 @@ namespace UnrealBuildTool
 		public bool bAddDefaultIncludePaths = true;
 
 		/// <summary>
-		/// Whether to ignore dangling (i.e. unresolved external) symbols in modules
-		/// </summary>
-		public bool bIgnoreUnresolvedSymbols = false;
-
-		/// <summary>
 		/// Whether this module should be precompiled. Defaults to the bPrecompile flag from the target. Clear this flag to prevent a module being precompiled.
 		/// </summary>
 		public bool bPrecompile;
@@ -576,13 +560,6 @@ namespace UnrealBuildTool
 		/// Whether this module should use precompiled data. Always true for modules created from installed assemblies.
 		/// </summary>
 		public bool bUsePrecompiled;
-
-		/// <summary>
-		/// Whether this module can use PLATFORM_XXXX style defines, where XXXX is a confidential platform name. This is used to ensure engine or other 
-		/// shared code does not reveal confidential information inside an #if PLATFORM_XXXX block. Licensee game code may want to allow for them, however.
-		/// Note: this is future looking, and previous confidential platforms (like PS4) are unlikely to be restricted
-		/// </summary>
-		public bool bAllowConfidentialPlatformDefines = false;
 
 		/// <summary>
 		/// List of modules names (no path needed) with header files that our module's public headers needs access to, but we don't need to "import" or link against.
@@ -697,27 +674,6 @@ namespace UnrealBuildTool
 		/// Public compiler definitions for this module
 		/// </summary>
 		public List<string> PublicDefinitions = new List<string>();
-
-		/// <summary>
-		/// Append (or create)
-		/// </summary>
-		/// <param name="Definition"></param>
-		/// <param name="Text"></param>
-		public void AppendStringToPublicDefinition(string Definition, string Text)
-		{
-			string WithEquals = Definition + "=";
-			for (int Index=0; Index < PublicDefinitions.Count; Index++)
-			{
-				if (PublicDefinitions[Index].StartsWith(WithEquals))
-				{
-					PublicDefinitions[Index] = PublicDefinitions[Index] + Text;
-					return;
-				}
-			}
-
-			// if we get here, we need to make a new entry
-			PublicDefinitions.Add(Definition + "=" + Text);
-		}
 
 		/// <summary>
 		/// Addition modules this module may require at run-time 
@@ -878,10 +834,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void SetupModulePhysicsSupport(ReadOnlyTargetRules Target)
 		{
-			PublicIncludePathModuleNames.Add("PhysicsCore");
-			PublicDependencyModuleNames.Add("PhysicsCore");
-
-			bool bUseNonPhysXInterface = Target.bUseChaos == true || Target.bCompileImmediatePhysics == true;
+            bool bUseNonPhysXInterface = Target.bUseChaos == true || Target.bCompileImmediatePhysics == true;
 
             // 
             if (Target.bCompileChaos == true || Target.bUseChaos == true)
@@ -890,12 +843,14 @@ namespace UnrealBuildTool
                 PublicIncludePathModuleNames.AddRange(
                     new string[] {
                         "Chaos",
-						"FieldSystemCore"
+						"ChaosSolvers",
+						"FieldSystemCore",
                     }
                 );
                 PublicDependencyModuleNames.AddRange(
                   new string[] {
                         "Chaos",
+						"ChaosSolvers",
 						"FieldSystemCore"
                   }
                 );
@@ -921,20 +876,6 @@ namespace UnrealBuildTool
 			{
 				// Disable non-physx interfaces
 				PublicDefinitions.Add("WITH_CHAOS=0");
-
-				// 
-				// WITH_CHAOS_NEEDS_TO_BE_FIXED
-				//
-				// Anything wrapped in this define needs to be fixed
-				// in one of the build targets. This define was added
-				// to help identify complier failures between the
-				// the three build targets( UseChaos, PhysX, WithChaos )
-				// This defaults to off , and will be enabled for bUseChaos. 
-				// This define should be removed when all the references 
-				// have been fixed across the different builds. 
-				//
-				PublicDefinitions.Add("WITH_CHAOS_NEEDS_TO_BE_FIXED=0");
-
 				PublicDefinitions.Add("PHYSICS_INTERFACE_LLIMMEDIATE=0");
 
 				if (Target.bCompilePhysX)
@@ -954,21 +895,9 @@ namespace UnrealBuildTool
 					}
 					PrivateDependencyModuleNames.Add("APEX");
 					PublicDefinitions.Add("WITH_APEX=1");
-
-// @MIXEDREALITY_CHANGE : BEGIN - Do not use Apex Cloth for HoloLens.  TODO: can we enable this in the future?
-				if (Target.Platform == UnrealTargetPlatform.HoloLens)
-				{
-					PublicDefinitions.Add("WITH_APEX_CLOTHING=0");
-					PublicDefinitions.Add("WITH_CLOTH_COLLISION_DETECTION=0");
-				}
-				else
-				{
 					PublicDefinitions.Add("WITH_APEX_CLOTHING=1");
 					PublicDefinitions.Add("WITH_CLOTH_COLLISION_DETECTION=1");
-				}
-// @MIXEDREALITY_CHANGE : END
-
-				PublicDefinitions.Add("WITH_PHYSX_COOKING=1");  // APEX currently relies on cooking even at runtime
+					PublicDefinitions.Add("WITH_PHYSX_COOKING=1");  // APEX currently relies on cooking even at runtime
 
 				}
 				else
@@ -1008,7 +937,6 @@ namespace UnrealBuildTool
 				if(Target.bUseChaos)
 				{
 					PublicDefinitions.Add("WITH_CHAOS=1");
-					PublicDefinitions.Add("WITH_CHAOS_NEEDS_TO_BE_FIXED=1");
 					PublicDefinitions.Add("COMPILE_ID_TYPES_AS_INTS=0");
 					
 					PublicIncludePathModuleNames.AddRange(
@@ -1026,7 +954,6 @@ namespace UnrealBuildTool
 				else
 				{
 					PublicDefinitions.Add("WITH_CHAOS=0");
-					PublicDefinitions.Add("WITH_CHAOS_NEEDS_TO_BE_FIXED=0");
 				}
 
 				if(Target.bCompileImmediatePhysics)
@@ -1077,35 +1004,6 @@ namespace UnrealBuildTool
 				}
 			}
 			return false;
-		}
-
-		/// <summary>
-		/// Returns the module directory for a given subclass of the module (platform extensions add subclasses of ModuleRules to add in platform-specific settings)
-		/// </summary>
-		/// <param name="Type">typeof the subclass</param>
-		/// <returns>Directory where the subclass's .Build.cs lives, or null if not found</returns>
-		public DirectoryReference GetModuleDirectoryForSubClass(Type Type)
-		{
-			if (DirectoriesForModuleSubClasses == null)
-			{
-				return null;
-			}
-
-			DirectoryReference Directory;
-			if (DirectoriesForModuleSubClasses.TryGetValue(Type, out Directory))
-			{
-				return Directory;
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Returns the directories for all subclasses of this module
-		/// </summary>
-		/// <returns>List of directories, or null if none were added</returns>
-		public DirectoryReference[] GetModuleDirectoriesForAllSubClasses()
-		{
-			return DirectoriesForModuleSubClasses == null ? null : DirectoriesForModuleSubClasses.Values.ToArray();
 		}
 	}
 }

@@ -104,18 +104,20 @@ namespace UnrealGameSync
 			}
 		}
 
-		PerforceConnection Perforce;
+		string ServerAndPort;
+		string UserName;
 		PerforceInfoRecord Info;
 		List<PerforceClientRecord> Clients;
 		TextWriter Log;
 		NewWorkspaceSettings Settings;
 		string DefaultRootPath;
 
-		private NewWorkspaceWindow(PerforceConnection Perforce, string ForceStream, string DefaultStream, PerforceInfoRecord Info, List<PerforceClientRecord> Clients, TextWriter Log)
+		private NewWorkspaceWindow(string ServerAndPort, string UserName, string ForceStream, string DefaultStream, PerforceInfoRecord Info, List<PerforceClientRecord> Clients, TextWriter Log)
 		{
 			InitializeComponent();
 
-			this.Perforce = Perforce;
+			this.ServerAndPort = ServerAndPort;
+			this.UserName = UserName;
 			this.Info = Info;
 			this.Clients = Clients;
 			this.Log = Log;
@@ -178,12 +180,12 @@ namespace UnrealGameSync
 			UpdateRootDirCueBanner();
 		}
 
-		public static bool ShowModal(IWin32Window Owner, PerforceConnection Perforce, string ForceStreamName, string CurrentWorkspaceName, TextWriter Log, out string WorkspaceName)
+		public static bool ShowModal(IWin32Window Owner, string ServerAndPort, string UserName, string ForceStreamName, string CurrentWorkspaceName, TextWriter Log, out string WorkspaceName)
 		{
 			FindWorkspaceSettingsTask FindSettings = new FindWorkspaceSettingsTask(CurrentWorkspaceName);
 
 			string ErrorMessage;
-			if(PerforceModalTask.Execute(Owner, Perforce, FindSettings, "Checking settings", "Checking settings, please wait...", Log, out ErrorMessage) != ModalTaskResult.Succeeded)
+			if(PerforceModalTask.Execute(Owner, null, ServerAndPort, UserName, FindSettings, "Checking settings", "Checking settings, please wait...", Log, out ErrorMessage) != ModalTaskResult.Succeeded)
 			{
 				if(!String.IsNullOrEmpty(ErrorMessage))
 				{
@@ -194,7 +196,7 @@ namespace UnrealGameSync
 				return false;
 			}
 
-			NewWorkspaceWindow Window = new NewWorkspaceWindow(Perforce, ForceStreamName, FindSettings.CurrentStream, FindSettings.Info, FindSettings.Clients, Log);
+			NewWorkspaceWindow Window = new NewWorkspaceWindow(ServerAndPort, UserName, ForceStreamName, FindSettings.CurrentStream, FindSettings.Info, FindSettings.Clients, Log);
 			if(Window.ShowDialog(Owner) == DialogResult.OK)
 			{
 				WorkspaceName = Window.Settings.Name;
@@ -352,7 +354,7 @@ namespace UnrealGameSync
 				NewWorkspaceTask NewWorkspace = new NewWorkspaceTask(Settings, Info.UserName, Info.HostName);
 
 				string ErrorMessage;
-				if(PerforceModalTask.Execute(Owner, Perforce, NewWorkspace, "Creating workspace", "Creating workspace, please wait...", Log, out ErrorMessage) != ModalTaskResult.Succeeded)
+				if(PerforceModalTask.Execute(Owner, null, ServerAndPort, UserName, NewWorkspace, "Creating workspace", "Creating workspace, please wait...", Log, out ErrorMessage) != ModalTaskResult.Succeeded)
 				{
 					MessageBox.Show(ErrorMessage);
 					return;
@@ -372,7 +374,7 @@ namespace UnrealGameSync
 		private void StreamBrowseBtn_Click(object sender, EventArgs e)
 		{
 			string StreamName = StreamTextBox.Text.Trim();
-			if(SelectStreamWindow.ShowModal(this, Perforce, StreamName, Log, out StreamName))
+			if(SelectStreamWindow.ShowModal(this, ServerAndPort, UserName, StreamName, Log, out StreamName))
 			{
 				StreamTextBox.Text = StreamName;
 			}

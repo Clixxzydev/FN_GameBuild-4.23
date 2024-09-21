@@ -13,7 +13,8 @@ class UNiagaraSystem;
 class UNiagaraEmitter;
 
 /** 
- * Stores emitter information within the context of a System.
+ * Stores a references to a source emitter asset, and a copy of that emitter for editing within an System.  Also
+ * stores whether or not this emitter is enabled, and it's name within the editor.
  */
 USTRUCT()
 struct NIAGARA_API FNiagaraEmitterHandle
@@ -24,10 +25,13 @@ public:
 	FNiagaraEmitterHandle();
 
 #if WITH_EDITORONLY_DATA
-	/** Creates a new emitter handle from an emitter. */
-	FNiagaraEmitterHandle(UNiagaraEmitter& InEmitter);
-#endif
+	/** Creates a new emitter handle from an emitter and an owning System. */
+	FNiagaraEmitterHandle(UNiagaraEmitter& InSourceEmitter, FName InName, UNiagaraSystem& InOuterSystem);
 
+	/** Creates a new emitter handle by duplicating an existing handle.  The new emitter handle will reference the same source emitter
+		but will have it's own copy of the emitter made from the one in the supplied handle and will have it's own Id. */
+	FNiagaraEmitterHandle(const FNiagaraEmitterHandle& InHandleToDuplicate, FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem);
+#endif
 	/** Whether or not this is a valid emitter handle. */
 	bool IsValid() const;
 
@@ -51,6 +55,9 @@ public:
 	void SetIsEnabled(bool bInIsEnabled);
 
 #if WITH_EDITORONLY_DATA
+	/** Gets the source emitter this emitter handle was built from. */
+	const UNiagaraEmitter* GetSource() const;
+
 	bool IsIsolated() const {	return bIsolated; }
 	void SetIsolated(bool bInIsolated) { bIsolated = bInIsolated; }
 #endif
@@ -62,14 +69,26 @@ public:
 	FString GetUniqueInstanceName()const;
 
 #if WITH_EDITORONLY_DATA
+	/** Determine whether or not the Source and Instance refer to the same Emitter ChangeId.*/
+	bool IsSynchronizedWithSource() const;
+
 	/** Determine whether or not the Instance script is in synch with its graph.*/
 	bool NeedsRecompile() const;
 
 	/** Calls conditional post load on all sub-objects this handle references. */
-	void ConditionalPostLoad(int32 NiagaraCustomVersion);
+	void ConditionalPostLoad();
 
-	/** Whether or not this handle uses the supplied emitter. */
-	bool UsesEmitter(const UNiagaraEmitter& InEmitter) const;
+	/** Merges in any changes from the source emitter into the instanced emitter. */
+	INiagaraModule::FMergeEmitterResults MergeSourceChanges();
+
+	/** Gets an object which contains the history of modifications to the emitter instance. */
+	UObject* GetEmitterModificationHistory();
+
+	/** Sets an object which will contain the history of modifications to the emitter instance. */
+	void SetEmitterModificationHistory();
+
+	/** Removes the source system from the this emitter handle which will prevent inheriting any further changes. */
+	void RemoveSource();
 
 #endif
 public:
@@ -97,11 +116,11 @@ private:
 #if WITH_EDITORONLY_DATA
 	/** The source emitter this emitter handle was built from. */
 	UPROPERTY()
-	UNiagaraEmitter* Source_DEPRECATED;
+	UNiagaraEmitter* Source;
 
 	/** An unmodified copy of the emitter this handle references for use when merging change from the source emitter. */
 	UPROPERTY()
-	UNiagaraEmitter* LastMergedSource_DEPRECATED;
+	UNiagaraEmitter* LastMergedSource;
 
 	bool bIsolated;
 #endif

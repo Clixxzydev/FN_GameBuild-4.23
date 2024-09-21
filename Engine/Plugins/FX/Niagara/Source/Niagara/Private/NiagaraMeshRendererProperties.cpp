@@ -4,7 +4,6 @@
 #include "NiagaraRendererMeshes.h"
 #include "Engine/StaticMesh.h"
 #include "NiagaraConstants.h"
-#include "NiagaraBoundsCalculatorHelper.h"
 
 UNiagaraMeshRendererProperties::UNiagaraMeshRendererProperties()
 	: ParticleMesh(nullptr)
@@ -13,34 +12,17 @@ UNiagaraMeshRendererProperties::UNiagaraMeshRendererProperties()
 {
 }
 
-FNiagaraRenderer* UNiagaraMeshRendererProperties::CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel, const FNiagaraEmitterInstance* Emitter)
+NiagaraRenderer* UNiagaraMeshRendererProperties::CreateEmitterRenderer(ERHIFeatureLevel::Type FeatureLevel)
 {
-	if (ParticleMesh)
-	{
-		FNiagaraRenderer* NewRenderer = new FNiagaraRendererMeshes(FeatureLevel, this, Emitter);
-		NewRenderer->Initialize(FeatureLevel, this, Emitter);
-		return NewRenderer;
-	}
-
-	return nullptr;
+	return new NiagaraRendererMeshes(FeatureLevel, this);
 }
 
-FNiagaraBoundsCalculator* UNiagaraMeshRendererProperties::CreateBoundsCalculator()
-{
-	if (ParticleMesh)
-	{
-		FNiagaraBoundsCalculatorHelper<false, true, false>* BoundsCalculator = new FNiagaraBoundsCalculatorHelper<false, true, false>();
-		BoundsCalculator->MeshExtents = ParticleMesh->GetBounds().BoxExtent;
-		return BoundsCalculator;
-	}
 
-	return nullptr;
-
-}
 
 void UNiagaraMeshRendererProperties::PostInitProperties()
 {
 	Super::PostInitProperties();
+	SyncId = 0;
 	if (HasAnyFlags(RF_ClassDefaultObject) == false)
 	{
 		InitBindings();
@@ -109,10 +91,9 @@ void UNiagaraMeshRendererProperties::GetUsedMaterials(TArray<UMaterialInterface*
 	}
 }
 
-uint32 UNiagaraMeshRendererProperties::GetNumIndicesPerInstance() const
+uint32 UNiagaraMeshRendererProperties::GetNumIndicesPerInstance() 
 {
-	// TODO: Add proper support for multiple mesh sections for GPU mesh particles.
-	return ParticleMesh ? ParticleMesh->RenderData->LODResources[0].Sections[0].NumTriangles * 3 : 0;
+	return ParticleMesh ? ParticleMesh->RenderData->LODResources[0].IndexBuffer.GetNumIndices() : 0;
 }
 
 
@@ -182,6 +163,11 @@ void UNiagaraMeshRendererProperties::PostEditChangeProperty(FPropertyChangedEven
 				Material->CheckMaterialUsage(MATUSAGE_NiagaraMeshParticles);
 			}
 		}
+	}
+	
+	if (PropertyChangedEvent.GetPropertyName() != TEXT("SyncId"))
+	{
+		SyncId++;
 	}
 }
 

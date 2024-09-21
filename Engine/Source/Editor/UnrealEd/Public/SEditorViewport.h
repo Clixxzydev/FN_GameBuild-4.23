@@ -6,8 +6,9 @@
 #include "Layout/Visibility.h"
 #include "Styling/SlateColor.h"
 #include "Input/Reply.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/SCompoundWidget.h"
 #include "Widgets/SOverlay.h"
-#include "Widgets/SViewport.h"
 #include "UnrealWidget.h"
 #include "EditorViewportClient.h"
 
@@ -21,10 +22,7 @@ class UNREALED_API SEditorViewport
 	: public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SEditorViewport)
-		: _ViewportSize(SViewport::FArguments::GetDefaultViewportSize())
-	{ }
-	SLATE_ATTRIBUTE(FVector2D, ViewportSize);
+	SLATE_BEGIN_ARGS(SEditorViewport) { }
 	SLATE_END_ARGS()
 	
 	SEditorViewport();

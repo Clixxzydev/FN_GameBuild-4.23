@@ -1,11 +1,9 @@
-Availability: docs
+Availability: Public
 Title:3. Creating a Main Menu
 Crumbs:%ROOT%, Engine, Engine/UMG, Engine/UMG/QuickStart
 Description:In this step we will create the visual layout for our Main Menu.
 version: 4.13
 tags:UMG UI Designer
-
-## Page no longer needed.
 
 
 [VAR:Steps]

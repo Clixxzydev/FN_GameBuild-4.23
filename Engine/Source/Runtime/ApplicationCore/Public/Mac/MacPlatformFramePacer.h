@@ -16,7 +16,7 @@ typedef void (^FMacFramePacerHandler)(uint32 CGDirectDisplayID, double OutputSec
 /**
  * Mac implementation of FGenericPlatformRHIFramePacer
  **/
-struct APPLICATIONCORE_API FMacPlatformRHIFramePacer : public FGenericPlatformRHIFramePacer
+struct FMacPlatformRHIFramePacer : public FGenericPlatformRHIFramePacer
 {
     // FGenericPlatformRHIFramePacer interface
     static bool IsEnabled();

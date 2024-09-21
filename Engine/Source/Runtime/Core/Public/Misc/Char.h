@@ -128,7 +128,7 @@ struct TChar : TCharBase<CharType, sizeof(CharType)>
 	*
 	* Mainly needed for subtraction and addition.
 	*/
-	static constexpr FORCEINLINE uint32 ToUnsigned(CharType Char)
+	static uint32 ToUnsigned(CharType Char)
 	{
 		return (typename TUnsignedIntType<sizeof(CharType)>::Type)Char;
 	}

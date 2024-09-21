@@ -84,11 +84,8 @@ public class Engine : ModuleRules
 				"MeshDescription",
 				"PakFile",
                 "NetworkReplayStreaming",
-				"PhysicsCore",
-				"PhysicsSQ",
-				"ChaosSolvers"
-			}
-		);
+            }
+        );
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
@@ -102,8 +99,8 @@ public class Engine : ModuleRules
 				"Analytics",
 				"AnalyticsET",
 				"AudioMixer",
-                "CrunchCompression"
-            }
+				//"CrunchCompression"
+			}
 		);
 
 		if(Target.Platform != UnrealTargetPlatform.HTML5)
@@ -306,7 +303,6 @@ public class Engine : ModuleRules
 		DynamicallyLoadedModuleNames.AddRange(
 			new string[] {
 				"NullNetworkReplayStreaming",
-				"LocalFileNetworkReplayStreaming",
 				"HttpNetworkReplayStreaming",
 				"Advertising"
 			}

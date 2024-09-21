@@ -29,7 +29,6 @@
 #include "Engine/SimpleConstructionScript.h"
 #include "Components/ChildActorComponent.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "Algo/Transform.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -70,16 +69,6 @@ void AActor::SeedAllRandomStreams()
 }
 #endif //WITH_EDITOR
 
-bool IsBlueprintAddedContainer(UProperty* Prop)
-{
-	if (Prop->IsA<UArrayProperty>() || Prop->IsA<USetProperty>() || Prop->IsA<UMapProperty>())
-	{
-		return Prop->IsInBlueprint();
-	}
-
-	return false;
-}
-
 void AActor::ResetPropertiesForConstruction()
 {
 	// Get class CDO
@@ -106,7 +95,7 @@ void AActor::ResetPropertiesForConstruction()
 			StreamPtr->Reset();
 		}
 		// If it is a blueprint exposed variable that is not editable per-instance, reset to default before running construction script
-		else if (!bIsLevelScriptActor && (!Prop->ContainsInstancedObjectProperty() || IsBlueprintAddedContainer(Prop)))
+		else if (!bIsLevelScriptActor && !Prop->ContainsInstancedObjectProperty())
 		{
 			const bool bExposedOnSpawn = bIsPlayInEditor && Prop->HasAnyPropertyFlags(CPF_ExposeOnSpawn);
 			const bool bCanEditInstanceValue = !Prop->HasAnyPropertyFlags(CPF_DisableEditOnInstance) && Prop->HasAnyPropertyFlags(CPF_Edit);
@@ -282,26 +271,6 @@ void AActor::RerunConstructionScripts()
 		// Save info about attached actors
 		TArray<FAttachedActorInfo> AttachedActorInfos;
 
-		// Before we build the component instance data cache we need to make sure that instance components 
-		// are correctly in their AttachParent's AttachChildren array which may not be the case if they
-		// have not yet been registered
-		for (UActorComponent* Component : InstanceComponents)
-		{
-			if (Component && !Component->IsRegistered())
-			{
-				if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
-				{
-					if (USceneComponent* AttachParent = SceneComp->GetAttachParent())
-					{
-						if (AttachParent->IsCreatedByConstructionScript())
-						{
-							SceneComp->AttachToComponent(AttachParent, FAttachmentTransformRules::KeepRelativeTransform, SceneComp->GetAttachSocketName());
-						}
-					}
-				}
-			}
-		}
-
 #if WITH_EDITOR
 		if (!CurrentTransactionAnnotation.IsValid())
 		{
@@ -451,19 +420,6 @@ void AActor::RerunConstructionScripts()
 			// In this case we need to "tunnel out" to find the parent component which has been created by the construction script.
 			if (UActorComponent* CSAddedComponent = GetComponentAddedByConstructionScript(Component))
 			{
-				// If we have any instanced components attached to us and we're going to be destroyed we need to explicitly detach them so they don't choose a new
-				// parent component and the attachment data we stored in the component instance data cache won't get applied
-				if (USceneComponent* SceneComp = Cast<USceneComponent>(Component))
-				{
-					TInlineComponentArray<USceneComponent*> InstancedChildren;
-					Algo::TransformIf(SceneComp->GetAttachChildren(), InstancedChildren, [](USceneComponent* SC) { return SC && SC->CreationMethod == EComponentCreationMethod::Instance; }, [](USceneComponent* SC) { return SC; });
-					for (USceneComponent* InstancedChild : InstancedChildren)
-					{
-						InstancedChild->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
-					}
-				}
-
-
 				// Determine if this component is an inner of a component added by the construction script
 				const bool bIsInnerComponent = (CSAddedComponent != Component);
 
@@ -1220,14 +1176,6 @@ void AActor::PostCreateBlueprintComponent(UActorComponent* NewActorComp)
 
 		// Need to do this so component gets saved - Components array is not serialized
 		BlueprintCreatedComponents.Add(NewActorComp);
-
-		// The component may not have been added to ReplicatedComponents if it was duplicated from
-		// a template, since ReplicatedComponents is normally only updated before the duplicated properties
-		// are copied over - in this case bReplicates would not have been set yet, but it will be now.
-		if (NewActorComp->GetIsReplicated())
-		{
-			ReplicatedComponents.AddUnique(NewActorComp);
-		}
 	}
 }
 

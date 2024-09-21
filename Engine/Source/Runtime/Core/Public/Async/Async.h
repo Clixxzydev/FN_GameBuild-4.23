@@ -34,20 +34,38 @@ enum class EAsyncExecution
 
 
 /**
- * Template for setting a promise value from a callable.
+ * Template for setting a promise's value from a function.
  */
-template<typename ResultType, typename CallableType>
-inline void SetPromise(TPromise<ResultType>& Promise, CallableType&& Callable)
+template<typename ResultType>
+inline void SetPromise(TPromise<ResultType>& Promise, const TFunction<ResultType()>& Function)
 {
-	Promise.SetValue(Forward<CallableType>(Callable)());
+	Promise.SetValue(Function());
 }
 
-template<typename CallableType>
-inline void SetPromise(TPromise<void>& Promise, CallableType&& Callable)
+template<typename ResultType>
+inline void SetPromise(TPromise<ResultType>& Promise, const TFunctionRef<ResultType()>& Function)
 {
-	Forward<CallableType>(Callable)();
+	Promise.SetValue(Function());
+}
+
+
+/**
+ * Template for setting a promise's value from a function (specialization for void results).
+ */
+template<>
+inline void SetPromise(TPromise<void>& Promise, const TFunction<void()>& Function)
+{
+	Function();
 	Promise.SetValue();
 }
+
+template<>
+inline void SetPromise(TPromise<void>& Promise, const TFunctionRef<void()>& Function)
+{
+	Function();
+	Promise.SetValue();
+}
+
 
 /**
  * Base class for asynchronous functions that are executed in the Task Graph system.
@@ -93,7 +111,7 @@ public:
 	 * @param InFunction The function to execute asynchronously.
 	 * @param InPromise The promise object used to return the function's result.
 	 */
-	TAsyncGraphTask(TUniqueFunction<ResultType()>&& InFunction, TPromise<ResultType>&& InPromise)
+	TAsyncGraphTask(TFunction<ResultType()>&& InFunction, TPromise<ResultType>&& InPromise)
 		: Function(MoveTemp(InFunction))
 		, Promise(MoveTemp(InPromise))
 	{ }
@@ -134,7 +152,7 @@ public:
 private:
 
 	/** The function to execute on the Task Graph. */
-	TUniqueFunction<ResultType()> Function;
+	TFunction<ResultType()> Function;
 
 	/** The promise to assign the result to. */
 	TPromise<ResultType> Promise;
@@ -157,7 +175,7 @@ public:
 	 * @param InPromise The promise object used to return the function's result.
 	 * @param InThreadFuture The thread that is running this task.
 	 */
-	TAsyncRunnable(TUniqueFunction<ResultType()>&& InFunction, TPromise<ResultType>&& InPromise, TFuture<FRunnableThread*>&& InThreadFuture)
+	TAsyncRunnable(TFunction<ResultType()>&& InFunction, TPromise<ResultType>&& InPromise, TFuture<FRunnableThread*>&& InThreadFuture)
 		: Function(MoveTemp(InFunction))
 		, Promise(MoveTemp(InPromise))
 		, ThreadFuture(MoveTemp(InThreadFuture))
@@ -172,7 +190,7 @@ public:
 private:
 
 	/** The function to execute on the Task Graph. */
-	TUniqueFunction<ResultType()> Function;
+	TFunction<ResultType()> Function;
 
 	/** The promise to assign the result to. */
 	TPromise<ResultType> Promise;
@@ -197,7 +215,7 @@ public:
 	 * @param InFunction The function to execute asynchronously.
 	 * @param InPromise The promise object used to return the function's result.
 	 */
-	TAsyncQueuedWork(TUniqueFunction<ResultType()>&& InFunction, TPromise<ResultType>&& InPromise)
+	TAsyncQueuedWork(TFunction<ResultType()>&& InFunction, TPromise<ResultType>&& InPromise)
 		: Function(MoveTemp(InFunction))
 		, Promise(MoveTemp(InPromise))
 	{ }
@@ -220,7 +238,7 @@ public:
 private:
 
 	/** The function to execute on the Task Graph. */
-	TUniqueFunction<ResultType()> Function;
+	TFunction<ResultType()> Function;
 
 	/** The promise to assign the result to. */
 	TPromise<ResultType> Promise;
@@ -247,6 +265,12 @@ struct FAsyncThreadIndex
 /**
  * Execute a given function asynchronously.
  *
+ * While we still support VS2012, we need to help the compiler deduce the ResultType
+ * template argument for Async<T>(), which can be accomplished in two ways:
+ *
+ *	- call Async() with the template parameter, i.e. Async<int>(..)
+ *	- use a TFunction binding that explicitly specifies the type, i.e. TFunction<int()> F = []() { .. }
+ *
  * Usage examples:
  *
  *	// using global function
@@ -255,11 +279,11 @@ struct FAsyncThreadIndex
  *			return 123;
  *		}
  *
- *		TUniqueFunction<int()> Task = TestFunc();
+ *		TFunction<int()> Task = TestFunc();
  *		auto Result = Async(EAsyncExecution::Thread, Task);
  *
  *	// using lambda
- *		TUniqueFunction<int()> Task = []()
+ *		TFunction<int()> Task = []()
  *		{
  *			return 123;
  *		}
@@ -268,21 +292,19 @@ struct FAsyncThreadIndex
  *
  *
  *	// using inline lambda
- *		auto Result = Async(EAsyncExecution::Thread, []() {
+ *		auto Result = Async<int>(EAsyncExecution::Thread, []() {
  *			return 123;
  *		}
  *
- * @param CallableType The type of callable object.
+ * @param ResultType The type of the function's return value.
  * @param Execution The execution method to use, i.e. on Task Graph or in a separate thread.
  * @param Function The function to execute.
  * @param CompletionCallback An optional callback function that is executed when the function completed execution.
  * @return A TFuture object that will receive the return value from the function.
  */
-template<typename CallableType>
-auto Async(EAsyncExecution Execution, CallableType&& Callable, TUniqueFunction<void()> CompletionCallback = nullptr) -> TFuture<decltype(Forward<CallableType>(Callable)())>
+template<typename ResultType>
+TFuture<ResultType> Async(EAsyncExecution Execution, TFunction<ResultType()> Function, TFunction<void()> CompletionCallback = TFunction<void()>())
 {
-	using ResultType = decltype(Forward<CallableType>(Callable)());
-	TUniqueFunction<ResultType()> Function(Forward<CallableType>(Callable));
 	TPromise<ResultType> Promise(MoveTemp(CompletionCallback));
 	TFuture<ResultType> Future = Promise.GetFuture();
 
@@ -326,20 +348,19 @@ auto Async(EAsyncExecution Execution, CallableType&& Callable, TUniqueFunction<v
 	return MoveTemp(Future);
 }
 
+
 /**
  * Execute a given function asynchronously on the specified thread pool.
  *
- * @param CallableType The type of callable object.
+ * @param ResultType The type of the function's return value.
  * @param ThreadPool The thread pool to execute on.
  * @param Function The function to execute.
  * @param CompletionCallback An optional callback function that is executed when the function completed execution.
  * @result A TFuture object that will receive the return value from the function.
  */
-template<typename CallableType>
-auto AsyncPool(FQueuedThreadPool& ThreadPool, CallableType&& Callable, TUniqueFunction<void()> CompletionCallback = nullptr) -> TFuture<decltype(Forward<CallableType>(Callable)())>
+template<typename ResultType>
+TFuture<ResultType> AsyncPool(FQueuedThreadPool& ThreadPool, TFunction<ResultType()> Function, TFunction<void()> CompletionCallback = TFunction<void()>())
 {
-	using ResultType = decltype(Forward<CallableType>(Callable)());
-	TUniqueFunction<ResultType()> Function(Forward<CallableType>(Callable));
 	TPromise<ResultType> Promise(MoveTemp(CompletionCallback));
 	TFuture<ResultType> Future = Promise.GetFuture();
 
@@ -348,21 +369,20 @@ auto AsyncPool(FQueuedThreadPool& ThreadPool, CallableType&& Callable, TUniqueFu
 	return MoveTemp(Future);
 }
 
+
 /**
  * Execute a given function asynchronously using a separate thread.
  *
- * @param CallableType The type of callable object.
+ * @param ResultType The type of the function's return value.
  * @param Function The function to execute.
  * @param StackSize stack space to allocate for the new thread
  * @param ThreadPri thread priority
  * @param CompletionCallback An optional callback function that is executed when the function completed execution.
  * @result A TFuture object that will receive the return value from the function.
  */
-template<typename CallableType>
-auto AsyncThread(CallableType&& Callable, uint32 StackSize = 0, EThreadPriority ThreadPri = TPri_Normal, TUniqueFunction<void()> CompletionCallback = nullptr) -> TFuture<decltype(Forward<CallableType>(Callable)())>
+template<typename ResultType>
+TFuture<ResultType> AsyncThread(TFunction<ResultType()> Function, uint32 StackSize = 0, EThreadPriority ThreadPri = TPri_Normal, TFunction<void()> CompletionCallback = TFunction<void()>())
 {
-	using ResultType = decltype(Forward<CallableType>(Callable)());
-	TUniqueFunction<ResultType()> Function(Forward<CallableType>(Callable));
 	TPromise<ResultType> Promise(MoveTemp(CompletionCallback));
 	TFuture<ResultType> Future = Promise.GetFuture();
 
@@ -392,7 +412,8 @@ auto AsyncThread(CallableType&& Callable, uint32 StackSize = 0, EThreadPriority 
  * @param Thread The name of the thread to run on.
  * @param Function The function to execute.
  */
-CORE_API void AsyncTask(ENamedThreads::Type Thread, TUniqueFunction<void()> Function);
+CORE_API void AsyncTask(ENamedThreads::Type Thread, TFunction<void()> Function);
+
 
 /* Inline functions
  *****************************************************************************/
@@ -404,7 +425,7 @@ uint32 TAsyncRunnable<ResultType>::Run()
 	FRunnableThread* Thread = ThreadFuture.Get();
 
 	// Enqueue deletion of the thread to a different thread.
-	Async(EAsyncExecution::TaskGraph, [=]() {
+	Async<void>(EAsyncExecution::TaskGraph, [=]() {
 			delete Thread;
 			delete this;
 		}

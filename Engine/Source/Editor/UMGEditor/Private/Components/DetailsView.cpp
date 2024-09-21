@@ -81,8 +81,6 @@ void UDetailsView::BuildContentWidget()
 			DetailViewWidget->SetCustomFilterDelegate(FSimpleDelegate::CreateUObject(this, &UDetailsView::ToggleWhitelistedProperties));
 
 			DetailViewWidget->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateUObject(this, &UDetailsView::GetIsPropertyVisible));
-			DetailViewWidget->SetIsCustomRowVisibilityFilteredDelegate(FIsCustomRowVisibilityFiltered::CreateUObject(this, &UDetailsView::IsRowVisibilityFiltered));
-			DetailViewWidget->SetIsCustomRowVisibleDelegate(FIsCustomRowVisible::CreateUObject(this, &UDetailsView::GetIsRowVisible));
 			DetailViewWidget->SetObject(ViewedObject);
 			if (DetailViewWidget.IsValid())
 			{
@@ -162,39 +160,19 @@ void UDetailsView::ToggleWhitelistedProperties()
 }
 
 
-bool UDetailsView::IsRowVisibilityFiltered() const
-{
-	return bShowOnlyWhitelisted && (PropertiesToShow.Num() > 0 || CategoriesToShow.Num() > 0);
-}
-
 bool UDetailsView::GetIsPropertyVisible(const FPropertyAndParent& PropertyAndParent) const
 {
-    if (!IsRowVisibilityFiltered())
+	if (!bShowOnlyWhitelisted
+		|| (PropertiesToShow.Num() == 0 && CategoriesToShow.Num() == 0))
 	{
 		return true;
 	}
+
 	if (PropertiesToShow.Contains(PropertyAndParent.Property.GetFName()))
 	{
 		return true;
 	}
 	if (CategoriesToShow.Contains(FObjectEditorUtils::GetCategoryFName(&PropertyAndParent.Property)))
-	{
-		return true;
-	}
-	return false;
-}
-
-bool UDetailsView::GetIsRowVisible(FName InRowName, FName InParentName) const
-{
-    if (!IsRowVisibilityFiltered())
-	{
-		return true;
-	}
-	if (PropertiesToShow.Contains(InRowName))
-	{
-		return true;
-	}
-	if (CategoriesToShow.Contains(InParentName))
 	{
 		return true;
 	}

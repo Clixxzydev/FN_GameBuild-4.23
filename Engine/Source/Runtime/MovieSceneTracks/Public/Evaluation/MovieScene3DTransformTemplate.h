@@ -12,7 +12,6 @@
 #include "Evaluation/Blending/MovieSceneMultiChannelBlending.h"
 #include "MovieScene3DTransformTemplate.generated.h"
 
-struct FComponentTransformPersistentData;
 class UMovieScene3DTransformSection;
 
 USTRUCT()
@@ -68,7 +67,4 @@ protected:
 	virtual void Initialize(const FMovieSceneEvaluationOperand& Operand, const FMovieSceneContext& Context, FPersistentEvaluationData& PersistentData, IMovieScenePlayer& Player) const override;
 	virtual void Evaluate(const FMovieSceneEvaluationOperand& Operand, const FMovieSceneContext& Context, const FPersistentEvaluationData& PersistentData, FMovieSceneExecutionTokens& ExecutionTokens) const override;
 	virtual void Interrogate(const FMovieSceneContext& Context, FMovieSceneInterrogationData& Container, UObject* BindingOverride) const override;
-
-private:
-	MovieScene::TMultiChannelValue<float, 9> EvaluateTransform(FFrameTime Time, const FComponentTransformPersistentData* SectionData) const;
 };

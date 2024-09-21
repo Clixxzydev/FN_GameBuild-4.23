@@ -20,10 +20,7 @@
 #include "PhysicsPublic.h"
 #include "CustomPhysXPayload.h"
 #include "HAL/LowLevelMemTracker.h"
-
-#include "PhysicsInterfaceDeclaresCore.h"
-#if !WITH_CHAOS_NEEDS_TO_BE_FIXED
-#include "SQAccelerator.h"
+#include "Physics/SQAccelerator.h"
 
 #if WITH_PHYSX
 #include "PhysXPublic.h"
@@ -39,7 +36,6 @@
 #include "PhysicsEngine/ConstraintInstance.h"
 #include "PhysicsReplication.h"
 #include "ProfilingDebugging/CsvProfiler.h"
-#include "PhysTestSerializer.h"
 
 /** Physics stats **/
 
@@ -429,9 +425,6 @@ static FAutoConsoleCommandWithWorldAndArgs GSetPhysXTreeRebuildRate(TEXT("p.Phys
 FPhysScene_PhysX::FPhysScene_PhysX(const AWorldSettings* Settings)
 #if WITH_CUSTOM_SQ_STRUCTURE
 	: SQAccelerator(nullptr)
-#if WITH_PHYSX
-	, PhysXSQAccelerator(nullptr)
-#endif
 #endif 
 {
 	LineBatcher = NULL;
@@ -516,16 +509,15 @@ void FPhysScene_PhysX::AddActorsToPhysXScene_AssumesLocked(const TArray<FPhysics
 		}
 	}
 
-	/** Disabled the following case until we have a good broadphase. Right now using FPhysXSQAccelerator to just query the scene */
-//#if WITH_CUSTOM_SQ_STRUCTURE
-//	for (const FPhysicsActorHandle& ActorRef : InActors)
-//	{
-//		if (PxRigidActor* RigidActor = ActorRef.SyncActor)
-//		{
-//			RigidActorToSQEntries.Add(RigidActor, SQAccelerator->AddEntry(RigidActor));
-//		}
-//	}
-//#endif
+#if WITH_CUSTOM_SQ_STRUCTURE
+	for (const FPhysicsActorHandle& ActorRef : InActors)
+	{
+		if (PxRigidActor* RigidActor = ActorRef.SyncActor)
+		{
+			RigidActorToSQEntries.Add(RigidActor, SQAccelerator->AddEntry(RigidActor));
+		}
+	}
+#endif
 }
 
 ISQAccelerator* FPhysScene_PhysX::GetSQAccelerator() const
@@ -779,19 +771,17 @@ void FPhysScene_PhysX::ClearTorques_AssumesLocked(FBodyInstance* BodyInstance, b
 void FPhysScene_PhysX::RemoveBodyInstanceFromPendingLists_AssumesLocked(FBodyInstance* BodyInstance)
 {
 #if WITH_PHYSX
-
-	/** Disabled the following case until we have a good broadphase. Right now using FPhysXSQAccelerator to just query the scene */
-//#if WITH_CUSTOM_SQ_STRUCTURE
-//	if (PxRigidActor* RigidActor = BodyInstance->GetPhysicsActorHandle().SyncActor)
-//	{
-//		FSQAcceleratorEntry* Entry = nullptr;
-//		RigidActorToSQEntries.RemoveAndCopyValue(RigidActor, Entry);
-//		if (Entry)
-//		{
-//			SQAccelerator->RemoveEntry(Entry);
-//		}
-//	}
-//#endif
+#if WITH_CUSTOM_SQ_STRUCTURE
+	if (PxRigidActor* RigidActor = BodyInstance->GetPhysicsActorHandle().SyncActor)
+	{
+		FSQAcceleratorEntry* Entry = nullptr;
+		RigidActorToSQEntries.RemoveAndCopyValue(RigidActor, Entry);
+		if (Entry)
+		{
+			SQAccelerator->RemoveEntry(Entry);
+		}
+	}
+#endif
 
 
 	if (FPhysicsInterface_PhysX::IsRigidBody(BodyInstance->GetPhysicsActorHandle()))
@@ -963,14 +953,7 @@ void FPhysScene_PhysX::MarkForPreSimKinematicUpdate(USkeletalMeshComponent* InSk
 		if (InSkelComp->bDeferredKinematicUpdate)
 		{
 			TPair<USkeletalMeshComponent*, FDeferredKinematicUpdateInfo>* FoundItem = DeferredKinematicUpdateSkelMeshes.FindByPredicate([InSkelComp](const TPair<USkeletalMeshComponent*, FDeferredKinematicUpdateInfo>& InItem) { return InSkelComp == InItem.Key; });
-			if (!ensure(FoundItem != nullptr))// If the bool was set, we must be in the array!
-			{
-				FDeferredKinematicUpdateInfo Info;
-				Info.TeleportType = InTeleport;
-				Info.bNeedsSkinning = bNeedsSkinning;
-				DeferredKinematicUpdateSkelMeshes.Emplace(InSkelComp, Info);
-				return;
-			}
+			check(FoundItem != nullptr); // If the bool was set, we must be in the array!
 
 			FDeferredKinematicUpdateInfo& Info = FoundItem->Value;
 
@@ -1009,7 +992,7 @@ void FPhysScene_PhysX::ClearPreSimKinematicUpdate(USkeletalMeshComponent* InSkel
 		// Remove from map
 		int32 NumRemoved = DeferredKinematicUpdateSkelMeshes.RemoveAll([InSkelComp](const TPair<USkeletalMeshComponent*, FDeferredKinematicUpdateInfo>& InItem) { return InSkelComp == InItem.Key; });
 
-		ensure(NumRemoved == 1); // Should be in array if flag was set!
+		check(NumRemoved == 1); // Should be in array if flag was set!
 
 		// Clear flag
 		InSkelComp->bDeferredKinematicUpdate = false;
@@ -1026,7 +1009,7 @@ void FPhysScene_PhysX::UpdateKinematicsOnDeferredSkelMeshes()
 		USkeletalMeshComponent* SkelComp = DeferredKinematicUpdate.Key;
 		const FDeferredKinematicUpdateInfo& Info = DeferredKinematicUpdate.Value;
 
-		ensure(SkelComp->bDeferredKinematicUpdate); // Should be true if in map!
+		check(SkelComp->bDeferredKinematicUpdate); // Should be true if in map!
 
 		// Perform kinematic updates
 		SkelComp->UpdateKinematicBonesToAnim(SkelComp->GetComponentSpaceTransforms(), Info.TeleportType, Info.bNeedsSkinning, EAllowKinematicDeferral::DisallowDeferral);
@@ -1102,6 +1085,14 @@ void FPhysScene_PhysX::TickPhysScene(FGraphEventRef& InOutCompletionEvent)
 	apex::Scene* ApexScene = GetApexScene();
 	const bool bSimulateScene = ApexScene && UseDelta > 0.f;
 #endif
+#endif
+
+	// Replicate physics
+#if WITH_PHYSX
+	if (bSimulateScene && PhysicsReplication)
+	{
+		PhysicsReplication->Tick(AveragedFrameTime);
+	}
 #endif
 
 	// Replicate physics
@@ -1509,7 +1500,6 @@ void FPhysScene_PhysX::StartFrame()
 	check(!PhysicsSceneCompletion.GetReference()); // this should have been cleared
 	if (FinishPrerequisites.Num())
 	{
-		// #BG Not sure this is needed anymore without async scene
 		if (FinishPrerequisites.Num() > 1)  // we don't need to create a new task if we only have one prerequisite
 		{
 			DECLARE_CYCLE_STAT(TEXT("FNullGraphTask.ProcessPhysScene_Join"),
@@ -2134,16 +2124,9 @@ void FPhysScene_PhysX::InitPhysScene(const AWorldSettings* Settings)
 #endif
 
 #if WITH_CUSTOM_SQ_STRUCTURE
+	SQAccelerator = new FSQAccelerator();
 	SQAcceleratorUnion = new FSQAcceleratorUnion();
-	
-	/** Disabled the following case until we have a good broadphase. Right now using FPhysXSQAccelerator to just query the scene */
-	//SQAccelerator = new FSQAccelerator();
-	//SQAcceleratorUnion->AddSQAccelerator(SQAccelerator);
-
-#if WITH_PHYSX && !WITH_CHAOS
-	PhysXSQAccelerator = new FPhysXSQAccelerator(PScene);
-	SQAcceleratorUnion->AddSQAccelerator(PhysXSQAccelerator);
-#endif
+	SQAcceleratorUnion->AddSQAccelerator(SQAccelerator);
 #endif
 
 #if WITH_CHAOS
@@ -2160,14 +2143,8 @@ void FPhysScene_PhysX::TermPhysScene()
 #if WITH_CUSTOM_SQ_STRUCTURE
 	delete SQAcceleratorUnion;
 	SQAcceleratorUnion = nullptr;
-
-	/** Disabled the following case until we have a good broadphase. Right now using FPhysXSQAccelerator to just query the scene */
-	//delete SQAccelerator;
-	//SQAccelerator = nullptr;
-#if WITH_PHYSX
-	delete PhysXSQAccelerator;
-	PhysXSQAccelerator = nullptr;
-#endif
+	delete SQAccelerator;
+	SQAccelerator = nullptr;
 #endif
 
 #if WITH_PHYSX
@@ -2248,13 +2225,6 @@ void ListAwakeRigidBodiesFromScene(bool bIncludeKinematic, PxScene* PhysXScene, 
 		}
 	}
 }
-
-void FPhysScene_PhysX::SerializeForTesting(FArchive& Ar)
-{
-	FPhysTestSerializer Serializer;
-	Serializer.SetPhysicsData(*GetPxScene());
-	Serializer.Serialize(Ar);
-}
 #endif // WITH_PHYSX
 
 /** Util to list to log all currently awake rigid bodies */
@@ -2294,8 +2264,6 @@ int32 FPhysScene::GetNumAwakeBodies()
 }
 #endif
 
-#endif // WITH_PHYSX
+#endif
 
-#endif // !WITH_CHAOS_NEEDS_TO_BE_FIXED
-
-#endif //  !WITH_CHAOS && !WITH_IMMEDIATE_PHYSX && !PHYSICS_INTERFACE_LLIMMEDIATE
+#endif

@@ -4,10 +4,6 @@
 
 #include "Engine/TextureRenderTarget2D.h" // for ETextureRenderTargetFormat
 #include "PixelFormat.h"
-#include "UObject/ObjectMacros.h" // for EObjectFlags
-#include "UObject/UObjectBaseUtility.h" // for GetMaskedFlags()/HasAnyFlags()
-#include "UObject/UObjectGlobals.h" // for NewObject()
-#include "UObject/Class.h"
 
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
@@ -40,6 +36,11 @@ private:
 
 /* FCompositingElementPassUtils implementations
  *****************************************************************************/
+
+#include "UObject/ObjectMacros.h" // for EObjectFlags
+#include "UObject/UObjectBaseUtility.h" // for GetMaskedFlags()/HasAnyFlags()
+#include "UObject/UObjectGlobals.h" // for NewObject()
+#include "UObject/Class.h"
 
 template<typename T>
 T* FCompositingElementPassUtils::NewInstancedSubObj(UObject* Outer, UClass* Class)

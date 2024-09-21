@@ -514,14 +514,13 @@ TArray<FMovieSceneMarkedFrame> UMovieSceneSequenceExtensions::GetMarkedFrames(UM
 	return TArray<FMovieSceneMarkedFrame>();
 }
 
-int32 UMovieSceneSequenceExtensions::AddMarkedFrame(UMovieSceneSequence* Sequence, const FMovieSceneMarkedFrame& InMarkedFrame)
+void UMovieSceneSequenceExtensions::AddMarkedFrame(UMovieSceneSequence* Sequence, const FMovieSceneMarkedFrame& InMarkedFrame)
 {
 	UMovieScene* MovieScene = Sequence->GetMovieScene();
 	if (MovieScene)
 	{
-		return MovieScene->AddMarkedFrame(InMarkedFrame);
+		MovieScene->AddMarkedFrame(InMarkedFrame);
 	}
-	return INDEX_NONE;
 }
 
 void UMovieSceneSequenceExtensions::RemoveMarkedFrame(UMovieSceneSequence* Sequence, int32 RemoveIndex)

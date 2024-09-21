@@ -6,8 +6,6 @@
 
 #include "ShadowFilteringCommon.ush"
 #include "MonteCarlo.ush"
-#include "SobolRandom.ush"
-
 
 // CONFIGURATION OF PCSS
 // -----------------------------------------------------------------------

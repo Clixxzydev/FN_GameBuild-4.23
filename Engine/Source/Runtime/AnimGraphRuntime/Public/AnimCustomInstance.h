@@ -21,9 +21,8 @@ class ANIMGRAPHRUNTIME_API UAnimCustomInstance : public UAnimInstance
 	 * @return the current (or newly created) UAnimCustomInstance
 	 */
 	template<typename InstanceClassType>
-	static InstanceClassType* BindToSkeletalMeshComponent(USkeletalMeshComponent* InSkeletalMeshComponent, bool& bOutWasCreated)
+	static InstanceClassType* BindToSkeletalMeshComponent(USkeletalMeshComponent* InSkeletalMeshComponent)
 	{
-		bOutWasCreated = false;
 		// make sure to tick and refresh all the time when ticks
 		// @TODO: this needs restoring post-binding
 		InSkeletalMeshComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
@@ -51,7 +50,6 @@ class ANIMGRAPHRUNTIME_API UAnimCustomInstance : public UAnimInstance
 				InstanceClassType* SequencerInstance = NewObject<InstanceClassType>(InSkeletalMeshComponent, InstanceClassType::StaticClass());
 				InSkeletalMeshComponent->AnimScriptInstance = SequencerInstance;
 				InSkeletalMeshComponent->AnimScriptInstance->InitializeAnimation();
-				bOutWasCreated = true;
 				return SequencerInstance;
 			}
 			else

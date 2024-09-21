@@ -7,7 +7,6 @@
 #include "HAL/FileManager.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
-#include "UObject/GCObjectScopeGuard.h"
 #include "SourceControlHelpers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGatherTextCommandlet, Log, All);
@@ -180,8 +179,7 @@ int32 UGatherTextCommandlet::ProcessGatherConfig(const FString& GatherTextConfig
 
 		UGatherTextCommandletBase* Commandlet = NewObject<UGatherTextCommandletBase>(GetTransientPackage(), CommandletClass);
 		check(Commandlet);
-		
-		FGCObjectScopeGuard CommandletGCGuard(Commandlet);
+		Commandlet->AddToRoot();
 		Commandlet->Initialize( CommandletGatherManifestHelper, CommandletSourceControlInfo );
 
 		// Execute the commandlet.

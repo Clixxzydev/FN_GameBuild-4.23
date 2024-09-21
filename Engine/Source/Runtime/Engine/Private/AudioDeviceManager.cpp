@@ -1,10 +1,9 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
-#include "AudioDeviceManager.h"
 
-#include "Audio/AudioDebug.h"
+#include "AudioDeviceManager.h"
 #include "AudioDevice.h"
-#include "Sound/AudioSettings.h"
 #include "Sound/SoundWave.h"
+#include "Sound/AudioSettings.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
@@ -76,6 +75,7 @@ FAudioDeviceManager::FAudioDeviceManager()
 	, ActiveAudioDeviceHandle(INDEX_NONE)
 	, bUsingAudioMixer(false)
 	, bPlayAllDeviceAudio(false)
+	, bVisualize3dDebug(false)
 	, bOnlyToggleAudioMixerOnce(false)
 	, bToggledAudioMixer(false)
 {
@@ -185,9 +185,6 @@ void FAudioDeviceManager::ToggleAudioMixer()
 					// Make a new audio device using the new audio device module
 					AudioDevice = AudioDeviceModule->CreateAudioDevice();
 
-					// Set the new audio device into the slot of the old audio device in the manager
-					Devices[DeviceIndex] = AudioDevice;
-
 					// Set the new audio device handle to the old audio device handle
 					AudioDevice->DeviceHandle = Handle;
 
@@ -211,6 +208,9 @@ void FAudioDeviceManager::ToggleAudioMixer()
 
 					// Fade in the new audio device (used only in audio mixer to prevent pops on startup/shutdown)
 					AudioDevice->FadeIn();
+
+					// Set the new audio device into the slot of the old audio device in the manager
+					Devices[DeviceIndex] = AudioDevice;
 				}
 			}
 
@@ -222,6 +222,9 @@ void FAudioDeviceManager::ToggleAudioMixer()
 			{
 				USoundWave* SoundWave = *SoundWaveIt;
 				FreeResource(SoundWave);
+
+				// Flag that the sound wave needs to do a full decompress again
+				SoundWave->DecompressionType = DTYPE_Setup;
 			}
 
 			// Unload the previous audio device module
@@ -746,17 +749,6 @@ void FAudioDeviceManager::UpdateSourceEffectChain(const uint32 SourceEffectChain
 	}
 }
 
-void FAudioDeviceManager::UpdateSubmix(USoundSubmix* SoundSubmix)
-{
-	for (FAudioDevice* AudioDevice : Devices)
-	{
-		if (AudioDevice)
-		{
-			AudioDevice->UpdateSubmixProperties(SoundSubmix);
-		}
-	}
-}
-
 void FAudioDeviceManager::SetActiveDevice(uint32 InAudioDeviceHandle)
 {
 	// Only change the active device if there are no solo'd audio devices
@@ -864,10 +856,6 @@ void FAudioDeviceManager::FreeResource(USoundWave* SoundWave)
 		FSoundBuffer* SoundBuffer = WaveBufferMap.FindRef(SoundWave->ResourceID);
 		FreeBufferResource(SoundBuffer);
 
-		// Flag that the sound wave needs to do a full decompress again
-		SoundWave->DecompressionType = DTYPE_Setup;
-		SoundWave->SetPrecacheState(ESoundWavePrecacheState::NotStarted);
-
 		SoundWave->ResourceID = 0;
 	}
 }
@@ -945,16 +933,11 @@ void FAudioDeviceManager::TogglePlayAllDeviceAudio()
 
 bool FAudioDeviceManager::IsVisualizeDebug3dEnabled() const
 {
-#if ENABLE_AUDIO_DEBUG
-	return AudioDebugger.IsVisualizeDebug3dEnabled() || CVarIsVisualizeEnabled;
-#else // ENABLE_AUDIO_DEBUG
-	return false;
-#endif // !ENABLE_AUDIO_DEBUG
+	return bVisualize3dDebug || CVarIsVisualizeEnabled;
 }
 
 void FAudioDeviceManager::ToggleVisualize3dDebug()
 {
-#if ENABLE_AUDIO_DEBUG
 	if (!IsInAudioThread())
 	{
 		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.ToggleVisualize3dDebug"), STAT_ToggleVisualize3dDebug, STATGROUP_AudioThreadCommands);
@@ -969,8 +952,33 @@ void FAudioDeviceManager::ToggleVisualize3dDebug()
 		return;
 	}
 
-	GetDebugger().ToggleVisualizeDebug3dEnabled();
-#endif // ENABLE_AUDIO_DEBUG
+	bVisualize3dDebug = !bVisualize3dDebug;
+}
+
+void FAudioDeviceManager::ToggleDebugStat(const uint8 StatBitMask)
+{
+#if !UE_BUILD_SHIPPING
+	if (!IsInAudioThread())
+	{
+		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.ToggleDebugStat"), STAT_ToggleDebugStat, STATGROUP_AudioThreadCommands);
+
+		FAudioDeviceManager* AudioDeviceManager = this;
+		FAudioThread::RunCommandOnAudioThread([AudioDeviceManager, StatBitMask]()
+		{
+			AudioDeviceManager->ToggleDebugStat(StatBitMask);
+		}, GET_STATID(STAT_ToggleDebugStat));
+
+		return;
+	}
+
+	for (FAudioDevice* AudioDevice : Devices)
+	{
+		if (AudioDevice)
+		{
+			AudioDevice->UpdateRequestedStat(StatBitMask);
+		}
+	}
+#endif
 }
 
 void FAudioDeviceManager::SetDebugSoloSoundClass(const TCHAR* SoundClassName)
@@ -1136,10 +1144,3 @@ void FAudioDeviceManager::SetDynamicSoundVolume(ESoundType SoundType, const FNam
 	TTuple<ESoundType, FName> Key(SoundType, SoundName);
 	DynamicSoundVolumes.FindOrAdd(Key) = Volume;
 }
-
-#if ENABLE_AUDIO_DEBUG
-FAudioDebugger& FAudioDeviceManager::GetDebugger()
-{
-	return AudioDebugger;
-}
-#endif // ENABLE_AUDIO_DEBUG

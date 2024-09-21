@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Math/GenericOctreePublic.h"
-#include "Math/GenericOctree.h"
+#include "GenericOctreePublic.h"
+#include "GenericOctree.h"
 #include "EditableMesh.h"
 
 

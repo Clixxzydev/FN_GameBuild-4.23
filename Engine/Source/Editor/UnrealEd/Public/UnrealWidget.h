@@ -13,7 +13,6 @@ class FPrimitiveDrawInterface;
 class FSceneView;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
-class FMaterialRenderProxy;
 
 /** Coordinate system identifiers. */
 enum ECoordSystem
@@ -62,7 +61,7 @@ public:
 	 * Draws an arrow head line for a specific axis.
 	 * @param	bCubeHead		[opt] If true, render a cube at the axis tips.  If false (the default), render a cone.
 	 */
-	void Render_Axis(const FSceneView* View, FPrimitiveDrawInterface* PDI, EAxisList::Type InAxis, FMatrix& InMatrix, UMaterialInterface* InMaterial, const FLinearColor& InColor, FVector2D& OutAxisDir, const FVector& InScale, bool bDrawWidget, bool bCubeHead=false, float AxisLengthOffset = 0);
+	void Render_Axis(const FSceneView* View, FPrimitiveDrawInterface* PDI, EAxisList::Type InAxis, FMatrix& InMatrix, UMaterialInterface* InMaterial, const FLinearColor& InColor, FVector2D& OutAxisDir, const FVector& InScale, bool bDrawWidget, bool bCubeHead=false);
 
 	/**
 	 * Draws a cube
@@ -97,7 +96,7 @@ public:
 	/**
 	 * Converts mouse movement on the screen to widget axis movement/rotation.
 	 */
-	void ConvertMouseMovementToAxisMovement(FSceneView* InView,  FEditorViewportClient* InViewportClient, bool bInUsedDragModifier, FVector& InDiff, FVector& OutDrag, FRotator& OutRotation, FVector& OutScale );
+	void ConvertMouseMovementToAxisMovement( FEditorViewportClient* InViewportClient, bool bInUsedDragModifier, FVector& InDiff, FVector& OutDrag, FRotator& OutRotation, FVector& OutScale );
 
 	/**
 	 * Absolute Translation conversion from mouse movement on the screen to widget axis movement/rotation.
@@ -115,8 +114,6 @@ public:
 	/** Only some modes support Absolute Translation Movement.  Check current mode */
 	static bool AllowsAbsoluteTranslationMovement(FWidget::EWidgetMode WidgetMode);
 
-	/** Only some modes support Absolute Rotation Movement.  Check current mode */
-	static bool AllowsAbsoluteRotationMovement(EWidgetMode WidgetMode, EAxisList::Type InAxisType);
 	/**
 	 * Sets the default visibility of the widget, if it is not overridden by an active editor mode tool.
 	 *
@@ -159,7 +156,6 @@ public:
 	void SetDragStartPosition(const FVector2D& Position)
 	{
 		DragStartPos = Position;
-		LastDragPos = DragStartPos;
 	}
 
 	/**
@@ -375,9 +371,6 @@ private:
 	 */
 	uint32 GetDominantAxisIndex( const FVector& InDiff, FEditorViewportClient* ViewportClient ) const;
 
-
-	void DrawColoredSphere(FPrimitiveDrawInterface* PDI, const FVector& Center, const FRotator& Orientation, FColor Color, const FVector& Radii, int32 NumSides, int32 NumRings, const FMaterialRenderProxy* MaterialRenderProxy, uint8 DepthPriority, bool bDisableBackfaceCulling);
-
 	/** The axis currently being moused over */
 	EAxisList::Type CurrentAxis;
 
@@ -387,8 +380,7 @@ private:
 	FVector2D XAxisDir, YAxisDir, ZAxisDir;
 	/** Drag start position in viewport space */
 	FVector2D DragStartPos;
-	/** Last mouse position in viewport space */
-	FVector2D LastDragPos;
+
 	enum
 	{
 		AXIS_ARROW_SEGMENTS = 16
@@ -405,9 +397,7 @@ private:
 	UMaterialInstanceDynamic* OpaquePlaneMaterialXY;
 
 	FLinearColor AxisColorX, AxisColorY, AxisColorZ;
-	FLinearColor ScreenAxisColor;
 	FColor PlaneColorXY, ScreenSpaceColor, CurrentColor;
-	FColor ArcBallColor;
 
 	/** Any mode tools being used */
 	FEditorModeTools* EditorModeTools;
@@ -457,8 +447,8 @@ struct HWidgetAxis : public HHitProxy
 	EAxisList::Type Axis;
 	uint32 bDisabled:1;
 
-	HWidgetAxis(EAxisList::Type InAxis, bool InbDisabled = false, EHitProxyPriority InHitProxy = HPP_UI):
-		HHitProxy(InHitProxy),
+	HWidgetAxis(EAxisList::Type InAxis, bool InbDisabled = false):
+		HHitProxy(HPP_UI),
 		Axis(InAxis),
 		bDisabled(InbDisabled) {}
 

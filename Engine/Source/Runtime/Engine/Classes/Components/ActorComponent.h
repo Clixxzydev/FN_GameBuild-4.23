@@ -239,8 +239,8 @@ private:
 	/** During undo/redo it isn't safe to cache owner */
 	uint8 bCanUseCachedOwner:1;
 
-	/** Marks this component pending kill once PostLoad occurs. Used to clean up old native default subobjects that were removed from code */
-	uint8 bMarkPendingKillOnPostLoad : 1;
+	/** Invalidates this component as an export once the linker is set. Used to clean up old native default subobjects that were removed from code */
+	uint8 bInvalidateExportWhenLinkerIsSet : 1;
 #endif
 
 	/** True if this component was owned by a net startup actor during level load. */
@@ -454,9 +454,6 @@ public:
 	/** This should only be called by the engine in ULevel::InitializeNetworkActors to initialize bIsNetStartupComponent. */
 	void SetIsNetStartupComponent(const bool bInIsNetStartupComponent) { bIsNetStartupComponent = bInIsNetStartupComponent; }
 
-	/** Allows components to handle an EOF update happening mid tick. Can be used to block on in-flight async tasks etc. This should ensure the the component's tick is complete so that it's render update is correct. */
-	virtual void OnEndOfFrameUpdateDuringTick() {}
-
 private:
 	/** Cached pointer to owning actor */
 	mutable AActor* OwnerPrivate;
@@ -553,9 +550,9 @@ public:
 	virtual void InitializeComponent();
 
 	/**
-	 * Begins Play for the component. 
-	 * Called when the owning Actor begins play or when the component is created if the Actor has already begun play.
-	 * Actor BeginPlay normally happens right after PostInitializeComponents but can be delayed for networked or child actors.
+	 * BeginsPlay for the component.  Occurs at level startup or actor spawn. This is before BeginPlay (Actor or Component).  
+	 * All Components (that want initialization) in the level will be Initialized on load before any 
+	 * Actor/Component gets BeginPlay.
 	 * Requires component to be registered and initialized.
 	 */
 	virtual void BeginPlay();
@@ -787,7 +784,7 @@ public:
 	virtual bool IsNameStableForNetworking() const override;
 	virtual bool IsSupportedForNetworking() const override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
-	virtual int32 GetFunctionCallspace( UFunction* Function, FFrame* Stack ) override;
+	virtual int32 GetFunctionCallspace( UFunction* Function, void* Parameters, FFrame* Stack ) override;
 	virtual bool CallRemoteFunction( UFunction* Function, void* Parameters, FOutParmRec* OutParms, FFrame* Stack ) override;
 	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
@@ -795,6 +792,7 @@ public:
 	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
 	virtual void Serialize(FArchive& Ar) override;
 #if WITH_EDITOR
+	virtual void PostLinkerChange() override;
 	virtual bool Modify( bool bAlwaysMarkDirty = true ) override;
 	virtual void PreEditChange(UProperty* PropertyThatWillChange) override;
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -892,11 +890,6 @@ public:
 
 	/** Prefix used to identify template component instances */
 	static const FString ComponentTemplateNameSuffix;
-
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMarkRenderStateDirty, UActorComponent&);
-
-	/** Called When render state is marked dirty */
-	static FOnMarkRenderStateDirty MarkRenderStateDirtyEvent;
 
 protected:
 	/** Makes sure navigation system has up to date information regarding component's navigation relevancy 

@@ -56,12 +56,7 @@ class dxt_hc {
   };
   crnlib::vector<tile_details> m_tiles;
   uint m_num_tiles;
-  //UE4_BEGIN
-  struct float8 {
-    float v[8];
-  };
-  crnlib::vector<float8> m_color_derating;
-  //UE4_END
+  float m_color_derating[cCRNMaxLevels][8];
   float m_alpha_derating[8];
   float m_uint8_to_float[256];
 
@@ -98,21 +93,23 @@ class dxt_hc {
           m_pProgress_func_data(0) {
       m_alpha_component_indices[0] = 3;
       m_alpha_component_indices[1] = 0;
+      for (uint i = 0; i < cCRNMaxLevels; i++) {
+        m_levels[i].m_first_block = 0;
+        m_levels[i].m_num_blocks = 0;
+        m_levels[i].m_block_width = 0;
+      }
     }
 
     uint m_num_blocks;
     uint m_num_levels;
     uint m_num_faces;
 
-    //UE4_BEGIN
-    struct level_details {
+    struct {
       uint m_first_block;
       uint m_num_blocks;
       uint m_block_width;
       float m_weight;
-	};
-	crnlib::vector<level_details> m_levels;
-	//UE4_END
+    } m_levels[cCRNMaxLevels];
 
     dxt_format m_format;
     bool m_perceptual;

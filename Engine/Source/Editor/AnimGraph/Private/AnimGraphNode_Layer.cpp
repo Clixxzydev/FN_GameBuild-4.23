@@ -71,42 +71,6 @@ void UAnimGraphNode_Layer::ValidateAnimNodeDuringCompilation(USkeleton* ForSkele
 				TargetClass = *CurrentBlueprint->SkeletonGeneratedClass;
 			}
 		}
-		else
-		{
-			// check we implement this interface
-			bool bImplementsInterface = false;
-
-			if (CurrentBlueprint)
-			{
-				for (FBPInterfaceDescription& InterfaceDesc : CurrentBlueprint->ImplementedInterfaces)
-				{
-					if (InterfaceDesc.Interface.Get() == TargetClass)
-					{
-						bImplementsInterface = true;
-						break;
-					}
-				}
-			}
-
-			if(!bImplementsInterface)
-			{
-				// Its possible we have a left-over interface referenced here that needs clearing now we are a 'self' layer
-				if(GetInterfaceForLayer() == nullptr)
-				{
-					Node.Interface = nullptr;
-
-					// No interface any more, use this class
-					if (CurrentBlueprint)
-					{
-						TargetClass = *CurrentBlueprint->SkeletonGeneratedClass;
-					}
-				}
-				else
-				{
-					MessageLog.Error(*LOCTEXT("MissingInterfaceError", "Layer node @@ uses interface @@ that this blueprint does not implement.").ToString(), this, Node.Interface.Get());
-				}
-			}
-		}
 
 		if(TargetClass)
 		{
@@ -249,17 +213,43 @@ void UAnimGraphNode_Layer::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	TSharedRef<IPropertyHandle> TagHandle = DetailBuilder.GetProperty(TEXT("Node.Tag"), GetClass());
 	TagHandle->MarkHiddenByCustomization();
 
+	// Customize Interface
+	{
+		TSharedRef<IPropertyHandle> InterfaceHandle = DetailBuilder.GetProperty(TEXT("Node.Interface"), GetClass());
+		if(InterfaceHandle->IsValidHandle())
+		{
+			InterfaceHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateUObject(this, &UAnimGraphNode_Layer::OnStructuralPropertyChanged, &DetailBuilder));
+		}
+
+		InterfaceHandle->MarkHiddenByCustomization();
+
+		FDetailWidgetRow& InterfaceWidgetRow = CategoryBuilder.AddCustomRow(LOCTEXT("FilterStringInterface", "Interface"));
+		InterfaceWidgetRow.NameContent()
+		[
+			InterfaceHandle->CreatePropertyNameWidget()
+		]
+		.ValueContent()
+		.MinDesiredWidth(250.0f)
+		[
+			SNew(SObjectPropertyEntryBox)
+			.ObjectPath_UObject(this, &UAnimGraphNode_Layer::GetCurrentInterfaceBlueprintPath)
+			.AllowedClass(UAnimBlueprint::StaticClass())
+			.NewAssetFactories(TArray<UFactory*>())
+			.OnShouldFilterAsset(FOnShouldFilterAsset::CreateUObject(this, &UAnimGraphNode_Layer::OnShouldFilterInterfaceBlueprint))
+			.OnObjectChanged(FOnSetObject::CreateUObject(this, &UAnimGraphNode_Layer::OnSetInterfaceBlueprint, InterfaceHandle))
+		];
+	}
+
 	// Customize Layer
 	{
 		TSharedRef<IPropertyHandle> LayerHandle = DetailBuilder.GetProperty(TEXT("Node.Layer"), GetClass());
 		if(LayerHandle->IsValidHandle())
 		{
-			LayerHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateUObject(this, &UAnimGraphNode_Layer::OnLayerChanged, &DetailBuilder));
+			LayerHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateUObject(this, &UAnimGraphNode_Layer::OnStructuralPropertyChanged, &DetailBuilder));
 		}
 
 		LayerHandle->MarkHiddenByCustomization();
 
-		// Check layers available in this BP
 		FDetailWidgetRow& LayerWidgetRow = CategoryBuilder.AddCustomRow(LOCTEXT("FilterStringLayer", "Layer"));
 		LayerWidgetRow.NameContent()
 		[
@@ -268,70 +258,32 @@ void UAnimGraphNode_Layer::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 		.ValueContent()
 		.MinDesiredWidth(150.0f)
 		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			[
-				SNew(SBox)
-				.Visibility_Lambda([this](){ return HasAvailableLayers() ? EVisibility::Visible : EVisibility::Collapsed; })
-				[
-					PropertyCustomizationHelpers::MakePropertyComboBox(
-						LayerHandle, 
-						FOnGetPropertyComboBoxStrings::CreateUObject(this,  &UAnimGraphNode_Layer::GetLayerNames),
-						FOnGetPropertyComboBoxValue::CreateUObject(this,  &UAnimGraphNode_Layer::GetLayerName)
-					)
-				]
-			]
-			+SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Visibility_Lambda([this](){ return !HasAvailableLayers() ? EVisibility::Visible : EVisibility::Collapsed; })
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(LOCTEXT("NoLayersWarning", "No available layers."))
-				.ToolTipText(LOCTEXT("NoLayersWarningTooltip", "This Animation Blueprint has no layers to choose from.\nTo add some, either implement an Animation Layer Interface via the Class Settings, or add an animation layer in the My Blueprint tab."))
-			]
+			PropertyCustomizationHelpers::MakePropertyComboBox(
+				LayerHandle, 
+				FOnGetPropertyComboBoxStrings::CreateUObject(this,  &UAnimGraphNode_Layer::GetLayerNames),
+				FOnGetPropertyComboBoxValue::CreateUObject(this,  &UAnimGraphNode_Layer::GetLayerName)
+			)
 		];
 	}
 
-	UAnimGraphNode_CustomProperty::CustomizeDetails(DetailBuilder);
+	Super::CustomizeDetails(DetailBuilder);
+}
 
-	// Customize InstanceClass with unique visibility (identical to parent class apart from this)
+FString UAnimGraphNode_Layer::GetCurrentInterfaceBlueprintPath() const
+{
+	UClass* InterfaceClass = *Node.Interface;
+
+	if(InterfaceClass)
 	{
-		TSharedRef<IPropertyHandle> ClassHandle = DetailBuilder.GetProperty(TEXT("Node.InstanceClass"), GetClass());
-		ClassHandle->MarkHiddenByCustomization();
+		UBlueprint* ActualBlueprint = UBlueprint::GetBlueprintFromClass(InterfaceClass);
 
-		FDetailWidgetRow& ClassWidgetRow = CategoryBuilder.AddCustomRow(LOCTEXT("FilterStringInstanceClass", "Instance Class"));
-		ClassWidgetRow.NameContent()
-		[
-			ClassHandle->CreatePropertyNameWidget()
-		]
-		.ValueContent()
-		.MinDesiredWidth(250.0f)
-		[
-			SNew(SHorizontalBox)
-			+SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			[
-				SNew(SObjectPropertyEntryBox)
-				.Visibility_Lambda([this](){ return HasValidNonSelfLayer() ? EVisibility::Visible : EVisibility::Collapsed; })
-				.ObjectPath_UObject(this, &UAnimGraphNode_Layer::GetCurrentInstanceBlueprintPath)
-				.AllowedClass(UAnimBlueprint::StaticClass())
-				.NewAssetFactories(TArray<UFactory*>())
-				.OnShouldFilterAsset(FOnShouldFilterAsset::CreateUObject(this, &UAnimGraphNode_Layer::OnShouldFilterInstanceBlueprint))
-				.OnObjectChanged(FOnSetObject::CreateUObject(this, &UAnimGraphNode_Layer::OnSetInstanceBlueprint, &DetailBuilder))
-			]
-			+SHorizontalBox::Slot()
-			.VAlign(VAlign_Center)
-			[
-				SNew(STextBlock)
-				.Visibility_Lambda([this](){ return !HasValidNonSelfLayer() ? EVisibility::Visible : EVisibility::Collapsed; })
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text(LOCTEXT("SelfLayersWarning", "Uses layer in this Blueprint."))
-				.ToolTipText(LOCTEXT("SelfLayersWarningTooltip", "This layer node refers to a layer only in this blueprint, so cannot be overriden by an external blueprint implementation.\nChange to use a layer from an implemented interface to allow this override."))
-			]
-		];
+		if(ActualBlueprint)
+		{
+			return ActualBlueprint->GetPathName();
+		}
 	}
+
+	return FString();
 }
 
 bool UAnimGraphNode_Layer::OnShouldFilterInstanceBlueprint(const FAssetData& AssetData) const
@@ -343,20 +295,8 @@ bool UAnimGraphNode_Layer::OnShouldFilterInstanceBlueprint(const FAssetData& Ass
 
 	if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
 	{
-		TArray<TSubclassOf<UInterface>> AnimInterfaces;
-		for(const FBPInterfaceDescription& InterfaceDesc : CurrentBlueprint->ImplementedInterfaces)
-		{
-			if(InterfaceDesc.Interface && InterfaceDesc.Interface->IsChildOf<UAnimLayerInterface>())
-			{
-				if(Node.Layer == NAME_None || InterfaceDesc.Interface->FindFunctionByName(Node.Layer))
-				{
-					AnimInterfaces.Add(InterfaceDesc.Interface);
-				}
-			}
-		}
-
 		// Check interface compatibility
-		if(AnimInterfaces.Num() > 0)
+		if(UClass* InterfaceClass = Node.Interface.Get())
 		{
 			bool bMatchesInterface = false;
 
@@ -377,12 +317,7 @@ bool UAnimGraphNode_Layer::OnShouldFilterInstanceBlueprint(const FAssetData& Ass
 							InterfacePath.RemoveFromEnd(TEXT("\"'"));
 
 							FCoreRedirectObjectName ResolvedInterfaceName = FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Class, FCoreRedirectObjectName(InterfacePath));
-
-							// Verify against all interfaces we currently implement
-							for(TSubclassOf<UInterface> AnimInterface : AnimInterfaces)
-							{
-								bMatchesInterface |= ResolvedInterfaceName.ObjectName == AnimInterface->GetFName();
-							}
+							bMatchesInterface = ResolvedInterfaceName.ObjectName == InterfaceClass->GetFName();
 						}
 					}
 			
@@ -394,11 +329,6 @@ bool UAnimGraphNode_Layer::OnShouldFilterInstanceBlueprint(const FAssetData& Ass
 			{
 				return true;
 			}
-		}
-		else
-		{
-			// No interfaces, so no compatible BPs
-			return true;
 		}
 	}
 
@@ -420,6 +350,38 @@ FString UAnimGraphNode_Layer::GetCurrentInstanceBlueprintPath() const
 	}
 
 	return FString();
+}
+
+bool UAnimGraphNode_Layer::OnShouldFilterInterfaceBlueprint(const FAssetData& AssetData) const
+{
+	FAssetDataTagMapSharedView::FFindTagResult Result = AssetData.TagsAndValues.FindTag("ParentClass");
+	if (Result.IsSet())
+	{
+		FString ParentClassObjectPath;
+		if (FPackageName::ParseExportTextPath(Result.GetValue(), nullptr, &ParentClassObjectPath))
+		{
+			ParentClassObjectPath.RemoveFromEnd(TEXT("_C"));
+			return ParentClassObjectPath != UAnimLayerInterface::StaticClass()->GetPathName();
+		}
+
+	}
+
+	return true;
+}
+
+void UAnimGraphNode_Layer::OnSetInterfaceBlueprint(const FAssetData& AssetData, TSharedRef<IPropertyHandle> InterfaceClassPropHandle)
+{
+	FScopedTransaction Transaction(LOCTEXT("SetInterface", "Set Instance Interface"));
+	Modify();
+
+	if(UAnimBlueprint* Blueprint = Cast<UAnimBlueprint>(AssetData.GetAsset()))
+	{
+		InterfaceClassPropHandle->SetValue(Blueprint->GetAnimBlueprintGeneratedClass());
+	}
+	else
+	{
+		InterfaceClassPropHandle->SetValue((UObject*)nullptr);
+	}
 }
 
 void UAnimGraphNode_Layer::GetExposableProperties(TArray<UProperty*>& OutExposableProperties) const
@@ -445,21 +407,26 @@ void UAnimGraphNode_Layer::GetExposableProperties(TArray<UProperty*>& OutExposab
 
 void UAnimGraphNode_Layer::GetLayerNames(TArray<TSharedPtr<FString>>& OutStrings, TArray<TSharedPtr<SToolTip>>& OutToolTips, TArray<bool>& OutRestrictedItems)
 {
-	// If no interface specified, use this class
-	if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
+	UClass* TargetClass = *Node.Interface;
+	if(TargetClass == nullptr)
 	{
-		UClass* TargetClass = *CurrentBlueprint->SkeletonGeneratedClass;
-		if(TargetClass)
+		// If no interface specified, use this class
+		if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
 		{
-			IAnimClassInterface* AnimClassInterface = IAnimClassInterface::GetFromClass(TargetClass);
-			for(const FAnimBlueprintFunction& AnimBlueprintFunction : AnimClassInterface->GetAnimBlueprintFunctions())
+			TargetClass = *CurrentBlueprint->SkeletonGeneratedClass;
+		}
+	}
+
+	if(TargetClass)
+	{
+		IAnimClassInterface* AnimClassInterface = IAnimClassInterface::GetFromClass(TargetClass);
+		for(const FAnimBlueprintFunction& AnimBlueprintFunction : AnimClassInterface->GetAnimBlueprintFunctions())
+		{
+			if(AnimBlueprintFunction.Name != UEdGraphSchema_K2::GN_AnimGraph)
 			{
-				if(AnimBlueprintFunction.Name != UEdGraphSchema_K2::GN_AnimGraph)
-				{
-					OutStrings.Add(MakeShared<FString>(AnimBlueprintFunction.Name.ToString()));
-					OutToolTips.Add(nullptr);
-					OutRestrictedItems.Add(false);
-				}
+				OutStrings.Add(MakeShared<FString>(AnimBlueprintFunction.Name.ToString()));
+				OutToolTips.Add(nullptr);
+				OutRestrictedItems.Add(false);
 			}
 		}
 	}
@@ -473,6 +440,7 @@ FString UAnimGraphNode_Layer::GetLayerName() const
 bool UAnimGraphNode_Layer::IsStructuralProperty(UProperty* InProperty) const
 {
 	return Super::IsStructuralProperty(InProperty) ||
+		InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FAnimNode_Layer, Interface) ||
 		InProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FAnimNode_Layer, Layer);
 }
 
@@ -481,94 +449,13 @@ UClass* UAnimGraphNode_Layer::GetTargetSkeletonClass() const
 	UClass* SuperTargetSkeletonClass = Super::GetTargetSkeletonClass();
 	if(SuperTargetSkeletonClass == nullptr)
 	{
-		// If no concrete class specified, use this class
+		// If no interface specified, use this class
 		if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
 		{
 			SuperTargetSkeletonClass = *CurrentBlueprint->SkeletonGeneratedClass;
 		}
 	}
 	return SuperTargetSkeletonClass;
-}
-
-TSubclassOf<UInterface> UAnimGraphNode_Layer::GetInterfaceForLayer() const
-{
-	if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
-	{
-		UClass* TargetClass = *CurrentBlueprint->SkeletonGeneratedClass;
-		if(TargetClass)
-		{
-			// Find layer with this name in interfaces
-			for(FBPInterfaceDescription& InterfaceDesc : CurrentBlueprint->ImplementedInterfaces)
-			{
-				for(UEdGraph* InterfaceGraph : InterfaceDesc.Graphs)
-				{
-					if(InterfaceGraph->GetFName() == Node.Layer)
-					{
-						return InterfaceDesc.Interface;
-					}
-				}
-			}
-		}
-	}
-
-	return nullptr;
-}
-
-void UAnimGraphNode_Layer::OnLayerChanged(IDetailLayoutBuilder* DetailBuilder)
-{
-	OnStructuralPropertyChanged(DetailBuilder);
-
-	// Get the interface for this layer. If null, then we are using a 'self' layer.
-	Node.Interface = GetInterfaceForLayer();
-
-	if(Node.Interface.Get() == nullptr)
-	{
-		// Self layers cannot have override implementations
-		Node.InstanceClass = nullptr;
-	}
-}
-
-bool UAnimGraphNode_Layer::HasAvailableLayers() const
-{
-	if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
-	{
-		UClass* TargetClass = *CurrentBlueprint->SkeletonGeneratedClass;
-		if(TargetClass)
-		{
-			IAnimClassInterface* AnimClassInterface = IAnimClassInterface::GetFromClass(TargetClass);
-			for(const FAnimBlueprintFunction& AnimBlueprintFunction : AnimClassInterface->GetAnimBlueprintFunctions())
-			{
-				if(AnimBlueprintFunction.Name != UEdGraphSchema_K2::GN_AnimGraph)
-				{
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
-}
-
-bool UAnimGraphNode_Layer::HasValidNonSelfLayer() const
-{
-	if (UAnimBlueprint* CurrentBlueprint = Cast<UAnimBlueprint>(GetBlueprint()))
-	{
-		if(Node.Interface.Get())
-		{
-			for(const FBPInterfaceDescription& InterfaceDesc : CurrentBlueprint->ImplementedInterfaces)
-			{
-				if(InterfaceDesc.Interface && InterfaceDesc.Interface->IsChildOf<UAnimLayerInterface>())
-				{
-					if(InterfaceDesc.Interface->FindFunctionByName(Node.Layer))
-					{
-						return true;
-					}
-				}
-			}
-		}
-	}
-
-	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

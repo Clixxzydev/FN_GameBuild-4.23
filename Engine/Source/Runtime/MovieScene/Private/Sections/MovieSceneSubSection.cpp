@@ -309,9 +309,3 @@ FMovieSceneSubSequenceData UMovieSceneSubSection::GenerateSubSequenceData(const 
 {
 	return FMovieSceneSubSequenceData(*this);
 }
-
-FFrameNumber UMovieSceneSubSection::MapTimeToSectionFrame(FFrameTime InPosition) const
-{
-	FFrameNumber LocalPosition = ((InPosition - Parameters.StartFrameOffset) * Parameters.TimeScale).GetFrame();
-	return LocalPosition;
-}

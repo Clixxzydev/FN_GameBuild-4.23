@@ -1,12 +1,10 @@
-Availability: docs
+Availability: Public
 Title:7 - On Your Own!
 Crumbs:%ROOT%, GettingStarted, Engine/QuickStart
 Description:Using the methods provided during this guide, polish up your level with additional content and read up on related topics. 
 SkillLevel:Beginner
 Version:4.9
 checkpoint: editorqs
-
-## Marking as docs as the pages have been combined. 
 
 [VAR:Steps]
 [OBJECT:Navigation]

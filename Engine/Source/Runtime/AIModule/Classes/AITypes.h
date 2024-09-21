@@ -57,7 +57,8 @@ namespace EAIOptionFlag
 	enum Type
 	{
 		Default,
-		Enable UMETA(DisplayName = "Yes"),
+		Enable UMETA(DisplayName = "Yes"),	// UHT was complaining when tried to use True as value instead of Enable
+
 		Disable UMETA(DisplayName = "No"),
 
 		MAX UMETA(Hidden)

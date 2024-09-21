@@ -95,9 +95,6 @@ struct FMinimalViewInfo
 	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadWrite, Category = Camera)
 	FVector2D OffCenterProjectionOffset;
 
-	/** Optional transform to be considered as this view's previous transform */
-	TOptional<FTransform> PreviousViewTransform;
-
 	FMinimalViewInfo()
 		: Location(ForceInit)
 		, Rotation(ForceInit)

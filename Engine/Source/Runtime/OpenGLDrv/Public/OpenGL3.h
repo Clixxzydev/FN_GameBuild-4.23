@@ -142,23 +142,23 @@ struct FOpenGL3 : public FOpenGLBase
 		GLenum Access;
 		switch ( LockMode )
 		{
-			case EResourceLockMode::RLM_ReadOnly:
+			case RLM_ReadOnly:
 				Access = GL_MAP_READ_BIT;
 				break;
-			case EResourceLockMode::RLM_WriteOnly:
+			case RLM_WriteOnly:
 				Access = (GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_WRITE_BIT);
 #if 1
 				// Temp workaround for synchrnoization when a UBO is discarded while being referenced
 				Access |= GL_MAP_UNSYNCHRONIZED_BIT;
 #endif
 				break;
-			case EResourceLockMode::RLM_WriteOnlyUnsynchronized:
+			case RLM_WriteOnlyUnsynchronized:
 				Access = (GL_MAP_WRITE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
 				break;
-			case EResourceLockMode::RLM_WriteOnlyPersistent:
+			case RLM_WriteOnlyPersistent:
 				Access = (GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT);
 				break;
-			case EResourceLockMode::RLM_ReadWrite:
+			case RLM_ReadWrite:
 			default:
 				Access = (GL_MAP_READ_BIT | GL_MAP_WRITE_BIT);
 		}
@@ -409,16 +409,6 @@ struct FOpenGL3 : public FOpenGLBase
 	static FORCEINLINE void TexSubImage3D(GLenum Target, GLint Level, GLint XOffset, GLint YOffset, GLint ZOffset, GLsizei Width, GLsizei Height, GLsizei Depth, GLenum Format, GLenum Type, const GLvoid* PixelData)
 	{
 		glTexSubImage3D(Target, Level, XOffset, YOffset, ZOffset, Width, Height, Depth, Format, Type, PixelData);
-	}
-
-	static FORCEINLINE void	CopyTexSubImage1D(GLenum Target, GLint Level, GLint XOffset, GLint X, GLint Y, GLsizei Width)
-	{
-		glCopyTexSubImage1D(Target, Level, XOffset, X, Y, Width);
-	}
-
-	static FORCEINLINE void	CopyTexSubImage2D(GLenum Target, GLint Level, GLint XOffset, GLint YOffset, GLint X, GLint Y, GLsizei Width, GLsizei Height)
-	{
-		glCopyTexSubImage2D(Target, Level, XOffset, YOffset, X, Y, Width, Height);
 	}
 
 	static FORCEINLINE void	CopyTexSubImage3D(GLenum Target, GLint Level, GLint XOffset, GLint YOffset, GLint ZOffset, GLint X, GLint Y, GLsizei Width, GLsizei Height)

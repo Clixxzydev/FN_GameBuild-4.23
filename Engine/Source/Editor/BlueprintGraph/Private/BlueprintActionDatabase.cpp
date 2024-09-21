@@ -1103,11 +1103,6 @@ void FBlueprintActionDatabase::AddReferencedObjects(FReferenceCollector& Collect
 	}
 }
 
-FString FBlueprintActionDatabase::GetReferencerName() const
-{
-	return TEXT("FBlueprintActionDatabase");
-}
-
 int32 GBlueprintDatabasePrimingMaxPerFrame = 16;
 static FAutoConsoleVariableRef CVarBlueprintDatabasePrimingMaxPerFrame(
 	TEXT("bp.DatabasePrimingMaxPerFrame"),

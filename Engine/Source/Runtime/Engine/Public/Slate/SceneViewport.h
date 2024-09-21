@@ -249,10 +249,6 @@ public:
 	
 	void SetViewportSize(uint32 NewSizeX,uint32 NewSizeY);
 	void SetFixedViewportSize(uint32 NewSizeX, uint32 NewSizeY);
-
-	/** Does the viewport has a fixed size */
-	bool HasFixedSize() const;
-
 	TSharedPtr<SWindow> FindWindow();
 
 	/** Should return true, if stereo rendering is allowed in this viewport */
@@ -348,7 +344,7 @@ private:
 	void ApplyModifierKeys( const FModifierKeysState& InKeysState );
 
 	/** Utility function to create an FReply that properly gets Focus and capture based on the settings*/
-	FReply AcquireFocusAndCapture(FIntPoint MousePosition, EFocusCause FocusCause = EFocusCause::SetDirectly);
+	FReply AcquireFocusAndCapture(FIntPoint MousePosition);
 
 	/** Utility function to figure out if we are currently a game viewport */
 	bool IsCurrentlyGameViewport();

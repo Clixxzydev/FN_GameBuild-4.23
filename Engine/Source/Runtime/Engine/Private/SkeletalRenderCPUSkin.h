@@ -209,6 +209,11 @@ private:
 			CumulativeResourceSize.AddUnknownMemoryBytes(StaticMeshVertexBuffer.GetResourceSize() + PositionVertexBuffer.GetStride() * PositionVertexBuffer.GetNumVertices());
 		}
 
+#if RHI_RAYTRACING
+		/** Builds ray tracing acceleration structures per LOD. */
+		void BuildRayTracingAccelerationStructure();
+#endif // RHI_RAYTRACING
+
 		void UpdateSkinWeights(FSkelMeshComponentLODInfo* CompLODInfo);
 	};
 

@@ -158,7 +158,7 @@ public:
 	/**
 	 * Retrieves the curve texture from which shaders can sample.
 	 */
-	FRHITexture2D* GetCurveTexture() { return CurveTextureRHI; }
+	FTexture2DRHIParamRef GetCurveTexture() { return CurveTextureRHI; }
 
 	/**
 	 * Submits pending curves to the GPU.

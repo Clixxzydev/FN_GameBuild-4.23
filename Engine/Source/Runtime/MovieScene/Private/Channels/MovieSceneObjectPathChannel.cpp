@@ -27,13 +27,6 @@ bool FMovieSceneObjectPathChannelKeyValue::SerializeFromMismatchedTag(const FPro
 	return false;
 }
 
-FMovieSceneObjectPathChannelKeyValue::FMovieSceneObjectPathChannelKeyValue(UObject* InObject)
-	: SoftPtr(nullptr)
-	, HardPtr(nullptr)
-{
-	*this = InObject;
-}
-
 FMovieSceneObjectPathChannelKeyValue& FMovieSceneObjectPathChannelKeyValue::operator=(UObject* NewObject)
 {
 	// Do not store raw ptrs to actors or other objects that exist in worlds

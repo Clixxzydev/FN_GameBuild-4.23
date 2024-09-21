@@ -97,14 +97,13 @@ TSharedRef< SWidget > SNiagaraSpreadsheetRow::GenerateWidgetForColumn(const FNam
 			float* Src = nullptr;
 			if (UseGlobalOffsets && ParameterStore->GetParameterDataArray().GetData() != nullptr)
 			{
-				const uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
-				const uint8* SrcU8 = ParameterStore->GetParameterDataArray().GetData();
-				Src = SrcU8 ? (float*)(SrcU8 + CompBufferOffset) : nullptr;
+				uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
+				Src = (float*)(ParameterStore->GetParameterDataArray().GetData() + CompBufferOffset);
 			}
-			else if (DataSet != nullptr && DataSet->GetCurrentDataChecked().GetNumInstances() > 0)
+			else if (DataSet != nullptr && DataSet->PrevData().GetNumInstances() > 0)
 			{
 				uint32 CompBufferOffset = FieldInfo->FloatStartOffset;
-				Src = DataSet->GetCurrentData()->GetInstancePtrFloat(CompBufferOffset, RealRowIdx);
+				Src = DataSet->PrevData().GetInstancePtrFloat(CompBufferOffset, RealRowIdx);
 			}
 
 			float Value = 0.0f;
@@ -122,14 +121,13 @@ TSharedRef< SWidget > SNiagaraSpreadsheetRow::GenerateWidgetForColumn(const FNam
 			int32* Src = nullptr;
 			if (UseGlobalOffsets)
 			{
-				const uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
-				const uint8* SrcU8 = ParameterStore->GetParameterDataArray().GetData();
-				Src = SrcU8 ? (int32*)(SrcU8 + CompBufferOffset) : nullptr;
+				uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
+				Src = (int32*)(ParameterStore->GetParameterDataArray().GetData() + CompBufferOffset);
 			}
-			else if (DataSet && DataSet->GetCurrentDataChecked().GetNumInstances() > 0)
+			else if (DataSet && DataSet->PrevData().GetNumInstances() > 0)
 			{
 				uint32 CompBufferOffset = FieldInfo->IntStartOffset;
-				Src = DataSet->GetCurrentDataChecked().GetInstancePtrInt32(CompBufferOffset, RealRowIdx);
+				Src = DataSet->PrevData().GetInstancePtrInt32(CompBufferOffset, RealRowIdx);
 			}
 			FText ValueText;
 			if (Src && Src[0] == 0)
@@ -153,14 +151,13 @@ TSharedRef< SWidget > SNiagaraSpreadsheetRow::GenerateWidgetForColumn(const FNam
 			int32* Src = nullptr;
 			if (UseGlobalOffsets)
 			{
-				const uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
-				const uint8* SrcU8 = ParameterStore->GetParameterDataArray().GetData();
-				Src = SrcU8 ? (int32*)(SrcU8 + CompBufferOffset) : nullptr;
+				uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
+				Src = (int32*)(ParameterStore->GetParameterDataArray().GetData() + CompBufferOffset);
 			}
-			else if (DataSet != nullptr && DataSet->GetCurrentDataChecked().GetNumInstances() > 0)
+			else if (DataSet != nullptr && DataSet->PrevData().GetNumInstances() > 0)
 			{
 				uint32 CompBufferOffset = FieldInfo->IntStartOffset;
-				Src = DataSet->GetCurrentDataChecked().GetInstancePtrInt32(CompBufferOffset, RealRowIdx);
+				Src = DataSet->PrevData().GetInstancePtrInt32(CompBufferOffset, RealRowIdx);
 			}
 
 			int32 Value = 0;
@@ -177,14 +174,13 @@ TSharedRef< SWidget > SNiagaraSpreadsheetRow::GenerateWidgetForColumn(const FNam
 			int32* Src = nullptr;
 			if (UseGlobalOffsets)
 			{
-				const uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
-				const uint8* SrcU8 = ParameterStore->GetParameterDataArray().GetData();
-				Src = SrcU8 ? (int32*)(SrcU8 + CompBufferOffset) : nullptr;
+				uint32 CompBufferOffset = FieldInfo->GlobalStartOffset;
+				Src = (int32*)(ParameterStore->GetParameterDataArray().GetData() + CompBufferOffset);
 			}
-			else if (DataSet && DataSet->GetCurrentDataChecked().GetNumInstances() > 0)
+			else if (DataSet && DataSet->PrevData().GetNumInstances() > 0)
 			{
 				uint32 CompBufferOffset = FieldInfo->IntStartOffset;
-				Src = DataSet->GetCurrentDataChecked().GetInstancePtrInt32(CompBufferOffset, RealRowIdx);
+				Src = DataSet->PrevData().GetInstancePtrInt32(CompBufferOffset, RealRowIdx);
 			}
 
 			int32 Value = 0;
@@ -285,19 +281,19 @@ void SNiagaraSpreadsheetView::Construct(const FArguments& InArgs, TSharedRef<FNi
 
 		CaptureData[i].OutputHorizontalScrollBar = SNew(SScrollBar)
 			.Orientation(Orient_Horizontal)
-			.Thickness(FVector2D(12.0f, 12.0f));
+			.Thickness(FVector2D(8.0f, 8.0f));
 
 		CaptureData[i].OutputVerticalScrollBar = SNew(SScrollBar)
 			.Orientation(Orient_Vertical)
-			.Thickness(FVector2D(12.0f, 12.0f));
+			.Thickness(FVector2D(8.0f, 8.0f));
 
 		CaptureData[i].InputHorizontalScrollBar = SNew(SScrollBar)
 			.Orientation(Orient_Horizontal)
-			.Thickness(FVector2D(12.0f, 12.0f));
+			.Thickness(FVector2D(8.0f, 8.0f));
 
 		CaptureData[i].InputVerticalScrollBar = SNew(SScrollBar)
 			.Orientation(Orient_Vertical)
-			.Thickness(FVector2D(12.0f, 12.0f));
+			.Thickness(FVector2D(8.0f, 8.0f));
 
 		SAssignNew(CaptureData[i].OutputsListView, STreeView< TSharedPtr<int32> >)
 			.IsEnabled(this, &SNiagaraSpreadsheetView::IsPausedAtRightTimeOnRightHandle)
@@ -691,7 +687,7 @@ TSharedRef<SWidget> SNiagaraSpreadsheetView::OnGetTargetMenuContent() const
 				ComponentName,
 				ComponentTooltip,
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateRaw(const_cast<SNiagaraSpreadsheetView*>(this), &SNiagaraSpreadsheetView::SetTarget, *It)));
+				FUIAction(FExecuteAction::CreateRaw(this, &SNiagaraSpreadsheetView::SetTarget, *It)));
 		}
 	}
 
@@ -707,7 +703,7 @@ void SNiagaraSpreadsheetView::SetTarget(UNiagaraComponent* InComponent)
 
 	for (int32 i = 0; i < (int32)UIMax; i++)
 	{
-		CaptureData[i].DataSet.Init(FNiagaraDataSetID(), ENiagaraSimTarget::CPUSim, InComponent->GetFullName() + TEXT("/Spreadsheet"));
+		CaptureData[i].DataSet.Init(FNiagaraDataSetID(), ENiagaraSimTarget::CPUSim);
 		CaptureData[i].InputParams.Reset();
 		CaptureData[i].CaptureData.Reset();
 	}
@@ -788,11 +784,11 @@ FText SNiagaraSpreadsheetView::LastCapturedInfoText() const
 {
 	TArray<TSharedRef<FNiagaraEmitterHandleViewModel>> SelectedEmitterHandles;
 	SystemViewModel->GetSelectedEmitterHandles(SelectedEmitterHandles);
-	if (SelectedEmitterHandles.Num() == 1 && SNiagaraSpreadsheetView::IsPausedAtRightTimeOnRightHandle() && CaptureData[(int32)TabState].DataSet.GetCurrentData())
+	if (SelectedEmitterHandles.Num() == 1 && SNiagaraSpreadsheetView::IsPausedAtRightTimeOnRightHandle())
 	{
 		return FText::Format(LOCTEXT("LastCapturedInfoName", "Captured Emitter: \"{0}\"     # Particles: {1}    Script Type: {2}"),
 			SelectedEmitterHandles[0]->GetNameText(),
-			FText::AsNumber(CaptureData[(int32)TabState].DataSet.GetCurrentDataChecked().GetNumInstances()),
+			FText::AsNumber(CaptureData[(int32)TabState].DataSet.PrevData().GetNumInstances()),
 			ScriptEnum->GetDisplayNameTextByValue((int64)CaptureData[(int32)TabState].TargetUsage));
 	}
 
@@ -899,7 +895,7 @@ void SNiagaraSpreadsheetView::SelectedEmitterHandlesChanged()
 	// Need to reset the attributes list...
 	for (int32 i = 0; i < (int32)UIMax; i++)
 	{
-		CaptureData[i].DataSet.Init(FNiagaraDataSetID(), ENiagaraSimTarget::CPUSim, TEXT("/Spreadsheet"));
+		CaptureData[i].DataSet.Init(FNiagaraDataSetID(), ENiagaraSimTarget::CPUSim);
 		CaptureData[i].SupportedInputIndices.SetNum(0);
 		CaptureData[i].SupportedOutputIndices.SetNum(0);
 		CaptureData[i].OutputsListView->RequestTreeRefresh();
@@ -940,7 +936,7 @@ FReply SNiagaraSpreadsheetView::OnCSVOutputPressed()
 
 		CSVOutput += "\r\n";
 
-		for (uint32 RowIndex = 0; RowIndex < CaptureData[(int32)TabState].DataSet.GetCurrentDataChecked().GetNumInstances(); RowIndex++)
+		for (uint32 RowIndex = 0; RowIndex < CaptureData[(int32)TabState].DataSet.PrevData().GetNumInstances(); RowIndex++)
 		{
 			NumWritten = 0;
 			for (int32 i = 0; i < CaptureData[(int32)TabState].SupportedOutputFields->Num(); i++)
@@ -956,18 +952,18 @@ FReply SNiagaraSpreadsheetView::OnCSVOutputPressed()
 				}
 				const SNiagaraSpreadsheetView::FieldInfo* FieldInfo = FieldInfos[i];
 				
-				if (FieldInfo != nullptr && CaptureData[(int32)TabState].DataSet.GetCurrentDataChecked().GetNumInstances() != 0)
+				if (FieldInfo != nullptr && CaptureData[(int32)TabState].DataSet.GetNumInstances() != 0)
 				{
 					if (FieldInfo->bFloat)
 					{
 						uint32 CompBufferOffset = FieldInfo->FloatStartOffset;
-						float* Src = CaptureData[(int32)TabState].DataSet.GetCurrentDataChecked().GetInstancePtrFloat(CompBufferOffset, RowIndex);
+						float* Src = CaptureData[(int32)TabState].DataSet.PrevData().GetInstancePtrFloat(CompBufferOffset, RowIndex);
 						CSVOutput += FString::Printf(TEXT("%3.9f"), Src[0]);
 					}
 					else
 					{
 						uint32 CompBufferOffset = FieldInfo->IntStartOffset;
-						int32* Src = CaptureData[(int32)TabState].DataSet.GetCurrentDataChecked().GetInstancePtrInt32(CompBufferOffset, RowIndex);
+						int32* Src = CaptureData[(int32)TabState].DataSet.PrevData().GetInstancePtrInt32(CompBufferOffset, RowIndex);
 						CSVOutput += FString::Printf(TEXT("%d"), Src[0]);
 					}
 				}
@@ -1022,7 +1018,8 @@ void SNiagaraSpreadsheetView::HandleTimeChange()
 					if (FoundEntry != nullptr)
 					{
 						CaptureData[i].CaptureData = *FoundEntry;
-						CaptureData[i].CaptureData->Frame.CopyTo(CaptureData[i].DataSet);
+						CaptureData[i].CaptureData->Frame.CopyCurToPrev();
+						CaptureData[i].DataSet = CaptureData[i].CaptureData->Frame;
 						CaptureData[i].InputParams = CaptureData[i].CaptureData->Parameters;
 						CaptureData[i].LastCaptureHandleId = SelectedEmitterHandles[0]->GetId();
 
@@ -1032,8 +1029,7 @@ void SNiagaraSpreadsheetView::HandleTimeChange()
 					else
 					{
 						CaptureData[i].CaptureData.Reset();
-						CaptureData[i].DataSet.Init(FNiagaraDataSetID(), ENiagaraSimTarget::CPUSim, TargetComponent->GetFullName() + TEXT("/Spreadsheet"));
-						CaptureData[i].DataSet.Finalize();
+						CaptureData[i].DataSet.Init(FNiagaraDataSetID(), ENiagaraSimTarget::CPUSim);
 
 						ResetColumns((EUITab)i);
 						ResetEntries((EUITab)i);
@@ -1088,7 +1084,7 @@ void SNiagaraSpreadsheetView::ResetEntries(EUITab Tab)
 {
 	{
 		{
-			int32 NumInstances = CaptureData[(int32)Tab].DataSet.GetCurrentData() ? CaptureData[(int32)Tab].DataSet.GetCurrentDataChecked().GetNumInstances() : 0;
+			int32 NumInstances = CaptureData[(int32)Tab].DataSet.GetPrevNumInstances();
 			if (!CaptureData[(int32)Tab].bOutputColumnsAreAttributes && CaptureData[(int32)Tab].SupportedOutputFields.IsValid())
 			{
 				NumInstances = CaptureData[(int32)Tab].SupportedOutputFields->Num();
@@ -1186,7 +1182,7 @@ void SNiagaraSpreadsheetView::ResetColumns(EUITab Tab)
 {
 	int32 i = (int32)Tab;
 
-	if (CaptureData[i].DataSet.GetCurrentData() && CaptureData[i].DataSet.GetCurrentData()->GetNumInstances() != 0)
+	if (CaptureData[(int32)i].DataSet.GetNumInstances() != 0)
 	{
 		float ManualWidth = 125.0f;
 

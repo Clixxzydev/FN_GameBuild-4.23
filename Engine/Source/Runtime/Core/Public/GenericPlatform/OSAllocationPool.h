@@ -2,7 +2,6 @@
 
 #pragma once
 
-#if PLATFORM_HAS_FPlatformVirtualMemoryBlock
 /*
  *  Perform checks that ensure that the pools are working as intended. This is not necessary in builds that are used for Shipping/Test or for the Development editor.
  */
@@ -16,6 +15,8 @@
 * @param RequiredAlignment alignment for the addresses returned from this pool
 */
 template<
+	bool(*CommitAddressRange)(void* AddrStart, SIZE_T Size),
+	bool(*EvictAddressRange)(void* AddrStart, SIZE_T Size),
 	SIZE_T RequiredAlignment
 >
 class TMemoryPool
@@ -46,15 +47,13 @@ protected:
 	/** When we're allocating less than block size, only BlockSize - Size is going to be used. */
 	SIZE_T 		UsefulMemorySize;
 
-	FPlatformMemory::FPlatformVirtualMemoryBlock VMBlock;
-
 #if UE4_TMEMORY_POOL_DO_SANITY_CHECKS
 	FThreadSafeCounter NoConcurrentAccess; // Tests that this is not being accessed on multiple threads at once, see TestPAL mallocthreadtest
 #endif // UE4_TMEMORY_POOL_DO_SANITY_CHECKS
 
 public:
 
-	TMemoryPool(SIZE_T InBlockSize, SIZE_T InAlignedPoolStart, SIZE_T InNumBlocks, uint8* InBitmask, FPlatformMemory::FPlatformVirtualMemoryBlock& InVMBlock)
+	TMemoryPool(SIZE_T InBlockSize, SIZE_T InAlignedPoolStart, SIZE_T InNumBlocks, uint8* InBitmask)
 		: BlockSize(InBlockSize)
 		, AlignedPoolStart(InAlignedPoolStart)
 		, AlignedPoolEnd(InAlignedPoolStart + InBlockSize * (SIZE_T)InNumBlocks)
@@ -63,7 +62,6 @@ public:
 		, BitmaskSizeInBytes(BitmaskMemorySize(NumBlocks))
 		, NumFreeBlocks(InNumBlocks)
 		, UsefulMemorySize(0)
-		, VMBlock(InVMBlock)
 	{
 #if UE4_TMEMORY_POOL_DO_SANITY_CHECKS
 		checkf((AlignedPoolStart % RequiredAlignment) == 0, TEXT("Non-aligned pool address passed to a TMemoryPool"));
@@ -73,7 +71,7 @@ public:
 		//checkf(NumFreeBlocks == CalculateFreeBlocksInBitmap(), TEXT("Mismatch between a bitmap and NumFreeBlocks at the very beginning"));
 
 		// decommit all the memory
-		VMBlock.DecommitByPtr(reinterpret_cast<void *>(AlignedPoolStart), Align(NumBlocks * BlockSize, FPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment()));
+		EvictAddressRange(reinterpret_cast<void *>(AlignedPoolStart), NumBlocks * BlockSize);
 	}
 
 	/** We always allocate in BlockSize chunks, Size is only passed for more accurate Commit() */
@@ -99,8 +97,7 @@ public:
 #endif // UE4_TMEMORY_POOL_DO_SANITY_CHECKS
 
 			// make sure this address range is backed by the actual RAM
-			VMBlock.CommitByPtr(Address, Align(Size, FPlatformMemory::FPlatformVirtualMemoryBlock::GetCommitAlignment()));
-
+			CommitAddressRange(Address, Size);
 		}
 
 #if UE4_TMEMORY_POOL_DO_SANITY_CHECKS
@@ -139,7 +136,7 @@ public:
 		//checkf(NumFreeBlocks == CalculateFreeBlocksInBitmap(), TEXT("Mismatch between a bitmap and NumFreeBlocks after Free()ing"));
 
 		// evict this memory
-		VMBlock.DecommitByPtr(Ptr, BlockSize);
+		EvictAddressRange(Ptr, BlockSize);
 
 #if UE4_TMEMORY_POOL_DO_SANITY_CHECKS
 		// check that we never free more than we allocated
@@ -313,5 +310,3 @@ public:
 		printf("BlockSize: %llu NumAllocated/TotalBlocks = %llu/%llu\n", (uint64)BlockSize, (uint64)(NumBlocks - NumFreeBlocks), (uint64)NumBlocks);
 	}
 };
-
-#endif

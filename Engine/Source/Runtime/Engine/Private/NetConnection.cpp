@@ -34,8 +34,6 @@
 #include "UObject/ObjectKey.h"
 #include "UObject/UObjectIterator.h"
 #include "Net/NetworkGranularMemoryLogging.h"
-#include "SocketSubsystem.h"
-#include "Math/NumericLimits.h"
 
 static TAutoConsoleVariable<int32> CVarPingExcludeFrameTime( TEXT( "net.PingExcludeFrameTime" ), 0, TEXT( "Calculate RTT time between NIC's of server and client." ) );
 
@@ -60,8 +58,6 @@ static TAutoConsoleVariable<int32> CVarNetPacketOrderCorrectionEnableThreshold(T
 static TAutoConsoleVariable<int32> CVarNetPacketOrderMaxMissingPackets(TEXT("net.PacketOrderMaxMissingPackets"), 3, TEXT("The maximum number of missed packet sequences that is allowed, before treating missing packets as lost."));
 
 static TAutoConsoleVariable<int32> CVarNetPacketOrderMaxCachedPackets(TEXT("net.PacketOrderMaxCachedPackets"), 32, TEXT("(NOTE: Must be power of 2!) The maximum number of packets to cache while waiting for missing packet sequences, before treating missing packets as lost."));
-
-TAutoConsoleVariable<int32> CVarNetEnableDetailedScopeCounters(TEXT("net.EnableDetailedScopeCounters"), 1, TEXT("Enables detailed networking scope cycle counters. There are often lots of these which can negatively impact performance."));
 
 extern int32 GNetDormancyValidate;
 
@@ -109,7 +105,6 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 ,   OwningActor			( nullptr )
 ,	MaxPacket			( 0 )
 ,	InternalAck			( false )
-,	RemoteAddr			( nullptr )
 ,	MaxPacketHandlerBits ( 0 )
 ,	State				( USOCK_Invalid )
 ,	Handler()
@@ -119,7 +114,6 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 
 ,	QueuedBits			( 0 )
 ,	TickCount			( 0 )
-,	LastProcessedFrame	( 0 )
 ,	ConnectTime			( 0.0 )
 
 ,	AllowMerge			( false )
@@ -175,7 +169,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 ,	PlayerOnlinePlatformName( NAME_None )
 ,	ClientWorldPackageName( NAME_None )
 ,	LastNotifiedPacketId( -1 )
-,	OutTotalNotifiedPackets(0)
 ,	HasDirtyAcks(0u)
 ,	bHasWarnedAboutChannelLimit(false)
 ,	bConnectionPendingCloseDueToSocketSendFailure(false)
@@ -353,11 +346,6 @@ void UNetConnection::InitHandler()
 		{
 			Handler::Mode Mode = Driver->ServerConnection != nullptr ? Handler::Mode::Client : Handler::Mode::Server;
 
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			Handler->InitializeAddressSerializer([this](const FString& InAddress){
-				return Driver->GetSocketSubsystem()->GetAddressFromString(InAddress);
-			});
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			Handler->InitializeDelegates(FPacketHandlerLowLevelSendTraits::CreateUObject(this, &UNetConnection::LowLevelSend));
 			Handler->NotifyAnalyticsProvider(Driver->AnalyticsProvider, Driver->AnalyticsAggregator);
 			Handler->Initialize(Mode, MaxPacket * 8, false, nullptr, nullptr, Driver->NetDriverName);
@@ -846,6 +834,9 @@ void UNetConnection::AssertValid()
 	// Make sure this connection is in a reasonable state.
 	check(State==USOCK_Closed || State==USOCK_Pending || State==USOCK_Open);
 
+}
+void UNetConnection::SendPackageMap()
+{
 }
 
 bool UNetConnection::ClientHasInitializedLevelFor(const AActor* TestActor) const
@@ -1773,8 +1764,6 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader )
 		{
 			// Increase LastNotifiedPacketId, this is a full packet Id
 			++LastNotifiedPacketId;
-			++OutTotalNotifiedPackets;
-			Driver->IncreaseOutTotalNotifiedPackets();
 
 			// Sanity check
 			if (FNetPacketNotify::SequenceNumberT(LastNotifiedPacketId) != AckedSequence)
@@ -2705,25 +2694,6 @@ void UNetConnection::Tick()
 	}
 
 	FrameTime = CurrentRealtimeSeconds - LastTime;
-	const int32 MaxNetTickRate = Driver->MaxNetTickRate;
-	float EngineTickRate = GEngine->GetMaxTickRate(0.0f, false);
-	// We want to make sure the DesiredTickRate stays at <= 0 if there's no tick rate limiting of any kind, since it's used later in the function for bandwidth limiting.
-	if (MaxNetTickRate > 0 && EngineTickRate <= 0.0f)
-	{
-		EngineTickRate = MAX_flt;
-	}
-	const float MaxNetTickRateFloat = MaxNetTickRate > 0 ? float(MaxNetTickRate) : MAX_flt;
-	const float DesiredTickRate = FMath::Clamp(EngineTickRate, 0.0f, MaxNetTickRateFloat);
-	// Apply net tick rate limiting if the desired net tick rate is strictly less than the engine tick rate.
-	if (!InternalAck && MaxNetTickRateFloat < EngineTickRate && DesiredTickRate > 0.0f)
-	{
-		const float MinNetFrameTime = 1.0f/DesiredTickRate;
-		if (FrameTime < MinNetFrameTime)
-		{
-			return;
-		}
-	}
-
 	LastTime = CurrentRealtimeSeconds;
 	CumulativeTime += FrameTime;
 	CountedFrames++;
@@ -2993,6 +2963,7 @@ void UNetConnection::Tick()
 
 	// Clamp DeltaTime for bandwidth limiting so that if there is a hitch, we don't try to send
 	// a large burst on the next frame, which can cause another hitch if a lot of additional replication occurs.
+	const float DesiredTickRate = GEngine->GetMaxTickRate(0.0f, false);
 	float BandwidthDeltaTime = DeltaTime;
 	if (DesiredTickRate != 0.0f)
 	{

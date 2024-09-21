@@ -9,15 +9,15 @@ UDatasmithPointLightComponentTemplate::UDatasmithPointLightComponentTemplate()
 	Load( UPointLightComponent::StaticClass()->GetDefaultObject() );
 }
 
-UObject* UDatasmithPointLightComponentTemplate::UpdateObject( UObject* Destination, bool bForce )
+void UDatasmithPointLightComponentTemplate::Apply( UObject* Destination, bool bForce )
 {
+#if WITH_EDITORONLY_DATA
 	UPointLightComponent* PointLightComponent = Cast< UPointLightComponent >( Destination );
 
 	if ( !PointLightComponent )
 	{
-		return nullptr;
+		return;
 	}
-#if WITH_EDITORONLY_DATA
 
 	UDatasmithPointLightComponentTemplate* PreviousTemplate = !bForce ? FDatasmithObjectTemplateUtils::GetObjectTemplate< UDatasmithPointLightComponentTemplate >( Destination ) : nullptr;
 
@@ -25,9 +25,9 @@ UObject* UDatasmithPointLightComponentTemplate::UpdateObject( UObject* Destinati
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( SourceRadius, PointLightComponent, PreviousTemplate );
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( SourceLength, PointLightComponent, PreviousTemplate );
 	DATASMITHOBJECTTEMPLATE_CONDITIONALSET( AttenuationRadius, PointLightComponent, PreviousTemplate );
-#endif // #if WITH_EDITORONLY_DATA
 
-	return Destination;
+	FDatasmithObjectTemplateUtils::SetObjectTemplate( Destination, this );
+#endif // #if WITH_EDITORONLY_DATA
 }
 
 void UDatasmithPointLightComponentTemplate::Load( const UObject* Source )

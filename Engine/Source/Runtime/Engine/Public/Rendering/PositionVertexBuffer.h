@@ -100,7 +100,7 @@ public:
 
 	/** Similar to Init/ReleaseRHI but only update existing SRV so references to the SRV stays valid */
 	template <uint32 MaxNumUpdates>
-	void InitRHIForStreaming(FRHIVertexBuffer* IntermediateBuffer, TRHIResourceUpdateBatcher<MaxNumUpdates>& Batcher)
+	void InitRHIForStreaming(FVertexBufferRHIParamRef IntermediateBuffer, TRHIResourceUpdateBatcher<MaxNumUpdates>& Batcher)
 	{
 		check(VertexBufferRHI);
 		if (IntermediateBuffer)
@@ -135,8 +135,6 @@ public:
 	{
 		return Data;
 	}
-
-	FRHIShaderResourceView* GetSRV() const { return PositionComponentSRV; }
 
 private:
 

@@ -280,8 +280,7 @@ protected:
 	/** Handle key presses that SListView ignores */
 	virtual FReply OnHandleKeyPressed(FKey KeyPressed)
 	{
-		EUINavigationAction NavAction = FSlateApplication::Get().GetNavigationActionForKey(KeyPressed);
-		if (NavAction == EUINavigationAction::Accept)
+		if (KeyPressed == EKeys::Enter || KeyPressed == EKeys::SpaceBar || KeyPressed == EKeys::Virtual_Accept)
 		{
 			TArray<OptionType> SelectedItems = ComboListView->GetSelectedItems();
 			if (SelectedItems.Num() > 0)
@@ -290,7 +289,7 @@ protected:
 			}
 			return FReply::Handled();
 		}
-		else if (NavAction == EUINavigationAction::Back)
+		else if (KeyPressed == EKeys::Escape)
 		{
 			this->SetIsOpen(false);
 			return FReply::Handled();
@@ -308,10 +307,9 @@ protected:
 
 			if (EnableGamepadNavigationMode)
 			{
-				EUINavigationAction NavAction = FSlateApplication::Get().GetNavigationActionForKey(KeyPressed);
 				// The controller's bottom face button must be pressed once to begin manipulating the combobox's value.
 				// Navigation away from the widget is prevented until the button has been pressed again or focus is lost.
-				if (NavAction == EUINavigationAction::Accept)
+				if (KeyPressed == EKeys::Enter || KeyPressed == EKeys::SpaceBar || KeyPressed == EKeys::Virtual_Accept)
 				{
 					if (bControllerInputCaptured == false)
 					{
@@ -340,15 +338,9 @@ protected:
 					}
 
 				}
-				else if (NavAction == EUINavigationAction::Back || KeyPressed == EKeys::BackSpace)
+				else if (KeyPressed == EKeys::Escape || KeyPressed == EKeys::Virtual_Back || KeyPressed == EKeys::BackSpace)
 				{
-					const bool bWasInputCaptured = bControllerInputCaptured;
-
 					OnMenuOpenChanged(false);
-					if (bWasInputCaptured)
-					{
-						return FReply::Handled();
-					}
 				}
 				else
 				{

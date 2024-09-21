@@ -66,16 +66,16 @@ private:
 
 #if WITH_EDITORONLY_DATA
 	/** Preview meshes for visualization */
-	UPROPERTY(Transient)
+	UPROPERTY()
 	USplineMeshComponent* PreviewMesh_Rail;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	TArray<USplineMeshComponent*> PreviewRailMeshSegments;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	UStaticMesh* PreviewRailStaticMesh;
 
-	UPROPERTY(Transient)
+	UPROPERTY()
 	UStaticMeshComponent* PreviewMesh_Mount;
 #endif
 };

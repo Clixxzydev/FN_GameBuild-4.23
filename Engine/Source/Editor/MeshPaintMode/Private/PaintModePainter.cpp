@@ -1191,12 +1191,7 @@ int32 FPaintModePainter::GetMaxLODIndexToPaint() const
 
 	for (const UMeshComponent* MeshComponent : SelectedComponents )
 	{
-		int32 NumMeshLODs = 0;
-		if (MeshPaintHelpers::TryGetNumberOfLODs(MeshComponent, NumMeshLODs))
-		{
-			ensure(NumMeshLODs > 0);
-			LODMin = FMath::Min(LODMin, NumMeshLODs - 1);
-		}
+		LODMin = FMath::Min(LODMin, MeshPaintHelpers::GetNumberOfLODs(MeshComponent) - 1);
 	}
 
 	if (LODMin == TNumericLimits<int32>::Max())
@@ -2049,14 +2044,7 @@ void FPaintModePainter::FillWithVertexColor()
 			(*MeshAdapter)->PreEdit();
 		}
 		
-		if (Component->IsA<UStaticMeshComponent>())
-		{
-			MeshPaintHelpers::FillStaticMeshVertexColors(Cast<UStaticMeshComponent>(Component), PaintSettings->VertexPaintSettings.bPaintOnSpecificLOD ? PaintSettings->VertexPaintSettings.LODIndex : -1, FillColor, MaskColor);
-		}
-		else if (Component->IsA<USkeletalMeshComponent>())
-		{
-			MeshPaintHelpers::FillSkeletalMeshVertexColors(Cast<USkeletalMeshComponent>(Component), PaintSettings->VertexPaintSettings.bPaintOnSpecificLOD ? PaintSettings->VertexPaintSettings.LODIndex : -1, FillColor, MaskColor);
-		}
+		MeshPaintHelpers::FillVertexColors(Component, FillColor, MaskColor, true);
 
 		if (MeshAdapter)
 		{

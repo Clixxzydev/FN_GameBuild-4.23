@@ -926,12 +926,7 @@ public:
 	virtual FPrimitiveViewRelevance GetViewRelevance(const FSceneView* View) const override
 	{
 		FPrimitiveViewRelevance Result;
-		if (RuntimeVirtualTextures.Num() > 0)
-		{
-			// Virtual texture items have default (static) relevance
-			Result = FInstancedStaticMeshSceneProxy::GetViewRelevance(View);
-		}
-		else if (bIsGrass ? View->Family->EngineShowFlags.InstancedGrass : View->Family->EngineShowFlags.InstancedFoliage)
+		if (bIsGrass ? View->Family->EngineShowFlags.InstancedGrass : View->Family->EngineShowFlags.InstancedFoliage)
 		{
 			Result = FStaticMeshSceneProxy::GetViewRelevance(View);
 			Result.bDynamicRelevance = true;
@@ -959,12 +954,6 @@ public:
 
 	virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override
 	{
-		if (RuntimeVirtualTextures.Num() > 0)
-		{
-			// Virtual texture use not hierarchical static rendering for now
-			//todo[vt]: Build acceleration structure better suited for VT rendering. Probably hook up a different class with this to the foliage system.
-			FInstancedStaticMeshSceneProxy::DrawStaticElements(PDI);
-		}
 	}
 
 	virtual void ApplyWorldOffset(FVector InOffset) override
@@ -2074,22 +2063,6 @@ void UHierarchicalInstancedStaticMeshComponent::PostDuplicate(bool bDuplicateFor
 	}
 }
 
-void UHierarchicalInstancedStaticMeshComponent::PostLoad()
-{
-	// ConditionalPostLoad the level lightmap data since we expect it to be loaded before PostLoadPerInstanceData which is called from Super::PostLoad()
-	AActor* Owner = GetOwner();
-	if (Owner != nullptr)
-	{
-		ULevel* OwnerLevel = Owner->GetLevel();
-		if (OwnerLevel != nullptr && OwnerLevel->MapBuildData != nullptr)
-		{
-			OwnerLevel->MapBuildData->ConditionalPostLoad();
-		}
-	}
-
-	Super::PostLoad();
-}
-
 void UHierarchicalInstancedStaticMeshComponent::RemoveInstancesInternal(const int32* InstanceIndices, int32 Num)
 {
 	if (IsAsyncBuilding() && Num > 0)
@@ -2280,36 +2253,6 @@ bool UHierarchicalInstancedStaticMeshComponent::UpdateInstanceTransform(int32 In
 	return Result;
 }
 
-bool UHierarchicalInstancedStaticMeshComponent::BatchUpdateInstancesTransforms(int32 StartInstanceIndex, const TArray<FTransform>& NewInstancesTransforms, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
-{
-	bool BatchResult = true;
-
-	int32 InstanceIndex = StartInstanceIndex;
-	for(const FTransform& NewInstanceTransform : NewInstancesTransforms)
-	{
-		bool Result = UpdateInstanceTransform(InstanceIndex, NewInstanceTransform, bWorldSpace, bMarkRenderStateDirty, bTeleport);
-		BatchResult = BatchResult && Result;
-		
-		InstanceIndex++;
-	}
-
-	return BatchResult;
-}
-
-bool UHierarchicalInstancedStaticMeshComponent::BatchUpdateInstancesTransform(int32 StartInstanceIndex, int32 NumInstances, const FTransform& NewInstancesTransform, bool bWorldSpace, bool bMarkRenderStateDirty, bool bTeleport)
-{
-	bool BatchResult = true;
-
-	int32 EndInstanceIndex = StartInstanceIndex + NumInstances;
-	for(int32 InstanceIndex = StartInstanceIndex; InstanceIndex < EndInstanceIndex; ++InstanceIndex)
-	{
-		bool Result = UpdateInstanceTransform(InstanceIndex, NewInstancesTransform, bWorldSpace, bMarkRenderStateDirty, bTeleport);
-		BatchResult = BatchResult && Result;
-	}
-
-	return BatchResult;
-}
-
 void UHierarchicalInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticMeshComponentInstanceData* InstancedMeshData)
 {
 	UInstancedStaticMeshComponent::ApplyComponentInstanceData(InstancedMeshData);
@@ -2381,25 +2324,19 @@ void UHierarchicalInstancedStaticMeshComponent::ClearInstances()
 
 	InstanceUpdateCmdBuffer.Reset();
 
-	// Don't try to queue hide command if there is no render instances
-	if (PerInstanceRenderData.IsValid() && PerInstanceRenderData->InstanceBuffer_GameThread->GetNumInstances() > 0)
+	// Hide all instance until the build tree is completed
+	int32 NumInstances = PerInstanceSMData.Num();
+
+	for (int32 Index = 0; Index < NumInstances; ++Index)
 	{
-		// Hide all instance until the build tree is completed but if there is a mismatch between game thread data and render thread data, only add command matching render thread data, 
-		// this can happen in a case where you perform many time add, clear, add, clear, in the same frame, so you might get a mismatch between both thread data
-		int32 NumInstances = FMath::Clamp(PerInstanceSMData.Num(), 0, PerInstanceRenderData->InstanceBuffer_GameThread->GetNumInstances());
-
-		for (int32 Index = 0; Index < NumInstances; ++Index)
+		int32 RenderIndex = InstanceReorderTable.IsValidIndex(Index) ? InstanceReorderTable[Index] : Index;
+		if (RenderIndex == INDEX_NONE)
 		{
-			int32 RenderIndex = InstanceReorderTable.IsValidIndex(Index) ? InstanceReorderTable[Index] : Index;
-
-			if (RenderIndex == INDEX_NONE) 
-			{
-				// could be skipped by density settings
-				continue;
-			}
-
-			InstanceUpdateCmdBuffer.HideInstance(RenderIndex);
+			// could be skipped by density settings
+			continue;
 		}
+
+		InstanceUpdateCmdBuffer.HideInstance(RenderIndex);
 	}
 
 	// Clear all the per-instance data
@@ -2888,7 +2825,7 @@ void UHierarchicalInstancedStaticMeshComponent::PropagateLightingScenarioChange(
 			const FMeshMapBuildData* MeshMapBuildData = nullptr;
 			if (LODData.Num() > 0)
 			{
-				MeshMapBuildData = GetMeshMapBuildData(LODData[0], false);
+				MeshMapBuildData = GetMeshMapBuildData(LODData[0]);
 			}
 
 			if (MeshMapBuildData != nullptr)
@@ -2896,11 +2833,9 @@ void UHierarchicalInstancedStaticMeshComponent::PropagateLightingScenarioChange(
 				for (int32 InstanceIndex = 0; InstanceIndex < PerInstanceSMData.Num(); ++InstanceIndex)
 				{
 					int32 RenderIndex = InstanceReorderTable.IsValidIndex(InstanceIndex) ? InstanceReorderTable[InstanceIndex] : InstanceIndex;
-					if (RenderIndex != INDEX_NONE)
-					{
-						InstanceUpdateCmdBuffer.SetLightMapData(RenderIndex, MeshMapBuildData->PerInstanceLightmapData[InstanceIndex].LightmapUVBias);
-						InstanceUpdateCmdBuffer.SetShadowMapData(RenderIndex, MeshMapBuildData->PerInstanceLightmapData[InstanceIndex].ShadowmapUVBias);
-					}
+
+					InstanceUpdateCmdBuffer.SetLightMapData(RenderIndex, MeshMapBuildData->PerInstanceLightmapData[InstanceIndex].LightmapUVBias);
+					InstanceUpdateCmdBuffer.SetShadowMapData(RenderIndex, MeshMapBuildData->PerInstanceLightmapData[InstanceIndex].ShadowmapUVBias);
 				}
 			}
 		}
@@ -2918,14 +2853,19 @@ void UHierarchicalInstancedStaticMeshComponent::SetPerInstanceLightMapAndEditorD
 	const FMeshMapBuildData* MeshMapBuildData = nullptr;
 	if (LODData.Num() > 0)
 	{
-		MeshMapBuildData = GetMeshMapBuildData(LODData[0], false);
+		MeshMapBuildData = GetMeshMapBuildData(LODData[0]);
 	}
 
 	if (MeshMapBuildData != nullptr || GIsEditor)
 	{
-		for (int32 RenderIndex = 0; RenderIndex < NumInstances; ++RenderIndex)
+		for (int32 Index = 0; Index < NumInstances; ++Index)
 		{
-			int32 Index = SortedInstances[RenderIndex];
+			int32 RenderIndex = InstanceReorderTable.IsValidIndex(Index) ? InstanceReorderTable[Index] : Index;
+			if (RenderIndex == INDEX_NONE)
+			{
+				// could be skipped by density settings
+				continue;
+			}
 						
 			FVector2D LightmapUVBias = FVector2D(-1.0f, -1.0f);
 			FVector2D ShadowmapUVBias = FVector2D(-1.0f, -1.0f);
@@ -3040,10 +2980,9 @@ void UHierarchicalInstancedStaticMeshComponent::OnPostLoadPerInstanceData()
 			ULevel* OwnerLevel = Owner->GetLevel();
 			UWorld* OwnerWorld = OwnerLevel ? OwnerLevel->OwningWorld : nullptr;
 
-			//update the instance data if the lighting scenario isn't the owner level or if the reorder table do not match the per instance sm data
-			if ((OwnerWorld && OwnerWorld->GetActiveLightingScenario() != nullptr && OwnerWorld->GetActiveLightingScenario() != OwnerLevel)
-				|| (PerInstanceSMData.Num() > 0 && PerInstanceSMData.Num() != InstanceReorderTable.Num()))
+			if (OwnerWorld && OwnerWorld->GetActiveLightingScenario() != nullptr && OwnerWorld->GetActiveLightingScenario() != OwnerLevel)
 			{
+				//update the instance data if the lighting scenario isn't the owner level
 				bForceTreeBuild = true;
 			}
 

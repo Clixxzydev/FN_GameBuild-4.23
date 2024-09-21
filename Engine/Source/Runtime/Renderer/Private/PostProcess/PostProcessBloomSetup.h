@@ -27,11 +27,11 @@ public:
 	virtual FPooledRenderTargetDesc ComputeOutputDesc(EPassOutputId InPassOutputId) const override;
 	virtual void Release() override { delete this; }
 
-	virtual FRHIComputeFence* GetComputePassEndFence() const override { return AsyncEndFence; }
+	virtual FComputeFenceRHIParamRef GetComputePassEndFence() const override { return AsyncEndFence; }
 
 private:
 	template <typename TRHICmdList>
-	void DispatchCS(TRHICmdList& RHICmdList, FRenderingCompositePassContext& Context, const FIntRect& DestRect, FRHIUnorderedAccessView* DestUAV, FRHITexture* EyeAdaptationTex);
+	void DispatchCS(TRHICmdList& RHICmdList, FRenderingCompositePassContext& Context, const FIntRect& DestRect, FUnorderedAccessViewRHIParamRef DestUAV, FTextureRHIParamRef EyeAdaptationTex);
 
 	FComputeFenceRHIRef AsyncEndFence;
 };

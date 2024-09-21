@@ -11,12 +11,8 @@
 #include "ConcertClientPresenceManager.h"
 #include "ConcertClientMovement.h"
 #include "ConcertLogGlobal.h"
-#include "HAL/IConsoleManager.h"
 
 #define LOCTEXT_NAMESPACE "ConcertClientPresenceActor"
-
-static TAutoConsoleVariable<int32> CVarEnablePresenceInGame(TEXT("Concert.EnablePresenceInGame"), 0, TEXT("Enable Concert Presence in Game"));
-
 
 //////////////////////////////////////////////////////////////////////////
 // AConcertClientPresenceActor
@@ -24,9 +20,6 @@ static TAutoConsoleVariable<int32> CVarEnablePresenceInGame(TEXT("Concert.Enable
 AConcertClientPresenceActor::AConcertClientPresenceActor(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	// Initialize if this actor will be editor only based the `EnablePresenceInGame` console variable.
-	bIsEditorOnly = CVarEnablePresenceInGame.GetValueOnAnyThread() == 0;
-
 	// Set root component 
 	{
 		USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
@@ -56,11 +49,6 @@ AConcertClientPresenceActor::AConcertClientPresenceActor(const FObjectInitialize
 bool AConcertClientPresenceActor::ShouldTickIfViewportsOnly() const
 {
 	return true;
-}
-
-bool AConcertClientPresenceActor::IsEditorOnly() const
-{
-	return bIsEditorOnly;
 }
 
 void AConcertClientPresenceActor::SetPresenceName(const FString& InName)

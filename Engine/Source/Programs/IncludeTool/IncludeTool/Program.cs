@@ -518,18 +518,7 @@ namespace IncludeTool
 				{
 					if ((PreprocessedFile.Flags & SourceFileFlags.Inline) == 0 && (PreprocessedFile.Flags & SourceFileFlags.GeneratedHeader) == 0 && PreprocessedFile.Counterpart == null)
 					{
-						try
-						{
-							SymbolTable.AddExports(PreprocessedFile);
-						}
-						catch(UnbalancedScopeException Ex)
-						{
-							Log.WriteLine("error: {0}", Ex.Message);
-						}
-						catch(Exception Ex)
-						{
-							throw new Exception(String.Format("Error while processing {0}", PreprocessedFile.Location), Ex);
-						}
+						SymbolTable.AddExports(PreprocessedFile);
 					}
 				}
 
@@ -555,8 +544,7 @@ namespace IncludeTool
 					{
 						if (SourceFile.BodyMaxIdx > SourceFile.BodyMinIdx && SourceFile.Markup[SourceFile.BodyMinIdx].Type != PreprocessorMarkupType.Include && (SourceFile.Flags & SourceFileFlags.External) == 0)
 						{
-							// TODO disabling for the moment
-//							Log.WriteLine("warning: Source file does not begin with an #include directive: {0}", SourceFile.Location.MakeRelativeTo(InputDir));
+							Log.WriteLine("warning: Source file does not begin with an #include directive: {0}", SourceFile.Location.MakeRelativeTo(InputDir));
 						}
 					}
 
@@ -949,11 +937,7 @@ namespace IncludeTool
 			IncludePaths.AddRange(ExtraSystemIncludePaths);
 
 			// Set up the preprocessor with the correct defines for this environment
-			Preprocessor PreprocessorInst = new Preprocessor(PreludeLocation, CompileEnvironment.Definitions, IncludePaths);
-			foreach(FileReference ForceIncludedFile in CompileEnvironment.ForceIncludeFiles)
-			{
-				PreprocessIncludedFile(PreprocessorInst, new PreprocessorFile(ForceIncludedFile.FullName, Workspace.GetFile(ForceIncludedFile)), FileToActiveMarkup, Log);
-			}
+			Preprocessor PreprocessorInst = new Preprocessor(PreludeLocation, CompileEnvironment.Definitions, IncludePaths, CompileEnvironment.ForceIncludeFiles);
 			PreprocessIncludedFile(PreprocessorInst, InitialFile, FileToActiveMarkup, Log);
 		}
 
@@ -1018,7 +1002,7 @@ namespace IncludeTool
 				{
 					foreach(PreprocessorMarkup Markup in File.Markup)
 					{
-						if(Markup.IncludedFile != null && (Markup.IncludedFile.Flags & SourceFileFlags.External) == 0 && !File.Location.FullName.Contains("PhyaLib") && !File.Location.GetFileName().Contains("Recast") && !File.Location.GetFileName().Contains("FramePro") && !File.Location.FullName.Contains("libSampleRate"))
+						if(Markup.IncludedFile != null && (Markup.IncludedFile.Flags & SourceFileFlags.External) == 0 && !File.Location.FullName.Contains("PhyaLib") && !File.Location.GetFileName().Contains("Recast") && !File.Location.GetFileName().Contains("FramePro") && !File.Location.GetFileName().Contains("libSampleRate"))
 						{
 							Log.WriteLine("{0}({1}): warning: external file is including non-external file ('{2}')", IncludedFile.Location.FullName, Markup.Location.LineIdx + 1, Markup.IncludedFile.Location);
 						}

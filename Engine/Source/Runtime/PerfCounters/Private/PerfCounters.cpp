@@ -6,12 +6,9 @@
 #include "HAL/FileManager.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Paths.h"
-#include "HAL/PlatformTime.h"
-#include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Serialization/JsonWriter.h"
-#include "Stats/Stats.h"
 #include "ZeroLoad.h"
 
 #include "HttpServerModule.h"

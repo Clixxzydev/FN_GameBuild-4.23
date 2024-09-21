@@ -443,7 +443,7 @@ static int64 FNameToTag(FName Name)
 	}
 
 	// get the bits out of the FName we need
-	int64 NameIndex = Name.GetComparisonIndex().ToUnstableInt();
+	int64 NameIndex = Name.GetComparisonIndex();
 	int64 NameNumber = Name.GetNumber();
 	int64 tag = (NameNumber << 32) | NameIndex;
 	LLMCheckf(tag > LLM_TAG_COUNT, TEXT("Passed with a name index [%d - %s] that was less than MemTracker_MaxUserAllocation"), NameIndex, *Name.ToString());
@@ -455,7 +455,7 @@ static int64 FNameToTag(FName Name)
 static FName TagToFName(int64 Tag)
 {
 	// pull the bits back out of the tag
-	FNameEntryId NameIndex = FNameEntryId::FromUnstableInt((int32)(Tag & 0xFFFFFFFF));
+	int32 NameIndex = (int32)(Tag & 0xFFFFFFFF);
 	int32 NameNumber = (int32)(Tag >> 32);
 	return FName(NameIndex, NameIndex, NameNumber);
 }
@@ -520,7 +520,9 @@ FLowLevelMemTracker::FLowLevelMemTracker()
 
 FLowLevelMemTracker::~FLowLevelMemTracker()
 {
-	bIsDisabled = true; // tracking must stop at this point or it will crash while tracking its own destruction
+	// Ensure that we skip any further tracking since it will fail after this destructor
+	bIsDisabled = true;
+	
 	for (int32 TrackerIndex = 0; TrackerIndex < (int32)ELLMTracker::Max; ++TrackerIndex)
 	{
 		Trackers[TrackerIndex]->~FLLMTracker();

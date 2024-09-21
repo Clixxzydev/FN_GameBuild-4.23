@@ -25,7 +25,11 @@ public:
 	void NIAGARASHADER_API ResetOnRequestDefaultDataInterfaceHandler();
 	UNiagaraDataInterfaceBase* RequestDefaultDataInterface(const FString& DIClassName);
 
-	virtual void StartupModule() override;
+	virtual void StartupModule() override
+	{
+		Singleton = this;
+	}
+
 
 	virtual void ShutdownModule() override
 	{

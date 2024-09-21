@@ -116,9 +116,7 @@ public:
 	FORCEINLINE UObject* Get() const
 	{
 		UObject* Object = WeakPtr.Get();
-		
-		// Do a full resolve if the returned object is null and either we think we've loaded new objects, or the weak ptr may be stale
-		if (!Object && ObjectID.IsValid() && (TObjectID::GetCurrentTag() != TagAtLastTest || !WeakPtr.IsExplicitlyNull()))
+		if (!Object && TObjectID::GetCurrentTag() != TagAtLastTest && ObjectID.IsValid())
 		{
 			Object = ObjectID.ResolveObject();
 			WeakPtr = Object;

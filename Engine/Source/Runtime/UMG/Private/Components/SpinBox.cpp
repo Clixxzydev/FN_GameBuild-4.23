@@ -9,8 +9,6 @@
 /////////////////////////////////////////////////////
 // USpinBox
 
-static FSpinBoxStyle* DefaultSpinBoxStyle = nullptr;
-
 USpinBox::USpinBox(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -32,16 +30,9 @@ USpinBox::USpinBox(const FObjectInitializer& ObjectInitializer)
 	SelectAllTextOnCommit = true;
 	ForegroundColor = FSlateColor(FLinearColor::Black);
 
-	if (DefaultSpinBoxStyle == nullptr)
-	{
-		// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BE DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
-		DefaultSpinBoxStyle = new FSpinBoxStyle(FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox"));
-
-		// Unlink UMG default colors from the editor settings colors.
-		DefaultSpinBoxStyle->UnlinkColors();
-	}
-
-	WidgetStyle = *DefaultSpinBoxStyle;
+	// HACK: THIS SHOULD NOT COME FROM CORESTYLE AND SHOULD INSTEAD BY DEFINED BY ENGINE TEXTURES/PROJECT SETTINGS
+	static const FSpinBoxStyle StaticSpinBox = FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("SpinBox");
+	WidgetStyle = StaticSpinBox;
 }
 
 void USpinBox::ReleaseSlateResources(bool bReleaseChildren)

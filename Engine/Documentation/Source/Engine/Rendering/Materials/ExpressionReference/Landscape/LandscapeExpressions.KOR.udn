@@ -1,10 +1,10 @@
-INTSourceChangelist:6528370
-Availability: Public
-Title: Landscape 표현식
-Description: 랜드스케이프 머티리얼에 적용할 머티리얼 제작용 표현식입니다.
+INTSourceChangelist:3242329
+Availability:Public
+Title:Landscape 표현식
+Crumbs: %ROOT%, Engine, Engine/Rendering/Materials, Engine/Rendering/Materials/ExpressionReference
+Description:랜드스케이프 머티리얼에 적용할 머티리얼 제작용 표현식입니다.
 Version: 4.9
-Parent: Engine/Rendering/Materials/ExpressionReference
-Tags: Materials
+tags:Materials
 
 [EXCERPT:TOC]
 [TOC(start:2)]
@@ -12,21 +12,21 @@ Tags: Materials
 
 ## LandscapeLayerBlend
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayerblendnode]
+[INCLUDE:Engine/Landscape/Materials#LandscapeLayerBlend]
 
 ## LandscapeLayerCoords
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayercoordsnode]
+[INCLUDE:Engine/Landscape/Materials#TerrainLayerCoords]
 
 ## LandscapeLayerSwitch
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayerswitchnode]
+[INCLUDE:Engine/Landscape/Materials#TerrainLayerSwitch]
 
 ## LandscapeLayerWeight
 
-[INCLUDE:Engine/Landscape/Materials#landscapelayerweightnode]
+[INCLUDE:Engine/Landscape/Materials#TerrainLayerWeight]
 
 ## LandscapeVisibilityMask
 
-[INCLUDE:Engine/Landscape/Materials#landscapevisibilitymasknode]
+[INCLUDE:Engine/Landscape/Materials#landscapevisibilitymask]
 

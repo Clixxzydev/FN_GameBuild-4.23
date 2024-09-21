@@ -9,7 +9,7 @@
 /**
 * TransformCollection (ManagedArrayCollection)
 *
-* Stores the TArray<T> groups necessary to process transform hierarchies.
+* Stores the TArray<T> groups necessary to process transform hierarchies. 
 *
 * @see FTransformCollectionComponent
 */
@@ -19,75 +19,58 @@ public:
 	typedef FManagedArrayCollection Super;
 
 	FTransformCollection();
-	FTransformCollection(FTransformCollection &) = delete;
-	FTransformCollection& operator=(const FTransformCollection&) = delete;
-	FTransformCollection(FTransformCollection&&) = delete;
-	FTransformCollection& operator=(FTransformCollection&&) = delete;
+	~FTransformCollection() {};
+	FTransformCollection( FTransformCollection & );
 
-
-	/***
-	*  Attribute Groups
-	*
-	*   These attribute groups are predefined data member of the FTransformCollection.
-	*
-	*   TransformGroup ("Transform")
-	*		Default Attributes :
-	*
-	*          FTransformArray Transform =  GetAttribute<FTransform>("Transform", TransformGroup)
-	*		   FInt32Array Level = GetAttribute<int32>("Level", TransformGroup) FIX
-	*		   FInt32Array Parent = GetAttribute<int32>("Parent", TransformGroup) FIX
-	*		   FInt32Array Children = GetAttribute<TSet<int32>>("Children", TransformGroup) FIX
-	*
-	*       The TransformGroup defines transform information for each Vertex. All positional
-	*       information stored within Vertices and Geometry groups should be relative to its
-	*       TransformGroup Transform.
-	*       Parent defines the parent index of one transform node relative to another (Invalid is no parent exists, i.e. is root)
-	*       Children defines the child indices of the transform node in the transform hierarchy (leaf nodes will have no children)
-	*       Level is the distance from the root node at level 0. Leaf nodes will have the highest level number.
-	*/
+		/***
+		*  Attribute Groups
+		*
+		*   These attribute groups are predefined data member of the FTransformCollection.
+		*
+		*   TransformGroup ("Transform")
+		*		Default Attributes :
+		*
+		*          FTransformArray Transform =  GetAttribute<FTransform>("Transform", TransformGroup)
+		*		   FBoneNodeArray BoneHierarchy = GetAttribute<FGeometryCollectionBoneNode>("BoneHierarchy", TransformGroup)
+		*
+		*       The TransformGroup defines transform information for each Vertex. All positional
+		*       information stored within Vertices and Geometry groups should be relative to its
+		*       TransformGroup Transform.
+		*       The bone hierarchy describes the parent child relationship tree of the bone nodes as well as the level,
+		*       which is the distance from the root node at level 0. Leaf nodes will have the highest level number.
+		*/
 	static const FName TransformGroup;
-	static const FName TransformAttribute;
-	static const FName ParentAttribute;
-	static const FName ChildrenAttribute;
 
-	/** Serialize */
-	virtual void Serialize(Chaos::FChaosArchive& Ar) override;
+	/** Append a single geometric object to a FTransformCollection */
+	int32 AppendTransform(const FTransformCollection & GeometryCollection);
+
 
 	/*
-	* AppendTransform:
-	*   Append a single transform at the end of the collection without
-	*   parenting. 
+	*
 	*/
-	int32 AppendTransform(const FTransformCollection & GeometryCollection, const FTransform& TransformRoot = FTransform::Identity);
+	void RelativeTransformation(const int32& Index, const FTransform& LocalOffset);
 
-	/*
-	* ParentTransforms
-	*   Parent Transforms under the specified node using local parent
-	*   hierarchy compensation. .
-	*/
-	void ParentTransforms(const int32 TransformIndex, const int32 ChildIndex);
-	void ParentTransforms(const int32 TransformIndex, const TArray<int32>& SelectedBones);
-
-	/*
-	* RelativeTransformation
-	*   Modify the specified index by the local matrix offset. 
-	*/
-	void RelativeTransformation(const int32& Index, const FTransform& LocalOffset); 
 
 	/**
-	* RemoveElements
-	*   Remove elements from the transform collection. Transform children are re-parented
-	*   under the deleted elements parent using local parent compensation [relative local matrices].
-	* 
+	* Remove elements from the transform collection
 	*/
-	virtual void RemoveElements(const FName & Group, const TArray<int32> & SortedDeletionList, FProcessingParameters Params = FProcessingParameters()) override;
+	virtual void RemoveElements(const FName & Group, const TArray<int32> & SortedDeletionList) override;
+
+
+	/**  Connect the Geometry Collection to the users arrays.*/
+	virtual void BindSharedArrays() override;
+		
+	/**
+	* Setup collection based on input collection, resulting arrays are shared.
+	* @param CollectionIn : Input collection to share
+	*/
+	virtual void Initialize(FManagedArrayCollection & CollectionIn) override;
 
 	// Transform Group
-	TManagedArray<FTransform>   Transform;
-	TManagedArray<FString>      BoneName;
-	TManagedArray<FLinearColor> BoneColor;
-	TManagedArray<int32>        Parent;
-	TManagedArray<TSet<int32>>  Children;
+	TSharedPtr< TManagedArray<FTransform> >   Transform;
+	TSharedPtr< TManagedArray<FString> >      BoneName;
+	TSharedPtr< TManagedArray<FGeometryCollectionBoneNode> >  BoneHierarchy;
+	TSharedPtr< TManagedArray<FLinearColor> > BoneColor;
 
 
 protected:
@@ -95,3 +78,5 @@ protected:
 	/** Construct */
 	void Construct();
 };
+
+

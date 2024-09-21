@@ -42,7 +42,6 @@ namespace AutomationUtils.Automation
 			public bool bFoundParent { get; set; }
 			public bool bContainsShaderLibrary { get; set; }
 			public int Priority { get; set; }
-			public string ExecFileName { get; set; }
 		};
 		public static bool LoadBundleConfig(string BundleIniFile, ref Dictionary<string, BundleSettings> Bundles)
 		{
@@ -78,11 +77,6 @@ namespace AutomationUtils.Automation
 					string ParentName;
 					BundleConfig.GetString(SectionName, "Parent", out ParentName);
 					Bundle.ParentName = ParentName;
-				}
-				{
-					string ExecFileName;
-					BundleConfig.GetString(SectionName, "ExecFileName", out ExecFileName);
-					Bundle.ExecFileName = ExecFileName;
 				}
 				{
 					List<string> Tags;

@@ -215,20 +215,19 @@ void UWidgetAnimation::LocateBoundObjects(const FGuid& ObjectId, UObject* InCont
 		return;
 	}
 
-	UUserWidget* PreviewWidget = CastChecked<UUserWidget>(InContext);
-	for (const FWidgetAnimationBinding& Binding : AnimationBindings)
-	{
-		if (Binding.AnimationGuid == ObjectId)
-		{
-			UObject* FoundObject = Binding.FindRuntimeObject(*PreviewWidget->WidgetTree, *PreviewWidget);
-
-			if (FoundObject)
-			{
-				OutObjects.Add(FoundObject);
-			}
+	const FWidgetAnimationBinding* Binding = AnimationBindings.FindByPredicate(
+		[ObjectId](const FWidgetAnimationBinding& In){
+			return In.AnimationGuid == ObjectId;
 		}
-	}
+	);
 
+	UUserWidget* PreviewWidget = CastChecked<UUserWidget>(InContext);
+	UObject* FoundObject = Binding ? Binding->FindRuntimeObject(*PreviewWidget->WidgetTree, *PreviewWidget) : nullptr;
+
+	if (FoundObject)
+	{
+		OutObjects.Add(FoundObject);
+	}
 }
 
 
@@ -268,33 +267,6 @@ void UWidgetAnimation::UnbindPossessableObjects(const FGuid& ObjectId)
 	AnimationBindings.RemoveAll([&](const FWidgetAnimationBinding& Binding) {
 		return Binding.AnimationGuid == ObjectId;
 	});
-}
-
-void UWidgetAnimation::RemoveBinding(const UObject& PossessedObject)
-{
-	Modify();
-
-	FName WidgetName = PossessedObject.GetFName();
-	FName SlotWidgetName = NAME_None;
-
-	const UPanelSlot* PossessedSlot = Cast<UPanelSlot>(&PossessedObject);
-
-	if ((PossessedSlot != nullptr) && (PossessedSlot->Content != nullptr))
-	{
-		SlotWidgetName = PossessedSlot->GetFName();
-		WidgetName = PossessedSlot->Content->GetFName();
-	}
-
-	AnimationBindings.RemoveAll([&](const FWidgetAnimationBinding& Binding) {
-		return Binding.WidgetName.IsEqual(WidgetName) && Binding.SlotWidgetName.IsEqual(SlotWidgetName);
-	});
-}
-
-void UWidgetAnimation::RemoveBinding(const FWidgetAnimationBinding& Binding)
-{
-	Modify();
-
-	AnimationBindings.Remove(Binding);
 }
 
 bool UWidgetAnimation::IsPostLoadThreadSafe() const

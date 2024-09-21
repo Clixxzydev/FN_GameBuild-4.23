@@ -46,7 +46,6 @@
 #include "Materials/MaterialFunctionInstance.h"
 #include "Curves/CurveLinearColor.h"
 #include "IPropertyUtilities.h"
-#include "Engine/Texture.h"
 
 #define LOCTEXT_NAMESPACE "MaterialInstanceEditor"
 
@@ -232,31 +231,17 @@ void FMaterialInstanceParameterDetails::CustomizeDetails(IDetailLayoutBuilder& D
 		}
 
 		{
-			// Add the material property override group
-			static FName GroupName(TEXT("MaterialPropertyOverrideGroup"));
-			IDetailGroup& MaterialPropertyOverrideGroup = DefaultCategory.AddGroup(GroupName, LOCTEXT("MaterialPropertyOverrideGroup", "Material Property Overrides"), false, false);
-			
-			// Hide the originals, these will be recreated manually
-			DetailLayout.HideProperty("bOverrideSubsurfaceProfile");
-			DetailLayout.HideProperty("SubsurfaceProfile");
-			DetailLayout.HideProperty("BasePropertyOverrides");
-
-			// Set up the override logic for the subsurface profile
-			TAttribute<bool> IsParamEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateLambda([this](){ return (bool)MaterialEditorInstance->bOverrideSubsurfaceProfile; }));
-
-			IDetailPropertyRow& PropertyRow = MaterialPropertyOverrideGroup.AddPropertyRow(DetailLayout.GetProperty("SubsurfaceProfile"));
-			PropertyRow
-				.EditCondition(IsParamEnabled, 
-					FOnBooleanValueChanged::CreateLambda([this](bool NewValue) {
-						MaterialEditorInstance->bOverrideSubsurfaceProfile = (uint32)NewValue;
-						MaterialEditorInstance->PostEditChange();
-						FEditorSupportDelegates::RedrawAllViewports.Broadcast();
-				}))
-				.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::ShouldShowSubsurfaceProfile)));
-			
-			// Append the base property overrides to the Material Property Override Group
-			CreateBasePropertyOverrideWidgets(DetailLayout, MaterialPropertyOverrideGroup);
+			IDetailPropertyRow& PropertyRow = DefaultCategory.AddProperty("bOverrideSubsurfaceProfile");
+			PropertyRow.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::ShouldShowSubsurfaceProfile)));
 		}
+
+		{
+			IDetailPropertyRow& PropertyRow = DefaultCategory.AddProperty("SubsurfaceProfile");
+			PropertyRow.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::ShouldShowSubsurfaceProfile)));
+		}
+
+		DetailLayout.HideProperty("BasePropertyOverrides");
+		CreateBasePropertyOverrideWidgets(DetailLayout);
 	}
 
 	// Add the preview mesh property directly from the material instance 
@@ -475,52 +460,6 @@ void FMaterialInstanceParameterDetails::CreateParameterValueWidget(UDEditorParam
 			.EditCondition(IsParamEnabled, FOnBooleanValueChanged::CreateStatic(&FMaterialPropertyHelpers::OnOverrideParameter, Parameter, MaterialEditorInstance))
 			.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateStatic(&FMaterialPropertyHelpers::ShouldShowExpression, Parameter, MaterialEditorInstance, ShowHiddenDelegate)))
 			.OverrideResetToDefault(ResetOverride);
-
-		// Textures need a special widget that filters based on VT or not
-		UDEditorTextureParameterValue* TextureParam = Cast<UDEditorTextureParameterValue>(Parameter);
-		if (TextureParam != nullptr)
-		{
-			UMaterial *Material = MaterialEditorInstance->SourceInstance->GetMaterial();
-			if (Material != nullptr)
-			{
-				UMaterialExpressionTextureSampleParameter* Expression = Material->FindExpressionByGUID<UMaterialExpressionTextureSampleParameter>(TextureParam->ExpressionId);
-				if (Expression != nullptr)
-				{
-					TWeakObjectPtr<UMaterialExpressionTextureSampleParameter> SamplerExpression = Expression;
-
-					PropertyRow.CustomWidget()
-					.NameContent()
-					[
-						ParameterValueProperty->CreatePropertyNameWidget()
-					]
-					.ValueContent()
-					.MaxDesiredWidth(TOptional<float>())
-					[
-						SNew(SObjectPropertyEntryBox)
-						.PropertyHandle(ParameterValueProperty)
-						.AllowedClass(UTexture::StaticClass())
-						.CustomResetToDefault(ResetOverride)
-						.ThumbnailPool(PropertyUtilities.Pin()->GetThumbnailPool())
-						.OnShouldFilterAsset_Lambda([SamplerExpression](const FAssetData& AssetData)
-						{
-							if (SamplerExpression.Get())
-							{
-								bool VirtualTextured = false;
-								AssetData.GetTagValue<bool>("VirtualTextureStreaming", VirtualTextured);
-
-								bool ExpressionIsVirtualTextured = IsVirtualSamplerType(SamplerExpression->SamplerType);
-
-								return VirtualTextured != ExpressionIsVirtualTextured;
-							}
-							else
-							{
-								return false;
-							}
-						})
-					];
-				}
-			}
-		}
 	}
 }
 
@@ -912,9 +851,12 @@ void FMaterialInstanceParameterDetails::CreateLightmassOverrideWidgets(IDetailLa
 		.OverrideResetToDefault(ResetExportResolutionScalePropertyOverride);
 }
 
-void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout, IDetailGroup& MaterialPropertyOverrideGroup)
+void FMaterialInstanceParameterDetails::CreateBasePropertyOverrideWidgets(IDetailLayoutBuilder& DetailLayout)
 {
-	IDetailGroup& BasePropertyOverrideGroup = MaterialPropertyOverrideGroup;
+	IDetailCategoryBuilder& DetailCategory = DetailLayout.EditCategory(NAME_None);
+	
+	static FName GroupName(TEXT("BasePropertyOverrideGroup"));
+	IDetailGroup& BasePropertyOverrideGroup = DetailCategory.AddGroup(GroupName, LOCTEXT("BasePropertyOverrideGroup", "Material Property Overrides"), false, false);
 
 	TAttribute<bool> IsOverrideOpacityClipMaskValueEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideOpacityClipMaskValueEnabled));
 	TAttribute<bool> IsOverrideBlendModeEnabled = TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMaterialInstanceParameterDetails::OverrideBlendModeEnabled));

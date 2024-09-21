@@ -237,7 +237,7 @@ TSharedRef<ISequencerSection> FParticleTrackEditor::MakeSectionInterface( UMovie
 }
 
 
-void FParticleTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
+void FParticleTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding, const UClass* ObjectClass)
 {
 	if (ObjectClass->IsChildOf(AEmitter::StaticClass()) || ObjectClass->IsChildOf(UParticleSystemComponent::StaticClass()))
 	{
@@ -247,25 +247,20 @@ void FParticleTrackEditor::BuildObjectBindingTrackMenu(FMenuBuilder& MenuBuilder
 			LOCTEXT("AddParticleTrack", "Particle Toggle Track"),
 			LOCTEXT("TriggerParticlesTooltip", "Adds a track for controlling particle emitter state."),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &FParticleTrackEditor::AddParticleKey, ObjectBindings))
+			FUIAction(FExecuteAction::CreateSP(this, &FParticleTrackEditor::AddParticleKey, ObjectBinding))
 		);
 	}
 }
 
 
-void FParticleTrackEditor::AddParticleKey( TArray<FGuid> ObjectGuids )
+void FParticleTrackEditor::AddParticleKey( const FGuid ObjectGuid )
 {
-	const FScopedTransaction Transaction(NSLOCTEXT("Sequencer", "AddParticleKey", "Add Particle Key"));
-
 	TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
-	for (FGuid ObjectGuid : ObjectGuids)
-	{
-		UObject* Object = SequencerPtr.IsValid() ? SequencerPtr->FindSpawnedObjectOrTemplate(ObjectGuid) : nullptr;
+	UObject* Object = SequencerPtr.IsValid() ? SequencerPtr->FindSpawnedObjectOrTemplate(ObjectGuid) : nullptr;
 
-		if (Object)
-		{
-			AnimatablePropertyChanged(FOnKeyProperty::CreateRaw(this, &FParticleTrackEditor::AddKeyInternal, Object));
-		}
+	if (Object)
+	{
+		AnimatablePropertyChanged( FOnKeyProperty::CreateRaw( this, &FParticleTrackEditor::AddKeyInternal, Object ) );
 	}
 }
 

@@ -40,11 +40,6 @@
 #define UE4_PROJECT_STEAMSHIPPINGID 0
 #endif
 
-namespace FNetworkProtocolTypes
-{
-	const FName Steam(TEXT("Steam"));
-}
-
 #if !UE_BUILD_SHIPPING
 namespace OSSConsoleVariables
 {
@@ -129,7 +124,7 @@ inline FString GetSteamAppIdFilename()
  * Write out the steam app id to the steam_appid.txt file before initializing the API
  * @param SteamAppId id assigned to the application by Steam
  */
-static bool WriteSteamAppIdToDisk(int32 SteamAppId)
+static void WriteSteamAppIdToDisk(int32 SteamAppId)
 {
 	if (SteamAppId > 0)
 	{
@@ -141,8 +136,7 @@ static bool WriteSteamAppIdToDisk(int32 SteamAppId)
 		IFileHandle* Handle = IPlatformFile::GetPlatformPhysical().OpenWrite(*SteamAppIdFilename, false, false);
 		if (!Handle)
 		{
-			UE_LOG_ONLINE(Error, TEXT("Failed to create file: %s"), *SteamAppIdFilename);
-			return false;
+			UE_LOG_ONLINE(Fatal, TEXT("Failed to create file: %s"), *SteamAppIdFilename);
 		}
 		else
 		{
@@ -154,13 +148,8 @@ static bool WriteSteamAppIdToDisk(int32 SteamAppId)
 			Handle->Write(Archive.GetData(), Archive.Num());
 			delete Handle;
 			Handle = nullptr;
-
-			return true;
 		}
 	}
-
-	UE_LOG_ONLINE(Warning, TEXT("Steam App Id provided (%d) is invalid, must be greater than 0!"), SteamAppId);
-	return false;
 }
 
 /**
@@ -184,25 +173,18 @@ static void DeleteSteamAppIdFromDisk()
  *
  * @param RequireRelaunch enforce the Steam client running precondition
  * @param RelaunchAppId appid to launch when the Steam client is loaded
- *
- * @return if this sequence completed without any serious errors
  */
-bool ConfigureSteamInitDevOptions(bool& RequireRelaunch, int32& RelaunchAppId)
+void ConfigureSteamInitDevOptions(bool& RequireRelaunch, int32& RelaunchAppId)
 {
 #if !UE_BUILD_SHIPPING && !UE_BUILD_SHIPPING_WITH_EDITOR
 	// Write out the steam_appid.txt file before launching
 	if (!GConfig->GetInt(TEXT("OnlineSubsystemSteam"), TEXT("SteamDevAppId"), RelaunchAppId, GEngineIni))
 	{
 		UE_LOG_ONLINE(Warning, TEXT("Missing SteamDevAppId key in OnlineSubsystemSteam of DefaultEngine.ini"));
-		return false;
 	}
 	else
 	{
-		if (!WriteSteamAppIdToDisk(RelaunchAppId))
-		{
-			UE_LOG_ONLINE(Warning, TEXT("Could not create/update the steam_appid.txt file! Make sure the directory is writable and there isn't another instance using this file"));
-			return false;
-		}
+		WriteSteamAppIdToDisk(RelaunchAppId);
 	}
 
 	// Should the game force a relaunch in Steam if the client isn't already loaded
@@ -216,8 +198,6 @@ bool ConfigureSteamInitDevOptions(bool& RequireRelaunch, int32& RelaunchAppId)
 	RequireRelaunch = true;
 	RelaunchAppId = UE4_PROJECT_STEAMSHIPPINGID;
 #endif
-
-	return true;
 }
 
 FOnlineAuthSteamPtr FOnlineSubsystemSteam::GetAuthInterface() const
@@ -401,12 +381,7 @@ bool FOnlineSubsystemSteam::Init()
 {
 	bool bRelaunchInSteam = false;
 	int RelaunchAppId = 0;
-
-	if (!ConfigureSteamInitDevOptions(bRelaunchInSteam, RelaunchAppId))
-	{
-		UE_LOG_ONLINE(Warning, TEXT("Could not set up the steam environment! Falling back to another OSS."));
-		return false;
-	}
+	ConfigureSteamInitDevOptions(bRelaunchInSteam, RelaunchAppId);
 
 	const bool bIsServer = IsRunningDedicatedServer();
 	bool bAttemptServerInit = true;

@@ -146,8 +146,8 @@ void FHotReloadClassReinstancer::SerializeCDOProperties(UObject* InObject, FHotR
 		virtual FArchive& operator<<(FName& InName) override
 		{
 			FArchive& Ar = *this;
-			FNameEntryId ComparisonIndex = InName.GetComparisonIndex();
-			FNameEntryId DisplayIndex = InName.GetDisplayIndex();
+			NAME_INDEX ComparisonIndex = InName.GetComparisonIndex();
+			NAME_INDEX DisplayIndex = InName.GetDisplayIndex();
 			int32 Number = InName.GetNumber();
 			Ar << ComparisonIndex;
 			Ar << DisplayIndex;
@@ -385,8 +385,8 @@ void FHotReloadClassReinstancer::UpdateDefaultProperties()
 		virtual FArchive& operator<<(FName& InName) override
 		{
 			FArchive& Ar = *this;
-			FNameEntryId ComparisonIndex = InName.GetComparisonIndex();
-			FNameEntryId DisplayIndex = InName.GetDisplayIndex();
+			NAME_INDEX ComparisonIndex = InName.GetComparisonIndex();
+			NAME_INDEX DisplayIndex = InName.GetDisplayIndex();
 			int32 Number = InName.GetNumber();
 			Ar << ComparisonIndex;
 			Ar << DisplayIndex;
@@ -481,15 +481,9 @@ void FHotReloadClassReinstancer::UpdateDefaultProperties()
 		TArray<uint8> CurrentValueSerializedData;		
 
 		// Update properties on all existing instances of the class
-		const UPackage* TransientPackage = GetTransientPackage();
 		for (FObjectIterator It(NewClass); It; ++It)
 		{
 			UObject* ObjectPtr = *It;
-			if (ObjectPtr->IsPendingKill() || ObjectPtr->GetOutermost() == TransientPackage)
-			{
-				continue;
-			}
-
 			DefaultSubobjectArray.Empty(DefaultSubobjectArrayCapacity);
 			ObjectPtr->CollectDefaultSubobjects(DefaultSubobjectArray);
 

@@ -17,7 +17,6 @@
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Channels/MovieSceneChannelEditorData.h"
 #include "FloatChannelCurveModel.h"
-#include "EventChannelCurveModel.h"
 #include "PropertyCustomizationHelpers.h"
 
 #define LOCTEXT_NAMESPACE "BuiltInChannelEditors"
@@ -73,8 +72,7 @@ FKeyHandle AddOrUpdateKey(FMovieSceneActorReferenceData* Channel, UMovieSceneSec
 		{
 			if (UObject* Object = WeakObject.Get())
 			{
-				// Care is taken here to ensure that we call GetCurrentValue with the correct instantiation of UObject* rather than AActor*
-				CurrentActor = Cast<AActor>(PropertyBindings->GetCurrentValue<UObject*>(*Object));
+				CurrentActor = PropertyBindings->GetCurrentValue<AActor*>(*Object);
 				break;
 			}
 		}
@@ -312,31 +310,6 @@ UMovieSceneKeyStructType* InstanceGeneratedStruct(FMovieSceneObjectPathChannel* 
 
 	Generator->AddGeneratedStruct(GeneratedTypeName, NewStruct);
 	return NewStruct;
-}
-
-void PostConstructKeyInstance(const TMovieSceneChannelHandle<FMovieSceneObjectPathChannel>& ChannelHandle, FKeyHandle InHandle, FStructOnScope* Struct)
-{	
-	const UMovieSceneKeyStructType* GeneratedStructType = CastChecked<const UMovieSceneKeyStructType>(Struct->GetStruct());
-
-	USoftObjectProperty* EditProperty = CastChecked<USoftObjectProperty>(GeneratedStructType->DestValueProperty);
-	const uint8* PropertyAddress = EditProperty->ContainerPtrToValuePtr<uint8>(Struct->GetStructMemory());
-
-	// It is safe to capture the property and address in this lambda because the lambda is owned by the struct itself, so cannot be invoked if the struct has been destroyed
-	auto CopyInstanceToKeyLambda = [ChannelHandle, InHandle, EditProperty, PropertyAddress](const FPropertyChangedEvent&)
-	{
-		if (FMovieSceneObjectPathChannel* DestinationChannel = ChannelHandle.Get())
-		{
-			const int32 KeyIndex = DestinationChannel->GetData().GetIndex(InHandle);
-			if (KeyIndex != INDEX_NONE)
-			{
-				UObject* ObjectPropertyValue = EditProperty->GetObjectPropertyValue(PropertyAddress);
-				DestinationChannel->GetData().GetValues()[KeyIndex] = ObjectPropertyValue;
-			}
-		}
-	};
-
-	FGeneratedMovieSceneKeyStruct* KeyStruct = reinterpret_cast<FGeneratedMovieSceneKeyStruct*>(Struct->GetStructMemory());
-	KeyStruct->OnPropertyChangedEvent = CopyInstanceToKeyLambda;
 }
 
 void DrawKeys(FMovieSceneFloatChannel* Channel, TArrayView<const FKeyHandle> InKeyHandles, TArrayView<FKeyDrawParams> OutKeyDrawParams)
@@ -824,11 +797,5 @@ TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FM
 {
 	return MakeUnique<FFloatChannelCurveModel>(FloatChannel, OwningSection, InSequencer);
 }
-
-TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneEventChannel>& EventChannel, UMovieSceneSection* OwningSection, TSharedRef<ISequencer> InSequencer)
-{
-	return MakeUnique<FEventChannelCurveModel>(EventChannel, OwningSection, InSequencer);
-}
-
 
 #undef LOCTEXT_NAMESPACE

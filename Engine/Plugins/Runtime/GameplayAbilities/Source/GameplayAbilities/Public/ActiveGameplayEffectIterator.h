@@ -48,31 +48,21 @@ public:
 		Next();
 	}
 
-	ElementType& operator*() const
+	ElementType& operator*()
 	{
 		check(Current);
 		return *Current;
 	}
 
-	ElementType& operator->() const
+	ElementType& operator->()
 	{
 		check(Current);
 		return *Current;
 	}
 
-	explicit operator bool() const
+	operator bool()
 	{
 		return (Current != nullptr);
-	}
-
-	friend bool operator==(const FActiveGameplayEffectIterator& Lhs, const FActiveGameplayEffectIterator& Rhs)
-	{
-		return Lhs.Current == Rhs.Current;
-	}
-
-	friend bool operator!=(const FActiveGameplayEffectIterator& Lhs, const FActiveGameplayEffectIterator& Rhs)
-	{
-		return Lhs.Current != Rhs.Current;
 	}
 
 private:

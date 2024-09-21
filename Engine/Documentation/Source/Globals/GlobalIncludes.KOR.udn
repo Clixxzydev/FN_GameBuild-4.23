@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6411255
+﻿INTSourceChangelist:4279407
 Availability:NoPublish
 Title:
 Crumbs:
@@ -15,18 +15,94 @@ Description:
 
 
 [VAR:OSSelect]
+[REGION:section]
+	[REGION:titlesection]
+	운영 체제 선택
+	[/REGION]
+	[OBJECT:ToggleButton]
+		[PARAMLITERAL:category]
+		OS
+		[/PARAMLITERAL]
+		[PARAMLITERAL:id]
+		windows
+		[/PARAMLITERAL]
+		[PARAMLITERAL:active]
+		active_button
+		[/PARAMLITERAL]
+		[PARAM:label]
+		Windows
+		[/PARAM]
+	[/OBJECT]
+	[OBJECT:ToggleButton]
+		[PARAMLITERAL:category]
+		OS
+		[/PARAMLITERAL]
+		[PARAMLITERAL:id]
+		mac
+		[/PARAMLITERAL]
+		[PARAMLITERAL:active]
+		[/PARAMLITERAL]
+		[PARAM:label]
+		Mac OS
+		[/PARAM]
+	[/OBJECT]
+[/REGION]
 [/VAR]
 
 [VAR:OSSelect_Linux]
+[REGION:section]
+	[REGION:titlesection]
+	Choose Your Operating System
+	[/REGION]
+	[OBJECT:ToggleButton]
+		[PARAMLITERAL:category]
+		OS
+		[/PARAMLITERAL]
+		[PARAMLITERAL:id]
+		windows
+		[/PARAMLITERAL]
+		[PARAMLITERAL:active]
+		active_button
+		[/PARAMLITERAL]
+		[PARAM:label]
+		Windows
+		[/PARAM]
+	[/OBJECT]
+	[OBJECT:ToggleButton]
+		[PARAMLITERAL:category]
+		OS
+		[/PARAMLITERAL]
+		[PARAMLITERAL:id]
+		mac
+		[/PARAMLITERAL]
+		[PARAMLITERAL:active]
+		[/PARAMLITERAL]
+		[PARAM:label]
+		Mac OS
+		[/PARAM]
+	[/OBJECT]
+	[OBJECT:ToggleButton]
+		[PARAMLITERAL:category]
+		OS
+		[/PARAMLITERAL]
+		[PARAMLITERAL:id]
+		linux
+		[/PARAMLITERAL]
+		[PARAMLITERAL:active]
+		[/PARAMLITERAL]
+		[PARAM:label]
+		Linux
+		[/PARAM]
+	[/OBJECT]
+[/REGION]
 [/VAR]
 
 
 [VAR:DCCSelect]
-[REGION:togglesection]
-	[REGION:normaltitle]
+[REGION:section]
+	[REGION:titlesection]
 	3D 아트 툴 선택
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		DCC
@@ -54,17 +130,15 @@ Description:
 		Autodesk 3ds Max
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 
 
 [VAR:BinarySourceSelectVar]
-[REGION:togglesection]
-	[REGION:normaltitle]
-	설치 방법 선택
+[REGION:section]
+	[REGION:titlesection]
+	설치 방법 선택:
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		BinarySourceSelect
@@ -76,7 +150,7 @@ Description:
 		active_button
 		[/PARAMLITERAL]
 		[PARAM:label]
-		에픽게임즈 런처
+		에픽 게임즈 런처
 		[/PARAM]
 	[/OBJECT]
 	[OBJECT:ToggleButton]
@@ -92,17 +166,15 @@ Description:
 		소스에서 컴파일
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 
 
 [VAR:BlueprintOrCPPSelectVar]
-[REGION:togglesection]
-	[REGION:normaltitle]
-	구현 방법 선택
+[REGION:section]
+	[REGION:titlesection]
+	구현 방식을 선택하세요:
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		BlueprintOrCPPSelect
@@ -130,16 +202,14 @@ Description:
 		C++
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 
 [VAR:BlueprintOrPythonSelectVar]
-[REGION:togglesection]
-	[REGION:normaltitle]
-	구현 방법 선택
+[REGION:section]
+	[REGION:titlesection]
+	구현 방법을 선택하세요:
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		BlueprintOrCPPSelect
@@ -151,7 +221,7 @@ Description:
 		active_button
 		[/PARAMLITERAL]
 		[PARAM:label]
-		블루프린트
+		Blueprints
 		[/PARAM]
 	[/OBJECT]
 	[OBJECT:ToggleButton]
@@ -167,16 +237,14 @@ Description:
 		Python
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 
 [VAR:MobileSelect]
-[REGION:togglesection]
-	[REGION:normaltitle]
-	모바일 플랫폼 선택
+[REGION:section]
+	[REGION:titlesection]
+	모바일 플랫폼을 선택하세요:
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		Platform
@@ -204,16 +272,14 @@ Description:
 		iOS
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 
 [VAR:VRSelect]
-[REGION:togglesection]
-	[REGION:normaltitle]
-	VR 플랫폼 선택
+[REGION:section]
+	[REGION:titlesection]
+	VR 플랫폼을 선택하세요:
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		VRPlatform
@@ -267,16 +333,14 @@ Description:
 		Steam VR
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 
 [VAR:MethodSelect]
-[REGION:togglesection]
-	[REGION:normaltitle]
-	구현 방법 선택
+[REGION:section]
+	[REGION:titlesection]
+	구현 메서드 선택
 	[/REGION]
-	[REGION:toggleButtons]
 	[OBJECT:ToggleButton]
 		[PARAMLITERAL:category]
 		Method
@@ -288,7 +352,7 @@ Description:
 		active_button
 		[/PARAMLITERAL]
 		[PARAM:label]
-		방법 1
+		Method 1
 		[/PARAM]
 	[/OBJECT]
 	[OBJECT:ToggleButton]
@@ -301,10 +365,9 @@ Description:
 		[PARAMLITERAL:active]
 		[/PARAMLITERAL]
 		[PARAM:label]
-		방법 2
+		Method 2
 		[/PARAM]
 	[/OBJECT]
-	[/REGION]
 [/REGION]
 [/VAR]
 

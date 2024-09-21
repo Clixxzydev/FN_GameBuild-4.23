@@ -75,11 +75,6 @@ void UVariant::AddBindings(const TArray<UVariantObjectBinding*>& NewBindings, in
 	TSet<UVariant*> ParentsModified;
 	for (UVariantObjectBinding* NewBinding : NewBindings)
 	{
-		if (NewBinding == nullptr)
-		{
-			continue;
-		}
-
 		UVariant* OldParent = NewBinding->GetParent();
 
 		if (OldParent)
@@ -144,11 +139,6 @@ void UVariant::AddBindings(const TArray<UVariantObjectBinding*>& NewBindings, in
 
 int32 UVariant::GetBindingIndex(UVariantObjectBinding* Binding)
 {
-	if (Binding == nullptr)
-	{
-		return INDEX_NONE;
-	}
-
 	return ObjectBindings.Find(Binding);
 }
 

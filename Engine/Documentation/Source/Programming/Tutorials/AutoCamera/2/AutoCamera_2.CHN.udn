@@ -1,10 +1,7 @@
-﻿INTSourceChangelist:6061750
-Availability: docs
+﻿Availability: Public
 Title:2. 在C++中控制相机视图
 Crumbs:%ROOT%, Programming, Programming/Tutorials, Programming/Tutorials/AutoCamera
 Description:对类进行编码以变更相机视图
-
-## 此页面已被合并，不再需要。
 
 [VAR:Steps]
 [OBJECT:Navigation]

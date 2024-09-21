@@ -444,7 +444,6 @@ void FMetalRenderPass::DrawPrimitiveIndirect(uint32 PrimitiveType, FMetalVertexB
 		ConditionalSwitchToRender();
 		check(CurrentEncoder.GetCommandBuffer());
 		check(CurrentEncoder.IsRenderCommandEncoderActive());
-		check(VertexBuffer->Buffer);
 		
 		PrepareToRender(PrimitiveType);
 		
@@ -578,8 +577,6 @@ void FMetalRenderPass::DrawIndexedIndirect(FMetalIndexBuffer* IndexBuffer, uint3
 		ConditionalSwitchToRender();
 		check(CurrentEncoder.GetCommandBuffer());
 		check(CurrentEncoder.IsRenderCommandEncoderActive());
-		check(IndexBuffer->Buffer);
-		check(VertexBuffer->Buffer);
 		
 		// finalize any pending state
 		PrepareToRender(PrimitiveType);
@@ -613,8 +610,6 @@ void FMetalRenderPass::DrawIndexedPrimitiveIndirect(uint32 PrimitiveType,FMetalI
 		ConditionalSwitchToRender();
 		check(CurrentEncoder.GetCommandBuffer());
 		check(CurrentEncoder.IsRenderCommandEncoderActive());
-		check(IndexBuffer->Buffer);
-		check(VertexBuffer->Buffer);
 		
 		PrepareToRender(PrimitiveType);
 		
@@ -708,7 +703,7 @@ void FMetalRenderPass::DrawPatches(uint32 PrimitiveType,FMetalBuffer const& Inde
 			{
                 FMetalCommandBufferDebugHelpers::TrackResource(CurrentEncoder.GetCommandBuffer().GetPtr(), IndexBuffer.GetPtr());
 				PrologueEncoder.SetShaderBuffer(mtlpp::FunctionType::Kernel, IndexBuffer, StartIndex * IndexBufferStride, IndexBuffer.GetLength() - (StartIndex * IndexBufferStride), Pipeline->TessellationPipelineDesc.TessellationIndexBufferIndex, mtlpp::ResourceUsage::Read, IndexBufferStride == 2 ? PF_R16_UINT : PF_R32_UINT);
-		}
+			}
 			else
 			{
 				PrologueEncoder.SetShaderBuffer(mtlpp::FunctionType::Kernel, nil, 0, 0, Pipeline->TessellationPipelineDesc.TessellationIndexBufferIndex, mtlpp::ResourceUsage::Read, (EPixelFormat)0);
@@ -893,7 +888,6 @@ void FMetalRenderPass::DispatchIndirect(FMetalVertexBuffer* ArgumentBuffer, uint
 		ConditionalSwitchToAsyncCompute();
 		check(PrologueEncoder.GetCommandBuffer());
 		check(PrologueEncoder.IsComputeCommandEncoderActive());
-		check(ArgumentBuffer->Buffer);
 		
 		PrepareToAsyncDispatch();
 		
@@ -966,9 +960,16 @@ void FMetalRenderPass::CopyFromTextureToBuffer(FMetalTexture const& Texture, uin
 	FMetalCommandBufferDebugHelpers::TrackResource(CurrentEncoder.GetCommandBuffer().GetPtr(), toBuffer.GetPtr());
 	
 	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	if (CmdList.GetCommandQueue().SupportsFeature(EMetalFeaturesDepthStencilBlitOptions))
 	{
 		MTLPP_VALIDATE(mtlpp::BlitCommandEncoder, Encoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, Copy(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toBuffer, destinationOffset, destinationBytesPerRow, destinationBytesPerImage, options));
 		METAL_DEBUG_LAYER(EMetalDebugLevelFastValidation, CurrentEncoder.GetBlitCommandEncoderDebugging().Copy(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toBuffer, destinationOffset, destinationBytesPerRow, destinationBytesPerImage, options));
+	}
+	else
+	{
+		check(options == mtlpp::BlitOption::None);
+		MTLPP_VALIDATE(mtlpp::BlitCommandEncoder, Encoder, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, Copy(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toBuffer, destinationOffset, destinationBytesPerRow, destinationBytesPerImage));
+		METAL_DEBUG_LAYER(EMetalDebugLevelFastValidation, CurrentEncoder.GetBlitCommandEncoderDebugging().Copy(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toBuffer, destinationOffset, destinationBytesPerRow, destinationBytesPerImage));
 	}
 	ConditionalSubmit();
 }
@@ -1704,18 +1705,6 @@ void FMetalRenderPass::ConditionalSwitchToAsyncCompute(void)
 			}
 			PrologueEncoderFence = nullptr;
 		}
-		if (PassStartFence)
-		{
-			if(PassStartFence->NeedsWait(mtlpp::RenderStages::Vertex))
-			{
-				PrologueEncoder.WaitForFence(PassStartFence);
-			}
-			else
-			{
-				PrologueEncoder.WaitAndUpdateFence(PassStartFence);
-			}
-			PassStartFence = nullptr;
-		}
 #if METAL_DEBUG_OPTIONS
 //		if (GetEmitDrawEvents() && PrologueEncoder.GetEncoderFence())
 //		{
@@ -1884,7 +1873,7 @@ void FMetalRenderPass::ConditionalSubmit()
 	
 	bool bCanForceSubmit = State.CanRestartRenderPass();
 
-	FRHIRenderPassInfo CurrentRenderTargets = State.GetRenderPassInfo();
+	FRHISetRenderTargetsInfo CurrentRenderTargets = State.GetRenderTargetsInfo();
 	
 	// Force a command-encoder when GMetalRuntimeDebugLevel is enabled to help track down intermittent command-buffer failures.
 	if (GMetalCommandBufferCommitThreshold > 0 && NumOutstandingOps >= GMetalCommandBufferCommitThreshold && CmdList.GetCommandQueue().GetRuntimeDebuggingLevel() >= EMetalDebugLevelConditionalSubmit)
@@ -1896,13 +1885,14 @@ void FMetalRenderPass::ConditionalSubmit()
 			const bool bIsMSAAActive = State.GetHasValidRenderTarget() && State.GetSampleCount() != 1;
 			bCanChangeRT = !bIsMSAAActive;
 			
-			for (int32 RenderTargetIndex = 0; bCanChangeRT && RenderTargetIndex < CurrentRenderTargets.GetNumColorRenderTargets(); RenderTargetIndex++)
+			for (int32 RenderTargetIndex = 0; bCanChangeRT && RenderTargetIndex < CurrentRenderTargets.NumColorRenderTargets; RenderTargetIndex++)
 			{
-				FRHIRenderPassInfo::FColorEntry& RenderTargetView = CurrentRenderTargets.ColorRenderTargets[RenderTargetIndex];
+				FRHIRenderTargetView& RenderTargetView = CurrentRenderTargets.ColorRenderTarget[RenderTargetIndex];
 				
-				if (GetStoreAction(RenderTargetView.Action) != ERenderTargetStoreAction::EMultisampleResolve)
+				if (RenderTargetView.StoreAction != ERenderTargetStoreAction::EMultisampleResolve)
 				{
-					RenderTargetView.Action = MakeRenderTargetActions(ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::EStore);
+					RenderTargetView.LoadAction = ERenderTargetLoadAction::ELoad;
+					RenderTargetView.StoreAction = ERenderTargetStoreAction::EStore;
 				}
 				else
 				{
@@ -1910,12 +1900,11 @@ void FMetalRenderPass::ConditionalSubmit()
 				}
 			}
 			
-			if (bCanChangeRT && CurrentRenderTargets.DepthStencilRenderTarget.DepthStencilTarget)
+			if (bCanChangeRT && CurrentRenderTargets.DepthStencilRenderTarget.Texture)
 			{
-				if (GetStoreAction(GetDepthActions(CurrentRenderTargets.DepthStencilRenderTarget.Action)) != ERenderTargetStoreAction::EMultisampleResolve && GetStoreAction(GetStencilActions(CurrentRenderTargets.DepthStencilRenderTarget.Action)) != ERenderTargetStoreAction::EMultisampleResolve)
+				if (CurrentRenderTargets.DepthStencilRenderTarget.DepthStoreAction != ERenderTargetStoreAction::EMultisampleResolve && CurrentRenderTargets.DepthStencilRenderTarget.GetStencilStoreAction() != ERenderTargetStoreAction::EMultisampleResolve)
 				{
-					ERenderTargetActions Actions = MakeRenderTargetActions(ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::EStore);
-					CurrentRenderTargets.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(Actions, Actions);
+					CurrentRenderTargets.DepthStencilRenderTarget = FRHIDepthRenderTargetView(CurrentRenderTargets.DepthStencilRenderTarget.Texture, ERenderTargetLoadAction::ELoad, ERenderTargetStoreAction::EStore);
 				}
 				else
 				{
@@ -1942,11 +1931,11 @@ void FMetalRenderPass::ConditionalSubmit()
 			State.InvalidateRenderTargets();
 			if (IsFeatureLevelSupported( GMaxRHIShaderPlatform, ERHIFeatureLevel::SM4 ))
 			{
-				bSet = State.SetRenderPassInfo(CurrentRenderTargets, State.GetVisibilityResultsBuffer(), false);
+				bSet = State.SetRenderTargetsInfo(CurrentRenderTargets, State.GetVisibilityResultsBuffer(), false);
 			}
 			else
 			{
-				bSet = State.SetRenderPassInfo(CurrentRenderTargets, NULL, false);
+				bSet = State.SetRenderTargetsInfo(CurrentRenderTargets, NULL, false);
 			}
 			
 			if (bSet)

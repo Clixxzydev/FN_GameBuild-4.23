@@ -234,13 +234,7 @@ void SocketImpl::disconnect()
 	}
 	if(mSocket != INVALID_SOCKET)
 	{
-		// @ATG_CHANGE : BEGIN HoloLens support
-#if PX_HOLOLENS
-		shutdown(mSocket, SD_SEND);
-#else
 		WSASendDisconnect(mSocket, NULL);
-#endif
-		// @ATG_CHANGE : END
 		closesocket(mSocket);
 		mSocket = INVALID_SOCKET;
 	}

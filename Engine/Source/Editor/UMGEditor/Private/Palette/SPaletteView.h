@@ -5,6 +5,8 @@
 #include "CoreMinimal.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/Views/STableViewBase.h"
+#include "Widgets/Views/STableRow.h"
 #include "WidgetBlueprintEditor.h"
 #include "Misc/TextFilter.h"
 #include "Widgets/Views/STreeView.h"
@@ -12,61 +14,28 @@
 
 class FWidgetTemplate;
 class UWidgetBlueprint;
-class SPaletteView;
-class FPaletteViewModel;
-class FWidgetViewModel;
-class FWidgetTemplateViewModel;
 
-/** Widget used to show a single row of the Palette and Palette favorite panel. */
-class SPaletteViewItem : public SCompoundWidget
+/** View model for the items in the widget template list */
+class FWidgetViewModel : public TSharedFromThis<FWidgetViewModel>
 {
 public:
+	virtual ~FWidgetViewModel() { }
 
-	SLATE_BEGIN_ARGS(SPaletteViewItem) {}
+	virtual FText GetName() const = 0;
 
-	/** The current text to highlight */
-	SLATE_ATTRIBUTE(FText, HighlightText)
+	virtual bool IsTemplate() const = 0;
 
-	SLATE_END_ARGS()
+	/** Get the string which should be used for filtering the item. */
+	virtual FString GetFilterString() const = 0;
 
-	/**
-	* Constructs this widget
-	*
-	* @param InArgs    Declaration from which to construct the widget
-	*/
-	void Construct(const FArguments& InArgs, TSharedPtr<FWidgetTemplateViewModel> InWidgetViewModel);
+	virtual TSharedRef<ITableRow> BuildRow(const TSharedRef<STableViewBase>& OwnerTable) = 0;
 
-private:
-	/**
-	 * Retrieves tooltip that describes the current favorited state 
-	 *
-	 * @return Text describing what this toggle will do when you click on it.
-	 */
-	FText GetFavoriteToggleToolTipText() const;
-
-	/**
-	 * Checks on the associated action's favorite state, and returns a
-	 * corresponding checkbox state to match.
-	 *
-	 * @return ECheckBoxState::Checked if the associated action is already favorited, ECheckBoxState::Unchecked if not.
-	 */
-	ECheckBoxState GetFavoritedState() const;
-
-	/**
-	 * Triggers when the user clicks this toggle, adds or removes the associated
-	 * action to the user's favorites.
-	 *
-	 * @param  InNewState	The new state that the user set the checkbox to.
-	 */
-	void OnFavoriteToggled(ECheckBoxState InNewState);
-
-	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
-
-private:
-	TSharedPtr<FWidgetTemplateViewModel> WidgetViewModel;
+	virtual void GetChildren(TArray< TSharedPtr<FWidgetViewModel> >& OutChildren)
+	{
+	}
 };
 
-/** */
+/**  */
 class SPaletteView : public SCompoundWidget
 {
 public:
@@ -91,6 +60,12 @@ public:
 	TSharedPtr<FWidgetTemplate> GetSelectedTemplateWidget() const;
 
 private:
+	UWidgetBlueprint* GetBlueprint() const;
+
+	void BuildWidgetList();
+	void BuildClassWidgetList();
+	bool FilterAssetData(FAssetData &BPAssetData);
+	void BuildSpecialWidgetList();
 
 	void OnGetChildren(TSharedPtr<FWidgetViewModel> Item, TArray< TSharedPtr<FWidgetViewModel> >& Children);
 	TSharedRef<ITableRow> OnGenerateWidgetTemplateItem(TSharedPtr<FWidgetViewModel> Item, const TSharedRef<STableViewBase>& OwnerTable);
@@ -98,27 +73,41 @@ private:
 	/** Called when the filter text is changed. */
 	void OnSearchChanged(const FText& InFilterText);
 
-	void OnViewModelUpdating();
-	void OnViewModelUpdated();
-
 private:
-	/** Load the expansion state for the TreeView */
 	void LoadItemExpansion();
-
-	/** Save the expansion state for the TreeView */
 	void SaveItemExpansion();
 
-	/** Gets an array of strings used for filtering/searching the specified widget. */
-	void GetWidgetFilterStrings(TSharedPtr<FWidgetViewModel> WidgetViewModel, TArray<FString>& OutStrings);
+	/** Called when a Blueprint is recompiled and live objects are swapped out for replacements */
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+
+	void AddWidgetTemplate(TSharedPtr<FWidgetTemplate> Template);
+
+	/** Transforms the widget view model into a searchable string. */
+	void TransformWidgetViewModelToString(TSharedPtr<FWidgetViewModel> WidgetViewModel, OUT TArray< FString >& Array);
+
+	/** Requests a rebuild of the widget list if a widget blueprint was compiled */
+	void OnBlueprintReinstanced();
+
+	/** Requests a rebuild of the widget list */
+	void HandleOnHotReload(bool bWasTriggeredAutomatically);
+
+	/** Requests a rebuild of the widget list if a widget blueprint was deleted */
+	void HandleOnAssetsDeleted(const TArray<UClass*>& DeletedAssetClasses);
 
 	TWeakPtr<class FWidgetBlueprintEditor> BlueprintEditor;
-	TSharedPtr<FPaletteViewModel> PaletteViewModel;
 
 	/** Handles filtering the palette based on an IFilter. */
 	typedef TreeFilterHandler<TSharedPtr<FWidgetViewModel>> PaletteFilterHandler;
 	TSharedPtr<PaletteFilterHandler> FilterHandler;
 
-	typedef TArray<TSharedPtr<FWidgetViewModel>> ViewModelsArray;
+	typedef TArray< TSharedPtr<FWidgetTemplate> > WidgetTemplateArray;
+	TMap< FString, WidgetTemplateArray > WidgetTemplateCategories;
+
+	typedef TArray< TSharedPtr<FWidgetViewModel> > ViewModelsArray;
+	
+	/** The source root view models for the tree. */
+	ViewModelsArray WidgetViewModels;
+
 	/** The root view models which are actually displayed by the TreeView which will be managed by the TreeFilterHandler. */
 	ViewModelsArray TreeWidgetViewModels;
 
@@ -130,12 +119,12 @@ private:
 	/** The filter instance which is used by the TreeFilterHandler to filter the TreeView. */
 	TSharedPtr<WidgetViewModelTextFilter> WidgetFilter;
 
-	/** Expended Items in the Tree view */
-	TSet<TSharedPtr<FWidgetViewModel>> ExpandedItems;
-
-	/** Set to true to force a refresh of the treeview */
 	bool bRefreshRequested;
+	FText SearchText;
 
-	/** Are editor widgets supported. */
+	/** Controls rebuilding the list of spawnable widgets */
+	bool bRebuildRequested;
+
+	/** Are blutility widget supported. */
 	bool bAllowEditorWidget;
 };

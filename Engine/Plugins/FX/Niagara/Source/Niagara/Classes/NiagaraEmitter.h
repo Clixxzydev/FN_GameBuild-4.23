@@ -8,7 +8,6 @@
 #include "UObject/Object.h"
 #include "NiagaraScript.h"
 #include "NiagaraCollision.h"
-#include "INiagaraMergeManager.h"
 #include "NiagaraEmitter.generated.h"
 
 class UMaterial;
@@ -173,8 +172,6 @@ class UNiagaraEmitter : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
-	friend struct FNiagaraEmitterHandle;
-
 public:
 #if WITH_EDITOR
 	DECLARE_MULTICAST_DELEGATE(FOnPropertiesChanged);
@@ -187,15 +184,10 @@ public:
 #endif
 
 public:
-#if WITH_EDITOR
-	/** Creates a new emitter with the supplied emitter as a parent emitter and the supplied system as it's owner. */
-	NIAGARA_API static UNiagaraEmitter* CreateWithParentAndOwner(UNiagaraEmitter& InParentEmitter, UObject* InOwner, FName InName, EObjectFlags FlagMask);
-
-	/** Creates a new emitter by duplicating an existing emitter.  The new emitter  will reference the same parent emitter if one is available. */
-	static UNiagaraEmitter* CreateAsDuplicate(const UNiagaraEmitter& InEmitterToDuplicate, FName InDuplicateName, UNiagaraSystem& InDuplicateOwnerSystem);
-
 	//Begin UObject Interface
+#if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+
 	NIAGARA_API FOnPropertiesChanged& OnPropertiesChanged();
 #endif
 	void Serialize(FArchive& Ar)override;
@@ -214,6 +206,15 @@ public:
 	/** An emitter-based seed for the deterministic random number generator. */
 	UPROPERTY(EditAnywhere, Category = "Emitter", meta = (EditCondition = "bDeterminism"))
 	int32 RandomSeed;
+
+	//UPROPERTY(EditAnywhere, Category = "Emitter")
+	//float StartTime;
+	//UPROPERTY(EditAnywhere, Category = "Emitter")
+	//float EndTime;
+	//UPROPERTY(EditAnywhere, Category = "Emitter")
+	//int32 NumLoops
+	//UPROPERTY(EditAnywhere, Category = "Emitter")
+	//ENiagaraCollisionMode CollisionMode;
 
 	UPROPERTY()
 	FNiagaraEmitterScriptProperties UpdateScriptProps;
@@ -313,18 +314,6 @@ public:
 	NIAGARA_API FOnEmitterCompiled& OnEmitterVMCompiled();
 
 	NIAGARA_API static bool GetForceCompileOnLoad();
-
-	/** Whether or not this emitter is synchronized with its parent emitter. */
-	NIAGARA_API bool IsSynchronizedWithParent() const;
-
-	/** Merges in any changes from the parent emitter into this emitter. */
-	NIAGARA_API INiagaraMergeManager::FMergeEmitterResults MergeChangesFromParent();
-
-	/** Whether or not this emitter uses the supplied emitter */
-	bool UsesEmitter(const UNiagaraEmitter& InEmitter) const;
-
-	/** Duplicates this emitter, but prevents the duplicate from merging in changes from the parent emitter.  The resulting duplicate will have no parent information. */
-	NIAGARA_API UNiagaraEmitter* DuplicateWithoutMerging(UObject* InOuter);
 #endif
 
 	/** Is this emitter allowed to be enabled by the current system detail level. */
@@ -362,22 +351,14 @@ public:
 	/* Gets whether or not the supplied event generator id matches an event generator which is shared between the particle spawn and update scrips. */
 	bool IsEventGeneratorShared(FName EventGeneratorId) const;
 
-	TStatId GetStatID(bool bGameThread, bool bConcurrent)const;
-
-	NIAGARA_API UNiagaraEmitter* GetParent() const;
-
-	NIAGARA_API void RemoveParent();
-
 protected:
 	virtual void BeginDestroy() override;
 
 #if WITH_EDITORONLY_DATA
 private:
-	void UpdateFromMergedCopy(const INiagaraMergeManager& MergeManager, UNiagaraEmitter* MergedEmitter);
-
 	void SyncEmitterAlias(const FString& InOldName, const FString& InNewName);
 
-	void UpdateChangeId(const FString& Reason);
+	void UpdateChangeId();
 
 	void ScriptRapidIterationParameterChanged();
 
@@ -409,22 +390,8 @@ private:
 	UPROPERTY()
 	TArray<FName> SharedEventGeneratorIds;
 
-	UPROPERTY()
-	UNiagaraEmitter* Parent;
-
-	UPROPERTY()
-	UNiagaraEmitter* ParentAtLastMerge;
-
 #if WITH_EDITOR
 	FOnPropertiesChanged OnPropertiesChangedDelegate;
-#endif
-
-	void GenerateStatID();
-#if STATS
-	TStatId StatID_GT;
-	TStatId StatID_GT_CNC;
-	TStatId StatID_RT;
-	TStatId StatID_RT_CNC;
 #endif
 };
 

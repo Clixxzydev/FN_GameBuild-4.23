@@ -6,14 +6,6 @@
 #include "AssetData.h"
 #include "Misc/AssetRegistryInterface.h"
 
-#define USE_DEPENDS_NODE_LIST_SETS (WITH_EDITOR || IS_PROGRAM)
-
-#if USE_DEPENDS_NODE_LIST_SETS
-typedef TSet<class FDependsNode*> FDependsNodeList;
-#else
-typedef TArray<class FDependsNode*> FDependsNodeList;
-#endif
-
 /** Implementation of IDependsNode */
 class FDependsNode
 {
@@ -44,11 +36,11 @@ public:
 	/** Add a dependency to this node */
 	void AddDependency(FDependsNode* InDependency, EAssetRegistryDependencyType::Type InDependencyType = EAssetRegistryDependencyType::Hard, bool bGuaranteedUnique = false);
 	/** Add a referencer to this node */
-	void AddReferencer(FDependsNode* InReferencer, bool bGuaranteedUnique = false);
+	void AddReferencer(FDependsNode* InReferencer, bool bGuaranteedUnique = false) { bGuaranteedUnique ? Referencers.Add(InReferencer) : Referencers.AddUnique(InReferencer); }
 	/** Remove a dependency from this node */
 	void RemoveDependency(FDependsNode* InDependency);
 	/** Remove a referencer from this node */
-	void RemoveReferencer(FDependsNode* InReferencer);
+	void RemoveReferencer(FDependsNode* InReferencer) { Referencers.RemoveSingleSwap(InReferencer, false); }
 	/** Clear all dependency records from this node */
 	void ClearDependencies();
 	/** Removes Manage dependencies on this node and clean up referencers array. Manage references are the only ones safe to remove at runtime */
@@ -65,9 +57,9 @@ public:
 	template <class T>
 	void IterateOverDependencies(T InCallback, EAssetRegistryDependencyType::Type InDependencyType = EAssetRegistryDependencyType::All) const
 	{
-		IterateOverDependencyLists([&InCallback](const FDependsNodeList& InList, EAssetRegistryDependencyType::Type CurrentType)
+		IterateOverDependencyArrays([&InCallback](const TArray<FDependsNode*>& InArray, EAssetRegistryDependencyType::Type CurrentType)
 		{
-			for (FDependsNode* Dependency : InList)
+			for (FDependsNode* Dependency : InArray)
 			{
 				InCallback(Dependency, CurrentType);
 			}
@@ -102,32 +94,32 @@ private:
 
 	/** Iterate over all the separate dependency arrays. Const cast to avoid duplication */
 	template <class T>
-	FORCEINLINE void IterateOverDependencyLists(T InCallback, EAssetRegistryDependencyType::Type InDependencyType = EAssetRegistryDependencyType::All) const
+	FORCEINLINE void IterateOverDependencyArrays(T InCallback, EAssetRegistryDependencyType::Type InDependencyType = EAssetRegistryDependencyType::All) const
 	{
 		// This iteration is specific so it gets the "most important" references first in the array
 		if (InDependencyType & EAssetRegistryDependencyType::Hard)
 		{
-			InCallback(const_cast<FDependsNodeList&>(HardDependencies), EAssetRegistryDependencyType::Hard);
+			InCallback(const_cast<TArray<FDependsNode*>&>(HardDependencies), EAssetRegistryDependencyType::Hard);
 		}
 
 		if (InDependencyType & EAssetRegistryDependencyType::Soft)
 		{
-			InCallback(const_cast<FDependsNodeList&>(SoftDependencies), EAssetRegistryDependencyType::Soft);
+			InCallback(const_cast<TArray<FDependsNode*>&>(SoftDependencies), EAssetRegistryDependencyType::Soft);
 		}
 
 		if (InDependencyType & EAssetRegistryDependencyType::HardManage)
 		{
-			InCallback(const_cast<FDependsNodeList&>(HardManageDependencies), EAssetRegistryDependencyType::HardManage);
+			InCallback(const_cast<TArray<FDependsNode*>&>(HardManageDependencies), EAssetRegistryDependencyType::HardManage);
 		}
 
 		if (InDependencyType & EAssetRegistryDependencyType::SoftManage)
 		{
-			InCallback(const_cast<FDependsNodeList&>(SoftManageDependencies), EAssetRegistryDependencyType::SoftManage);
+			InCallback(const_cast<TArray<FDependsNode*>&>(SoftManageDependencies), EAssetRegistryDependencyType::SoftManage);
 		}
 
 		if (InDependencyType & EAssetRegistryDependencyType::SearchableName)
 		{
-			InCallback(const_cast<FDependsNodeList&>(NameDependencies), EAssetRegistryDependencyType::SearchableName);
+			InCallback(const_cast<TArray<FDependsNode*>&>(NameDependencies), EAssetRegistryDependencyType::SearchableName);
 		}
 	}
 
@@ -139,15 +131,15 @@ private:
 	/** The name of the package/object this node represents */
 	FAssetIdentifier Identifier;
 	/** The list of hard dependencies for this node */
-	FDependsNodeList HardDependencies;
+	TArray<FDependsNode*> HardDependencies;
 	/** The list of soft dependencies for this node */
-	FDependsNodeList SoftDependencies;
+	TArray<FDependsNode*> SoftDependencies;
 	/** The list of searchable name dependencies for this node */
-	FDependsNodeList NameDependencies;
+	TArray<FDependsNode*> NameDependencies;
 	/** The list of hard manage dependencies for this node */
-	FDependsNodeList SoftManageDependencies;
+	TArray<FDependsNode*> SoftManageDependencies;
 	/** The list of soft manage dependencies for this node */
-	FDependsNodeList HardManageDependencies;
+	TArray<FDependsNode*> HardManageDependencies;
 	/** The list of referencers to this node */
-	FDependsNodeList Referencers;
+	TArray<FDependsNode*> Referencers;
 };

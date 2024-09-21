@@ -1,9 +1,7 @@
 // Copyright 1998-2019 Epic Games, Inc. All Rights Reserved.
 
-#include "OnlineSubsystemIOSModule.h"
+#include "OnlineSubsystemIOSPrivatePCH.h"
 #include "HttpModule.h"
-#include "OnlineSubsystem.h"
-#include "OnlineSubsystemIOS.h"
 
 IMPLEMENT_MODULE( FOnlineSubsystemIOSModule, OnlineSubsystemIOS );
 

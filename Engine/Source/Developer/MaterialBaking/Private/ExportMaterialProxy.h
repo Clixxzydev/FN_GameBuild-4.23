@@ -104,9 +104,9 @@ struct FExportMaterialCompiler : public FProxyMaterialCompiler
 		return Compiler->ObjectBounds();
 	}
 
-	virtual int32 PreSkinnedLocalBounds(int32 OutputIndex) override
+	virtual int32 PreSkinnedLocalBounds() override
 	{
-		return Compiler->PreSkinnedLocalBounds(OutputIndex);
+		return Compiler->PreSkinnedLocalBounds();
 	}
 
 	virtual int32 CameraVector() override
@@ -270,7 +270,7 @@ public:
 			break;
 		};
 
-		CacheShaders(ResourceId, GMaxRHIShaderPlatform);
+		CacheShaders(ResourceId, GMaxRHIShaderPlatform, true);
 	}
 
 	/** This override is required otherwise the shaders aren't ready for use when the surface is rendered resulting in a blank image */
@@ -294,7 +294,7 @@ public:
 		return bCorrectVertexFactory && bPCPlatform && bCorrectFrequency;
 	}
 
-	virtual const TArray<UObject*>& GetReferencedTextures() const override
+	virtual const TArray<UTexture*>& GetReferencedTextures() const override
 	{
 		return ReferencedTextures;
 	}
@@ -473,7 +473,6 @@ public:
 	virtual bool IsMasked() const override { return false; }
 	virtual enum EBlendMode GetBlendMode() const override { return BLEND_Opaque; }
 	virtual FMaterialShadingModelField GetShadingModels() const override { return MSM_DefaultLit; }
-	virtual bool IsShadingModelFromMaterialExpression() const override { return false; }
 	virtual float GetOpacityMaskClipValue() const override { return 0.5f; }
 	virtual bool GetCastDynamicShadowAsMasked() const override { return false; }
 	virtual FString GetFriendlyName() const override { return FString::Printf(TEXT("FExportMaterialRenderer %s"), MaterialInterface ? *MaterialInterface->GetName() : TEXT("NULL")); }
@@ -580,7 +579,7 @@ private:
 	/** The material interface for this proxy */
 	UMaterialInterface* MaterialInterface;
 	UMaterial* Material;
-	TArray<UObject*> ReferencedTextures;
+	TArray<UTexture*> ReferencedTextures;
 	/** The property to compile for rendering the sample */
 	EMaterialProperty PropertyToCompile;
 	FGuid Id;

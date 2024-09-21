@@ -6,10 +6,6 @@ public class D3D11RHI : ModuleRules
 {
 	public D3D11RHI(ReadOnlyTargetRules Target) : base(Target)
 	{
-		if (Target.Platform == UnrealTargetPlatform.HoloLens)
-		{
-			PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private/HoloLens");
-		}
 		PrivateIncludePaths.Add("Runtime/Windows/D3D11RHI/Private");
 
 		PrivateDependencyModuleNames.AddRange(
@@ -23,13 +19,10 @@ public class D3D11RHI : ModuleRules
 			);
 
 		AddEngineThirdPartyPrivateStaticDependencies(Target, "DX11");
-		if (Target.Platform != UnrealTargetPlatform.HoloLens)
-		{ 
-        	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
-        	AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
-			AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
-		}
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAPI");
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "AMD_AGS");
+        AddEngineThirdPartyPrivateStaticDependencies(Target, "NVAftermath");
+		AddEngineThirdPartyPrivateStaticDependencies(Target, "IntelMetricsDiscovery");
 
 
         if (Target.Configuration != UnrealTargetConfiguration.Shipping)

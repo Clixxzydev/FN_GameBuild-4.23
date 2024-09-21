@@ -2,12 +2,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/EngineTypes.h"
-#include "Settings/ClassViewerSettings.h"
 
-class FClassViewerNode;
 class FClassViewerInitializationOptions;
-class FTextFilterExpressionEvaluator;
 
 /** Interface class for creating filters for the Class Viewer. */
 class IClassViewerFilter
@@ -32,24 +28,6 @@ public:
 	 * @param InFilterFuncs				Useful functions for filtering.
 	 */
 	virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const class IUnloadedBlueprintData > InUnloadedClassData, TSharedRef< class FClassViewerFilterFuncs > InFilterFuncs) = 0;
-};
-
-/** Filter class that performs many common checks. */
-class FClassViewerFilter : public IClassViewerFilter
-{
-public:
-	FClassViewerFilter(const FClassViewerInitializationOptions& InInitOptions);
-
-	virtual bool IsNodeAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef<FClassViewerNode>& Node);
-
-	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< class FClassViewerFilterFuncs > InFilterFuncs ) override;
-	virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const class IUnloadedBlueprintData > InUnloadedClassData, TSharedRef< class FClassViewerFilterFuncs > InFilterFuncs) override;
-
-	TArray<UClass*> InternalClasses;
-	TArray<FDirectoryPath> InternalPaths;
-
-	TSharedRef<FTextFilterExpressionEvaluator> TextFilter;
-	TSharedRef<FClassViewerFilterFuncs> FilterFunctions;
 };
 
 namespace EFilterReturn
@@ -186,7 +164,6 @@ public:
 class IUnloadedBlueprintData
 {
 public:
-
 	/**
 	 * Used to safely check whether the passed in flag is set.
 	 *
@@ -250,24 +227,4 @@ public:
 	 * @return The child-most Native class in the hierarchy.
 	 */
 	virtual const UClass* GetNativeParent() const = 0;
-
-	/** 
-	 * Set whether or not this blueprint is a normal blueprint.
-	 */
-	virtual void SetNormalBlueprintType(bool bInNormalBPType) = 0;
-
-	/** 
-	 * Get whether or not this blueprint is a normal blueprint. 
-	 */
-	virtual bool IsNormalBlueprintType() const = 0;
-
-	/**
-	 * Get the generated class name of this blueprint.
-	 */
-	virtual TSharedPtr<FString> GetClassName() const = 0;
-
-	/**
-	 * Get the class path of this blueprint.
-	 */
-	virtual FName GetClassPath() const = 0;
 };

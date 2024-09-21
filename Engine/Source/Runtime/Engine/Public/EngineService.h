@@ -59,6 +59,9 @@ private:
 
 private:
 
+	/** Holds the list of users that are allowed to interact with this session. */
+	TArray<FString> AuthorizedUsers;
+
 	/** Holds the message endpoint. */
 	TSharedPtr<FMessageEndpoint, ESPMode::ThreadSafe> MessageEndpoint;
 };

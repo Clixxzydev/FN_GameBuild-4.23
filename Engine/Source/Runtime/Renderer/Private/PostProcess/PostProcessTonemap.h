@@ -57,7 +57,7 @@ public:
 	virtual void Release() override { delete this; }
 	virtual FPooledRenderTargetDesc ComputeOutputDesc(EPassOutputId InPassOutputId) const override;
 
-	virtual FRHIComputeFence* GetComputePassEndFence() const override { return AsyncEndFence; }
+	virtual FComputeFenceRHIParamRef GetComputePassEndFence() const override { return AsyncEndFence; }
 
 	bool bDoGammaOnly;
 	bool bDoScreenPercentageInTonemapper;
@@ -160,7 +160,7 @@ public:
 		if (Context.View.HasValidEyeAdaptation())
 		{
 			IPooledRenderTarget* EyeAdaptationRT = Context.View.GetEyeAdaptation(Context.RHICmdList);
-			FRHITexture* EyeAdaptationRTRef = EyeAdaptationRT->GetRenderTargetItem().TargetableTexture;
+			FTextureRHIParamRef EyeAdaptationRTRef = EyeAdaptationRT->GetRenderTargetItem().TargetableTexture;
 			if (EyeAdaptationRTRef)
 			{
 				Context.RHICmdList.TransitionResources(EResourceTransitionAccess::EReadable, &EyeAdaptationRTRef, 1);
@@ -170,7 +170,7 @@ public:
 
 	void SetVS(const FRenderingCompositePassContext& Context, const FPermutationDomain& PermutationVector )
 	{
-		FRHIVertexShader* ShaderRHI = GetVertexShader();
+		const FVertexShaderRHIParamRef ShaderRHI = GetVertexShader();
 
 		FGlobalShader::SetParameters<FViewUniformShaderParameters>(Context.RHICmdList, ShaderRHI, Context.View.ViewUniformBuffer);
 
@@ -192,7 +192,7 @@ public:
 		if (Context.View.HasValidEyeAdaptation())
 		{
 			IPooledRenderTarget* EyeAdaptationRT = Context.View.GetEyeAdaptation(Context.RHICmdList);
-			FRHITexture* EyeAdaptationRTRef = EyeAdaptationRT->GetRenderTargetItem().TargetableTexture;
+			FTextureRHIParamRef EyeAdaptationRTRef = EyeAdaptationRT->GetRenderTargetItem().TargetableTexture;
 			if (EyeAdaptationRTRef)
 			{
 				//Context.RHICmdList.TransitionResources(EResourceTransitionAccess::EReadable, &EyeAdaptationRTRef, 1);

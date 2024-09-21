@@ -18,7 +18,7 @@ public:
 	static TSharedRef<IDetailCustomization> MakeInstance();
 
 	/** IDetailCustomization interface */
-	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	virtual void CustomizeDetails( IDetailLayoutBuilder& DetailBuilder ) override;
 	/** End IDetailCustomization interface */
 
 	void OnEditorExperimentalSettingsChanged(FName PropertyName);

@@ -45,9 +45,6 @@ struct ENGINE_API FOverlapInfo
 // All added members of FOverlapInfo are PODs.
 template<> struct TIsPODType<FOverlapInfo> { enum { Value = TIsPODType<FHitResult>::Value }; };
 
-typedef TArray<FOverlapInfo, TInlineAllocator<3>> TInlineOverlapInfoArray;
-typedef TArrayView<const FOverlapInfo> TOverlapArrayView;
-
 /** Detail mode for scene component rendering, corresponds with the integer value of UWorld::GetDetailMode() */
 UENUM()
 enum EDetailMode
@@ -149,11 +146,11 @@ public:
 	FBoxSphereBounds Bounds;
 
 	/** Location of the component relative to its parent */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, ReplicatedUsing=OnRep_Transform, Category = Transform)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, ReplicatedUsing=OnRep_RelativeLocation, Category = Transform)
 	FVector RelativeLocation;
 
 	/** Rotation of the component relative to its parent */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, ReplicatedUsing=OnRep_Transform, Category=Transform)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, ReplicatedUsing=OnRep_RelativeRotation, Category=Transform)
 	FRotator RelativeRotation;
 
 	/**
@@ -163,6 +160,11 @@ public:
 	UPROPERTY(BlueprintReadOnly, ReplicatedUsing=OnRep_Transform, interp, Category=Transform)
 	FVector RelativeScale3D;
 
+private:
+	/** Current transform of the component, relative to the world */
+	FTransform ComponentToWorld;
+
+public:
 	/**
 	* Velocity of the component.
 	* @see GetComponentVelocity()
@@ -204,12 +206,6 @@ private:
 	/** Whether or not we should be attached. */
 	UPROPERTY(Transient, Replicated)
 	uint8 bShouldBeAttached : 1;
-
-	UPROPERTY(Transient, Replicated)
-	uint8 bShouldSnapLocationWhenAttached : 1;
-
-	UPROPERTY(Transient, Replicated)
-	uint8 bShouldSnapRotationWhenAttached : 1;
 
 	/**
 	 * Whether or not the cached PhysicsVolume this component overlaps should be updated when the component is moved.
@@ -256,6 +252,8 @@ protected:
 private:
 	uint8 bNetUpdateTransform : 1;
 	uint8 bNetUpdateAttachment : 1;
+	uint8 bNetHasReceivedRelativeLocation : 1;
+	uint8 bNetHasReceivedRelativeRotation : 1;
 
 public:
 	/** Global flag to enable/disable overlap optimizations, settable with p.SkipUpdateOverlapsOptimEnabled cvar */ 
@@ -275,10 +273,6 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = LOD)
 	TEnumAsByte<enum EDetailMode> DetailMode;
 
-	/** Delegate that will be called when PhysicsVolume has been changed **/
-	UPROPERTY(BlueprintAssignable, Category=PhysicsVolume, meta=(DisplayName="Physics Volume Changed"))
-	FPhysicsVolumeChanged PhysicsVolumeChangedDelegate;
-
 #if WITH_EDITORONLY_DATA
 protected:
 	/** Editor only component used to display the sprite so as to be able to see the location of the Audio Component  */
@@ -292,15 +286,16 @@ private:
 	/** Cache that avoids Quat<->Rotator conversions if possible. Only to be used with RelativeRotation. */
 	FRotationConversionCache RelativeRotationCache;
 
-	/** Current transform of the component, relative to the world */
-	FTransform ComponentToWorld;
-
 public:
 	/** Sets the RelativeRotationCache. Used to ensure component ends up with the same RelativeRotation after calling SetWorldTransform(). */
 	void SetRelativeRotationCache(const FRotationConversionCache& InCache);
 	
 	/** Get the RelativeRotationCache.  */
 	FORCEINLINE const FRotationConversionCache& GetRelativeRotationCache() const { return RelativeRotationCache; }
+
+	/** Delegate that will be called when PhysicsVolume has been changed **/
+	UPROPERTY(BlueprintAssignable, Category=PhysicsVolume, meta=(DisplayName="Physics Volume Changed"))
+	FPhysicsVolumeChanged PhysicsVolumeChangedDelegate;
 
 	/** Delegate called when this component is moved */
 	FTransformUpdated TransformUpdated;
@@ -317,6 +312,12 @@ private:
 
 	UFUNCTION()
 	void OnRep_Transform();
+
+	UFUNCTION()
+	void OnRep_RelativeLocation();
+
+	UFUNCTION()
+	void OnRep_RelativeRotation();
 
 	UFUNCTION()
 	void OnRep_AttachParent();
@@ -892,7 +893,7 @@ protected:
 	bool CheckStaticMobilityAndWarn(const FText& ActionText) const;
 
 	/** Internal helper for UpdateOverlaps */
-	virtual bool UpdateOverlapsImpl(const TOverlapArrayView* PendingOverlaps = nullptr, bool bDoNotifies = true, const TOverlapArrayView* OverlapsAtEndLocation = nullptr);
+	virtual bool UpdateOverlapsImpl(TArray<FOverlapInfo> const* PendingOverlaps = nullptr, bool bDoNotifies = true, const TArray<FOverlapInfo>* OverlapsAtEndLocation = nullptr);
 
 private:
 	void PropagateTransformUpdate(bool bTransformChanged, EUpdateTransformFlags UpdateTransformFlags = EUpdateTransformFlags::None, ETeleportType Teleport = ETeleportType::None);
@@ -901,7 +902,7 @@ private:
 public:
 
 	/** Queries world and updates overlap tracking state for this component */
-	bool UpdateOverlaps(const TOverlapArrayView* PendingOverlaps = nullptr, bool bDoNotifies = true, const TOverlapArrayView* OverlapsAtEndLocation = nullptr);
+	bool UpdateOverlaps(TArray<FOverlapInfo> const* PendingOverlaps = nullptr, bool bDoNotifies = true, const TArray<FOverlapInfo>* OverlapsAtEndLocation = nullptr);
 
 	/**
 	 * Tries to move the component by a movement vector (Delta) and sets rotation to NewRotation.
@@ -991,12 +992,6 @@ public:
 
 	/** Calculate the bounds of the component. Default behavior is a bounding box/sphere of zero size. */
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const;
-
-	/** Calculate the local bounds of the component. Default behavior is calling CalcBounds with an identity transform. */
-	virtual FBoxSphereBounds CalcLocalBounds() const 
-	{ 
-		return CalcBounds(FTransform::Identity);
-	}
 
 	/**
 	 * Calculate the axis-aligned bounding cylinder of the component (radius in X-Y, half-height along Z axis).
@@ -1442,8 +1437,7 @@ class ENGINE_API FScopedMovementUpdate : private FNoncopyable
 {
 public:
 	
-	typedef TArray<struct FHitResult, TInlineAllocator<2>> TScopedBlockingHitArray;
-	typedef TArray<struct FOverlapInfo, TInlineAllocator<3>> TScopedOverlapInfoArray;
+	typedef TArray<struct FHitResult, TInlineAllocator<2>> TBlockingHitArray;
 
 	FScopedMovementUpdate( USceneComponent* Component, EScopedUpdate::Type ScopeBehavior = EScopedUpdate::DeferredUpdates, bool bRequireOverlapsEventFlagToQueueOverlaps = true );
 	~FScopedMovementUpdate();
@@ -1487,16 +1481,16 @@ public:
 	bool RequiresOverlapsEventFlag() const;
 
 	/** Returns the pending overlaps within this scope. */
-	const TScopedOverlapInfoArray& GetPendingOverlaps() const;
+	const TArray<FOverlapInfo>& GetPendingOverlaps() const;
 
 	/** Returns the list of pending blocking hits, which will be used for notifications once the move is committed. */
-	const TScopedBlockingHitArray& GetPendingBlockingHits() const;
+	const TBlockingHitArray& GetPendingBlockingHits() const;
 
 	//--------------------------------------------------------------------------------------------------------//
 	// These methods are intended only to be used by SceneComponent and derived classes.
 
 	/** Add overlaps to the queued overlaps array. This is intended for use only by SceneComponent and its derived classes whenever movement is performed. */
-	void AppendOverlapsAfterMove(const TOverlapArrayView& NewPendingOverlaps, bool bSweep, bool bIncludesOverlapsAtEnd);
+	void AppendOverlapsAfterMove(const TArray<FOverlapInfo>& NewPendingOverlaps, bool bSweep, bool bIncludesOverlapsAtEnd);
 
 	/** Keep current pending overlaps after a move but make note that there was movement (just a symmetric rotation). */
 	void KeepCurrentOverlapsAfterRotation(bool bSweep);
@@ -1515,8 +1509,7 @@ public:
 
 protected:
 	/** Fills in the list of overlaps at the end location (in EndOverlaps). Returns pointer to the list, or null if it can't be computed. */
-	template<typename AllocatorType>
-	TOptional<TOverlapArrayView> GetOverlapsAtEnd(class UPrimitiveComponent& PrimComponent, TArray<FOverlapInfo, AllocatorType>& OutEndOverlaps, bool bTransformChanged) const;
+	const TArray<FOverlapInfo>* GetOverlapsAtEnd(class UPrimitiveComponent& PrimComponent, TArray<FOverlapInfo>& EndOverlaps, bool bTransformChanged) const;
 
 	bool SetWorldLocationAndRotation(FVector NewLocation, const FQuat& NewQuat, bool bNoPhysics = false, ETeleportType Teleport = ETeleportType::None);
 
@@ -1543,9 +1536,9 @@ protected:
 	FRotator InitialRelativeRotation;
 	FVector InitialRelativeScale;
 
-	int32 FinalOverlapCandidatesIndex;			// If not INDEX_NONE, overlaps at this index and beyond in PendingOverlaps are at the final destination
-	TScopedOverlapInfoArray PendingOverlaps;	// All overlaps encountered during the scope of moves.
-	TScopedBlockingHitArray BlockingHits;		// All blocking hits encountered during the scope of moves.
+	int32 FinalOverlapCandidatesIndex;		// If not INDEX_NONE, overlaps at this index and beyond in PendingOverlaps are at the final destination
+	TArray<FOverlapInfo> PendingOverlaps;	// All overlaps encountered during the scope of moves.
+	TBlockingHitArray BlockingHits;			// All blocking hits encountered during the scope of moves.
 
 	uint8 bDeferUpdates:1;
 	uint8 bHasMoved:1;
@@ -1582,12 +1575,12 @@ FORCEINLINE bool FScopedMovementUpdate::RequiresOverlapsEventFlag() const
 	return bRequireOverlapsEventFlag;
 }
 
-FORCEINLINE const FScopedMovementUpdate::TScopedOverlapInfoArray& FScopedMovementUpdate::GetPendingOverlaps() const
+FORCEINLINE const TArray<struct FOverlapInfo>& FScopedMovementUpdate::GetPendingOverlaps() const
 {
 	return PendingOverlaps;
 }
 
-FORCEINLINE const FScopedMovementUpdate::TScopedBlockingHitArray& FScopedMovementUpdate::GetPendingBlockingHits() const
+FORCEINLINE const FScopedMovementUpdate::TBlockingHitArray& FScopedMovementUpdate::GetPendingBlockingHits() const
 {
 	return BlockingHits;
 }
@@ -1652,7 +1645,7 @@ FORCEINLINE_DEBUGGABLE void USceneComponent::BeginScopedMovementUpdate(class FSc
 	ScopedMovementStack.Push(&ScopedUpdate);
 }
 
-FORCEINLINE_DEBUGGABLE bool USceneComponent::UpdateOverlaps(const TOverlapArrayView* PendingOverlaps /* = nullptr */, bool bDoNotifies /* = true */, const TOverlapArrayView* OverlapsAtEndLocation /* = nullptr */)
+FORCEINLINE_DEBUGGABLE bool USceneComponent::UpdateOverlaps(TArray<FOverlapInfo> const* PendingOverlaps /* = nullptr */, bool bDoNotifies /* = true */, const TArray<FOverlapInfo>* OverlapsAtEndLocation /* = nullptr */)
 {
 	if (IsDeferringMovementUpdates())
 	{

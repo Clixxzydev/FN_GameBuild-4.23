@@ -335,7 +335,7 @@ protected:
 	};
 
 
-	class FSelectOrDeselectMeshElementsChange : public FSwapChange
+	class FSelectOrDeselectMeshElementsChange : public FChange
 	{
 
 	public:
@@ -371,7 +371,7 @@ protected:
 	};
 
 
-	class FDeselectAllMeshElementsChange : public FSwapChange
+	class FDeselectAllMeshElementsChange : public FChange
 	{
 
 	public:
@@ -414,7 +414,7 @@ protected:
 	};
 
 
-	class FSetElementSelectionModeChange : public FSwapChange
+	class FSetElementSelectionModeChange : public FChange
 	{
 
 	public:

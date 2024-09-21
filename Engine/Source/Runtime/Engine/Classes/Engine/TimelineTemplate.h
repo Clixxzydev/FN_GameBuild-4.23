@@ -13,7 +13,7 @@
 class UTimelineTemplate;
 
 USTRUCT()
-struct ENGINE_VTABLE FTTTrackBase
+struct FTTTrackBase
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -43,7 +43,7 @@ public:
 
 /** Structure storing information about one event track */
 USTRUCT()
-struct ENGINE_VTABLE FTTEventTrack : public FTTTrackBase
+struct FTTEventTrack : public FTTTrackBase
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -69,7 +69,7 @@ public:
 };
 
 USTRUCT()
-struct ENGINE_VTABLE FTTPropertyTrack : public FTTTrackBase
+struct FTTPropertyTrack : public FTTTrackBase
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -166,6 +166,10 @@ class UTimelineTemplate : public UObject
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=TimelineTemplate)
 	uint8 bReplicated:1;
 
+	/** Compiler Validated As Wired up */
+	UPROPERTY()
+	uint8 bValidatedAsWired:1;
+
 	/** If we want the timeline to ignore global time dilation */
 	UPROPERTY(EditAnywhere, Category = TimelineTemplate)
 	uint8 bIgnoreTimeDilation : 1;
@@ -253,7 +257,7 @@ class UTimelineTemplate : public UObject
 
 private:
 	/** Helper function to make sure all the cached FNames for the timeline template are updated relative to the current name of the template. */
-	ENGINE_API void UpdateCachedNames();
+	void UpdateCachedNames();
 
 	friend struct FUpdateTimelineCachedNames;
 

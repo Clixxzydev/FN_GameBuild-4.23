@@ -15,19 +15,19 @@
 	"Hidden": true,
 	"IsBetaVersion": true,
 	"Installed": false,
-	"SupportedPrograms": [ "UnrealMultiUserServer", "UnrealDisasterRecoveryService" ],
+	"SupportedPrograms": [ "UnrealMultiUserServer" ],
 	"Modules": [
 		{
 			"Name": "Concert",
 			"Type": "Developer",
 			"LoadingPhase": "PreDefault",
-			"WhitelistPrograms": [ "UnrealMultiUserServer", "UnrealDisasterRecoveryService" ]
+			"WhitelistPrograms": [ "UnrealMultiUserServer" ]
 		},
 		{
 			"Name": "ConcertTransport",
 			"Type": "Developer",
 			"LoadingPhase": "PreDefault",
-			"WhitelistPrograms": [ "UnrealMultiUserServer", "UnrealDisasterRecoveryService" ]
+			"WhitelistPrograms": [ "UnrealMultiUserServer" ]
 		}
 	]
 }

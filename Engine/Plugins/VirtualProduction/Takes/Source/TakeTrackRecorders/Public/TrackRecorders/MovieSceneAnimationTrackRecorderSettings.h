@@ -8,7 +8,7 @@
 #include "Curves/RichCurve.h"
 #include "MovieSceneAnimationTrackRecorderSettings.generated.h"
 
-UCLASS(Abstract, BlueprintType, config=EditorSettings, DisplayName="Animation Recorder")
+UCLASS(Abstract, BlueprintType, config=EditorSettings, DisplayName="Animation Recorder Defaults")
 class TAKETRACKRECORDERS_API UMovieSceneAnimationTrackRecorderEditorSettings : public UMovieSceneTrackRecorderSettings
 {
 	GENERATED_BODY()

@@ -314,8 +314,14 @@ void FJsonArchiveOutputFormatter::Serialize(FWeakObjectPtr& Value)
 
 void FJsonArchiveOutputFormatter::Serialize(FSoftObjectPtr& Value)
 {
-	FSoftObjectPath Path = Value.ToSoftObjectPath();
-	Serialize(Path);
+	if (Value.IsValid())
+	{
+		SerializeStringInternal(FString::Printf(TEXT("Object:%s"), *Value.Get()->GetFullName()));
+	}
+	else
+	{
+		WriteValue(TEXT("null"));
+	}
 }
 
 void FJsonArchiveOutputFormatter::Serialize(FSoftObjectPath& Value)

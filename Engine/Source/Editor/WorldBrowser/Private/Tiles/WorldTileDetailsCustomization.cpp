@@ -270,7 +270,7 @@ void FTileLODEntryDetailsCustomization::CustomizeChildren(TSharedRef<IPropertyHa
 		);
 	
 	TSharedPtr<IPropertyHandle> DistanceProperty = StructPropertyHandle->GetChildHandle(
-		GET_MEMBER_NAME_CHECKED(FTileLODEntryDetails, RelativeDistance)
+		GET_MEMBER_NAME_CHECKED(FTileLODEntryDetails, Distance)
 		);
 	
 	TSharedPtr<IPropertyHandle> SimplificationDetails = StructPropertyHandle->GetChildHandle(

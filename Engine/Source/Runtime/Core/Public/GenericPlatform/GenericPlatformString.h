@@ -145,29 +145,34 @@ struct FGenericPlatformString : public FGenericPlatformStricmp
 		DestEncoding*
 	>::Type Convert(DestEncoding* Dest, int32 DestSize, const SourceEncoding* Src, int32 SrcSize, DestEncoding BogusChar = (DestEncoding)'?')
 	{
-		const int32 Size = DestSize <= SrcSize ? DestSize : SrcSize;
-		bool bInvalidChars = false;
-		for (int I = 0; I < Size; ++I)
+		const SourceEncoding* InSrc         = Src;
+		int32                 InSrcSize     = SrcSize;
+		bool                  bInvalidChars = false;
+		while (SrcSize)
 		{
-			SourceEncoding SrcCh = Src[I];
-			Dest[I] = (DestEncoding)SrcCh;
-			bInvalidChars |= !CanConvertChar<DestEncoding>(SrcCh);
+			if (!DestSize)
+				return nullptr;
+
+			SourceEncoding SrcCh = *Src++;
+			if (CanConvertChar<DestEncoding>(SrcCh))
+			{
+				*Dest++ = (DestEncoding)SrcCh;
+			}
+			else
+			{
+				*Dest++       = BogusChar;
+				bInvalidChars = true;
+			}
+			--SrcSize;
+			--DestSize;
 		}
 
 		if (bInvalidChars)
 		{
-			for (int I = 0; I < Size; ++I)
-			{
-				if (!CanConvertChar<DestEncoding>(Src[I]))
-				{
-					Dest[I] = BogusChar;
-				}
-			}
-
-			LogBogusChars<DestEncoding>(Src, Size);
+			LogBogusChars<DestEncoding>(InSrc, InSrcSize);
 		}
 
-		return DestSize < SrcSize ? nullptr : Dest + Size;
+		return Dest;
 	}
 
 	/**

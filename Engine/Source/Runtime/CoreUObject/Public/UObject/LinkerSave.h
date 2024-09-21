@@ -43,7 +43,7 @@ public:
 	TMap<const UObject *, TArray<FName> > SearchableNamesObjectMap;
 
 	/** Index array - location of the name in the NameMap array for each FName is stored in the NameIndices array using the FName's Index */
-	TMap<FNameEntryId, int32> NameIndices;
+	TMap<FName, int32, FDefaultSetAllocator, TLinkerNameMapKeyFuncs<int32>> NameIndices;
 
 	/** Save context associated with this linker */
 	TRefCountPtr<FUObjectSerializeContext> SaveContext;
@@ -67,15 +67,15 @@ public:
 	/** A mapping of package name to generated script SHA keys */
 	COREUOBJECT_API static TMap<FString, TArray<uint8> > PackagesToScriptSHAMap;
 
-	/** Constructor for file writer */
+	/** Constructor */
 	FLinkerSave(UPackage* InParent, const TCHAR* InFilename, bool bForceByteSwapping, bool bInSaveUnversioned = false );
 	/** Constructor for memory writer */
 	FLinkerSave(UPackage* InParent, bool bForceByteSwapping, bool bInSaveUnversioned = false );
-	/** Constructor for custom savers. The linker assumes ownership of the custom saver. */
+	/** Constructor for custom savers */
 	FLinkerSave(UPackage* InParent, FArchive *InSaver, bool bForceByteSwapping, bool bInSaveUnversioned = false);
 
 	/** Returns the appropriate name index for the source name, or 0 if not found in NameIndices */
-	int32 MapName( FNameEntryId Name) const;
+	int32 MapName(const FName& Name) const;
 
 	/** Returns the appropriate package index for the source object, or default value if not found in ObjectIndicesMap */
 	FPackageIndex MapObject(const UObject* Object) const;
@@ -110,10 +110,9 @@ public:
 	void Serialize( void* V, int64 Length );
 
 	/**
-	 * Closes and deletes the Saver (file, memory or custom writer) which will close any associated file handle.
-	 * Returns false if the owned saver contains errors after closing it, true otherwise.
+	 * Detaches file saver and hence file handle.
 	 */
-	bool CloseAndDestroySaver();
+	void Detach();
 
 	/**
 	 * Sets a flag indicating that this archive contains data required to be gathered for localization.

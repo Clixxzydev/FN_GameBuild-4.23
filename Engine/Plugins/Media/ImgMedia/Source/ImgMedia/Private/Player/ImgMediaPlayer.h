@@ -15,7 +15,6 @@ class FImgMediaScheduler;
 class IImgMediaReader;
 class IMediaEventSink;
 class IMediaTextureSample;
-class FImgMediaGlobalCache;
 
 
 /**
@@ -37,8 +36,7 @@ public:
 	 * @param InEventSink The object that receives media events from this player.
 	 * @param InScheduler The image loading scheduler to use.
 	 */
-	FImgMediaPlayer(IMediaEventSink& InEventSink, const TSharedRef<FImgMediaScheduler, ESPMode::ThreadSafe>& InScheduler,
-		const TSharedRef<FImgMediaGlobalCache, ESPMode::ThreadSafe>& InGlobalCache);
+	FImgMediaPlayer(IMediaEventSink& InEventSink, const TSharedRef<FImgMediaScheduler, ESPMode::ThreadSafe>& InScheduler);
 
 	/** Virtual destructor. */
 	virtual ~FImgMediaPlayer();
@@ -155,7 +153,4 @@ private:
 
 	/** Should the video loop to the beginning at completion */
     bool ShouldLoop;
-
-	/** The global cache to use. */
-	TSharedPtr<FImgMediaGlobalCache, ESPMode::ThreadSafe> GlobalCache;
 };

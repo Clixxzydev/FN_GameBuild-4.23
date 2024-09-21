@@ -1178,8 +1178,8 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 
 	TArray<FMeshDescription*> RawMeshData;
 
-	// Mesh index, <original section index, unique section index>
-	TMultiMap<uint32, TPair<uint32, uint32>> MeshSectionToUniqueSection;
+	// LOD index, <original section index, unique section index>
+	TMultiMap<uint32, TPair<uint32, uint32>> UniqueSectionIndexPerLOD;
 
 	// Unique set of sections in mesh
 	TArray<FSectionInfo> UniqueSections;
@@ -1217,9 +1217,9 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 			for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); ++SectionIndex)
 			{
 				FSectionInfo& Section = Sections[SectionIndex];
-
 				const int32 UniqueIndex = UniqueSections.AddUnique(Section);
-				MeshSectionToUniqueSection.Add(MeshIndex, TPair<uint32, uint32>(SectionIndex, UniqueIndex));
+				UniqueSectionIndexPerLOD.Add(MeshIndex, TPair<uint32, uint32>(UniqueIndex, Section.MaterialIndex));
+
 				SectionToMesh.Add(UniqueIndex, MeshIndex);
 			}
 
@@ -1239,7 +1239,6 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 	}
 
 	TArray<UMaterialInterface*> UniqueMaterials;
-	//Unique material index to unique section index
 	TMultiMap<uint32, uint32> SectionToMaterialMap;
 	for (int32 SectionIndex = 0; SectionIndex < UniqueSections.Num(); ++SectionIndex)
 	{
@@ -1267,7 +1266,6 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 	{
 		UMaterialInterface* Material = UniqueMaterials[MaterialIndex];
 
-		//Unique section indices
 		TArray<uint32> SectionIndices;
 		SectionToMaterialMap.MultiFind(MaterialIndex, SectionIndices);
 
@@ -1304,7 +1302,7 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 					TVertexInstanceAttributesRef<FVector2D> VertexInstanceUVs = MeshSettings.RawMeshDescription->VertexInstanceAttributes().GetAttributesRef<FVector2D>(MeshAttribute::VertexInstance::TextureCoordinate);
 					// If we already have lightmap uvs generated or the lightmap coordinate index != 0 and available we can reuse those instead of having to generate new ones
 					if (InMeshProxySettings.bReuseMeshLightmapUVs
-						&& (ComponentsToMerge[MeshIndex]->GetStaticMesh()->GetSourceModel(0).BuildSettings.bGenerateLightmapUVs
+						&& (ComponentsToMerge[MeshIndex]->GetStaticMesh()->SourceModels[0].BuildSettings.bGenerateLightmapUVs
 							|| (ComponentsToMerge[MeshIndex]->GetStaticMesh()->LightMapCoordinateIndex != 0 && VertexInstanceUVs.GetNumElements() > 0 && VertexInstanceUVs.GetNumIndices() > ComponentsToMerge[MeshIndex]->GetStaticMesh()->LightMapCoordinateIndex)))
 					{
 						MeshSettings.CustomTextureCoordinates.Reset(VertexInstanceUVs.GetNumElements());
@@ -1325,14 +1323,13 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 					MeshSettings.TextureCoordinateBox = FBox2D(MeshSettings.CustomTextureCoordinates);
 
 					// Section index is a unique one so we need to map it to the mesh's equivalent(s)
-					TArray<TPair<uint32, uint32>> SectionToUniqueSectionIndices;
-					MeshSectionToUniqueSection.MultiFind(MeshIndex, SectionToUniqueSectionIndices);
-					for (const TPair<uint32, uint32> IndexPair : SectionToUniqueSectionIndices)
+					TArray<TPair<uint32, uint32>> UniqueToMeshSectionIndices;
+					UniqueSectionIndexPerLOD.MultiFind(MeshIndex, UniqueToMeshSectionIndices);
+					for (const TPair<uint32, uint32> IndexPair : UniqueToMeshSectionIndices)
 					{
-						if (IndexPair.Value == SectionIndex)
+						if (IndexPair.Key == SectionIndex)
 						{
-							MeshSettings.MaterialIndices.Add(IndexPair.Key);
-							OutputMaterialsMap.Add(MeshIndex, TPair<uint32, uint32>(IndexPair.Key, GlobalMeshSettings.Num()));
+							MeshSettings.MaterialIndices.Add(IndexPair.Value);
 						}
 					}
 
@@ -1347,6 +1344,12 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 							MeshSettings.LightMap = MeshMapBuildData->LightMap;
 							MeshSettings.LightMapIndex = StaticMeshComponent->GetStaticMesh()->LightMapCoordinateIndex;
 						}
+					}
+
+					// For each original material index add an entry to the corresponding LOD and bake output index
+					for (int32 Index : MeshSettings.MaterialIndices)
+					{
+						OutputMaterialsMap.Add(MeshIndex, TPair<uint32, uint32>(Index, GlobalMeshSettings.Num()));
 					}
 
 					GlobalMeshSettings.Add(MeshSettings);
@@ -1370,13 +1373,13 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 
 				for (uint32 MeshIndex : MeshIndices)
 				{
-					TArray<TPair<uint32, uint32>> SectionToUniqueSectionIndices;
-					MeshSectionToUniqueSection.MultiFind(MeshIndex, SectionToUniqueSectionIndices);
-					for (const TPair<uint32, uint32> IndexPair : SectionToUniqueSectionIndices)
+					TArray<TPair<uint32, uint32>> UniqueToMeshSectionIndices;
+					UniqueSectionIndexPerLOD.MultiFind(MeshIndex, UniqueToMeshSectionIndices);
+					for (const TPair<uint32, uint32> IndexPair : UniqueToMeshSectionIndices)
 					{
-						if (IndexPair.Value == SectionIndex)
+						if (IndexPair.Key == SectionIndex)
 						{
-							OutputMaterialsMap.Add(MeshIndex, TPair<uint32, uint32>(IndexPair.Key, GlobalMeshSettings.Num()));
+							OutputMaterialsMap.Add(MeshIndex, TPair<uint32, uint32>(IndexPair.Value, GlobalMeshSettings.Num()));
 						}
 					}
 				}
@@ -1435,13 +1438,19 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 
 			TArray<TPair<uint32, uint32>> SectionAndOutputIndices;
 			OutputMaterialsMap.MultiFind(MeshIndex, SectionAndOutputIndices);
+			//Make sure the section index are in the correct order
+			SectionAndOutputIndices.Sort([](const TPair<uint32, uint32>& A, const TPair<uint32, uint32>& B) { return (A.Key < B.Key); });
+
 			TArray<int32> Remap;
+			TArray<int32> UniqueMaterialIndexes;
 			// Reorder loops 
 			for (const TPair<uint32, uint32>& IndexPair : SectionAndOutputIndices)
 			{
-				const int32 SectionIndex = IndexPair.Key;
+				//We are not using the IndexPair.Key since we want to keep the polygon group
+				//We instead find the section index by looking at unique IndexPair.Value
 				const int32 NewIndex = IndexPair.Value;
 
+				const int32 SectionIndex = UniqueMaterialIndexes.AddUnique(NewIndex);
 				if (Remap.Num() < (SectionIndex + 1))
 				{
 					Remap.SetNum(SectionIndex + 1);
@@ -1758,18 +1767,17 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 			else
 			{
 				StaticMeshComponentsToMerge.Add(MeshComponent);
-			}
 
-			// Save the pivot and asset package name of the first mesh, will later be used for creating merged mesh asset 
-			if (bFirstMesh)
-			{
-				// Mesh component pivot point
-				MergedAssetPivot = InSettings.bPivotPointAtZero ? FVector::ZeroVector : MeshComponent->GetComponentTransform().GetLocation();
+				// Save the pivot and asset package name of the first mesh, will later be used for creating merged mesh asset 
+				if (bFirstMesh)
+				{
+					// Mesh component pivot point
+					MergedAssetPivot = InSettings.bPivotPointAtZero ? FVector::ZeroVector : MeshComponent->GetComponentTransform().GetLocation();
+					// Source mesh asset package name
+					MergedAssetPackageName = MeshComponent->GetStaticMesh()->GetOutermost()->GetName();
 
-				// Source mesh asset package name
-				MergedAssetPackageName = MeshComponent->GetStaticMesh()->GetOutermost()->GetName();
-
-				bFirstMesh = false;
+					bFirstMesh = false;
+				}
 			}
 		}
 	}
@@ -1856,23 +1864,30 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 			// Determine LOD to use for merging, either user specified or calculated index and ensure we clamp to the maximum LOD index for this adapter 
 			const int32 LODIndex = [&]()
 			{
-				int32 LowestDetailLOD = Adapter.GetNumberOfLODs() - 1;
-				if (Component->bUseMaxLODAsImposter && !InSettings.bIncludeImposters)
-				{
-					LowestDetailLOD = FMath::Max(0, LowestDetailLOD - 1);
-				}
-
 				switch (InSettings.LODSelectionType)
 				{
 				case EMeshLODSelectionType::SpecificLOD:
-					return FMath::Min(LowestDetailLOD, InSettings.SpecificLOD);
-
+					return FMath::Min(Adapter.GetNumberOfLODs() - 1, InSettings.SpecificLOD);
 				case EMeshLODSelectionType::CalculateLOD:
-					return FMath::Min(LowestDetailLOD, Utilities->GetLODLevelForScreenSize(Component, FMath::Clamp(ScreenSize, 0.0f, 1.0f)));
-
-				case EMeshLODSelectionType::LowestDetailLOD:
+				  {
+					  int32 Min = Adapter.GetNumberOfLODs() - 1;
+					  if (Component->bUseMaxLODAsImposter && !InSettings.bIncludeImposters)
+					  {
+						  Min = FMath::Max(0, Min - 1);
+					  }
+					  return FMath::Min(Min, Utilities->GetLODLevelForScreenSize(Component, FMath::Clamp(ScreenSize, 0.0f, 1.0f)));
+				  }
+					
 				default:
-					return LowestDetailLOD;
+				case EMeshLODSelectionType::LowestDetailLOD:
+				  {
+					  if (Component->bUseMaxLODAsImposter && (!InSettings.bIncludeImposters))
+					  {						
+						  return FMath::Max(0, Adapter.GetNumberOfLODs() - 2);											
+					  }
+  
+					  return Adapter.GetNumberOfLODs() - 1;
+				  }					
 				}
 			}();
 
@@ -1935,7 +1950,7 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 	FMaterialUtilities::DetermineMaterialImportance(UniqueMaterials, MaterialImportanceValues);
 
 	// If the user wants to merge materials into a single one
-	if (bMergeMaterialData && UniqueMaterials.Num() != 0)
+	if (bMergeMaterialData)
 	{
 		UMaterialOptions* MaterialOptions = PopulateMaterialOptions(InSettings.MaterialSettings);
 		// Check each material to see if the shader actually uses vertex data and collect flags
@@ -2435,32 +2450,6 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 			Package->Modify();
 		}
 
-		// Check that an asset of a different class does not already exist
-		{
-			UObject* ExistingObject = StaticFindObject( nullptr, Package, *AssetName);
-			if(ExistingObject && !ExistingObject->GetClass()->IsChildOf(UStaticMesh::StaticClass()))
-			{
-				// Change name of merged static mesh to avoid name collision
-				UPackage* ParentPackage = CreatePackage(nullptr, *FPaths::GetPath(Package->GetPathName()));
-				ParentPackage->FullyLoad();
-
-				AssetName = MakeUniqueObjectName( ParentPackage, UStaticMesh::StaticClass(), *AssetName).ToString();
-				Package = CreatePackage(NULL, *(ParentPackage->GetPathName() / AssetName ));
-				check(Package);
-				Package->FullyLoad();
-				Package->Modify();
-
-				// Let user know name of merged static mesh has changed
-				UE_LOG(LogMeshMerging, Warning,
-					TEXT("Cannot create %s %s.%s\n")
-					TEXT("An object with the same fully qualified name but a different class already exists.\n")
-					TEXT("\tExisting Object: %s\n")
-					TEXT("The merged mesh will be named %s.%s"),
-					*UStaticMesh::StaticClass()->GetName(), *ExistingObject->GetOutermost()->GetPathName(),	*ExistingObject->GetName(),
-					*ExistingObject->GetFullName(), *Package->GetPathName(), *AssetName);
-			}
-		}
-
 		FStaticMeshComponentRecreateRenderStateContext RecreateRenderStateContext(FindObject<UStaticMesh>(Package, *AssetName));
 
 		UStaticMesh* StaticMesh = NewObject<UStaticMesh>(Package, *AssetName, RF_Public | RF_Standalone);
@@ -2476,16 +2465,14 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 			StaticMesh->LightMapCoordinateIndex = LightMapUVChannel;
 		}
 
-		const bool bContainsImposters = ImposterComponents.Num() > 0;
 		TArray<UMaterialInterface*> ImposterMaterials;
 		FBox ImposterBounds(EForceInit::ForceInit);
 		for (int32 LODIndex = 0; LODIndex < MergedRawMeshes.Num(); ++LODIndex)
 		{
 			FMeshDescription& MergedMeshLOD = MergedRawMeshes[LODIndex];
-			if (MergedMeshLOD.Vertices().Num() > 0 || bContainsImposters)
+			if (MergedMeshLOD.Vertices().Num() > 0)
 			{
 				FStaticMeshSourceModel& SrcModel = StaticMesh->AddSourceModel();
-
 				// Don't allow the engine to recalculate normals
 				SrcModel.BuildSettings.bRecomputeNormals = false;
 				SrcModel.BuildSettings.bRecomputeTangents = false;
@@ -2501,6 +2488,7 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 					SrcModel.BuildSettings.DistanceFieldResolutionScale = 0.0f;
 				}
 
+				const bool bContainsImposters = ImposterComponents.Num() > 0;
 				if (bContainsImposters)
 				{
 					// Merge imposter meshes to rawmesh
@@ -2515,7 +2503,6 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 						}
 					}
 				}
-
 				FMeshDescription* MeshDescription = StaticMesh->CreateMeshDescription(LODIndex);
 				*MeshDescription = MergedMeshLOD;
 				StaticMesh->CommitMeshDescription(LODIndex);
@@ -2590,8 +2577,8 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 			}
 		}
 
-		StaticMesh->GetSectionInfoMap().CopyFrom(SectionInfoMap);
-		StaticMesh->GetOriginalSectionInfoMap().CopyFrom(SectionInfoMap);
+		StaticMesh->SectionInfoMap.CopyFrom(SectionInfoMap);
+		StaticMesh->OriginalSectionInfoMap.CopyFrom(SectionInfoMap);
 
 		//Set the Imported version before calling the build
 		StaticMesh->ImportVersion = EImportStaticMeshVersion::LastVersion;
@@ -2620,12 +2607,6 @@ void FMeshMergeUtilities::MergeComponentsToStaticMesh(const TArray<UPrimitiveCom
 		OutAssetsToSync.Add(StaticMesh);
 		OutMergedActorLocation = MergedAssetPivot;
 	}
-}
-
-void FMeshMergeUtilities::ExtractImposterToRawMesh(const UStaticMeshComponent* InImposterComponent, FMeshDescription& InImposterMesh) const
-{
-	check(InImposterComponent->bUseMaxLODAsImposter);
-	FMeshMergeHelpers::ExtractImposterToRawMesh(InImposterComponent, InImposterMesh);
 }
 
 void FMeshMergeUtilities::CreateMergedRawMeshes(FMeshMergeDataTracker& InDataTracker, const FMeshMergingSettings& InSettings, const TArray<UStaticMeshComponent*>& InStaticMeshComponentsToMerge, const TArray<UMaterialInterface*>& InUniqueMaterials, const TMap<UMaterialInterface*, UMaterialInterface*>& InCollapsedMaterialMap, const TMultiMap<FMeshLODKey, MaterialRemapPair>& InOutputMaterialsMap, bool bInMergeAllLODs, bool bInMergeMaterialData, const FVector& InMergedAssetPivot, TArray<FMeshDescription>& OutMergedRawMeshes) const
@@ -3014,37 +2995,37 @@ void FMeshMergeUtilities::MergeComponentsToInstances(const TArray<UPrimitiveComp
 
 					for(const FComponentEntry& ComponentEntry : ActorEntry.ComponentEntries)
 					{
-						UInstancedStaticMeshComponent* NewComponent = nullptr;
-
-						NewComponent = (UInstancedStaticMeshComponent*)ActorEntry.MergedActor->FindComponentByClass(InSettings.ISMComponentToUse.Get());
-
-						if (NewComponent && NewComponent->PerInstanceSMData.Num() > 0)
+						auto AddInstancedStaticMeshComponent = [](AActor* InActor)
 						{
-							NewComponent = nullptr;
-						}
-
-						if (NewComponent == nullptr)
-						{
-							NewComponent = NewObject<UInstancedStaticMeshComponent>(ActorEntry.MergedActor, InSettings.ISMComponentToUse.Get());
+							// Check if we have a usable (empty) ISMC first
+							if(UInstancedStaticMeshComponent* ExistingComponent = InActor->FindComponentByClass<UInstancedStaticMeshComponent>())
+							{
+								if(ExistingComponent->PerInstanceSMData.Num() == 0)
+								{
+									return ExistingComponent;
+								}
+							}
 						
-							if (ActorEntry.MergedActor->GetRootComponent())
+							UInstancedStaticMeshComponent* NewComponent = NewObject<UInstancedStaticMeshComponent>(InActor);
+							if(InActor->GetRootComponent())
 							{
 								// Attach to root if we already have one
-								NewComponent->AttachToComponent(ActorEntry.MergedActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+								NewComponent->AttachToComponent(InActor->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
 							}
 							else
 							{
 								// Make a new root if we dont have a root already
-								ActorEntry.MergedActor->SetRootComponent(NewComponent);
+								InActor->SetRootComponent(NewComponent);
 							}
 
 							// Take 'instanced' ownership so it persists with this actor
-							ActorEntry.MergedActor->RemoveOwnedComponent(NewComponent);
+							InActor->RemoveOwnedComponent(NewComponent);
 							NewComponent->CreationMethod = EComponentCreationMethod::Instance;
-							ActorEntry.MergedActor->AddOwnedComponent(NewComponent);
+							InActor->AddOwnedComponent(NewComponent);
+							return NewComponent;
+						};
 
-						}
-
+						UInstancedStaticMeshComponent* NewComponent = AddInstancedStaticMeshComponent(ActorEntry.MergedActor);
 						NewComponent->SetStaticMesh(ComponentEntry.StaticMesh);
 						for(int32 MaterialIndex = 0; MaterialIndex < ComponentEntry.Materials.Num(); ++MaterialIndex)
 						{

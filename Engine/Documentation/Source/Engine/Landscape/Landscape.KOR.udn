@@ -1,4 +1,4 @@
-﻿INTSourceChangelist:6426661
+﻿INTSourceChangelist:3810467
 Availability: Public
 Title:랜드스케이프 야외 지형
 Crumbs:%ROOT%, Engine
@@ -7,7 +7,10 @@ version: 4.9
 parent:Engine
 order:10
 topic-image:landscape_topic.png
-hero-image:landscape_landing_banner.png
+
+[REGION:banner]
+![Landscape](landscape_landing_banner.png)
+[/REGION]
 
 [EXCERPT:landscape002]
 

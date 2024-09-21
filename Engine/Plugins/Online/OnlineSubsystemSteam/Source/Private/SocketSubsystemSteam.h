@@ -271,7 +271,7 @@ public:
 	 *
 	 * @return the new socket or NULL if failed
 	 */
-	virtual class FSocket* CreateSocket(const FName& SocketType, const FString& SocketDescription, const FName& ProtocolType) override;
+	virtual class FSocket* CreateSocket(const FName& SocketType, const FString& SocketDescription, ESocketProtocolFamily ProtocolType) override;
 
 	/**
 	 * Cleans up a socket class
@@ -297,25 +297,16 @@ public:
 	 */
 	virtual FAddressInfoResult GetAddressInfo(const TCHAR* HostName, const TCHAR* ServiceName = nullptr,
 		EAddressInfoFlags QueryFlags = EAddressInfoFlags::Default,
-		const FName ProtocolTypeName = NAME_None,
+		ESocketProtocolFamily ProtocolType = ESocketProtocolFamily::None,
 		ESocketType SocketType = ESocketType::SOCKTYPE_Unknown) override;
 
-
 	/**
-	 * Serializes a string that only contains an address.
-	 * 
-	 * On Steam, this will take SteamIDs and serialize them into FInternetAddrSteam if it is determined
-	 * the input string is an ID. Otherwise, this will give you back a FInternetAddrBSD.
+	 * Does a DNS look up of a host name
 	 *
-	 * This is a what you see is what you get, there is no DNS resolution of the input string, 
-	 * so only use this if you know you already have a valid ip address. 
-	 * Otherwise, feed the address to GetAddressInfo for guaranteed results.
-	 *
-	 * @param IPAddress the ip address to serialize
-	 *
-	 * @return The FInternetAddr of the given string address. This will point to nullptr on failure.
+	 * @param HostName the name of the host to look up
+	 * @param OutAddr the address to copy the IP address to
 	 */
-	virtual TSharedPtr<FInternetAddr> GetAddressFromString(const FString& IPAddress) override;
+	virtual ESocketErrors GetHostByName(const ANSICHAR* HostName, FInternetAddr& OutAddr) override;
 
 	/**
 	 * Some platforms require chat data (voice, text, etc.) to be placed into
@@ -347,8 +338,10 @@ public:
 
 	/**
 	 *	Create a proper FInternetAddr representation
+	 * @param Address host address
+	 * @param Port host port
 	 */
-	virtual TSharedRef<FInternetAddr> CreateInternetAddr() override;
+	virtual TSharedRef<FInternetAddr> CreateInternetAddr(uint32 Address=0, uint32 Port=0) override;
 
 	/**
 	 * @return Whether the machine has a properly configured network device or not

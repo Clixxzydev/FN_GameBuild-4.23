@@ -2068,7 +2068,6 @@ void FLinkerLoad::ResolveDeferredExports(UClass* LoadClass)
 				if (ensure(PlaceholderExport))
 				{
 					// replace the placeholder with the proper object instance
-					PlaceholderExport->SetLinker(nullptr, INDEX_NONE);
 					Export.ResetObject();
 					UObject* ExportObj = CreateExport(ExportIndex);
 

@@ -66,11 +66,6 @@ public:
 		return InputDevice;
 	}
 
-	virtual bool IsInputDeviceValid() const override
-	{
-		return InputDevice.IsValid();
-	}
-
 	virtual TSharedPtr<ILiveLinkSource> GetLiveLinkSource() override
 	{
 		if (!InputDevice.IsValid())
@@ -78,11 +73,6 @@ public:
 			CreateInputDevice(FSlateApplication::Get().GetPlatformApplication()->GetMessageHandler());
 		}
 		return InputDevice;
-	}
-
-	virtual bool IsLiveLinkSourceValid() const override
-	{
-		return InputDevice.IsValid();
 	}
 
 private:
@@ -356,6 +346,7 @@ FMagicLeapHandTracking::FMagicLeapHandTracking(const TSharedRef<FGenericApplicat
 #endif //WITH_MLSDK
 
 	BuildKeypointMaps();
+	SetupLiveLinkData();
 
 	// Register "MotionController" modular feature manually
 	IModularFeatures::Get().RegisterModularFeature(GetModularFeatureName(), this);

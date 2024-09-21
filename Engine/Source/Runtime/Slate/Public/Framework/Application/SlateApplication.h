@@ -30,9 +30,6 @@
 #include "Framework/Application/GestureDetector.h"
 
 class FNavigationConfig;
-#if WITH_ACCESSIBILITY
-class FSlateAccessibleMessageHandler;
-#endif
 class IInputInterface;
 class IInputProcessor;
 class IPlatformTextField;
@@ -372,9 +369,6 @@ public:
 
 	virtual EUINavigation GetNavigationDirectionFromKey(const FKeyEvent& InKeyEvent) const override;
 	virtual EUINavigation GetNavigationDirectionFromAnalog(const FAnalogInputEvent& InAnalogEvent) override;
-
-	/** Returns the navigation action corresponding to this key, or Invalid if not found */
-	virtual EUINavigationAction GetNavigationActionForKey(const FKey& InKey) const override;
 
 	/**
 	 * Adds a modal window to the application.  
@@ -1419,7 +1413,6 @@ public:
 	virtual void SetAllUserFocus(const FWidgetPath& InFocusPath, const EFocusCause InCause) override;
 	virtual void SetAllUserFocusAllowingDescendantFocus(const FWidgetPath& InFocusPath, const EFocusCause InCause) override;
 	virtual TSharedPtr<SWidget> GetUserFocusedWidget(uint32 UserIndex) const override;
-	virtual const TArray<TSharedRef<SWindow>> GetTopLevelWindows() const override { return SlateWindows; }
 
 	DECLARE_EVENT_OneParam(FSlateApplication, FApplicationActivationStateChangedEvent, const bool /*IsActive*/)
 	virtual FApplicationActivationStateChangedEvent& OnApplicationActivationStateChanged() { return ApplicationActivationStateChangedEvent; }
@@ -1748,7 +1741,7 @@ private:
 
 	/** These windows will be destroyed next tick. */
 	TArray< TSharedRef<SWindow> > WindowDestroyQueue;
-
+	
 	/** The stack of menus that are open */
 	FMenuStack MenuStack;
 
@@ -1949,11 +1942,6 @@ private:
 	/** Pointer to the currently registered game viewport widget if any */
 	TWeakPtr<SViewport> GameViewportWidget;
 
-#if WITH_EDITOR
-	/** List of all registered game viewports since the last time UnregisterGameViewport was called. */
-	TSet<TWeakPtr<SViewport>> AllGameViewports;
-#endif
-
 	TSharedPtr<ISlateSoundDevice> SlateSoundDevice;
 
 	/** The current cached absolute real time, right before we tick widgets */
@@ -2149,12 +2137,6 @@ private:
 
 	/** This factory function creates a navigation config for each slate user. */
 	TSharedRef<FNavigationConfig> NavigationConfig;
-
-#if WITH_EDITOR
-	/** When PIE runs, the game's navigation config will overwrite the editor's navigation config.
-	    This separate config allows editor navigation to work even when PIE is running. */
-	TSharedRef<FNavigationConfig> EditorNavigationConfig;
-#endif
 
 	/** The simulated gestures Slate Application will be in charge of. */
 	TBitArray<FDefaultBitArrayAllocator> SimulateGestures;

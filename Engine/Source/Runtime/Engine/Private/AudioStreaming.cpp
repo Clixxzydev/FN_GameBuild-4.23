@@ -26,14 +26,6 @@ FAutoConsoleVariableRef CVarSpoofFailedStreamChunkLoad(
 	TEXT("0: Not Enabled, 1: Enabled"),
 	ECVF_Default);
 
-static int32 MaxConcurrentStreamsCvar = 0;
-FAutoConsoleVariableRef CVarMaxConcurrentStreams(
-	TEXT("au.MaxConcurrentStreams"),
-	MaxConcurrentStreamsCvar,
-	TEXT("Overrides the max concurrent streams.\n")
-	TEXT("0: Not Overridden, >0 Overridden"),
-	ECVF_Default);
-
 
 /*------------------------------------------------------------------------------
 	Streaming chunks from the derived data cache.
@@ -789,11 +781,7 @@ bool FAudioStreamingManager::CanCreateSoundSource(const FWaveInstance* WaveInsta
 	check(WaveInstance);
 	check(WaveInstance->IsStreaming());
 
-	int32 MaxStreams = MaxConcurrentStreamsCvar;
-	if (!MaxStreams)
-	{
-		MaxStreams = GetDefault<UAudioSettings>()->MaximumConcurrentStreams;
-	}
+	int32 MaxStreams = GetDefault<UAudioSettings>()->MaximumConcurrentStreams;
 
 	FScopeLock Lock(&CriticalSection);
 
@@ -827,11 +815,7 @@ void FAudioStreamingManager::AddStreamingSoundSource(FSoundSource* SoundSource)
 	const FWaveInstance* WaveInstance = SoundSource->GetWaveInstance();
 	if (WaveInstance && WaveInstance->IsStreaming())
 	{
-		int32 MaxStreams = MaxConcurrentStreamsCvar;
-		if (!MaxStreams)
-		{
-			MaxStreams = GetDefault<UAudioSettings>()->MaximumConcurrentStreams;
-		}
+		int32 MaxStreams = GetDefault<UAudioSettings>()->MaximumConcurrentStreams;
 
 		FScopeLock Lock(&CriticalSection);
 

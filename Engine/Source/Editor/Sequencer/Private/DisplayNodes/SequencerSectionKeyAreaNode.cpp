@@ -8,31 +8,25 @@
 #include "IKeyArea.h"
 #include "SKeyNavigationButtons.h"
 #include "SKeyAreaEditorSwitcher.h"
-#include "CurveModel.h"
 
 
 /* FSectionKeyAreaNode interface
  *****************************************************************************/
 
-FSequencerSectionKeyAreaNode::FSequencerSectionKeyAreaNode(FName NodeName, FSequencerNodeTree& InParentTree)
-	: FSequencerDisplayNode(NodeName, InParentTree)
+FSequencerSectionKeyAreaNode::FSequencerSectionKeyAreaNode(FName NodeName, const FText& InDisplayName, TSharedPtr<FSequencerDisplayNode> InParentNode, FSequencerNodeTree& InParentTree, bool bInTopLevel)
+	: FSequencerDisplayNode(NodeName, InParentNode, InParentTree)
+	, DisplayName(InDisplayName)
+	, bTopLevel(bInTopLevel)
 {
 }
 
 void FSequencerSectionKeyAreaNode::AddKeyArea(TSharedRef<IKeyArea> KeyArea)
 {
-	KeyArea->TreeSerialNumber = TreeSerialNumber;
 	KeyAreas.Add(KeyArea);
-}
 
-void FSequencerSectionKeyAreaNode::RemoveStaleKeyAreas()
-{
-	for (int32 Index = KeyAreas.Num() - 1; Index >= 0; --Index)
+	if (KeyEditorSwitcher.IsValid())
 	{
-		if (KeyAreas[Index]->TreeSerialNumber != TreeSerialNumber)
-		{
-			KeyAreas.RemoveAt(Index, 1, false);
-		}
+		KeyEditorSwitcher->Rebuild();
 	}
 }
 
@@ -56,22 +50,26 @@ bool FSequencerSectionKeyAreaNode::CanRenameNode() const
 	return false;
 }
 
-EVisibility FSequencerSectionKeyAreaNode::GetKeyEditorVisibility() const
+TSharedRef<SWidget> FSequencerSectionKeyAreaNode::GetOrCreateKeyAreaEditorSwitcher()
 {
-	return KeyAreas.Num() == 0 ? EVisibility::Collapsed : EVisibility::Visible;
+	if (!KeyEditorSwitcher.IsValid())
+	{
+		KeyEditorSwitcher = SNew(SKeyAreaEditorSwitcher, SharedThis(this));
+	}
+	return KeyEditorSwitcher.ToSharedRef();
 }
 
 TSharedRef<SWidget> FSequencerSectionKeyAreaNode::GetCustomOutlinerContent()
 {
-	// Even if this key area node doesn't have any key areas right now, it may in the future, so we always create the switcher, and just hide it if it is not relevant
-	return SNew(SHorizontalBox)
-		.Visibility(this, &FSequencerSectionKeyAreaNode::GetKeyEditorVisibility)
+	if (GetAllKeyAreas().Num() > 0)
+	{
+		return SNew(SHorizontalBox)
 
 		+ SHorizontalBox::Slot()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Center)
 		[
-			SNew(SKeyAreaEditorSwitcher, SharedThis(this))
+			GetOrCreateKeyAreaEditorSwitcher()
 		]
 
 		+ SHorizontalBox::Slot()
@@ -80,6 +78,9 @@ TSharedRef<SWidget> FSequencerSectionKeyAreaNode::GetCustomOutlinerContent()
 		[
 			SNew(SKeyNavigationButtons, SharedThis(this))
 		];
+	}
+
+	return FSequencerDisplayNode::GetCustomOutlinerContent();
 }
 
 
@@ -111,18 +112,4 @@ ESequencerNode::Type FSequencerSectionKeyAreaNode::GetType() const
 void FSequencerSectionKeyAreaNode::SetDisplayName(const FText& NewDisplayName)
 {
 	check(false);
-}
-
-void FSequencerSectionKeyAreaNode::CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels)
-{
-	TSharedRef<ISequencer> Sequencer = GetSequencer().AsShared();
-
-	for (const TSharedRef<IKeyArea>& KeyArea : KeyAreas)
-	{
-		TUniquePtr<FCurveModel> NewCurve = KeyArea->CreateCurveEditorModel(Sequencer);
-		if (NewCurve.IsValid())
-		{
-			OutCurveModels.Add(MoveTemp(NewCurve));
-		}
-	}
 }

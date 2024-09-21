@@ -4,7 +4,8 @@
 	LightAccumulator.usf: FLightAccumulator "class" and it's methods, useful for screen space subsurface scattering
 =============================================================================*/
 
-#pragma once
+#ifndef __LIGHTACCUMULATOR_COMMON__
+#define __LIGHTACCUMULATOR_COMMON__
 
 // set by c++, not set for LPV
 // 0 / 1
@@ -99,3 +100,4 @@ float4 LightAccumulator_GetResult(FLightAccumulator In)
 	return Ret;
 }
 
+#endif // __LIGHTACCUMULATOR_COMMON__

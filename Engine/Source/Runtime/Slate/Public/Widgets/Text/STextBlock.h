@@ -163,13 +163,7 @@ public:
 	{
 		return BoundText.Get();
 	}
-private:
-	FText GetTextCopy() const
-	{
-		return BoundText.Get();
-	}
 	
-public:
 	/**
 	 * Sets the text for this text block
 	 *
@@ -239,10 +233,6 @@ public:
 	// SWidget interface
 	virtual int32 OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const override;
 	virtual FVector2D ComputeDesiredSize(float) const override;
-#if WITH_ACCESSIBILITY
-	virtual TSharedRef<FSlateAccessibleWidget> CreateAccessibleWidget() override;
-	virtual void SetDefaultAccessibleText(EAccessibleType AccessibleType = EAccessibleType::Main) override;
-#endif
 	// End of SWidget interface
 
 protected:

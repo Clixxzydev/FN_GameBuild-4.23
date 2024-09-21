@@ -196,8 +196,6 @@ public:
 	//~ IPythonResourceOwner interface
 	virtual void ReleasePythonResources() override;
 
-	virtual bool IsFunctionImplementedInScript(FName InFunctionName) const override;
-
 	/** Generate an Unreal class from the given Python type */
 	static UPythonGeneratedClass* GenerateClass(PyTypeObject* InPyType);
 

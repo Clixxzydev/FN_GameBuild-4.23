@@ -639,8 +639,11 @@ FCanvas::~FCanvas()
 	}
 }
 
-void FCanvas::Flush_RenderThread(FRHICommandListImmediate& RHICmdList, bool bForce, bool bInsideRenderPass)
+void FCanvas::Flush_RenderThread(FRHICommandListImmediate& RHICmdList, bool bForce)
 {
+	// This renderpass is self contained.
+	check(RHICmdList.IsOutsideRenderPass());
+
 	SCOPE_CYCLE_COUNTER(STAT_Canvas_FlushTime);
 
 	if (!(AllowedModes&Allow_Flush) && !bForce)
@@ -658,7 +661,9 @@ void FCanvas::Flush_RenderThread(FRHICommandListImmediate& RHICmdList, bool bFor
 	}
 
 	// Update the font cache with new text before elements are drawn
-	FEngineFontServices::Get().UpdateCache();
+	{
+		FEngineFontServices::Get().UpdateCache();
+	}
 
 	// FCanvasSortElement compare class
 	struct FCompareFCanvasSortElement
@@ -672,32 +677,22 @@ void FCanvas::Flush_RenderThread(FRHICommandListImmediate& RHICmdList, bool bFor
 	SortedElements.Sort(FCompareFCanvasSortElement());
 
 	SCOPED_DRAW_EVENT(RHICmdList, CanvasFlush);
+	const FTexture2DRHIRef& RenderTargetTexture = RenderTarget->GetRenderTargetTexture();
 
-	if (!bInsideRenderPass)
+	check(IsValidRef(RenderTargetTexture));
+
+	FRHIRenderPassInfo RPInfo(RenderTargetTexture, ERenderTargetActions::Load_Store);
+	
+	// Set the RHI render target.
+	if (IsUsingInternalTexture())
 	{
-		const FTexture2DRHIRef& RenderTargetTexture = RenderTarget->GetRenderTargetTexture();
-
-		check(IsValidRef(RenderTargetTexture));
-		check(RHICmdList.IsOutsideRenderPass());
-
-		FRHIRenderPassInfo RPInfo(RenderTargetTexture, ERenderTargetActions::Load_Store);
-
-		// Set the RHI render target.
-		if (IsUsingInternalTexture())
-		{
-			RPInfo.ColorRenderTargets[0].Action = ERenderTargetActions::Clear_Store;
-		}
-
-		RHICmdList.BeginRenderPass(RPInfo, TEXT("CanvasRenderThread"));
+		RPInfo.ColorRenderTargets[0].Action = ERenderTargetActions::Clear_Store;
 	}
-	else
+	
+	RHICmdList.BeginRenderPass(RPInfo, TEXT("CanvasRenderThread"));
 	{
-		check(RHICmdList.IsInsideRenderPass());
-	}
-
-	{
-		// Disable depth test & writes
 		FMeshPassProcessorRenderState DrawRenderState;
+		// disable depth test & writes
 		DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
 
 		if (ViewRect.Area() <= 0)
@@ -744,11 +739,7 @@ void FCanvas::Flush_RenderThread(FRHICommandListImmediate& RHICmdList, bool bFor
 			LastElementIndex = INDEX_NONE;
 		}
 	}
-
-	if (!bInsideRenderPass)
-	{
-		RHICmdList.EndRenderPass();
-	}
+	RHICmdList.EndRenderPass();	
 }
 
 void FCanvas::Flush_GameThread(bool bForce)
@@ -985,7 +976,6 @@ void FCanvas::Clear(const FLinearColor& ClearColor)
 				{
 					// do fast clear
 					FRHIRenderPassInfo RPInfo(CanvasRenderTarget->GetRenderTargetTexture(), ERenderTargetActions::Clear_Store);
-					TransitionRenderPassTargets(RHICmdList, RPInfo);
 					RHICmdList.BeginRenderPass(RPInfo, TEXT("ClearCanvas"));
 					RHICmdList.EndRenderPass();					
 				}
@@ -1477,8 +1467,6 @@ ESimpleElementBlendMode FCanvas::BlendToSimpleElementBlend(EBlendMode BlendMode)
 			return SE_BLEND_Modulate;
 		case BLEND_AlphaComposite:
 			return SE_BLEND_AlphaComposite;
-		case BLEND_AlphaHoldout:
-			return SE_BLEND_AlphaHoldout;
 		case BLEND_Translucent:
 		default:
 			return SE_BLEND_Translucent;

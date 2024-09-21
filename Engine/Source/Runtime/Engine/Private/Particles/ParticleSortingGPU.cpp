@@ -91,9 +91,9 @@ public:
 	/**
 	 * Set output buffers for this shader.
 	 */
-	void SetOutput(FRHICommandList& RHICmdList, FRHIUnorderedAccessView* OutKeysUAV, FRHIUnorderedAccessView* OutIndicesUAV )
+	void SetOutput(FRHICommandList& RHICmdList, FUnorderedAccessViewRHIParamRef OutKeysUAV, FUnorderedAccessViewRHIParamRef OutIndicesUAV )
 	{
-		FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 		if ( OutKeys.IsBound() )
 		{
 			RHICmdList.SetUAVParameter(ComputeShaderRHI, OutKeys.GetBaseIndex(), OutKeysUAV);
@@ -110,10 +110,10 @@ public:
 	void SetParameters(
 		FRHICommandList& RHICmdList,
 		FParticleKeyGenUniformBufferRef& UniformBuffer,
-		FRHIShaderResourceView* InIndicesSRV
+		FShaderResourceViewRHIParamRef InIndicesSRV
 		)
 	{
-		FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 		SetUniformBufferParameter(RHICmdList, ComputeShaderRHI, GetUniformBufferParameter<FParticleKeyGenParameters>(), UniformBuffer );
 		if ( InParticleIndices.IsBound() )
 		{
@@ -124,9 +124,9 @@ public:
 	/**
 	 * Set the texture from which particle positions can be read.
 	 */
-	void SetPositionTextures(FRHICommandList& RHICmdList, FRHITexture2D* PositionTextureRHI)
+	void SetPositionTextures(FRHICommandList& RHICmdList, FTexture2DRHIParamRef PositionTextureRHI)
 	{
-		FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 		if (PositionTexture.IsBound())
 		{
 			RHICmdList.SetShaderTexture(ComputeShaderRHI, PositionTexture.GetBaseIndex(), PositionTextureRHI);
@@ -138,18 +138,18 @@ public:
 	 */
 	void UnbindBuffers(FRHICommandList& RHICmdList)
 	{
-		FRHIComputeShader* ComputeShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ComputeShaderRHI = GetComputeShader();
 		if ( InParticleIndices.IsBound() )
 		{
-			RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, InParticleIndices.GetBaseIndex(), nullptr);
+			RHICmdList.SetShaderResourceViewParameter(ComputeShaderRHI, InParticleIndices.GetBaseIndex(), FShaderResourceViewRHIParamRef());
 		}
 		if ( OutKeys.IsBound() )
 		{
-			RHICmdList.SetUAVParameter(ComputeShaderRHI, OutKeys.GetBaseIndex(), nullptr);
+			RHICmdList.SetUAVParameter(ComputeShaderRHI, OutKeys.GetBaseIndex(), FUnorderedAccessViewRHIParamRef());
 		}
 		if ( OutParticleIndices.IsBound() )
 		{
-			RHICmdList.SetUAVParameter(ComputeShaderRHI, OutParticleIndices.GetBaseIndex(), nullptr);
+			RHICmdList.SetUAVParameter(ComputeShaderRHI, OutParticleIndices.GetBaseIndex(), FUnorderedAccessViewRHIParamRef());
 		}
 	}
 
@@ -177,9 +177,9 @@ IMPLEMENT_SHADER_TYPE(,FParticleSortKeyGenCS,TEXT("/Engine/Private/ParticleSortK
  */
 static int32 GenerateParticleSortKeys(
 	FRHICommandListImmediate& RHICmdList,
-	FRHIUnorderedAccessView* KeyBufferUAV,
-	FRHIUnorderedAccessView* SortedVertexBufferUAV,
-	FRHITexture2D* PositionTextureRHI,
+	FUnorderedAccessViewRHIParamRef KeyBufferUAV,
+	FUnorderedAccessViewRHIParamRef SortedVertexBufferUAV,
+	FTexture2DRHIParamRef PositionTextureRHI,
 	const TArray<FParticleSimulationSortInfo>& SimulationsToSort,
 	ERHIFeatureLevel::Type FeatureLevel
 	)
@@ -192,7 +192,7 @@ static int32 GenerateParticleSortKeys(
 	const uint32 MaxGroupCount = 128;
 	int32 TotalParticleCount = 0;
 
-	FRHIUnorderedAccessView* OutputUAVs[2];
+	FUnorderedAccessViewRHIParamRef OutputUAVs[2];
 	OutputUAVs[0] = KeyBufferUAV;
 	OutputUAVs[1] = SortedVertexBufferUAV;
 
@@ -329,11 +329,12 @@ FGPUSortBuffers FParticleSortBuffers::GetSortBuffers()
  * @param ParticleSortBuffers - Buffers to use while sorting GPU particles.
  * @param PositionTextureRHI - Texture containing world space position for all particles.
  * @param SimulationsToSort - A list of simulations that must be sorted.
+ * @returns the buffer index in which sorting results are stored.
  */
-void SortParticlesGPU(
+int32 SortParticlesGPU(
 	FRHICommandListImmediate& RHICmdList,
 	FParticleSortBuffers& ParticleSortBuffers,
-	FRHITexture2D* PositionTextureRHI,
+	FTexture2DRHIParamRef PositionTextureRHI,
 	const TArray<FParticleSimulationSortInfo>& SimulationsToSort,
 	ERHIFeatureLevel::Type FeatureLevel
 	)
@@ -346,21 +347,16 @@ void SortParticlesGPU(
 		const int32 StreamCount = 2;
 		for (int32 StreamIndex = 0; StreamIndex < StreamCount; ++StreamIndex)
 		{
-			RHICmdList.SetStreamSource(StreamIndex, nullptr, 0);
+			RHICmdList.SetStreamSource(StreamIndex, FVertexBufferRHIParamRef(), 0);
 		}
 	}
 
-	// Buffer index should start so that we always end up on buffer 0 so that callers do not need to dynmically change which buffer they are using
-	const uint32 EmitterKeyMask = (1 << FMath::CeilLogTwo(SimulationsToSort.Num())) - 1;
-	const uint32 KeyMask = (EmitterKeyMask << 16) | 0xFFFF;
-
-	const int32 BufferIndex = GetGPUSortPassCount(KeyMask) & 1;
-
 	// First generate keys for each emitter to be sorted.
+	
 	const int32 TotalParticleCount = GenerateParticleSortKeys(
 		RHICmdList,
-		ParticleSortBuffers.GetKeyBufferUAV(BufferIndex),
-		ParticleSortBuffers.GetVertexBufferUAV(BufferIndex),
+		ParticleSortBuffers.GetKeyBufferUAV(),
+		ParticleSortBuffers.GetVertexBufferUAV(),
 		PositionTextureRHI,
 		SimulationsToSort,
 		FeatureLevel
@@ -371,8 +367,8 @@ void SortParticlesGPU(
 	INC_DWORD_STAT_BY( STAT_SortedGPUParticles, TotalParticleCount );
 
 	// Now sort the particles based on the generated keys.
+	const uint32 EmitterKeyMask = (1 << FMath::CeilLogTwo( SimulationsToSort.Num() )) - 1;
+	const uint32 KeyMask = (EmitterKeyMask << 16) | 0xFFFF;
 	FGPUSortBuffers SortBuffers = ParticleSortBuffers.GetSortBuffers();
-
-	const int32 FinalBufferIndex = SortGPUBuffers(RHICmdList, SortBuffers, BufferIndex, KeyMask, TotalParticleCount, FeatureLevel);
-	ensure(FinalBufferIndex == 0);
+	return SortGPUBuffers(RHICmdList, SortBuffers, 0, KeyMask, TotalParticleCount, FeatureLevel);
 }

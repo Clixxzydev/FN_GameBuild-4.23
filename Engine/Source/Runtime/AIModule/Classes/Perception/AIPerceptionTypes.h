@@ -192,9 +192,9 @@ public:
 	FORCEINLINE bool IsExpired() const { return bExpired; }
 	FORCEINLINE void MarkNoLongerSensed() { bSuccessfullySensed = false; }
 	FORCEINLINE void MarkExpired() { bExpired = true; MarkNoLongerSensed(); }
-	FORCEINLINE bool IsActive() const { return WasSuccessfullySensed() == true && IsValid(); }
+	FORCEINLINE bool IsActive() const { return WasSuccessfullySensed() == true && GetAge() < NeverHappenedAge; }
 	FORCEINLINE bool WantsToNotifyOnlyOnPerceptionChange() const { return bWantsToNotifyOnlyOnValueChange; }
-	FORCEINLINE bool IsValid() const { return Type != FAISenseID::InvalidID() && GetAge() < NeverHappenedAge; }
+	FORCEINLINE bool IsValid() const { return Type != FAISenseID::InvalidID(); }
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	FString GetDebugDescription() const;

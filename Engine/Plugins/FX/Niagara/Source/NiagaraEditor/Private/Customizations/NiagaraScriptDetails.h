@@ -8,7 +8,6 @@
 
 class FNiagaraScriptViewModel;
 class INiagaraParameterCollectionViewModel;
-class FNiagaraMetaDataCustomNodeBuilder;
 
 class FNiagaraScriptDetails : public IDetailCustomization
 {
@@ -23,6 +22,6 @@ public:
 
 private:
 	TSharedPtr<FNiagaraScriptViewModel> ScriptViewModel;
-	TSharedPtr<FNiagaraMetaDataCustomNodeBuilder> MetaDataBuilder;
+
 };
 

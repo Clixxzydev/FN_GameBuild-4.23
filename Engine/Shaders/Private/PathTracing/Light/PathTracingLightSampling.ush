@@ -13,10 +13,11 @@ LightSampling.usf: Light sampling for next-event estimation
 #include "PathTracingSkyLight.ush"
 #include "PathTracingSpotLight.ush"
 
-void GenerateLightRay(RayDesc Ray, int LightId, float3 LightUV, inout RayDesc OutLightRay)
-{
-	OutLightRay = (RayDesc)0; // #dxr_todo: Return false in the case of no matching light type and handle case from caller rather than blindly using a degenerate ray
+// #dxr_todo: unify with GLightCountMaximum in c++ code
+static const uint LIGHT_COUNT_MAXIMUM = 64;
 
+void GenerateLightRay(RayDesc Ray, int LightId, float3 LightUV, out RayDesc OutLightRay)
+{
 	if (IsPointLight(LightId))
 	{
 		PointLight_GenerateLightRay(Ray, LightId, LightUV, OutLightRay);
@@ -44,11 +45,10 @@ void EstimateLight(
 	int LightId,
 	RayDesc Ray,
 	FMaterialClosestHitPayload Payload,
-	inout float OutIrradiance
+	out float OutIrradiance
 )
 {
-	OutIrradiance = 0.0f;
-
+	OutIrradiance = 0.0;
 	if (IsPointLight(LightId))
 	{
 		PointLight_EstimateLight(LightId, Ray, Payload, OutIrradiance);
@@ -75,12 +75,10 @@ bool SampleLightSelection(
 	RayDesc Ray,
 	FMaterialClosestHitPayload Payload,
 	float RandSample,
-	inout int OutLightId,
-	inout float OutLightSelectionPdf
+	out int OutLightId,
+	out float OutLightSelectionPdf
 )
 {
-	OutLightSelectionPdf = 0.0;
-
 //#define UNIFORM_LIGHT_SELECTION
 #ifdef UNIFORM_LIGHT_SELECTION
 	OutLightId = RandSample * SceneLightsData.Count;
@@ -90,7 +88,7 @@ bool SampleLightSelection(
 	if (SceneLightsData.Count == 0) return false;
 
 	// Build irradiance estimate prefix sum
-	float IrradianceEstimate[RAY_TRACING_LIGHT_COUNT_MAXIMUM];
+	float IrradianceEstimate[LIGHT_COUNT_MAXIMUM];
 	EstimateLight(0, Ray, Payload, IrradianceEstimate[0]);
 	{
 		for (uint LightIndex = 1; LightIndex < SceneLightsData.Count; ++LightIndex)
@@ -131,19 +129,18 @@ void PdfLightSelection(
 	RayDesc Ray,
 	FMaterialClosestHitPayload Payload,
 	uint LightId,
-	inout float OutLightSelectionPdf
+	out float OutLightSelectionPdf
 )
 {
-	OutLightSelectionPdf = 0.0;
-
 #ifdef UNIFORM_LIGHT_SELECTION
 	OutLightSelectionPdf = 1.0 / SceneLightsData.Count;
 	return;
 #else
+	OutLightSelectionPdf = 0.0;
 	if (SceneLightsData.Count == 0) return;
 
 	// Build irradiance estimate prefix sum
-	float IrradianceEstimate[RAY_TRACING_LIGHT_COUNT_MAXIMUM];
+	float IrradianceEstimate[LIGHT_COUNT_MAXIMUM];
 	EstimateLight(0, Ray, Payload, IrradianceEstimate[0]);
 	{
 		for (uint LightIndex = 1; LightIndex < SceneLightsData.Count; ++LightIndex)
@@ -176,7 +173,7 @@ void PdfLight(
 	FMaterialClosestHitPayload Payload,
 	int LightId,
 	float3 LightUV,
-	inout float OutPdf)
+	out float OutPdf)
 {
 	// Light selection
 	// TODO: Use radiance estimate instead of uniform random selection
@@ -213,11 +210,9 @@ void EvalLight(
 	int LightId,
 	float3 LightUV,
 	RayDesc Ray,
-	inout float3 OutRadiance
+	out float3 OutRadiance
 )
 {
-	OutRadiance = float3(0.0f, 0.0f, 0.0f);
-
 	if (IsPointLight(LightId))
 	{
 		PointLight_EvalLight(LightId, LightUV, Ray, OutRadiance);
@@ -244,11 +239,11 @@ void SampleLight(
 	RayDesc Ray,
 	FMaterialClosestHitPayload Payload,
 	float4 RandSample,
-	inout int OutLightId,
-	inout float3 OutLightUV,
-	inout float OutPdf)
+	out int OutLightId,
+	out float3 OutLightUV,
+	out float OutPdf)
 {
-	OutPdf = 0.0f;
+	OutPdf = 0.0;
 
 	// Light selection
 	float LightSelectionPdf = 0.0;
@@ -258,6 +253,7 @@ void SampleLight(
 	}
 
 	// Light sampling
+	OutLightUV = 0.0;
 	float LightPdf = 0.0;
 	if (IsPointLight(OutLightId))
 	{

@@ -14,7 +14,6 @@ public class PacketHandler : ModuleRules
 				"Core",
 				"CoreUObject",
                 "ReliabilityHandlerComponent",
-				"Sockets",
             }
         );
 

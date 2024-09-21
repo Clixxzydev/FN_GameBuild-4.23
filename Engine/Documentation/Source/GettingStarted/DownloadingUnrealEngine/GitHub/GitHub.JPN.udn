@@ -12,6 +12,8 @@ SkillLevel:Advanced
 
 GitHub からソースコードをフォークおよびクローンすることからアンリアルを始めてみましょう。
 
+%Globals:osselect_linux%
+
 [OBJECT:ToggleButtonContent]
 	[PARAMLITERAL:category]
 	OS

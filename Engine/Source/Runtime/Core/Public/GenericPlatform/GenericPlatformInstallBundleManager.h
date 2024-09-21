@@ -8,9 +8,6 @@
 #include "Misc/ConfigCacheIni.h"
 #include "Logging/LogMacros.h"
 #include "Internationalization/Text.h"
-//#include "IAnalyticsProviderET.h"
-
-class IAnalyticsProviderET;
 
 enum class EInstallBundleModuleInitResult : int
 {
@@ -19,7 +16,6 @@ enum class EInstallBundleModuleInitResult : int
 	BuildMetaDataParsingError,
 	DistributionRootParseError,
 	DistributionRootDownloadError,
-	ManifestArchiveError,
 	ManifestCreationError,
 	ManifestDownloadError,
 	BackgroundDownloadsIniDownloadError,
@@ -37,7 +33,6 @@ inline const TCHAR* LexToString(EInstallBundleModuleInitResult Result)
 		TEXT("BuildMetaDataParsingError"),
 		TEXT("DistributionRootParseError"),
 		TEXT("DistributionRootDownloadError"),
-		TEXT("ManifestArchiveError"),
 		TEXT("ManifestCreationError"),
 		TEXT("ManifestDownloadError"),
 		TEXT("BackgroundDownloadsIniDownloadError"),
@@ -54,7 +49,6 @@ enum class EInstallBundleResult : int
 	FailedPrereqRequiresLatestClient,
 	InstallError,
 	InstallerOutOfDiskSpaceError,
-	ManifestArchiveError,
 	UserCancelledError,
 	InitializationError,
 	Count,
@@ -69,7 +63,6 @@ inline const TCHAR* LexToString(EInstallBundleResult Result)
 		TEXT("FailedPrereqRequiresLatestClient"),
 		TEXT("InstallError"),
 		TEXT("InstallerOutOfDiskSpaceError"),
-		TEXT("ManifestArchiveError"),
 		TEXT("UserCancelledError"),
 		TEXT("InitializationError"),
 	};
@@ -224,7 +217,6 @@ inline const TCHAR* LexToString(EInstallBundleContentState State)
 struct FInstallBundleContentState
 {
 	EInstallBundleContentState State = EInstallBundleContentState::InitializationError;
-	TMap<FName, EInstallBundleContentState> IndividualBundleStates;
 	uint64 DownloadSize = 0;
 	uint64 InstallSize = 0;	
 	uint64 FreeSpace = 0;
@@ -298,8 +290,6 @@ public:
 
 	virtual void RequestRemoveBundleOnNextInit(FName BundleName) = 0;
 
-	virtual void CancelRequestRemoveBundleOnNextInit(FName BundleName) = 0;
-
 	virtual void CancelBundle(FName BundleName, EInstallBundleCancelFlags Flags) = 0;
 
 	virtual void CancelAllBundles(EInstallBundleCancelFlags Flags) = 0;
@@ -318,7 +308,8 @@ public:
 
 	virtual void SetErrorSimulationCommands(const FString& CommandLine) {}
 
-	virtual TSharedPtr<IAnalyticsProviderET> GetAnalyticsProvider() const { return TSharedPtr<IAnalyticsProviderET>(); }
+	// return true if we actually cleaned up a migration directory
+	virtual bool CleanupMigrationDirectory() { return false;  }
 };
 
 class IPlatformInstallBundleManagerModule : public IModuleInterface

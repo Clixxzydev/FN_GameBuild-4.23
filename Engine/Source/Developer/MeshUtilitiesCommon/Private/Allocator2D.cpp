@@ -342,11 +342,11 @@ void FAllocator2D::InitSegments()
 
 	for ( FRow& Row : Rows )
 	{
-		Row.FreeSegments.Reset();
+		Row.FreeSegments.Empty( 1 );
 		Row.FreeSegments.Add( FreeSegment );
 		Row.LongestSegment = FreeSegment.Length;
 
-		Row.UsedSegments.Reset();
+		Row.UsedSegments.Empty();
 
 	}
 }
@@ -357,7 +357,7 @@ void FAllocator2D::CreateUsedSegments()
 	{
 		FRow& CurrentRow = Rows[y];
 		CurrentRow.LongestSegment = 0;
-		CurrentRow.UsedSegments.Reset();
+		CurrentRow.UsedSegments.Empty();
 
 		int32 FirstUsedX = -1;
 		for ( uint32 k = 0; k < Pitch; ++k )

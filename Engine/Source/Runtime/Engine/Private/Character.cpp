@@ -376,7 +376,7 @@ void ACharacter::SetReplicateMovement(bool bInReplicateMovement)
 	}
 }
 
-bool ACharacter::CanCrouch() const
+bool ACharacter::CanCrouch()
 {
 	return !bIsCrouched && CharacterMovement && CharacterMovement->CanEverCrouch() && GetRootComponent() && !GetRootComponent()->IsSimulatingPhysics();
 }

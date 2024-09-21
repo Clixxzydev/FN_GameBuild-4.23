@@ -18,7 +18,5 @@ public class UnrealVersionSelector : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[] { "Core", "Projects", "DesktopPlatform", "ApplicationCore" });
 		}
-
-        PrivateDependencyModuleNames.Add("Json");
-    }
+	}
 }

@@ -25,7 +25,7 @@ public:
 
 	virtual ITargetPlatform* GetTargetPlatform( )
 	{
-		if (Singleton == nullptr && TGenericWindowsTargetPlatform<false, false, true>::IsUsable())
+		if (Singleton == nullptr)
 		{
 			Singleton = new TGenericWindowsTargetPlatform<false, false, true>();
 		}

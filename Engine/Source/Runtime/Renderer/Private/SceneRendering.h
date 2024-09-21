@@ -151,17 +151,6 @@ public:
 	TArray<FProjectedShadowInfo*,SceneRenderingAllocator> OccludedPerObjectShadows;
 };
 
-enum class EVelocityPass : uint32
-{
-	// Renders a separate velocity pass for opaques.
-	Opaque = 0,
-
-	// Renders a separate velocity / depth pass for translucency AFTER the translucent pass.
-	Translucency,
-
-	Count
-};
-
 // Stores the primitive count of each translucency pass (redundant, could be computed after sorting but this way we touch less memory)
 struct FTranslucenyPrimCount
 {
@@ -234,101 +223,6 @@ struct FOcclusionPrimitive
 	FVector Extent;
 };
 
-class FRefCountedRHIPooledRenderQuery
-{
-public:
-	FRefCountedRHIPooledRenderQuery() : FRefCountedRHIPooledRenderQuery(FRHIPooledRenderQuery())
-	{
-	}
-
-	explicit FRefCountedRHIPooledRenderQuery(FRHIPooledRenderQuery&& InQuery)
-	{
-		char* data = new char[sizeof(FRHIPooledRenderQuery) + sizeof(int)];
-		Query = new (data) FRHIPooledRenderQuery();
-		RefCount = new (data + sizeof(FRHIPooledRenderQuery)) int(1);
-		*Query = MoveTemp(InQuery);
-	}
-
-	~FRefCountedRHIPooledRenderQuery()
-	{
-		Deref();
-	}
-
-	bool IsValid() const
-	{
-		return Query && Query->IsValid();
-	}
-
-	FRHIRenderQuery* GetQuery() const
-	{
-		return Query ? Query->GetQuery() : nullptr;
-	}
-
-	void ReleaseQuery()
-	{
-		Deref();
-	}
-
-	FRefCountedRHIPooledRenderQuery(const FRefCountedRHIPooledRenderQuery& Other)
-	{
-		Other.Addref();
-		RefCount = Other.RefCount;
-		Query = Other.Query;
-	}
-
-	FRefCountedRHIPooledRenderQuery& operator= (const FRefCountedRHIPooledRenderQuery& Other)
-	{
-		Other.Addref();
-		Deref();
-		RefCount = Other.RefCount;
-		Query = Other.Query;
-
-		return *this;
-	}
-
-	FRefCountedRHIPooledRenderQuery(FRefCountedRHIPooledRenderQuery&& Other)
-	{
-		RefCount = Other.RefCount;
-		Query = Other.Query;
-		Other.RefCount = nullptr;
-		Other.Query = nullptr;
-	}
-
-	FRefCountedRHIPooledRenderQuery& operator=(FRefCountedRHIPooledRenderQuery&& Other)
-	{
-		Deref();
-		RefCount = Other.RefCount;
-		Query = Other.Query;
-		Other.RefCount = nullptr;
-		Other.Query = nullptr;
-
-		return *this;
-	}
-
-private:
-	void Addref() const
-	{
-		check(RefCount != nullptr);
-		(*RefCount)++;
-	}
-
-	void Deref()
-	{
-		if (RefCount && --(*RefCount) == 0)
-		{
-			Query->~FRHIPooledRenderQuery();
-			char* data = reinterpret_cast<char*>(Query);
-			delete[] data;
-		}
-
-		Query = nullptr;
-		RefCount = nullptr;
-	}
-
-	mutable int* RefCount = nullptr;
-	FRHIPooledRenderQuery* Query = nullptr;
-};
-
 /**
  * Combines consecutive primitives which use the same occlusion query into a single DrawIndexedPrimitive call.
  */
@@ -355,7 +249,7 @@ public:
 	 * Batches a primitive's occlusion query for rendering.
 	 * @param Bounds - The primitive's bounds.
 	 */
-	FRefCountedRHIPooledRenderQuery BatchPrimitive(const FVector& BoundsOrigin, const FVector& BoundsBoxExtent, FGlobalDynamicVertexBuffer& DynamicVertexBuffer);
+	FRenderQueryRHIParamRef BatchPrimitive(const FVector& BoundsOrigin, const FVector& BoundsBoxExtent, FGlobalDynamicVertexBuffer& DynamicVertexBuffer);
 	inline int32 GetNumBatchOcclusionQueries() const
 	{
 		return BatchOcclusionQueries.Num();
@@ -365,7 +259,7 @@ private:
 
 	struct FOcclusionBatch
 	{
-		FRefCountedRHIPooledRenderQuery Query;
+		FRenderQueryRHIRef Query;
 		FGlobalDynamicVertexBuffer::FAllocation VertexAllocation;
 	};
 
@@ -382,7 +276,7 @@ private:
 	uint32 NumBatchedPrimitives;
 
 	/** The pool to allocate occlusion queries from. */
-	TRefCountPtr<FRHIRenderQueryPool> OcclusionQueryPool;
+	class FRenderQueryPool* OcclusionQueryPool;
 };
 
 class FHZBOcclusionTester : public FRenderResource
@@ -568,8 +462,6 @@ const int32 GMaxForwardShadowCascades = 4;
 	SHADER_PARAMETER(FVector4, DirectionalLightShadowmapAtlasBufferSize) \
 	SHADER_PARAMETER(float, DirectionalLightDepthBias) \
 	SHADER_PARAMETER(uint32, DirectionalLightUseStaticShadowing) \
-	SHADER_PARAMETER(uint32, SimpleLightsEndIndex) \
-	SHADER_PARAMETER(uint32, ClusteredDeferredSupportedEndIndex) \
 	SHADER_PARAMETER(FVector4, DirectionalLightStaticShadowBufferSize) \
 	SHADER_PARAMETER(FMatrix, DirectionalLightWorldToStaticShadow) \
 	SHADER_PARAMETER_TEXTURE(Texture2D, DirectionalLightShadowmapAtlas) \
@@ -578,8 +470,7 @@ const int32 GMaxForwardShadowCascades = 4;
 	SHADER_PARAMETER_SAMPLER(SamplerState, StaticShadowmapSampler) \
 	SHADER_PARAMETER_SRV(StrongTypedBuffer<float4>, ForwardLocalLightBuffer) \
 	SHADER_PARAMETER_SRV(StrongTypedBuffer<uint>, NumCulledLightsGrid) \
-	SHADER_PARAMETER_SRV(StrongTypedBuffer<uint>, CulledLightDataGrid) \
-	SHADER_PARAMETER_TEXTURE(Texture2D, DummyRectLightSourceTexture)
+	SHADER_PARAMETER_SRV(StrongTypedBuffer<uint>, CulledLightDataGrid) 
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT_WITH_CONSTRUCTOR(FForwardLightData,)
 	FORWARD_GLOBAL_LIGHT_DATA_UNIFORM_BUFFER_MEMBER_TABLE
@@ -603,22 +494,20 @@ public:
 	}
 };
 
-#define ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA 1
-
 class FForwardLightingCullingResources
 {
 public:
+	FRWBuffer NextCulledLightLink;
+	FRWBuffer StartOffsetGrid;
+	FRWBuffer CulledLightLinks;
+	FRWBuffer NextCulledLightData;
 
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-	FDynamicReadBuffer ViewSpacePosAndRadiusData;
-	FDynamicReadBuffer ViewSpaceDirAndPreprocAngleData;
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
 	void Release()
 	{
-#if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
-		ViewSpacePosAndRadiusData.Release();
-		ViewSpaceDirAndPreprocAngleData.Release();
-#endif // ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
+		NextCulledLightLink.Release();
+		StartOffsetGrid.Release();
+		CulledLightLinks.Release();
+		NextCulledLightData.Release();
 	}
 };
 
@@ -669,7 +558,6 @@ struct FMeshDecalBatch
 	}
 };
 
-// DX11 maximum 2d texture array size is D3D11_REQ_TEXTURE2D_ARRAY_AXIS_DIMENSION = 2048, and 2048/6 = 341.33.
 static const int32 GMaxNumReflectionCaptures = 341;
 
 /** Per-reflection capture data needed by the shader. */
@@ -698,6 +586,9 @@ struct FTemporalAAHistory
 
 	// Viewport coordinate of the history in RT according to ReferenceBufferSize.
 	FIntRect ViewportRect;
+
+	// Scene color's PreExposure.
+	float SceneColorPreExposure;
 
 
 	void SafeRelease()
@@ -746,9 +637,6 @@ struct FPreviousViewInfo
 	// View matrices.
 	FViewMatrices ViewMatrices;
 
-	// Scene color's PreExposure.
-	float SceneColorPreExposure = 1.0f;
-
 	// Depth buffer and Normals of the previous frame generating this history entry for bilateral kernel rejection.
 	TRefCountPtr<IPooledRenderTarget> DepthBuffer;
 	TRefCountPtr<IPooledRenderTarget> GBufferA;
@@ -759,10 +647,9 @@ struct FPreviousViewInfo
 	FTemporalAAHistory TemporalAAHistory;
 
 	// Temporal AA history for diaphragm DOF.
-	FTemporalAAHistory DOFSetupHistory;
-	
-	// Temporal AA history for SSR
-	FTemporalAAHistory SSRHistory;
+	FTemporalAAHistory DOFPreGatherHistory;
+	FTemporalAAHistory DOFPostGatherForegroundHistory;
+	FTemporalAAHistory DOFPostGatherBackgroundHistory;
 
 	// Scene color input for SSR, that can be different from TemporalAAHistory.RT[0] if there is a SSR
 	// input post process material.
@@ -775,13 +662,32 @@ struct FPreviousViewInfo
 	FScreenSpaceFilteringHistory AmbientOcclusionHistory;
 
 	// History for global illumination
-	FScreenSpaceFilteringHistory DiffuseIndirectHistory;
+	FScreenSpaceFilteringHistory GlobalIlluminationHistory;
 
 	// History for sky light
 	FScreenSpaceFilteringHistory SkyLightHistory;
 
 	// History for shadow denoising.
 	TMap<const ULightComponent*, FScreenSpaceFilteringHistory> ShadowHistories;
+
+
+	void SafeRelease()
+	{
+		DepthBuffer.SafeRelease();
+		GBufferA.SafeRelease();
+		GBufferB.SafeRelease();
+		GBufferC.SafeRelease();
+		TemporalAAHistory.SafeRelease();
+		DOFPreGatherHistory.SafeRelease();
+		DOFPostGatherForegroundHistory.SafeRelease();
+		DOFPostGatherBackgroundHistory.SafeRelease();
+		CustomSSRInput.SafeRelease();
+		ReflectionsHistory.SafeRelease();
+		AmbientOcclusionHistory.SafeRelease();
+		GlobalIlluminationHistory.SafeRelease();
+		SkyLightHistory.SafeRelease();
+		ShadowHistories.Reset();
+	}
 };
 
 class FViewCommands
@@ -829,7 +735,7 @@ public:
 	FSceneBitArray PotentiallyFadingPrimitiveMap;
 
 	/** Primitive fade uniform buffers, indexed by packed primitive index. */
-	TArray<FRHIUniformBuffer*,SceneRenderingAllocator> PrimitiveFadeUniformBuffers;
+	TArray<FUniformBufferRHIParamRef,SceneRenderingAllocator> PrimitiveFadeUniformBuffers;
 
 	/**  Bit set when a primitive has a valid fade uniform buffer. */
 	FSceneBitArray PrimitiveFadeUniformBufferMap;
@@ -947,6 +853,7 @@ public:
 	FMobileCSMVisibilityInfo MobileCSMVisibilityInfo;
 
 	// Primitive CustomData
+	TArray<const FPrimitiveSceneInfo*, SceneRenderingAllocator> PrimitivesWithCustomData;	// Size == Amount of Primitive With Custom Data
 	TArray<FMemStackBase, SceneRenderingAllocator> PrimitiveCustomDataMemStack; // Size == 1 global stack + 1 per visibility thread (if multithread)
 
 	/** Parameters for exponential height fog. */
@@ -972,13 +879,7 @@ public:
 	float TranslucencyVolumeVoxelSize[TVC_MAX];
 	FVector TranslucencyLightingVolumeSize[TVC_MAX];
 
-	/** Number of samples in the temporal AA sequqnce */
-	int32 TemporalJitterSequenceLength;
-
-	/** Index of the temporal AA jitter in the sequence. */
-	int32 TemporalJitterIndex;
-
-	/** Temporal AA jitter at the pixel scale. */
+	/** Temporal jitter at the pixel scale. */
 	FVector2D TemporalJitterPixels;
 
 	/** Whether view state may be updated with this view. */
@@ -1080,8 +981,6 @@ public:
 	FShaderResourceViewRHIRef PrimitiveSceneDataOverrideSRV;
 	FShaderResourceViewRHIRef LightmapSceneDataOverrideSRV;
 
-	FRWBufferStructured ShaderPrintValueBuffer;
-
 #if RHI_RAYTRACING
 	TArray<FRayTracingGeometryInstance, SceneRenderingAllocator> RayTracingGeometryInstances;
 
@@ -1090,7 +989,7 @@ public:
 
 	// Primary pipeline state object to be used with the ray tracing scene for this view.
 	// Material shaders are only available when using this pipeline.
-	FRayTracingPipelineState* RayTracingMaterialPipeline = nullptr;
+	FRHIRayTracingPipelineState* RayTracingMaterialPipeline = nullptr;
 #endif // RHI_RAYTRACING
 
 	/** 
@@ -1197,7 +1096,7 @@ public:
 
 	/** Gets the rendertarget that will be populated by CombineLUTS post process 
 	* for stereo rendering, this will force the post-processing to use the same render target for both eyes*/
-	FSceneRenderTargetItem* GetTonemappingLUTRenderTarget(FRHICommandList& RHICmdList, const int32 LUTSize, const bool bUseVolumeLUT, const bool bNeedUAV, const bool bNeedFloatOutput) const;
+	FSceneRenderTargetItem* GetTonemappingLUTRenderTarget(FRHICommandList& RHICmdList, const int32 LUTSize, const bool bUseVolumeLUT, const bool bNeedUAV) const;
 	
 
 
@@ -1662,7 +1561,7 @@ protected:
 	void RenderDistortion(FRHICommandListImmediate& RHICmdList);
 
 	/** Returns the scene color texture multi-view is targeting. */	
-	FRHITexture* GetMultiViewSceneColor(const FSceneRenderTargets& SceneContext) const;
+	FTextureRHIParamRef GetMultiViewSceneColor(const FSceneRenderTargets& SceneContext) const;
 
 	void UpdatePrimitiveIndirectLightingCacheBuffers();
 	void ClearPrimitiveSingleFrameIndirectLightingCacheBuffers();
@@ -1707,9 +1606,6 @@ protected:
 	void RenderMobileBasePass(FRHICommandListImmediate& RHICmdList, const TArrayView<const FViewInfo*> PassViews);
 
 	void RenderMobileEditorPrimitives(FRHICommandList& RHICmdList, const FViewInfo& View, const FMeshPassProcessorRenderState& DrawRenderState);
-
-	/** Renders the debug view pass for mobile. */
-	void RenderMobileDebugView(FRHICommandListImmediate& RHICmdList, const TArrayView<const FViewInfo*> PassViews);
 
 	/** Render modulated shadow projections in to the scene, loops over any unrendered shadows until all are processed.*/
 	void RenderModulatedShadowProjections(FRHICommandListImmediate& RHICmdList);
@@ -1765,26 +1661,26 @@ private:
 // The noise textures need to be set in Slate too.
 RENDERER_API void UpdateNoiseTextureParameters(FViewUniformShaderParameters& ViewUniformShaderParameters);
 
-inline FRHITexture* OrBlack2DIfNull(FRHITexture* Tex)
+inline FTextureRHIParamRef OrBlack2DIfNull(FTextureRHIParamRef Tex)
 {
-	FRHITexture* Result = Tex ? Tex : GBlackTexture->TextureRHI.GetReference();
+	FTextureRHIParamRef Result = Tex ? Tex : GBlackTexture->TextureRHI.GetReference();
 	check(Result);
 	return Result;
 }
 
-inline FRHITexture* OrBlack3DIfNull(FRHITexture* Tex)
+inline FTextureRHIParamRef OrBlack3DIfNull(FTextureRHIParamRef Tex)
 {
 	// we fall back to 2D which are unbound es2 parameters
 	return OrBlack2DIfNull(Tex ? Tex : GBlackVolumeTexture->TextureRHI.GetReference());
 }
 
-inline FRHITexture* OrBlack3DUintIfNull(FRHITexture* Tex)
+inline FTextureRHIParamRef OrBlack3DUintIfNull(FTextureRHIParamRef Tex)
 {
 	// we fall back to 2D which are unbound es2 parameters
 	return OrBlack2DIfNull(Tex ? Tex : GBlackUintVolumeTexture->TextureRHI.GetReference());
 }
 
-inline void SetBlack2DIfNull(FRHITexture*& Tex)
+inline void SetBlack2DIfNull(FTextureRHIParamRef& Tex)
 {
 	if (!Tex)
 	{
@@ -1793,7 +1689,7 @@ inline void SetBlack2DIfNull(FRHITexture*& Tex)
 	}
 }
 
-inline void SetBlack3DIfNull(FRHITexture*& Tex)
+inline void SetBlack3DIfNull(FTextureRHIParamRef& Tex)
 {
 	if (!Tex)
 	{

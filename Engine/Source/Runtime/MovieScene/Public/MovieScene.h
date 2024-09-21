@@ -81,10 +81,10 @@ struct FMovieSceneMarkedFrame
 #endif
 	{}
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Marked Frame")
+	UPROPERTY(EditAnywhere, Category = "Marked Frame")
 	FFrameNumber FrameNumber;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Marked Frame")
+	UPROPERTY(EditAnywhere, Category = "Marked Frame")
 	FString Label;
 
 #if WITH_EDITORONLY_DATA
@@ -751,21 +751,12 @@ public:
 	const TArray<FMovieSceneMarkedFrame>& GetMarkedFrames() const { return MarkedFrames; }
 
 	/*
-	 * Sets the frame number for the given marked frame index.
-	 *
-	 * @InMarkIndex The given user marked frame index to edit
-	 * @InFrameNumber The frame number to set
-	 */
-	void SetMarkedFrame(int32 InMarkIndex, FFrameNumber InFrameNumber);
-
-	/*
 	 * Add a given user marked frame.
 	 * A unique label will be generated if the marked frame label is empty
 	 *
 	 * @InMarkedFrame The given user marked frame to add
-	 * @return The index to the newly added marked frame
 	 */
-	int32 AddMarkedFrame(const FMovieSceneMarkedFrame& InMarkedFrame);
+	void AddMarkedFrame(const FMovieSceneMarkedFrame& InMarkedFrame);
 
 	/*
 	 * Remove the user marked frame by index.

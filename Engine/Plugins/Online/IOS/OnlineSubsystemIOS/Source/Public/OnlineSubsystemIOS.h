@@ -5,18 +5,6 @@
 #include "OnlineSubsystem.h"
 #include "OnlineSubsystemImpl.h"
 #include "OnlineSubsystemIOSPackage.h"
-#include "OnlineSessionInterfaceIOS.h"
-#include "OnlineFriendsInterfaceIOS.h"
-#include "OnlineIdentityInterfaceIOS.h"
-#include "OnlineLeaderboardsInterfaceIOS.h"
-#include "OnlineStoreInterfaceIOS.h"
-#include "OnlineStoreIOS.h"
-#include "OnlinePurchaseIOS.h"
-#include "OnlineAchievementsInterfaceIOS.h"
-#include "OnlineExternalUIInterfaceIOS.h"
-#include "OnlineTurnBasedInterfaceIOS.h"
-#include "OnlineUserCloudInterfaceIOS.h"
-#include "OnlineSharedCloudInterfaceIOS.h"
 
 @class FStoreKitHelperV2;
 @class FAppStoreUtils;

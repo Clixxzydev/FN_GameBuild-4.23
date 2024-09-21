@@ -17,7 +17,7 @@ class FMenuBuilder;
 class FOculusEditorModule : public IOculusEditorModule
 {
 public:
-	FOculusEditorModule() : bModuleValid(false) {};
+	FOculusEditorModule() {};
 
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
@@ -32,7 +32,6 @@ public:
 
 public:
 	static const FName OculusPerfTabName;
-	static const FName OculusPlatToolTabName;
 
 private:
 
@@ -40,11 +39,9 @@ private:
 	void AddMenuExtension(FMenuBuilder& Builder);
 
 	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
-	TSharedRef<class SDockTab> OnSpawnPlatToolTab(const class FSpawnTabArgs& SpawnTabArgs);
 
 private:
 	TSharedPtr<class FUICommandList> PluginCommands;
-	bool bModuleValid;
 };
 
 class IDetailLayoutBuilder;
@@ -59,6 +56,5 @@ public:
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
 	// End of IDetailCustomization interface
 
-	FReply PluginClickPerfFn(bool text);
-	FReply PluginClickPlatFn(bool text);
+	FReply PluginClickFn(bool text);
 };

@@ -6,7 +6,6 @@
 #include "UI/TimecodeSynchronizerEditorCommand.h"
 #include "UI/TimecodeSynchronizerEditorStyle.h"
 #include "Widgets/STimecodeSynchronizerSourceViewer.h"
-#include "Widgets/STimecodeSynchronizerWidget.h"
 
 #include "Editor.h"
 #include "IDetailsView.h"
@@ -27,7 +26,6 @@ namespace TimecodeSynchronizerEditorToolkit
 	const FName AppIdentifier = TEXT("TimecodeSynchronizerEditorApp");
 	const FName PropertiesTabId(TEXT("TimecodeSynchronizerEditor_Properties"));
 	const FName SourceViewerTabId(TEXT("TimecodeSynchronizerEditor_SourceViewer"));
-	const FName SynchronizerWidgetTabId(TEXT("TimecodeSynchronizerEditor_SynchronizerWidget"));
 	const FName Layout(TEXT("Standalone_TimecodeSynchronizerEditor_Layout_v0"));
 }
 
@@ -182,12 +180,7 @@ void FTimecodeSynchronizerEditorToolkit::RegisterTabSpawners(const TSharedRef<cl
 	InTabManager->RegisterTabSpawner(TimecodeSynchronizerEditorToolkit::SourceViewerTabId, FOnSpawnTab::CreateSP(this, &FTimecodeSynchronizerEditorToolkit::SpawnSourceViewerTab))
 		.SetDisplayName(LOCTEXT("SourceViewerTab", "Sources"))
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
-		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Viewports"));
-
-	InTabManager->RegisterTabSpawner(TimecodeSynchronizerEditorToolkit::SynchronizerWidgetTabId, FOnSpawnTab::CreateSP(this, &FTimecodeSynchronizerEditorToolkit::SpawnSynchronizerWidgetTab))
-		.SetDisplayName(LOCTEXT("SynchronizationTab", "Synchronization"))
-		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
-		.SetIcon(FSlateIcon(FTimecodeSynchronizerEditorStyle::GetStyleSetName(), "SynchronizationWidget.small"));
+		.SetIcon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Viewer"));
 }
 
 void FTimecodeSynchronizerEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -267,30 +260,11 @@ TSharedRef<SDockTab> FTimecodeSynchronizerEditorToolkit::SpawnSourceViewerTab(co
 	TSharedPtr<SWidget> TabWidget = SNew(STimecodeSynchronizerSourceViewer, *GetTimecodeSynchronizer());
 
 	return SNew(SDockTab)
-		.Icon(FSlateIcon(FEditorStyle::GetStyleSetName(), "LevelEditor.Tabs.Viewports").GetIcon())
+		.Icon(FEditorStyle::GetBrush("GenericEditor.Tabs.Viewer"))
 		.Label(LOCTEXT("GenericSourceViewerTitle", "Sources"))
 		.TabColorScale(GetTabColorScale())
 		[
 			TabWidget.ToSharedRef()
-		];
-}
-
-TSharedRef<SDockTab> FTimecodeSynchronizerEditorToolkit::SpawnSynchronizerWidgetTab(const FSpawnTabArgs& Args)
-{
-	check(Args.GetTabId() == TimecodeSynchronizerEditorToolkit::SynchronizerWidgetTabId);
-
-	TSharedPtr<SWidget> TabWidget = SNew(STimecodeSynchronizerWidget, *GetTimecodeSynchronizer());
-
-	return SNew(SDockTab)
-		.Icon(FSlateIcon(FTimecodeSynchronizerEditorStyle::GetStyleSetName(), "SynchronizationWidget.small").GetIcon())
-		.Label(LOCTEXT("SynchronizerWidget", "Synchronization"))
-		.TabColorScale(GetTabColorScale())
-		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight()
-			[
-				TabWidget.ToSharedRef()
-			]
 		];
 }
 

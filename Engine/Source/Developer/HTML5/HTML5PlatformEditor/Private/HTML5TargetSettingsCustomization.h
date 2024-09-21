@@ -9,8 +9,6 @@
 #include "IDetailCustomization.h"
 #include "TargetPlatformAudioCustomization.h"
 
-#include "Widgets/SCompoundWidget.h"
-
 class IPropertyHandle;
 class SEditableTextBox;
 class SErrorText;
@@ -33,9 +31,6 @@ public:
 
 private:
 	FHTML5TargetSettingsCustomization();
-
-	void BuildDeprecationMessage(IDetailLayoutBuilder& DetailLayout);
-	void BuildEmscriptenCategory(IDetailLayoutBuilder& DetailLayout);
 
 	//Audio plugin widget builder:
 	FAudioPluginWidgetManager AudioPluginWidgetManager;

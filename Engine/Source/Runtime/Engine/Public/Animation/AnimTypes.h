@@ -50,7 +50,7 @@ enum EBoneAxis
 
 
 /** Enum for controlling which reference frame a controller is applied in. */
-UENUM(BlueprintType)
+UENUM()
 enum EBoneControlSpace
 {
 	/** Set absolute position of bone in world space. */
@@ -280,7 +280,7 @@ public:
  * which has its Notify method called and passed to the animation.
  */
 USTRUCT(BlueprintType)
-struct ENGINE_VTABLE FAnimNotifyEvent : public FAnimLinkableElement
+struct FAnimNotifyEvent : public FAnimLinkableElement
 {
 	GENERATED_USTRUCT_BODY()
 

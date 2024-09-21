@@ -20,8 +20,7 @@ UEditableStaticMeshAdapter::UEditableStaticMeshAdapter()
 	  StaticMeshLODIndex( 0 ),
 	  RecreateRenderStateContext(),
 	  CachedBoundingBoxAndSphere( FVector::ZeroVector, FVector::ZeroVector, 0.0f ),
-	  bUpdateCollisionNeeded( false ),
-	  bRecreateSimplifiedCollision( true )
+	  bUpdateCollisionNeeded( false )
 {
 }
 
@@ -269,21 +268,13 @@ void UEditableStaticMeshAdapter::InitEditableStaticMesh( UEditableMesh* Editable
 				for( uint32 RenderingSectionIndex = 0; RenderingSectionIndex < NumSections; ++RenderingSectionIndex )
 				{
 					const FStaticMeshSection& RenderingSection = StaticMeshLOD.Sections[ RenderingSectionIndex ];
-					UMaterialInterface* MaterialInterface = nullptr;
-					FName MaterialSlotName = "";
-					FName MaterialAssetName = "";
-					if (RenderingSection.MaterialIndex != INDEX_NONE)
-					{
-						FStaticMaterial& StaticMaterial = StaticMesh->StaticMaterials[RenderingSection.MaterialIndex];
-						MaterialInterface = StaticMaterial.MaterialInterface;
-						MaterialSlotName = StaticMaterial.ImportedMaterialSlotName;
-						MaterialAssetName = FName(*MaterialInterface->GetPathName());
-					}
+					const FStaticMaterial& StaticMaterial = StaticMesh->StaticMaterials[ RenderingSection.MaterialIndex ];
+					UMaterialInterface* MaterialInterface = StaticMaterial.MaterialInterface;
 
 					// Create a new polygon group
 					const FPolygonGroupID NewPolygonGroupID = MeshDescription->CreatePolygonGroup();
-					PolygonGroupImportedMaterialSlotNames[NewPolygonGroupID] = MaterialSlotName;
-					PolygonGroupMaterialAssetNames[NewPolygonGroupID] = MaterialAssetName;
+					PolygonGroupImportedMaterialSlotNames[ NewPolygonGroupID ] = StaticMaterial.ImportedMaterialSlotName;
+					PolygonGroupMaterialAssetNames[ NewPolygonGroupID ] = FName( *MaterialInterface->GetPathName() );
 					PolygonGroupCollision[ NewPolygonGroupID ] = RenderingSection.bEnableCollision;
 					PolygonGroupCastShadow[ NewPolygonGroupID ] = RenderingSection.bCastShadow;
 
@@ -653,7 +644,7 @@ void UEditableStaticMeshAdapter::OnRebuildRenderMesh( const UEditableMesh* Edita
 			check( RenderingPolygonGroup.Triangles.GetArraySize() <= RenderingPolygonGroup.MaxTriangles );
 
 			const int32 MaterialIndex = StaticMesh->GetMaterialIndexFromImportedMaterialSlotName( PolygonGroupImportedMaterialSlotNames[ PolygonGroupID ] );
-			//check( MaterialIndex != INDEX_NONE );
+			check( MaterialIndex != INDEX_NONE );
 			StaticMeshSection.MaterialIndex = MaterialIndex;
 			StaticMeshSection.bEnableCollision = PolygonGroupCollision[ PolygonGroupID ];
 			StaticMeshSection.bCastShadow = PolygonGroupCastShadow[ PolygonGroupID ];
@@ -1031,10 +1022,7 @@ void UEditableStaticMeshAdapter::UpdateCollision()
 	// @todo mesheditor collision: We're wiping the existing simplified collision and generating a simple bounding
 	// box collision, since that's the best we can do without impacting performance.  We always using visibility (complex)
 	// collision for traces while mesh editing (for hover/selection), so simplified collision isn't really important.
-	if ( !bRecreateSimplifiedCollision )
-	{
-		return;
-	}
+	const bool bRecreateSimplifiedCollision = true;
 
 	if( StaticMesh->BodySetup == nullptr )
 	{
@@ -1052,21 +1040,27 @@ void UEditableStaticMeshAdapter::UpdateCollision()
 	// NOTE: We don't bother calling Modify() on the BodySetup as EndModification() will rebuild this guy after every undo
 	// BodySetup->Modify();
 
-	if( BodySetup->AggGeom.GetElementCount() > 0 )
+	if( bRecreateSimplifiedCollision )
 	{
-		BodySetup->RemoveSimpleCollision();
+		if( BodySetup->AggGeom.GetElementCount() > 0 )
+		{
+			BodySetup->RemoveSimpleCollision();
+		}
 	}
 
 	BodySetup->InvalidatePhysicsData();
 
-	const FBoxSphereBounds Bounds = StaticMesh->GetBounds();
+	if( bRecreateSimplifiedCollision )
+	{
+		const FBoxSphereBounds Bounds = StaticMesh->GetBounds();
 
-	FKBoxElem BoxElem;
-	BoxElem.Center = Bounds.Origin;
-	BoxElem.X = Bounds.BoxExtent.X * 2.0f;
-	BoxElem.Y = Bounds.BoxExtent.Y * 2.0f;
-	BoxElem.Z = Bounds.BoxExtent.Z * 2.0f;
-	BodySetup->AggGeom.BoxElems.Add( BoxElem );
+		FKBoxElem BoxElem;
+		BoxElem.Center = Bounds.Origin;
+		BoxElem.X = Bounds.BoxExtent.X * 2.0f;
+		BoxElem.Y = Bounds.BoxExtent.Y * 2.0f;
+		BoxElem.Z = Bounds.BoxExtent.Z * 2.0f;
+		BodySetup->AggGeom.BoxElems.Add( BoxElem );
+	}
 
 	// Update all static mesh components that are using this mesh
 	// @todo mesheditor perf: This is a pretty heavy operation, and overlaps with what we're already doing in RecreateRenderStateContext
@@ -1697,7 +1691,7 @@ void UEditableStaticMeshAdapter::OnCreatePolygonGroups( const UEditableMesh* Edi
 			Info.bEnableCollision = StaticMeshSection.bEnableCollision;
 			Info.bCastShadow = StaticMeshSection.bCastShadow;
 			Info.MaterialIndex = StaticMeshSection.MaterialIndex;
-			StaticMesh->GetSectionInfoMap().Set( StaticMeshLODIndex, LODSectionIndex, Info );
+			StaticMesh->SectionInfoMap.Set( StaticMeshLODIndex, LODSectionIndex, Info );
 #endif
 		}
 
@@ -1799,14 +1793,14 @@ void UEditableStaticMeshAdapter::OnDeletePolygonGroups( const UEditableMesh* Edi
 
 #if WITH_EDITORONLY_DATA
 			// SectionInfoMap must be re-indexed to account for the removed Section
-			uint32 NumSectionInfo = StaticMesh->GetSectionInfoMap().GetSectionNumber( StaticMeshLODIndex );
+			uint32 NumSectionInfo = StaticMesh->SectionInfoMap.GetSectionNumber( StaticMeshLODIndex );
 			for ( uint32 Index = RenderingSectionIndex + 1; Index < NumSectionInfo; ++Index )
 			{
-				FMeshSectionInfo SectionInfo = StaticMesh->GetSectionInfoMap().Get( StaticMeshLODIndex, Index );
-				StaticMesh->GetSectionInfoMap().Set( StaticMeshLODIndex, Index - 1, SectionInfo );
+				FMeshSectionInfo SectionInfo = StaticMesh->SectionInfoMap.Get( StaticMeshLODIndex, Index );
+				StaticMesh->SectionInfoMap.Set( StaticMeshLODIndex, Index - 1, SectionInfo );
 			}
 			// And remove the last SectionInfo from the map which is now invalid
-			StaticMesh->GetSectionInfoMap().Remove( StaticMeshLODIndex, NumSectionInfo - 1 );
+			StaticMesh->SectionInfoMap.Remove( StaticMeshLODIndex, NumSectionInfo - 1 );
 #endif
 		}
 

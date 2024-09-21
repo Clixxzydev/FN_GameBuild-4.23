@@ -129,10 +129,9 @@ void FCompositingViewportClient::DrawCanvas(FViewport& /*InViewport*/, FSceneVie
 	// DO NOTHING
 }
 
-bool FCompositingViewportClient::ProcessScreenShots(FViewport* /*InViewport*/)
+void FCompositingViewportClient::ProcessScreenShots(FViewport* /*InViewport*/)
 {
 	// DO NOTHING
-	return false;
 }
 
 bool FCompositingViewportClient::WantsDrawWhenAppIsHidden() const

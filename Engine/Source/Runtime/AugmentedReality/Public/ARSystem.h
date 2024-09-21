@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "XRTrackingSystemBase.h"
 #include "ARTypes.h"
 #include "ARSessionConfig.h"
@@ -14,34 +13,6 @@ class UARSessionConfig;
 class UARTextureCameraImage;
 class UARTextureCameraDepth;
 struct FARTraceResult;
-
-#define DEFINE_AR_DELEGATE_BASE(DelegateName) \
-private: \
-	F##DelegateName DelegateName##Delegates; \
-public: \
-	virtual FDelegateHandle Add##DelegateName##Delegate_Handle(const F##DelegateName##Delegate& Delegate) \
-	{ \
-		DelegateName##Delegates.Add(Delegate); \
-		return Delegate.GetHandle(); \
-	} \
-	virtual void Clear##DelegateName##Delegate_Handle(FDelegateHandle& Handle) \
-	{ \
-		DelegateName##Delegates.Remove(Handle); \
-		Handle.Reset(); \
-	} \
-	virtual void Clear##DelegateName##Delegates(void* Object) \
-	{ \
-		DelegateName##Delegates.RemoveAll(Object); \
-	}
-
-#define DEFINE_AR_DELEGATE_ONE_PARAM(DelegateName, Param1Type) \
-	DEFINE_AR_DELEGATE_BASE(DelegateName) \
-protected: \
-	virtual void Trigger##DelegateName##Delegates(Param1Type Param1) \
-	{ \
-		DelegateName##Delegates.Broadcast(Param1); \
-	} \
-public:
 
 
 /**
@@ -181,40 +152,9 @@ public:
 	virtual void* GetARSessionRawPointer() = 0;
 	virtual void* GetGameThreadARFrameRawPointer() = 0;
 	
-	/** @return if a particular session feature is supported on this device */
-	virtual bool OnIsSessionTrackingFeatureSupported(EARSessionType SessionType, EARSessionTrackingFeature SessionTrackingFeature) const { return false; }
-	
-	/** @return all the tracked 2D poses in AR */
-	virtual TArray<FARPose2D> OnGetTracked2DPose() const { return {}; }
-	
-	/** @return the person segmentation image */
-	virtual UARTextureCameraImage* OnGetPersonSegmentationImage() const { return nullptr; }
-	
-	/** @return the person segmentation depth image */
-	virtual UARTextureCameraImage* OnGetPersonSegmentationDepthImage() const { return nullptr; }
 
+public:
 	virtual ~IARSystemSupport(){}
-
-	/**
-	 * Delegate called when an ar item is added to the scene
-	 *
-	 * @param Added the item that was added
-	 */
-	DEFINE_AR_DELEGATE_ONE_PARAM(OnTrackableAdded, UARTrackedGeometry* /* Added */);
-
-	/**
-	 * Delegate called when an ar item is updated
-	 *
-	 * @param Updated the item that was updated
-	 */
-	DEFINE_AR_DELEGATE_ONE_PARAM(OnTrackableUpdated, UARTrackedGeometry* /* Updated */);
-
-	/**
-	 * Delegate called when an ar item is removed from the scene
-	 *
-	 * @param Removed the item that was removed
-	 */
-	DEFINE_AR_DELEGATE_ONE_PARAM(OnTrackableRemoved, UARTrackedGeometry* /* Removed */);
 };
 
 

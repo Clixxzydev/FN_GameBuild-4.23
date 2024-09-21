@@ -83,7 +83,6 @@ FString ReusableKey;
 FSteamAuthHandlerComponent::FSteamAuthHandlerComponent() :
 	AuthInterface(nullptr),
 	SteamUserPtr(SteamUser()),
-	State(ESteamAuthHandlerState::Uninitialized),
 	bIsEnabled(true),
 	LastTimestamp(0.0f),
 	TicketHandle(k_HAuthTicketInvalid),

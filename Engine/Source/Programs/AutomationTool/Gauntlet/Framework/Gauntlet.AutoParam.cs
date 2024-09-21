@@ -37,7 +37,7 @@ namespace Gauntlet
 		/// <summary>
 		/// Names that can refer to this param
 		/// </summary>
-		public string[] OptionNames { get; protected set; }
+		protected string[] OptionNames;
 
 		/// <summary>
 		/// Constructor that takes nothing. Param option should be -MemberName or -MemberName=value.

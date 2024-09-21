@@ -9,7 +9,7 @@
 #include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 	#include "Windows/WindowsHWrapper.h"
 	#include "Windows/AllowWindowsPlatformTypes.h"
 #else
@@ -91,7 +91,7 @@ namespace MfMedia
 }
 
 
-#if PLATFORM_WINDOWS || PLATFORM_HOLOLENS
+#if PLATFORM_WINDOWS
 	#include "Windows/HideWindowsPlatformTypes.h"
 #else
 	#include "XboxOne/XboxOneHidePlatformTypes.h"

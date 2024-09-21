@@ -51,10 +51,10 @@ public:
 		FRHICommandList& RHICmdList,
 		uint32 SamplesCount, 
 		uint32 BrdfType,
-		FRHIUnorderedAccessView* ResultsBuffer,
-		FRHIUnorderedAccessView* FloatResultsBuffer)
+		FUnorderedAccessViewRHIParamRef ResultsBuffer,
+		FUnorderedAccessViewRHIParamRef FloatResultsBuffer)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 		SetShaderValue(RHICmdList, ShaderRHI, SamplesCountParameter, SamplesCount);
 		SetShaderValue(RHICmdList, ShaderRHI, BrdfTypeParameter, BrdfType);
 		SetUAVParameter(RHICmdList, ShaderRHI, ResultsBufferParameter, ResultsBuffer);
@@ -67,9 +67,9 @@ public:
 		EResourceTransitionPipeline TransitionPipeline,
 		FRWBuffer& ResultsBuffer,
 		FRWBuffer& FloatResultsBuffer,
-		FRHIComputeFence* Fence)
+		FComputeFenceRHIParamRef Fence)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		RHICmdList.TransitionResource(TransitionAccess, TransitionPipeline, ResultsBuffer.UAV, Fence);
 		RHICmdList.TransitionResource(TransitionAccess, TransitionPipeline, FloatResultsBuffer.UAV, Fence);
@@ -137,9 +137,9 @@ public:
 		FVector Wo,
 		uint32 NumThetaSteps,
 		uint32 NumPhiSteps,
-		FRHIUnorderedAccessView* PdfsResultsBuffer)
+		FUnorderedAccessViewRHIParamRef PdfsResultsBuffer)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 		SetShaderValue(RHICmdList, ShaderRHI, BrdfTypeParameter, BrdfType);
 		SetShaderValue(RHICmdList, ShaderRHI, WoParameter, Wo);
 		SetShaderValue(RHICmdList, ShaderRHI, NumThetaStepsParameter, NumThetaSteps);
@@ -152,9 +152,9 @@ public:
 		EResourceTransitionAccess TransitionAccess,
 		EResourceTransitionPipeline TransitionPipeline,
 		FRWBuffer& PdfsResultsBuffer,
-		FRHIComputeFence* Fence)
+		FComputeFenceRHIParamRef Fence)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		RHICmdList.TransitionResource(TransitionAccess, TransitionPipeline, PdfsResultsBuffer.UAV, Fence);
 	}
@@ -225,9 +225,9 @@ public:
 		FVector Wo,
 		uint32 NumThetaSteps,
 		uint32 NumPhiSteps,
-		FRHIUnorderedAccessView* WisBinDistributionResultsBuffer)
+		FUnorderedAccessViewRHIParamRef WisBinDistributionResultsBuffer)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 		SetShaderValue(RHICmdList, ShaderRHI, BrdfTypeParameter, BrdfType);
 		SetShaderValue(RHICmdList, ShaderRHI, NumSamplesParameter, NumSamples);
 		SetShaderValue(RHICmdList, ShaderRHI, WoParameter, Wo);
@@ -241,9 +241,9 @@ public:
 		EResourceTransitionAccess TransitionAccess,
 		EResourceTransitionPipeline TransitionPipeline,
 		FRWBuffer& PdfsResultsBuffer,
-		FRHIComputeFence* Fence)
+		FComputeFenceRHIParamRef Fence)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		RHICmdList.TransitionResource(TransitionAccess, TransitionPipeline, PdfsResultsBuffer.UAV, Fence);
 	}
@@ -314,9 +314,9 @@ public:
 		FVector Wo,
 		uint32 NumThetaSteps,
 		uint32 NumPhiSteps,
-		FRHIUnorderedAccessView* PdfsResultsBuffer)
+		FUnorderedAccessViewRHIParamRef PdfsResultsBuffer)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 		SetShaderValue(RHICmdList, ShaderRHI, BrdfTypeParameter, BrdfType);
 		SetShaderValue(RHICmdList, ShaderRHI, WoParameter, Wo);
 		SetShaderValue(RHICmdList, ShaderRHI, NumThetaStepsParameter, NumThetaSteps);
@@ -329,9 +329,9 @@ public:
 		EResourceTransitionAccess TransitionAccess,
 		EResourceTransitionPipeline TransitionPipeline,
 		FRWBuffer& PdfsResultsBuffer,
-		FRHIComputeFence* Fence)
+		FComputeFenceRHIParamRef Fence)
 	{
-		FRHIComputeShader* ShaderRHI = GetComputeShader();
+		FComputeShaderRHIParamRef ShaderRHI = GetComputeShader();
 
 		RHICmdList.TransitionResource(TransitionAccess, TransitionPipeline, PdfsResultsBuffer.UAV, Fence);
 	}
@@ -361,6 +361,7 @@ IMPLEMENT_SHADER_TYPE(, FTestBrdfIntegrateHemispherePatchCS, TEXT("/Engine/Priva
 TArray<FString> GetBrdfNames(void)
 {
 	// Order should match BrdfType parameter in TestBrdfIntegrityCS until there is a common definition
+	//#dxr_todo: add support for testing different parameters for each BRDF
 	TArray<FString> BrdfNames;
 	BrdfNames.Add("Lambert");
 	BrdfNames.Add("Glossy GGX");
@@ -407,6 +408,7 @@ void TestBRDFsIntegrity(void)
 
 	for (uint32 BrdfType = 0; BrdfType < (uint32) BrdfNames.Num(); ++BrdfType)
 	{
+		//#dxr_todo: check thread safety of UE_LOG() when tests are moved to the EngineTest framework (safety depends because FOutputDevice can overload CanBeUsedOnAnyThread() )
 		UE_LOG(LogShaders, Display, TEXT("Executed validation test for BRDF: %s"), *BrdfNames[BrdfType]);
 
 		FRWBufferStructured BrdsResultsBuffer;
@@ -577,7 +579,7 @@ void TestBRDFandPDFConsistency(void)
 	FRandomStream RandomStream(0);
 	for (uint32 i = 0; i < WosCount; ++i)
 	{
-		//#dxr_todo: UE-72555 use cos weight instead of uniform for this test
+		//#dxr_todo: use cos weight instead of uniform for this test
 		const float U1 = RandomStream.GetFraction();
 		const float U2 = RandomStream.GetFraction();
 
@@ -701,7 +703,7 @@ void TestBRDFandPDFConsistency(void)
 				{
 					uint32 diff = fabsf(SampledPercent - ExpectedPercent);
 					float Err = (float)diff;
-					if (Err > 20.0)
+					if (Err > 20.0) //#dxr_todo: adjust threshold
 					{
 						BinMismatches++;
 					}

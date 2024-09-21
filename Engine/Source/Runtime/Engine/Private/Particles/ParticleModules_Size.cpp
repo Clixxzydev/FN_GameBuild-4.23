@@ -84,7 +84,7 @@ void UParticleModuleSize::PostEditChangeProperty(FPropertyChangedEvent& Property
 
 void UParticleModuleSize::Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase)
 {
-	SpawnEx(Owner, Offset, SpawnTime, &GetRandomStream(Owner), ParticleBase);
+	SpawnEx(Owner, Offset, SpawnTime, NULL, ParticleBase);
 }
 
 void UParticleModuleSize::SpawnEx(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, struct FRandomStream* InRandomStream, FBaseParticle* ParticleBase)
@@ -93,7 +93,7 @@ void UParticleModuleSize::SpawnEx(FParticleEmitterInstance* Owner, int32 Offset,
 	FVector Size		 = StartSize.GetValue(Owner->EmitterTime, Owner->Component, 0, InRandomStream);
 	Particle.Size	+= Size;
 
-	AdjustParticleBaseSizeForUVFlipping(Size, Owner->CurrentLODLevel->RequiredModule->UVFlippingMode, *InRandomStream);
+	AdjustParticleBaseSizeForUVFlipping(Size, Owner->CurrentLODLevel->RequiredModule->UVFlippingMode);
 	Particle.BaseSize += Size;
 }
 
@@ -108,11 +108,27 @@ UParticleModuleSize_Seeded::UParticleModuleSize_Seeded(const FObjectInitializer&
 	bRequiresLoopingNotification = true;
 }
 
+void UParticleModuleSize_Seeded::Spawn(FParticleEmitterInstance* Owner, int32 Offset, float SpawnTime, FBaseParticle* ParticleBase)
+{
+	FParticleRandomSeedInstancePayload* Payload = (FParticleRandomSeedInstancePayload*)(Owner->GetModuleInstanceData(this));
+	SpawnEx(Owner, Offset, SpawnTime, (Payload != NULL) ? &(Payload->RandomStream) : NULL, ParticleBase);
+}
+
+uint32 UParticleModuleSize_Seeded::RequiredBytesPerInstance()
+{
+	return RandomSeedInfo.GetInstancePayloadSize();
+}
+
+uint32 UParticleModuleSize_Seeded::PrepPerInstanceBlock(FParticleEmitterInstance* Owner, void* InstData)
+{
+	return PrepRandomSeedInstancePayload(Owner, (FParticleRandomSeedInstancePayload*)InstData, RandomSeedInfo);
+}
+
 void UParticleModuleSize_Seeded::EmitterLoopingNotify(FParticleEmitterInstance* Owner)
 {
 	if (RandomSeedInfo.bResetSeedOnEmitterLooping == true)
 	{
-		FParticleRandomSeedInstancePayload* Payload = Owner->GetModuleRandomSeedInstanceData(this);
+		FParticleRandomSeedInstancePayload* Payload = (FParticleRandomSeedInstancePayload*)(Owner->GetModuleInstanceData(this));
 		PrepRandomSeedInstancePayload(Owner, Payload, RandomSeedInfo);
 	}
 }

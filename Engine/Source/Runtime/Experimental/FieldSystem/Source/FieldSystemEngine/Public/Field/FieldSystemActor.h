@@ -25,5 +25,4 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Field, meta = (ExposeFunctionCategories = "Components|FieldSystem", AllowPrivateAccess = "true"))
 	UFieldSystemComponent* FieldSystemComponent;
 	UFieldSystemComponent* GetFieldSystemComponent() const { return FieldSystemComponent; }
-	virtual void OnConstruction(const FTransform& Transform) override;
 };

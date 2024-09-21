@@ -125,7 +125,7 @@ void FMaterialGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Ou
 				Params.StartDirection = EGPD_Input;
 			}
 		}
-		else if (!OutputNode->IsNodeEnabled() || OutputNode->IsDisplayAsDisabledForced() || OutputNode->IsNodeUnrelated())
+		else if (!OutputNode->IsNodeEnabled() || OutputNode->IsDisplayAsDisabledForced())
 		{
 			Params.WireColor = MaterialGraphSchema->InactivePinColor;
 		}
@@ -145,7 +145,7 @@ void FMaterialGraphConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* Ou
 				Params.EndDirection = EGPD_Output;
 			}
 		}
-		else if (!InputNode->IsNodeEnabled() || InputNode->IsDisplayAsDisabledForced() || InputNode->IsNodeUnrelated())
+		else if (!InputNode->IsNodeEnabled() || InputNode->IsDisplayAsDisabledForced())
 		{
 			Params.WireColor = MaterialGraphSchema->InactivePinColor;
 		}

@@ -420,7 +420,7 @@ public class DeploymentContext //: ProjectParams
 		{
 			RestrictedFolderNames.ExceptWith(PlatformExports.GetIncludedFolderNames(StagePlatform));
 		}
-		RestrictedFolderNames.UnionWith(RestrictedFolder.GetNames());
+		RestrictedFolderNames.UnionWith(RestrictedFolders.Names);
 		RestrictedFolderNames.Remove(StageTargetPlatform.IniPlatformType.ToString());
 
 		// Read the game config files
@@ -836,9 +836,9 @@ public class DeploymentContext //: ProjectParams
 					FileReference InputFile = new FileReference(FileToCopy);
 
 					bool OtherPlatform = false;
-					foreach (UnrealTargetPlatform Plat in UnrealTargetPlatform.GetValidPlatforms())
+					foreach (UnrealTargetPlatform Plat in Enum.GetValues(typeof(UnrealTargetPlatform)))
 					{
-                        if (Plat != StageTargetPlatform.PlatformType)
+                        if (Plat != StageTargetPlatform.PlatformType && Plat != UnrealTargetPlatform.Unknown)
                         {
                             var Search = FileToCopy;
                             if (InputFile.IsUnderDirectory(LocalRoot))

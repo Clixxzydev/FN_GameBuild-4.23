@@ -15,22 +15,18 @@
 	"Hidden": true,
 	"IsBetaVersion": true,
 	"Installed": false,
-	"SupportedPrograms": [ "UnrealMultiUserServer", "UnrealDisasterRecoveryService" ],
+	"SupportedPrograms": [ "UnrealMultiUserServer" ],
 	"Modules": [
 		{
 			"Name": "ConcertSyncCore",
 			"Type": "Developer",
 			"LoadingPhase": "PreDefault",
-			"WhitelistPrograms": [ "UnrealMultiUserServer", "UnrealDisasterRecoveryService" ]
+			"WhitelistPrograms": [ "UnrealMultiUserServer" ]
 		}
 	],
 	"Plugins": [
 		{
 			"Name": "ConcertMain",
-			"Enabled": true
-		},
-		{
-			"Name": "SQLiteCore",
 			"Enabled": true
 		}
 	]

@@ -976,8 +976,8 @@ void FPkgInfoReporter_Log::GeneratePackageReport( FLinkerLoad* InLinker /*=nullp
 		Out.Logf(ELogVerbosity::Display, TEXT("========"));
 		for( int32 i = 0; i < Linker->NameMap.Num(); ++i )
 		{
-			FName name = FName::CreateFromDisplayId(Linker->NameMap[ i ], 0);
-			Out.Logf(ELogVerbosity::Display, TEXT("\t%d: Name '%s' Comparison Index %d Display Index %d [Internal: %s, %d]"), i, *name.ToString(), name.GetComparisonIndex().ToUnstableInt(), name.GetDisplayIndex().ToUnstableInt(), *name.GetPlainNameString(), name.GetNumber() );
+			FName& name = Linker->NameMap[ i ];
+			Out.Logf(ELogVerbosity::Display, TEXT("\t%d: Name '%s' Comparison Index %d Display Index %d [Internal: %s, %d]"), i, *name.ToString(), name.GetComparisonIndex(), name.GetDisplayIndex(), *name.GetPlainNameString(), name.GetNumber() );
 		}
 	}
 
@@ -1473,13 +1473,7 @@ int32 UPkgInfoCommandlet::Main( const FString& Params )
 	FPkgInfoReporter* Reporter = new FPkgInfoReporter_Log(InfoFlags, bHideOffsets);
 
 	TArray<FString> FilesInPath;
-
-	FString PathWithPackages;
-	if (FParse::Value(*Params, TEXT("AllPackagesIn="), PathWithPackages))
-	{
-		FPackageName::FindPackagesInDirectory(FilesInPath, *PathWithPackages);
-	}
-	else if( Switches.Contains(TEXT("AllPackages")) )
+	if( Switches.Contains(TEXT("AllPackages")) )
 	{
 		FEditorFileUtils::FindAllPackageFiles(FilesInPath);
 	}
@@ -1559,7 +1553,6 @@ int32 UPkgInfoCommandlet::Main( const FString& Params )
 		if (!bDumpProperties)
 		{
 			TGuardValue<bool> GuardAllowUnversionedContentInEditor(GAllowUnversionedContentInEditor, true);
-			TGuardValue<int32> GuardAllowCookedContentInEditor(GAllowCookedDataInEditorBuilds, 1);
 			TRefCountPtr<FUObjectSerializeContext> LoadContext(FUObjectThreadContext::Get().GetSerializeContext());
 			BeginLoad(LoadContext);
 			Linker = CreateLinkerForFilename(LoadContext, Filename);
@@ -1585,7 +1578,6 @@ int32 UPkgInfoCommandlet::Main( const FString& Params )
 			if (Reader)
 			{
 				TGuardValue<bool> GuardAllowUnversionedContentInEditor(GAllowUnversionedContentInEditor, true);
-				TGuardValue<int32> GuardAllowCookedContentInEditor(GAllowCookedDataInEditorBuilds, 1);
 				UPackage* LoadedPackage = LoadPackage(Package, *Filename, LOAD_NoVerify, Reader);
 				if (LoadedPackage)
 				{
@@ -1843,9 +1835,9 @@ struct CompressAnimationsFunctor
 				int32 ResourceSize = CountBytesSize.GetNum();
 
 				NumTotalSize += ResourceSize;
-				
-				FUECompressedAnimData& CompressedData = AnimSeq->CompressedData.CompressedDataStructure;
 
+				FUECompressedAnimData& CompressedData = AnimSeq->CompressedData.CompressedDataStructure;
+				
 				// Looking for PerTrackCompression using 96bit translation compression.
 				if( CompressedData.KeyEncodingFormat == AKF_PerTrackCompression && CompressedData.CompressedByteStream.Num() > 0 )
 				{
@@ -1860,7 +1852,7 @@ struct CompressAnimationsFunctor
  						// Translation
 						{
 							// Use the CompressedTrackOffsets stream to find the data addresses
-							const int32* RESTRICT TrackDataForTransKey = CompressedData.CompressedTrackOffsets.GetData() + (TrackIndex * 2);
+ 							const int32* RESTRICT TrackDataForTransKey = CompressedData.CompressedTrackOffsets.GetData() + (TrackIndex * 2);
 							const int32 TransKeysOffset = TrackDataForTransKey[0];
  							if( TransKeysOffset != INDEX_NONE )
  							{

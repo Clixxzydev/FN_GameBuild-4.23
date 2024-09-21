@@ -5,65 +5,17 @@
 /** This class represents an ChaosSolver Actor. */
 
 #include "Chaos/ChaosSolver.h"
-#include "Chaos/ChaosSolverComponentTypes.h"
-#include "Chaos/PBDRigidClustering.h"
 #include "Components/BillboardComponent.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
 #include "UObject/ObjectMacros.h"
-#include "SolverEventFilters.h"
-
-#include "Engine/EngineTypes.h"
 
 #include "ChaosSolverActor.generated.h"
 
-class UChaosGameplayEventDispatcher;
-
-UENUM()
-enum class EClusterConnectionTypeEnum : uint8
-{
-	Chaos_PointImplicit = Chaos::FClusterCreationParameters<float>::PointImplicit UMETA(DisplayName = "PointImplicit"),
-	Chaos_DelaunayTriangulation = Chaos::FClusterCreationParameters<float>::DelaunayTriangulation UMETA(DisplayName = "DelaunayTriangulation"),
-	Chaos_MinimalSpanningSubsetDelaunayTriangulation = Chaos::FClusterCreationParameters<float>::MinimalSpanningSubsetDelaunayTriangulation UMETA(DisplayName = "MinimalSpanningSubsetDelaunayTriangulation"),
-	Chaos_PointImplicitAugmentedWithMinimalDelaunay = Chaos::FClusterCreationParameters<float>::PointImplicitAugmentedWithMinimalDelaunay UMETA(DisplayName = "PointImplicitAugmentedWithMinimalDelaunay"),
-	Chaos_None = Chaos::FClusterCreationParameters<float>::None UMETA(DisplayName = "None"),
-	//
-	Chaos_EClsuterCreationParameters_Max UMETA(Hidden)
-};
-
-USTRUCT()
-struct FChaosDebugSubstepControl
-{
-	GENERATED_USTRUCT_BODY()
-
-	FChaosDebugSubstepControl() : bPause(false), bSubstep(false), bStep(false) {}
-	
-	/*
-	* Pause the solver at the next synchronization point.
-	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|Debug")
-	bool bPause;
-
-	/*
-	* Substep the solver to the next synchronization point.
-	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|Debug", meta = (EditCondition = "bPause"))
-	bool bSubstep;
-
-	/*
-	* Step the solver to the next synchronization point.
-	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|Debug", meta = (EditCondition = "bPause"))
-	bool bStep;
-
-#if WITH_EDITOR
-	FSimpleDelegate OnPauseChanged;  // Delegate used to refresh the Editor's details customization when the pause value changed.
-#endif
-};
 
 UCLASS()
-class CHAOSSOLVERENGINE_API AChaosSolverActor : public AActor
+class CHAOSSOLVERENGINE_API AChaosSolverActor: public AActor
 {
 	GENERATED_UCLASS_BODY()
 
@@ -92,60 +44,95 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|Iterations")
 	int32 PushOutPairIterations;
 
-	/**
-	* ClusterConnectionFactor
+	/*
+	* Maximum number of collisions passed in a buffer to the ChaosNiagara dataInterface
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|Clustering")
-	float ClusterConnectionFactor;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|CollisionData Generation", meta = (DisplayName = "Maximum Data Size", UIMin = 0))
+	int32 CollisionDataSizeMax;
 
 	/*
-	*  ObjectType defines how to initialize the rigid objects state, Kinematic, Sleeping, Dynamic.
+	* Width of the time window in seconds for collecting collisions in a buffer
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|Clustering")
-	EClusterConnectionTypeEnum ClusterUnionConnectionType;
-
-	/*
-	* Turns on/off collision data generation
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|CollisionData Generation", meta = (DisplayName = "Generate Collision Data"))
-	bool DoGenerateCollisionData;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|CollisionData Generation", meta = (DisplayName = "Time Window", UIMin = 0.0))
+	float CollisionDataTimeWindow;
 
 	/*
 	*
 	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|CollisionData Generation")
-	FSolverCollisionFilterSettings CollisionFilterSettings;
-
-
-	/*
-	* Turns on/off breaking data generation
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|BreakingData Generation", meta = (DisplayName = "Generate Breaking Data"))
-	bool DoGenerateBreakingData;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|CollisionData Generation", meta = (DisplayName = "Use Spatial Hash"))
+	bool DoCollisionDataSpatialHash;
 
 	/*
 	*
 	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|BreakingData Generation")
-	FSolverBreakingFilterSettings BreakingFilterSettings;
-
-	/*
-	* Turns on/off trailing data generation
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|TrailingData Generation", meta = (DisplayName = "Generate Trailing Data"))
-	bool DoGenerateTrailingData;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|CollisionData Generation", meta = (DisplayName = "Spatial Hash Radius", UIMin = 0.01))
+	float CollisionDataSpatialHashRadius;
 
 	/*
 	*
 	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|TrailingData Generation")
-	FSolverTrailingFilterSettings TrailingFilterSettings;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|CollisionData Generation", meta = (DisplayName = "Max Number Collisions Per Cell", UIMin = 0))
+	int32 MaxCollisionPerCell;
+
+	/*
+	* Maximum number of breakings passed in a buffer to the ChaosNiagara dataInterface
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|BreakingData Generation", meta = (DisplayName = "Maximum Data Size", UIMin = 0))
+	int32 BreakingDataSizeMax;
+
+	/*
+	* Width of the time window in seconds for collecting breakings in a buffer
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|BreakingData Generation", meta = (DisplayName = "Time Window"))
+	float BreakingDataTimeWindow;
+
+	/*
+	*
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|BreakingData Generation", meta = (DisplayName = "Use Spatial Hash"))
+	bool DoBreakingDataSpatialHash;
+
+	/*
+	*
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|BreakingData Generation", meta = (DisplayName = "Spatial Hash Radius", UIMin = 0.01))
+	float BreakingDataSpatialHashRadius;
+
+	/*
+	*
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|BreakingData Generation", meta = (DisplayName = "Max Number Breakings Per Cell", UIMin = 0))
+	int32 MaxBreakingPerCell;
+
+	/*
+	* Maximum number of trailings passed in a buffer to the ChaosNiagara dataInterface
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|TrailingData Generation", meta = (DisplayName = "Maximum Data Size", UIMin = 0))
+	int32 TrailingDataSizeMax;
+
+	/*
+	* Width of the time window in seconds for collecting trailings in a buffer
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|TrailingData Generation", meta = (DisplayName = "Time Window"))
+	float TrailingDataTimeWindow;
+
+	/*
+	*
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|TrailingData Generation", meta = (DisplayName = "Min Speed Threshold", UIMin = 0.01))
+	float TrailingMinSpeedThreshold;
+
+	/*
+	*
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|TrailingData Generation", meta = (DisplayName = "Min Volume Threshold", UIMin = 0.01))
+	float TrailingMinVolumeThreshold;
 
 	/*
 	* 
 	*/
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics|Floor", meta = (DisplayName = "Use Floor"))
-	bool bHasFloor;
+	bool HasFloor;
 
 	/*
 	* 
@@ -154,42 +141,31 @@ public:
 	float FloorHeight;
 
 	/*
-	* 
-	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ChaosPhysics", meta = (DisplayName = "Mass Scale"))
-	float MassScale;
-
-	/*
-	* Control to pause/step/substep the solver to the next synchronization point.
-	*/
-	UPROPERTY(EditAnywhere, Category = "ChaosPhysics|Debug")
-	FChaosDebugSubstepControl ChaosDebugSubstepControl;
-
-	/** Makes this solver the current world solver. Dynamically spawned objects will have their physics state created in this solver. */
-	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	void SetAsCurrentWorldSolver();
-
-	/** Controles whether the solver is able to simulate particles it controls */
-	UFUNCTION(BlueprintCallable, Category = "ChaosPhysics")
-	virtual void SetSolverActive(bool bActive);
-
-	/*
 	* Display icon in the editor
 	*/
 	UPROPERTY()
+	// A UBillboardComponent to hold Icon sprite
 	UBillboardComponent* SpriteComponent;
 
-	UChaosGameplayEventDispatcher* GetGameplayEventDispatcher() const { return GameplayEventDispatcherComponent; };
+	// Icon sprite
+	UTexture2D* SpriteTexture;
 
 #if INCLUDE_CHAOS
-	TSharedPtr<FPhysScene_Chaos> GetPhysicsScene() const { return PhysScene; }
-	Chaos::FPBDRigidsSolver* GetSolver() const { return Solver; }
+	TSharedPtr<FPhysScene_Chaos> GetPhysicsScene()
+	{
+		return PhysScene;
+	}
+
+	Chaos::PBDRigidsSolver* GetSolver()
+	{
+		return Solver;
+	}
+
 #endif
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
-	virtual void PostRegisterAllComponents() override;
 	
 	virtual void BeginPlay() override;
 	virtual void EndPlay(EEndPlayReason::Type ReasonEnd) override;
@@ -197,10 +173,6 @@ public:
 private:
 #if INCLUDE_CHAOS
 	TSharedPtr<FPhysScene_Chaos> PhysScene;
-	Chaos::FPBDRigidsSolver* Solver;
+	Chaos::PBDRigidsSolver* Solver;
 #endif
-
-	/** Component responsible for harvesting and triggering physics-related gameplay events (hits, breaks, etc) */
-	UPROPERTY()
-	UChaosGameplayEventDispatcher* GameplayEventDispatcherComponent;
 };

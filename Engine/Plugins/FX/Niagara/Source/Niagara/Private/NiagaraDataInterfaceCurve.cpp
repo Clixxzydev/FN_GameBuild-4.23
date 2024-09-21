@@ -80,22 +80,18 @@ void UNiagaraDataInterfaceCurve::PostLoad()
 	{
 		UpdateLUT();
 	}
+#if !UE_BUILD_SHIPPING
 	else
 	{
-
-#if !UE_BUILD_SHIPPING
 		TArray<float> OldLUT = ShaderLUT;
-#endif
 		UpdateLUT();
 
-
-#if !UE_BUILD_SHIPPING
 		if (!CompareLUTS(OldLUT))
 		{
 			UE_LOG(LogNiagara, Log, TEXT("PostLoad LUT generation is out of sync. Please investigate. %s"), *GetPathName());
 		}
-#endif
 	}
+#endif
 }
 
 
@@ -121,7 +117,7 @@ void UNiagaraDataInterfaceCurve::UpdateLUT()
 		float C = Curve.Eval(X);
 		ShaderLUT.Add(C);
 	}
-	Super::PushToRenderThread();
+	GPUBufferDirty = true;
 }
 
 // build the shader function HLSL; function name is passed in, as it's defined per-DI; that way, configuration could change

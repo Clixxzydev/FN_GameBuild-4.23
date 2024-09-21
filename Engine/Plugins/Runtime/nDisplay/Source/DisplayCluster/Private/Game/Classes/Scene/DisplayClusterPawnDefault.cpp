@@ -6,13 +6,13 @@
 #include "Game/IPDisplayClusterGameManager.h"
 
 #include "DisplayClusterSceneComponentSyncParent.h"
-#include "DisplayClusterSettings.h"
 
+#include "DisplayClusterSettings.h"
 #include "DisplayClusterGameMode.h"
 #include "DisplayClusterGlobals.h"
-#include "DisplayClusterLog.h"
 
 #include "Engine/World.h"
+#include "Misc/DisplayClusterLog.h"
 #include "GameFramework/WorldSettings.h"
 
 
@@ -72,7 +72,7 @@ void ADisplayClusterPawnDefault::BeginPlay()
 		return;
 	}
 
-	IPDisplayClusterGameManager* const GameMgr = GDisplayCluster->GetPrivateGameMgr();
+	GameMgr = GDisplayCluster->GetPrivateGameMgr();
 	bIsCluster = (GDisplayCluster->GetOperationMode() == EDisplayClusterOperationMode::Cluster);
 
 	bUseControllerRotationYaw   = !bIsCluster;
@@ -165,7 +165,7 @@ void ADisplayClusterPawnDefault::TurnAtRate(float Rate)
 		IPDisplayClusterGameManager* const pMgr = GDisplayCluster->GetPrivateGameMgr();
 		if (pMgr)
 		{
-			UDisplayClusterCameraComponent* const pCam = pMgr->GetDefaultCamera();
+			auto* const pCam = pMgr->GetActiveCamera();
 			if (pCam)
 			{
 				if (RotatingComponent->UpdatedComponent)
@@ -198,7 +198,7 @@ void ADisplayClusterPawnDefault::TurnAtRate2(float Rate)
 		IPDisplayClusterGameManager* const pMgr = GDisplayCluster->GetPrivateGameMgr();
 		if (pMgr)
 		{
-			UDisplayClusterCameraComponent* const pCam = pMgr->GetDefaultCamera();
+			UDisplayClusterCameraComponent* const pCam = pMgr->GetActiveCamera();
 			if (pCam)
 			{
 				if (RotatingComponent2->UpdatedComponent)

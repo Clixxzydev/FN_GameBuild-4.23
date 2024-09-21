@@ -1,4 +1,4 @@
-INTSourceChangelist:6409500
+INTSourceChangelist:4326187
 Availability: Public
 Crumbs: %ROOT%, Engine, Engine/Animation, Engine/Animation/Persona, Engine/Animation/Persona/Modes
 Title:스켈레톤 에디터
@@ -12,7 +12,10 @@ tags:Skeletal Mesh
 tags:Animation
 tags:Tools
 topic-image:skeletonEdtior_topic.png
-hero-image:BannerImage2.png
+
+[REGION:banner]
+![](BannerImage2.png)
+[/REGION]
 
 
 [EXCERPT:Overview]
