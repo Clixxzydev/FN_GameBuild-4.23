@@ -4,9 +4,7 @@ The steps below will take you through cloning your own private fork, then compil
 
 # Windows
 
-1. Install GitHub for Windows then fork and clone our repository. To use Git from the command line, see the Setting up Git and Fork a Repo articles.
-
-If you'd prefer not to use Git, you can get the source with the 'Download ZIP' button on the right. The built-in Windows zip utility will mark the contents of zip files downloaded from the Internet as unsafe to execute, so right-click the zip file and select 'Properties...' and 'Unblock' before decompressing it. Third-party zip utilities don't normally do this.
+1. Download the Proper Source Code, from releases.
 
 2. Install Visual Studio 2017. All desktop editions of Visual Studio 2017 can build UE4, including Visual Studio Community 2017, which is free for small teams and individual developers. To install the correct components for UE4 development, check the "Game Development with C++" workload, and the "Unreal Engine Installer" and "Nuget Package Manager" optional components.
 
